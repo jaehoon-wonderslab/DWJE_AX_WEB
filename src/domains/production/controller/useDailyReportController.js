@@ -44,10 +44,23 @@ export function useDailyReportController() {
   const toast = useUiStore((state) => state.toast);
   const canData = useAuthStore((state) => state.canData);
 
-  /** 대상일 — 화면에서 고릅니다 (전역 기준일은 처음 한 번만 씁니다) */
-  const [targetDate, setTargetDate] = useState(baseDate);
+  /**
+   * 대상일 — 화면에서 고릅니다 (전역 기준일은 처음 한 번만 씁니다)
+   *
+   * 날짜 칸은 직접 타이핑할 수 있어 '2026-0' 같은 중간 상태를 거칩니다.
+   * 그대로 조회하면 서버에 못 쓸 날짜가 나가므로, 형식이 갖춰진 값만 조회에 씁니다.
+   */
+  const [input, setInput] = useState(baseDate);
+  const [queried, setQueried] = useState(baseDate);
   const [processId, setProcessId] = useState('전체');
   const [topN, setTopN] = useState(10);
+
+  const setTargetDate = useCallback((v) => {
+    setInput(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(`${v}T00:00:00`).getTime())) setQueried(v);
+  }, []);
+
+  const targetDate = queried;
 
   const { data, loading, reload } = useAsync(() => loadDailyReport(targetDate), [targetDate]);
   const draft = data?.draft;
@@ -182,6 +195,7 @@ export function useDailyReportController() {
     loading,
     sheetLoading,
     targetDate,
+    dateInput: input,
     setTargetDate,
     processId,
     setProcessId,

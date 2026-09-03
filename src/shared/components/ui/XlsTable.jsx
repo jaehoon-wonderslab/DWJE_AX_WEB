@@ -8,6 +8,8 @@
  * rows:    [{ cells: [{ v, tone, align, span, mono, bold }], tone, group }]
  *   · tone  — 'ok' | 'warn' | 'bad' | 'group' | 'total'
  *   · span  — 가로 병합 칸 수 (해당 칸이 오른쪽 칸들을 흡수)
+ *   · node  — v 대신 넣는 요소. Text 로 감싸지 않으므로 마스킹 배지·입력칸처럼
+ *             View 를 담는 칸에 씁니다 (v 와 같이 주면 node 가 이깁니다)
  *
  * 사용 예)
  *   <XlsTable columns={cols} rows={rows} headerRows={[[{v:'구분',rowSpan:2}, …]]} />
@@ -73,6 +75,14 @@ export default function XlsTable({ columns, rows, style, maxHeight, nativeID, fo
               const col = columns[colIdx];
               const span = cell.span || 1;
               colIdx += span;
+              // node 를 준 칸은 Text 로 감싸지 않습니다 (마스킹 배지·입력칸처럼 View 를 담는 칸)
+              if (cell.node !== undefined && cell.node !== null) {
+                return (
+                  <View key={ci} style={[s.xlsCell, ...toneCell(cell.tone || row.tone), widthOf(col, span)]}>
+                    {cell.node}
+                  </View>
+                );
+              }
               return (
                 <View key={ci} style={[s.xlsCell, ...toneCell(cell.tone || row.tone), widthOf(col, span)]}>
                   <Text

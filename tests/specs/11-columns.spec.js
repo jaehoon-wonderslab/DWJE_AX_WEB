@@ -42,7 +42,6 @@ const TABLES = (f) => [
   ['system/view/ChatHistoryView.jsx', [['/ai/chat/history', { size: 5 }, 'items']]],
   ['production/view/ProductionMonitorView.jsx', [['/production/monitor/equipments', { size: 5 }, 'items']]],
   ['production/view/ProductionResultView.jsx', [['/production/results', { from: f.monthFrom, to: f.monthTo, unit: 'day' }, 'items']]],
-  ['production/view/DowntimeView.jsx', [['/production/downtimes', { date: f.baseDate, size: 5 }, 'items']]],
   ['system/view/MetricStdView.jsx', [
     ['/metrics/standards', { size: 5 }, 'items'],
     ['/metrics/standards/history', { size: 5 }, 'items'],

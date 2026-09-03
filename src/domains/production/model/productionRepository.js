@@ -402,46 +402,74 @@ const isPress = (p) => /프레스|press/i.test(`${p?.name || ''}`);
  * @returns {Promise<{rows:Array, processes:Array, window:object, baseline:string}>}
  */
 export async function loadPressReport({ targetDate, processId, topN = 10 }) {
-  const pid = processId && processId !== '전체' ? processId : undefined;
+  const master = await unwrap(commonService.getCommonMastersProcesses({}), { processes: [] });
+  const presses = (master?.processes || []).filter(isPress);
+  const nameOf = Object.fromEntries((master?.processes || []).map((p) => [p.id, p.name]));
+
+  /**
+   * 조회 대상 공정
+   *
+   * '전체' 는 **프레스 작업장 전부**입니다. 공정을 빼고 부르면 용접·도금까지 섞여
+   * PRESS 자료에 다른 공정 제품이 올라옵니다(실제로 Welding 제품이 올라왔습니다).
+   */
+  const pids = processId && processId !== '전체' ? [processId] : presses.map((p) => p.id);
+  if (!pids.length) return { rows: [], processes: presses, window: shiftWindow(targetDate), baseline: '' };
+
   const week = weekDates(targetDate);
   const base = Array.from({ length: 7 }, (_, i) => shiftDate(targetDate, -(i + 1))); // 기준선용 직전 7일
 
-  const [master, dayList, weekList, baseList] = await Promise.all([
-    unwrap(commonService.getCommonMastersProcesses({}), { processes: [] }),
-    productsOf(targetDate, pid),
-    Promise.all(week.filter((d) => d !== targetDate).map((d) => productsOf(d, pid))),
-    Promise.all(base.map((d) => productsOf(d, pid))),
+  /** (날짜, 공정) 한 쌍당 한 번만 부릅니다 — 주간·기준선 구간이 겹칩니다 */
+  const cache = new Map();
+  const at = (date) =>
+    Promise.all(
+      pids.map((pid) => {
+        const key = `${date}|${pid}`;
+        if (!cache.has(key)) cache.set(key, productsOf(date, pid));
+        return cache.get(key);
+      })
+    ).then((lists) => lists.flat());
+
+  const [dayList, weekList, baseList] = await Promise.all([
+    at(targetDate),
+    Promise.all(week.filter((d) => d !== targetDate).map(at)),
+    Promise.all(base.map(at)),
   ]);
 
-  const processes = (master?.processes || []).filter(isPress);
-  const eqptCnt = processes.reduce((n, p) => n + (p.eqptCnt || 0), 0);
-  const eqptOf = Object.fromEntries(processes.map((p) => [p.id, p.eqptCnt || 0]));
-  const nameOf = Object.fromEntries((master?.processes || []).map((p) => [p.id, p.name]));
+  const eqptCnt = pids.reduce((n, id) => n + (presses.find((p) => p.id === id)?.eqptCnt || 0), 0);
 
+  const dayQty = sumBy([dayList]);
+  const dayOk = sumBy([dayList], 'okQty');
+  const dayNg = sumBy([dayList], 'ngQty');
   const weekQty = sumBy([dayList, ...weekList]);
   const baseQty = sumBy(baseList);
   const baseDays = base.length;
 
-  const rows = dayList
-    .map((x) => {
+  /** 같은 제품이 여러 프레스 작업장에서 나오므로 제품 단위로 한 행씩 묶습니다 */
+  const nmOf = {};
+  dayList.forEach((x) => { if (x?.product) nmOf[x.product] = x.productNm || x.product; });
+
+  const rows = Object.keys(dayQty)
+    .map((code) => {
       /** 일목표 — 목표 마스터가 붙기 전까지 최근 7일 평균 실적 */
-      const target = baseQty[x.product] ? Math.round(baseQty[x.product] / baseDays) : null;
+      const target = baseQty[code] ? Math.round(baseQty[code] / baseDays) : null;
       const weekTarget = target === null ? null : target * week.length;
-      const wq = weekQty[x.product] || 0;
+      const wq = weekQty[code] || 0;
+      const qty = dayQty[code];
+      const ng = dayNg[code] || 0;
       return {
-        product: x.product,
-        productNm: x.productNm || x.product,
-        process: pid ? nameOf[pid] || pid : 'Press',
-        qty: x.qty ?? null,
-        okQty: x.okQty ?? null,
-        ngQty: x.ngQty ?? null,
-        defectRate: x.defectRate ?? null,
+        product: code,
+        productNm: nmOf[code] || code,
+        process: pids.length === 1 ? nameOf[pids[0]] || pids[0] : 'Press',
+        qty,
+        okQty: dayOk[code] ?? null,
+        ngQty: ng,
+        defectRate: qty ? round1((ng / qty) * 100) : null,
         target,
-        rate: target ? round1((x.qty / target) * 100) : null,
+        rate: target ? round1((qty / target) * 100) : null,
         weekTarget,
         weekQty: wq,
         weekRate: weekTarget ? round1((wq / weekTarget) * 100) : null,
-        eqptCnt: pid ? eqptOf[pid] ?? null : eqptCnt || null,
+        eqptCnt: eqptCnt || null,
       };
     })
     .sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0))
@@ -449,7 +477,7 @@ export async function loadPressReport({ targetDate, processId, topN = 10 }) {
 
   return {
     rows,
-    processes,
+    processes: presses,
     window: shiftWindow(targetDate),
     baseline: `최근 ${baseDays}일 평균 실적 (${base[base.length - 1]} ~ ${base[0]})`,
   };
@@ -461,12 +489,12 @@ async function productsOf(date, processId) {
   return data?.items || [];
 }
 
-/** 여러 날치 제품별 실적을 제품코드로 합산 */
-function sumBy(lists) {
+/** 여러 날·여러 공정치 제품별 실적을 제품코드로 합산 */
+function sumBy(lists, key = 'qty') {
   const out = {};
   lists.flat().forEach((x) => {
     if (!x?.product) return;
-    out[x.product] = (out[x.product] || 0) + (x.qty || 0);
+    out[x.product] = (out[x.product] || 0) + (x[key] || 0);
   });
   return out;
 }
