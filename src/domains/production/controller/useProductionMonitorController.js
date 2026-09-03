@@ -40,8 +40,8 @@ export function useProductionMonitorController() {
   // 선택지는 실제 설비 목록에서 만듭니다.
   // 기준정보 공정은 37종인데 설비가 있는 공정은 17종뿐이라, 마스터를 그대로 쓰면
   // 20종은 골라도 0건입니다 — 사용자는 필터가 고장난 것으로 봅니다.
-  // (서버 한 쪽 상한이 1,000건이라 그만큼 받습니다)
-  const { data: pool } = useAsync(() => loadMonitor({ size: 1000 }), [], { silent: true });
+  // size=0 은 전량입니다 — 1,000 으로 자르면 뒤쪽 공정·모델이 선택지에서 빠집니다
+  const { data: pool } = useAsync(() => loadMonitor({ size: 0 }), [], { silent: true });
   const { data: processMaster } = useAsync(loadProcessOptions, [], { silent: true, initialData: [] });
 
   // 설비가 1,000대를 넘어 한 쪽씩 끊어 봅니다 (조회 조건이 바뀌면 1쪽으로)
@@ -63,12 +63,16 @@ export function useProductionMonitorController() {
   }, [data]);
 
   /**
-   * IoT 수집값이 하나도 없는지.
-   * 가동률·타발 속도·최근 수집은 설비 IoT 에서 옵니다. 세 열이 통째로 비면
-   * 화면에는 '—' 만 늘어서 고장으로 보입니다 — 왜 비었는지 알려 줘야 합니다.
+   * 값이 비는 이유가 둘인데 성격이 다릅니다. 섞어서 안내하면 오해가 생깁니다.
+   *
+   *  iotMissing     가동률·타발 속도·최근 수집 — IoT 수집 경로가 아직 없어 **상시** 빈 값입니다
+   *                 (원천 ax.tb_met_metric_value 가 0행)
+   *  noOutputToday  생산량·불량률 — 모니터링은 당일 기준이라, 그날 이관 전이면 0 입니다.
+   *                 이관이 돌면 채워집니다. 오전에는 정상적으로 0 일 수 있습니다
    */
   const iotMissing = items.length > 0
     && items.every((x) => x.uptimeRate === null && x.strokeSpeed === null && !x.lastCollectedAt);
+  const noOutputToday = items.length > 0 && items.every((x) => !x.qty);
 
   // 10초마다 자동 새로고침 (조회 조건은 그대로 유지 · 화면을 떠나면 정리)
   useEffect(() => {
@@ -96,11 +100,9 @@ export function useProductionMonitorController() {
   const exportExcel = useCallback(async () => {
     let rows = items;
     try {
-      const all = await loadMonitor({ processId, model, state, page: 1, size: 1000 });
+      // size=0 은 전량입니다 (한 쪽 상한 1,000 을 넘어 전부 옵니다)
+      const all = await loadMonitor({ processId, model, state, size: 0 });
       rows = all?.equipments?.items || items;
-      if ((itemsMeta?.total ?? 0) > rows.length) {
-        toast(`설비 ${itemsMeta.total.toLocaleString('ko-KR')}대 중 ${rows.length.toLocaleString('ko-KR')}대까지 내려받습니다`);
-      }
     } catch {
       toast('전체를 불러오지 못해 현재 쪽만 내려받습니다');
     }
@@ -132,6 +134,7 @@ export function useProductionMonitorController() {
     processOptions: buildProcessOptions(pool?.equipments?.items, processMaster),
     modelOptions: ['전체', ...new Set((pool?.equipments?.items || []).map((x) => x.model).filter((m) => m && String(m).trim()))],
     iotMissing,
+    noOutputToday,
     updatedAt,
     stateOptions: MONITOR_STATE_OPTIONS,
     setProcessId,

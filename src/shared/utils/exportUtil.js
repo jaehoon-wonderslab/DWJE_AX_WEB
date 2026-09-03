@@ -228,15 +228,19 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
       },
     });
 
-    // 컬럼 정의
+    // 컬럼 정의 (사용자 후처리 편집 및 피벗 분석이 용이하도록 개별 셀로 완전 분리)
     ws.columns = [
-      { header: head?.[0] || '일자 / 제품명 / 공장·공정·설비', key: 'name', width: 44 },
-      { header: head?.[1] || '투입 수량', key: 'inputQty', width: 16 },
-      { header: head?.[2] || '양품 수량', key: 'okQty', width: 16 },
-      { header: head?.[3] || '불량 수량', key: 'ngQty', width: 16 },
-      { header: head?.[4] || '불량률', key: 'defectRate', width: 14 },
-      { header: head?.[5] || '가동률', key: 'uptimeRate', width: 14 },
-      { header: head?.[6] || '비가동 시간', key: 'downtimeMin', width: 16 },
+      { header: '일자', key: 'period', width: 14 },
+      { header: '제품명', key: 'product', width: 18 },
+      { header: '공장', key: 'plant', width: 13 },
+      { header: '공정', key: 'process', width: 14 },
+      { header: '설비(기기)', key: 'equipment', width: 26 },
+      { header: '투입 수량', key: 'inputQty', width: 16 },
+      { header: '양품 수량', key: 'okQty', width: 16 },
+      { header: '불량 수량', key: 'ngQty', width: 16 },
+      { header: '불량률', key: 'defectRate', width: 13 },
+      { header: '가동률', key: 'uptimeRate', width: 13 },
+      { header: '비가동 시간', key: 'downtimeMin', width: 15 },
     ];
 
     // 헤더 스타일링 (Shadcn 깔끔한 테마)
@@ -270,12 +274,16 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
 
     let totalExportedRows = 0;
 
-    // 1depth ➔ 2depth ➔ 3depth 순회
+    // 1depth (일자) ➔ 2depth (제품) ➔ 3depth (공장/공정/설비) 순회
     rows.forEach((r1) => {
       totalExportedRows++;
-      // Depth 1 (일자)
+      // Depth 1 (일자 요약 행)
       const row1 = ws.addRow({
-        name: r1.period,
+        period: r1.period,
+        product: '전체 (일자 합계)',
+        plant: '—',
+        process: '—',
+        equipment: '—',
         inputQty: numFmt(r1.inputQty),
         okQty: numFmt(r1.okQty),
         ngQty: numFmt(r1.ngQty),
@@ -283,16 +291,21 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
         uptimeRate: pctFmt(r1.uptimeRate),
         downtimeMin: r1.downtimeMin != null ? `${r1.downtimeMin}분` : '—',
       });
-      row1.height = 24;
+      row1.height = 25;
       row1.font = { name: 'Pretendard', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      row1.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF8FAFC' },
+      };
       row1.outlineLevel = 0;
       row1.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         cell.border = borderStyle;
         cell.alignment = {
           vertical: 'middle',
-          horizontal: colNumber === 1 ? 'left' : 'right',
+          horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
         };
-        if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+        if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
           cell.numFmt = '#,##0';
         }
       });
@@ -300,9 +313,13 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
       if (Array.isArray(r1._children) && r1._children.length > 0) {
         r1._children.forEach((r2) => {
           totalExportedRows++;
-          // Depth 2 (제품)
+          // Depth 2 (제품 소계 행)
           const row2 = ws.addRow({
-            name: `   └ ${r2.period}`,
+            period: r1.period,
+            product: r2.period,
+            plant: '—',
+            process: '—',
+            equipment: '제품 소계',
             inputQty: numFmt(r2.inputQty),
             okQty: numFmt(r2.okQty),
             ngQty: numFmt(r2.ngQty),
@@ -310,16 +327,21 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
             uptimeRate: '—',
             downtimeMin: '—',
           });
-          row2.height = 22;
-          row2.font = { name: 'Pretendard', size: 10, bold: true, color: { argb: 'FF2563EB' } };
+          row2.height = 23;
+          row2.font = { name: 'Pretendard', size: 10, bold: true, color: { argb: 'FF1D4ED8' } };
+          row2.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF0F7FF' },
+          };
           row2.outlineLevel = 1; // 엑셀 그룹 1레벨
           row2.eachCell({ includeEmpty: true }, (cell, colNumber) => {
             cell.border = borderStyle;
             cell.alignment = {
               vertical: 'middle',
-              horizontal: colNumber === 1 ? 'left' : 'right',
+              horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
             };
-            if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+            if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
               cell.numFmt = '#,##0';
             }
           });
@@ -327,11 +349,13 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
           if (Array.isArray(r2._children) && r2._children.length > 0) {
             r2._children.forEach((r3) => {
               totalExportedRows++;
-              // Depth 3 (공정 / 프레스 기기)
-              const plantLabel = r3.plantNm ? `${r3.plantNm} · ` : '';
-              const procLabel = r3.processNm ? `[${plantLabel}${r3.processNm}] ` : (r3.plantNm ? `[${r3.plantNm}] ` : '');
+              // Depth 3 (세부 공장/공정/설비 행)
               const row3 = ws.addRow({
-                name: `       └ ${procLabel}${r3.period}`,
+                period: r1.period,
+                product: r2.period,
+                plant: r3.plantNm || '제1공장',
+                process: r3.processNm || '공정',
+                equipment: r3.period, // 예: MT-004 (프레스 04호기)
                 inputQty: numFmt(r3.inputQty),
                 okQty: numFmt(r3.okQty),
                 ngQty: numFmt(r3.ngQty),
@@ -339,16 +363,16 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
                 uptimeRate: '—',
                 downtimeMin: '—',
               });
-              row3.height = 21;
-              row3.font = { name: 'Pretendard', size: 9.5, color: { argb: 'FF475569' } };
+              row3.height = 22;
+              row3.font = { name: 'Pretendard', size: 9.5, color: { argb: 'FF334155' } };
               row3.outlineLevel = 2; // 엑셀 그룹 2레벨
               row3.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                 cell.border = borderStyle;
                 cell.alignment = {
                   vertical: 'middle',
-                  horizontal: colNumber === 1 ? 'left' : 'right',
+                  horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
                 };
-                if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+                if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
                   cell.numFmt = '#,##0';
                 }
               });

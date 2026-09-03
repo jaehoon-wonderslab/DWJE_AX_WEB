@@ -49,7 +49,7 @@ export default function ProductionMonitorView({
   paging, itemsMeta,
   loading, summary, items, filters, setProcessId, setModel, setState,
   autoRefresh, toggleAutoRefresh, search, exportExcel, modelOptions, processOptions, stateOptions = ['전체'],
-  iotMissing, updatedAt }) {
+  iotMissing, noOutputToday, updatedAt }) {
   const s = useCommonStyles();
 
   // 전체 대수는 응답에 없으면 가동·경고·비가동 합으로 셉니다 (박아 둔 숫자는 실제 설비 수와 다릅니다)
@@ -88,11 +88,21 @@ export default function ProductionMonitorView({
         <Button label="조회" variant="primary" onPress={search} />
       </Filters>
 
+      {/* 비는 이유가 둘이고 성격이 다릅니다 — 하나는 상시, 하나는 그날 이관 전까지만 */}
       {iotMissing ? (
         <>
           <Hint icon="alert">
-            {'설비 IoT 수집값이 들어오지 않고 있습니다 — 가동률 · 타발 속도 · 최근 수집이 비어 있습니다. '
-              + '설비 상태와 생산량은 MES 실적 기준으로 표시됩니다.'}
+            {'설비 IoT 수집이 아직 연결되지 않았습니다 — 가동률 · 타발 속도 · 최근 수집은 상시 비어 있습니다. '
+              + '설비 상태는 IoT 값이 없어 전부 비가동으로 표시됩니다.'}
+          </Hint>
+          <Gap />
+        </>
+      ) : null}
+      {noOutputToday ? (
+        <>
+          <Hint>
+            {'오늘 라벨 실적이 아직 들어오지 않아 생산량 · 불량률이 0 입니다. '
+              + '모니터링은 당일 기준이며, MES 이관이 돌면 채워집니다.'}
           </Hint>
           <Gap />
         </>
