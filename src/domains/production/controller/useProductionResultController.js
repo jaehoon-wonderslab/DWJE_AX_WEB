@@ -251,7 +251,7 @@ export function useProductionResultController() {
     // 3depth 계층(일자 ➔ 제품 ➔ 공정/프레스 기기) 및 엑셀 그룹핑(+/-) 지원 .xlsx 다운로드
     await downloadXlsxTree({
       name: `생산_실적_집계_${from}_${to}`,
-      head: ['일자 / 제품명 / 공정·설비', '투입 수량', '양품 수량', '불량 수량', '불량률', '가동률', '비가동 시간'],
+      head: ['일자 / 제품명 / 공장·공정·설비', '투입 수량', '양품 수량', '불량 수량', '불량률', '가동률', '비가동 시간'],
       rows: items,
     });
   }, [items, from, to]);

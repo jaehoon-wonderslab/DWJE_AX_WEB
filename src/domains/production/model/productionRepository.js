@@ -87,9 +87,14 @@ function makeProcessChildren(productName, totalQty, ngQty) {
   const r2 = q2 > 0 ? (ng2 / q2) * 100 : 0;
   const r3 = q3 > 0 ? (ng3 / q3) * 100 : 0;
 
+  const plant1 = Number(pressNum1) <= 10 ? '제1공장' : '제2공장';
+  const plant2 = Number(pressNum2) <= 10 ? '제1공장' : '제3공장';
+  const plant3 = '제1공장';
+
   return [
     {
       period: `MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
+      plantNm: plant1,
       processNm: '프레스 공정',
       isGrandChild: true,
       depth: 3,
@@ -102,6 +107,7 @@ function makeProcessChildren(productName, totalQty, ngQty) {
     },
     {
       period: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
+      plantNm: plant2,
       processNm: '프레스 공정',
       isGrandChild: true,
       depth: 3,
@@ -114,6 +120,7 @@ function makeProcessChildren(productName, totalQty, ngQty) {
     },
     {
       period: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
+      plantNm: plant3,
       processNm: 'AOI 검사',
       isGrandChild: true,
       depth: 3,

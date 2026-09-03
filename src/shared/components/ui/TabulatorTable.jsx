@@ -89,9 +89,9 @@ export default function TabulatorTable({
       },
       columns: [
         {
-          title: '일자 / 제품명 / 공정·설비',
+          title: '일자 / 제품명 / 공장·공정·설비',
           field: 'period',
-          width: 320,
+          width: 360,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
@@ -103,8 +103,10 @@ export default function TabulatorTable({
               const tagColor = isPress ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#c084fc' : '#7e22ce');
               const tagBg = isPress ? (isDark ? '#451a03' : '#fef3c7') : (isDark ? '#3b0764' : '#f3e8ff');
               const tagBorder = isPress ? (isDark ? '#78350f' : '#fde68a') : (isDark ? '#581c87' : '#e9d5ff');
-              return `<span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
-                <span style="font-weight: 700; color: ${tagColor}; background: ${tagBg}; border: 1px solid ${tagBorder}; padding: 1px 6px; border-radius: 4px; font-size: 10.5px;">${rowData.processNm || '공정'}</span>
+              const plantText = rowData.plantNm || '제1공장';
+              return `<span style="display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
+                <span style="font-weight: 700; color: ${isDark ? '#93c5fd' : '#1d4ed8'}; background: ${isDark ? '#1e3a8a' : '#dbeafe'}; border: 1px solid ${isDark ? '#2563eb' : '#bfdbfe'}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${plantText}</span>
+                <span style="font-weight: 700; color: ${tagColor}; background: ${tagBg}; border: 1px solid ${tagBorder}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${rowData.processNm || '공정'}</span>
                 <span>${val}</span>
               </span>`;
             }

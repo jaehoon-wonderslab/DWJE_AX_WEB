@@ -230,7 +230,7 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
 
     // 컬럼 정의
     ws.columns = [
-      { header: head?.[0] || '일자 / 제품명 / 공정·설비', key: 'name', width: 38 },
+      { header: head?.[0] || '일자 / 제품명 / 공장·공정·설비', key: 'name', width: 44 },
       { header: head?.[1] || '투입 수량', key: 'inputQty', width: 16 },
       { header: head?.[2] || '양품 수량', key: 'okQty', width: 16 },
       { header: head?.[3] || '불량 수량', key: 'ngQty', width: 16 },
@@ -328,7 +328,8 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
             r2._children.forEach((r3) => {
               totalExportedRows++;
               // Depth 3 (공정 / 프레스 기기)
-              const procLabel = r3.processNm ? `[${r3.processNm}] ` : '';
+              const plantLabel = r3.plantNm ? `${r3.plantNm} · ` : '';
+              const procLabel = r3.processNm ? `[${plantLabel}${r3.processNm}] ` : (r3.plantNm ? `[${r3.plantNm}] ` : '');
               const row3 = ws.addRow({
                 name: `       └ ${procLabel}${r3.period}`,
                 inputQty: numFmt(r3.inputQty),
