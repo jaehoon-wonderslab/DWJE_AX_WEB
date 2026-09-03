@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "덕우 AX",
+    "slug": "dwje-ax-web",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "dwje-ax",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b4f9e",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "name": "덕우전자 AX — AI 의사결정 지원 계층",
+      "shortName": "덕우 AX",
+      "lang": "ko",
+      "themeColor": "#1a5fb4",
+      "backgroundColor": "#ffffff",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "tsconfigPaths": true,
+      "typedRoutes": false
+    }
+  }
+}
