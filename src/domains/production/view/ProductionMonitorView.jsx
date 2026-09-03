@@ -8,10 +8,13 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { BlindValue, Button, Card, Filters, Loading, Pagination, SelectField, StatCard, StateBadge, Table } from '@shared/components/ui';
+import { BlindValue, Button, Card, Filters, Hint, Loading, Pagination, SelectField, StatCard, StateBadge, Table } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma, fixed } from '@shared/utils/formatUtil';
 import { monitorStateLabel } from '../model/productionRepository';
+
+/** 갱신 시각 표기 (초까지 — 10초 폴링이라 분 단위로는 움직임이 안 보입니다) */
+const hhmmss = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 
 /** 값이 없으면 '—' 를 두고, 있으면 뒤에 단위를 붙입니다 */
 const withUnit = (v, unit) => (v === null || v === undefined || v === '' ? '—' : `${v}${unit}`);
@@ -45,19 +48,27 @@ function warningDetailText(detail, warningCnt) {
 export default function ProductionMonitorView({
   paging, itemsMeta,
   loading, summary, items, filters, setProcessId, setModel, setState,
-  autoRefresh, toggleAutoRefresh, search, exportExcel, modelOptions, processOptions, stateOptions = ['전체'] }) {
+  autoRefresh, toggleAutoRefresh, search, exportExcel, modelOptions, processOptions, stateOptions = ['전체'],
+  iotMissing, updatedAt }) {
   const s = useCommonStyles();
 
   // 전체 대수는 응답에 없으면 가동·경고·비가동 합으로 셉니다 (박아 둔 숫자는 실제 설비 수와 다릅니다)
   const totalCnt = summary?.total ?? (summary ? (summary.running ?? 0) + (summary.warning ?? 0) + (summary.stopped ?? 0) : null);
+  const filtered = filters.processId !== '전체' || filters.model !== '전체' || filters.state !== '전체';
 
   return (
     <View>
       <PageHead
         title="생산 모니터링"
-        desc="IoT 복합 센서가 부착된 프레스 10대와 AOI 검사기 10대의 진행 현황을 실시간으로 조회합니다."
+        desc={
+          'IoT 복합 센서가 부착된 설비의 진행 현황을 실시간으로 조회합니다.'
+          // 조회 조건을 걸면 카드도 함께 좁혀집니다 — 무엇을 세고 있는지 밝혀 둡니다
+          + (totalCnt ? ` ${filtered ? '조회 대상' : '등록 설비'} ${comma(totalCnt)}대.` : '')
+        }
         actions={
           <>
+            {/* 값이 전부 0 일 때 화면이 살아 있는지 알려면 갱신 시각이 보여야 합니다 */}
+            {updatedAt ? <Text style={[s.textXs, { alignSelf: 'center', marginRight: 2 }]}>{`${hhmmss(updatedAt)} 갱신`}</Text> : null}
             <Button
               label={autoRefresh ? '실시간 갱신 중 · 10초' : '자동 새로고침 꺼짐'}
               size="sm"
@@ -76,6 +87,16 @@ export default function ProductionMonitorView({
         <SelectField label="상태" value={filters.state} options={stateOptions} onChange={setState} />
         <Button label="조회" variant="primary" onPress={search} />
       </Filters>
+
+      {iotMissing ? (
+        <>
+          <Hint icon="alert">
+            {'설비 IoT 수집값이 들어오지 않고 있습니다 — 가동률 · 타발 속도 · 최근 수집이 비어 있습니다. '
+              + '설비 상태와 생산량은 MES 실적 기준으로 표시됩니다.'}
+          </Hint>
+          <Gap />
+        </>
+      ) : null}
 
       <Grid cols={4}>
         <StatCard
