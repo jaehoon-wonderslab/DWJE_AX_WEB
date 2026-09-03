@@ -60,6 +60,7 @@ export default function TabulatorTable({
       dataTreeStartExpanded: false,
       dataTreeChildField: '_children',
       dataTreeChildIndent: 18,
+      dataTreeFilter: true, // 자식 행(제품·설비)이 검색 조건에 매칭되면 상위 부모 행도 함께 유지
       headerSortTristate: true,
       pagination: true,
       paginationMode: 'local',
@@ -97,6 +98,36 @@ export default function TabulatorTable({
           hozAlign: 'left',
           headerSort: true,
           sorter: 'string',
+          headerFilter: 'input',
+          headerFilterPlaceholder: '일자·제품·공장·설비 검색',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
+            if (!headerValue) return true;
+            const q = String(headerValue).trim().toLowerCase();
+            const v = String(rowValue || '').toLowerCase();
+            const plant = String(rowData?.plantNm || '').toLowerCase();
+            const proc = String(rowData?.processNm || '').toLowerCase();
+            if (v.includes(q) || plant.includes(q) || proc.includes(q)) return true;
+            // 부모 행일 경우, 하위 자식(제품) 또는 손자(설비/공정)에 검색어가 포함되어 있으면 부모 행 유지
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((child) => {
+                const cv = String(child.period || '').toLowerCase();
+                const cp = String(child.plantNm || '').toLowerCase();
+                const cproc = String(child.processNm || '').toLowerCase();
+                if (cv.includes(q) || cp.includes(q) || cproc.includes(q)) return true;
+                if (Array.isArray(child._children)) {
+                  return child._children.some((gc) => {
+                    const gv = String(gc.period || '').toLowerCase();
+                    const gp = String(gc.plantNm || '').toLowerCase();
+                    const gproc = String(gc.processNm || '').toLowerCase();
+                    return gv.includes(q) || gp.includes(q) || gproc.includes(q);
+                  });
+                }
+                return false;
+              });
+            }
+            return false;
+          },
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
             const val = cell.getValue() || '—';
@@ -125,6 +156,14 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: true,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
+          headerFilter: 'input',
+          headerFilterPlaceholder: '>=',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue) => {
+            if (!headerValue) return true;
+            const target = Number(String(headerValue).replace(/,/g, ''));
+            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+          },
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -137,6 +176,14 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: true,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
+          headerFilter: 'input',
+          headerFilterPlaceholder: '>=',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue) => {
+            if (!headerValue) return true;
+            const target = Number(String(headerValue).replace(/,/g, ''));
+            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+          },
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -149,6 +196,14 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: true,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
+          headerFilter: 'input',
+          headerFilterPlaceholder: '>=',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue) => {
+            if (!headerValue) return true;
+            const target = Number(String(headerValue).replace(/,/g, ''));
+            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+          },
           formatter: (cell) => {
             const v = cell.getValue();
             const isDefect = v !== null && v !== undefined && v > 0;
@@ -163,6 +218,14 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: true,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
+          headerFilter: 'input',
+          headerFilterPlaceholder: '% >=',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue) => {
+            if (!headerValue) return true;
+            const target = Number(String(headerValue).replace(/%/g, ''));
+            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+          },
           formatter: (cell) => {
             const v = cell.getValue();
             const isHigh = v !== null && v !== undefined && Number(v) >= 2.0;
@@ -273,6 +336,30 @@ export default function TabulatorTable({
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-content {
           padding: 0 !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter {
+          margin-top: 6px !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter input {
+          width: 100% !important;
+          padding: 4px 8px !important;
+          font-size: 11.5px !important;
+          font-family: inherit !important;
+          border-radius: 4px !important;
+          border: 1px solid ${colors.border} !important;
+          background-color: ${isDark ? '#0f172a' : '#ffffff'} !important;
+          color: ${colors.headerText} !important;
+          outline: none !important;
+          box-sizing: border-box !important;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter input:focus {
+          border-color: ${colors.primary} !important;
+          box-shadow: 0 0 0 1px ${colors.primary} !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter input::placeholder {
+          color: ${colors.mutedText} !important;
+          font-size: 11px !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-title {
           font-weight: 600 !important;

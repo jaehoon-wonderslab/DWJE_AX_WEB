@@ -5,6 +5,7 @@ import * as commonService from '@services/api/commonService';
 import * as dashboardService from '@services/api/dashboardService';
 import * as productionService from '@services/api/productionService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
+import { shiftDate } from '@shared/utils/formatUtil';
 import { loadCodeGroups } from '@domains/common/model/codeRepository';
 import { fillRates, fillRatesAll } from '@domains/common/model/metricModel';
 import { periodUnit } from '@domains/common/model/paramModel';
@@ -104,6 +105,7 @@ function makeProcessChildren(productName, totalQty, ngQty) {
       defectRate: Number(r1.toFixed(2)),
       uptimeRate: null,
       downtimeMin: null,
+      _children: [],
     },
     {
       period: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
@@ -117,6 +119,7 @@ function makeProcessChildren(productName, totalQty, ngQty) {
       defectRate: Number(r2.toFixed(2)),
       uptimeRate: null,
       downtimeMin: null,
+      _children: [],
     },
     {
       period: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
@@ -130,6 +133,7 @@ function makeProcessChildren(productName, totalQty, ngQty) {
       defectRate: Number(r3.toFixed(2)),
       uptimeRate: null,
       downtimeMin: null,
+      _children: [],
     },
   ];
 }
@@ -336,6 +340,138 @@ export const confirmDailyReport = (reportId) =>
 
 export const rejectDailyReport = (reportId, reason) =>
   command(productionService.postProductionDailyReportsByReportIdReject({ reportId, reason }));
+
+/**
+ * [Model] PR-03 일일 생산현황 보고 — 조간회의 자료 양식
+ *
+ * 「생산관리팀 (PRESS) 아침회의자료」 양식 그대로 한 행 = 한 제품으로 폅니다.
+ * 양식의 「이슈 항목」 자리에 제품명이 들어갑니다.
+ *
+ * ■ 집계 구간
+ * 조간회의 자료는 **전날 20:00 ~ 당일 08:00** 에 돌린 야간 근무분을 봅니다.
+ * 지금 서버 조회는 날짜(일) 단위라 이 구간을 그대로 받을 수 없어, 화면에서는
+ * 구간을 표기만 하고 값은 일 단위로 받습니다. 서버가 구간을 갖도록 요청해 두었습니다.
+ * 구간이 붙으면 `SHIFT_FROM`·`SHIFT_TO` 를 그대로 두고 조회만 바꾸면 됩니다.
+ */
+
+/** 조간회의 자료가 보는 야간 근무 구간 */
+export const SHIFT_FROM = '20:00';
+export const SHIFT_TO = '08:00';
+
+/** 대상일의 집계 구간 문자열 — 전날 20:00 ~ 당일 08:00 */
+export function shiftWindow(targetDate) {
+  return { from: `${shiftDate(targetDate, -1)} ${SHIFT_FROM}`, to: `${targetDate} ${SHIFT_TO}` };
+}
+
+/**
+ * 양식 오른쪽 위 범례 — 달성률 구간별 색
+ *
+ * 🟢 95% 이상 · 🟡 95% 미만 · 🔴 85% 미만
+ */
+export const PRESS_LEVELS = [
+  { level: 'normal', label: '정상', tone: 'green', min: 95 },
+  { level: 'watch', label: '주의', tone: 'amber', min: 85 },
+  { level: 'risk', label: '지연', tone: 'red', min: -Infinity },
+];
+
+/** 달성률(%) → 범례 구간 (값이 없으면 판정하지 않습니다) */
+export function pressLevel(rate) {
+  if (rate === null || rate === undefined || Number.isNaN(rate)) return null;
+  return PRESS_LEVELS.find((l) => rate >= l.min) || PRESS_LEVELS[PRESS_LEVELS.length - 1];
+}
+
+/** 주간 누적 구간 — 대상일이 든 주의 월요일부터 대상일까지 */
+export function weekDates(targetDate) {
+  const d = new Date(`${targetDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return [targetDate];
+  const back = (d.getDay() + 6) % 7; // 월요일=0
+  return Array.from({ length: back + 1 }, (_, i) => shiftDate(targetDate, i - back));
+}
+
+/** 프레스 공정 여부 — 공정명에 '프레스' 또는 'PRESS' 가 든 작업장 */
+const isPress = (p) => /프레스|press/i.test(`${p?.name || ''}`);
+
+/**
+ * 조간회의 자료 한 판
+ *
+ * 대상일 실적 + 그 주 월요일부터의 누적을 제품별로 묶습니다.
+ * 일목표가 서버에 없어(목표 마스터 미연동) **최근 7일 평균 실적**을 기준선으로 씁니다.
+ * 화면에서 담당자가 덮어쓸 수 있고, 어디서 온 값인지 화면에 밝힙니다.
+ *
+ * @param {object} p targetDate · processId('전체' 면 전 공정) · topN
+ * @returns {Promise<{rows:Array, processes:Array, window:object, baseline:string}>}
+ */
+export async function loadPressReport({ targetDate, processId, topN = 10 }) {
+  const pid = processId && processId !== '전체' ? processId : undefined;
+  const week = weekDates(targetDate);
+  const base = Array.from({ length: 7 }, (_, i) => shiftDate(targetDate, -(i + 1))); // 기준선용 직전 7일
+
+  const [master, dayList, weekList, baseList] = await Promise.all([
+    unwrap(commonService.getCommonMastersProcesses({}), { processes: [] }),
+    productsOf(targetDate, pid),
+    Promise.all(week.filter((d) => d !== targetDate).map((d) => productsOf(d, pid))),
+    Promise.all(base.map((d) => productsOf(d, pid))),
+  ]);
+
+  const processes = (master?.processes || []).filter(isPress);
+  const eqptCnt = processes.reduce((n, p) => n + (p.eqptCnt || 0), 0);
+  const eqptOf = Object.fromEntries(processes.map((p) => [p.id, p.eqptCnt || 0]));
+  const nameOf = Object.fromEntries((master?.processes || []).map((p) => [p.id, p.name]));
+
+  const weekQty = sumBy([dayList, ...weekList]);
+  const baseQty = sumBy(baseList);
+  const baseDays = base.length;
+
+  const rows = dayList
+    .map((x) => {
+      /** 일목표 — 목표 마스터가 붙기 전까지 최근 7일 평균 실적 */
+      const target = baseQty[x.product] ? Math.round(baseQty[x.product] / baseDays) : null;
+      const weekTarget = target === null ? null : target * week.length;
+      const wq = weekQty[x.product] || 0;
+      return {
+        product: x.product,
+        productNm: x.productNm || x.product,
+        process: pid ? nameOf[pid] || pid : 'Press',
+        qty: x.qty ?? null,
+        okQty: x.okQty ?? null,
+        ngQty: x.ngQty ?? null,
+        defectRate: x.defectRate ?? null,
+        target,
+        rate: target ? round1((x.qty / target) * 100) : null,
+        weekTarget,
+        weekQty: wq,
+        weekRate: weekTarget ? round1((wq / weekTarget) * 100) : null,
+        eqptCnt: pid ? eqptOf[pid] ?? null : eqptCnt || null,
+      };
+    })
+    .sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0))
+    .slice(0, topN === 0 ? undefined : topN);
+
+  return {
+    rows,
+    processes,
+    window: shiftWindow(targetDate),
+    baseline: `최근 ${baseDays}일 평균 실적 (${base[base.length - 1]} ~ ${base[0]})`,
+  };
+}
+
+/** 하루치 제품별 실적 — 조회에 실패해도 보고서 전체를 막지 않습니다 */
+async function productsOf(date, processId) {
+  const data = await unwrap(dashboardService.getDashboardProcessProducts({ date, processId }), { items: [] });
+  return data?.items || [];
+}
+
+/** 여러 날치 제품별 실적을 제품코드로 합산 */
+function sumBy(lists) {
+  const out = {};
+  lists.flat().forEach((x) => {
+    if (!x?.product) return;
+    out[x.product] = (out[x.product] || 0) + (x.qty || 0);
+  });
+  return out;
+}
+
+const round1 = (n) => Math.round(n * 10) / 10;
 
 /* ───────── PR-04 이전 보고서 ───────── */
 
