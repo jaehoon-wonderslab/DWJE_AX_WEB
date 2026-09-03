@@ -91,7 +91,7 @@ export default function TabulatorTable({
         {
           title: '일자 / 제품명 / 공정·설비',
           field: 'period',
-          width: 270,
+          width: 320,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
