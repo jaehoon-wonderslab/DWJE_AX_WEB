@@ -60,6 +60,7 @@ export default function TabulatorTable({
       dataTreeStartExpanded: false,
       dataTreeChildField: '_children',
       dataTreeChildIndent: 18,
+      headerSortTristate: true,
       pagination: true,
       paginationMode: 'local',
       paginationSize: 25,
@@ -94,7 +95,8 @@ export default function TabulatorTable({
           width: 360,
           headerHozAlign: 'left',
           hozAlign: 'left',
-          headerSort: false,
+          headerSort: true,
+          sorter: 'string',
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
             const val = cell.getValue() || '—';
@@ -121,7 +123,8 @@ export default function TabulatorTable({
           field: 'inputQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -132,7 +135,8 @@ export default function TabulatorTable({
           field: 'okQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -143,7 +147,8 @@ export default function TabulatorTable({
           field: 'ngQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const v = cell.getValue();
             const isDefect = v !== null && v !== undefined && v > 0;
@@ -153,10 +158,11 @@ export default function TabulatorTable({
         {
           title: '불량률',
           field: 'defectRate',
-          width: 100,
+          width: 105,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const v = cell.getValue();
             const isHigh = v !== null && v !== undefined && Number(v) >= 2.0;
@@ -166,10 +172,11 @@ export default function TabulatorTable({
         {
           title: '가동률',
           field: 'uptimeRate',
-          width: 100,
+          width: 105,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
             if (rowData.isChild || rowData.isGrandChild || rowData.depth > 1) return `<span style="color: ${colors.mutedText};">—</span>`;
@@ -179,10 +186,11 @@ export default function TabulatorTable({
         {
           title: '비가동 시간',
           field: 'downtimeMin',
-          width: 120,
+          width: 125,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: false,
+          headerSort: true,
+          sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
             if (rowData.isChild || rowData.isGrandChild || rowData.depth > 1) return `<span style="color: ${colors.mutedText};">—</span>`;
@@ -239,6 +247,29 @@ export default function TabulatorTable({
           background-color: transparent !important;
           border-right: none !important;
           padding: 11px 16px !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col.tabulator-sortable {
+          cursor: pointer !important;
+          user-select: none !important;
+          transition: background-color 0.15s ease !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col.tabulator-sortable:hover {
+          background-color: ${isDark ? '#1e293b' : '#f1f5f9'} !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-col-sorter {
+          display: inline-flex !important;
+          align-items: center !important;
+          margin-left: 6px !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-arrow {
+          border-bottom-color: ${colors.mutedText} !important;
+          border-top-color: ${colors.mutedText} !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col[aria-sort="ascending"] .tabulator-arrow {
+          border-bottom-color: ${colors.primary} !important;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col[aria-sort="descending"] .tabulator-arrow {
+          border-top-color: ${colors.primary} !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-content {
           padding: 0 !important;

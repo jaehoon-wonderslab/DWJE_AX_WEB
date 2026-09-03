@@ -46,14 +46,14 @@ export const MENU_ACCESS_DEFAULT = {
   ],
   생산관리팀: [
     'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
-    'prod-monitor', 'prod-result', 'prod-daily', 'daily-history', 'prod-down',
+    'prod-monitor', 'prod-result', 'prod-daily', 'daily-history',
     'qc-defect', 'qc-aoi', 'qc-report', 'report-forms',
     'alert-list', 'sys-gloss',
     'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap', 'rpt-scrap-new',
   ],
   제조팀: [
     'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
-    'prod-monitor', 'prod-down',
+    'prod-monitor',
     'qc-defect', 'qc-aoi',
     'alert-list', 'sys-gloss',
     'rpt-press-morning', 'rpt-plating-morning',

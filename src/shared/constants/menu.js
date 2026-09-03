@@ -30,7 +30,6 @@ export const MENU = [
       { id: 'prod-monitor', name: '생산 모니터링', path: '/production/monitor', tag: '수정' },
       { id: 'prod-result', name: '실적 집계·조회', path: '/production/result', tag: '수정' },
       { id: 'prod-daily', name: '일일 생산현황 보고', path: '/production/daily-report', tag: '신규' },
-      { id: 'prod-down', name: '비가동 관리', path: '/production/downtime', tag: '수정' },
     ],
   },
   {

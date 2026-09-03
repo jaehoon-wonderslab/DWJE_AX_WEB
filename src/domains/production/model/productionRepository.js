@@ -348,44 +348,10 @@ export const copyDailyReport = (reportId, targetDate) =>
 
 /* ───────── PR-05 비가동 관리 ───────── */
 
-/**
- * 비가동 요약 + 이력 + 공통코드(표준 사유 `DOWN_REASON` · 감지 구분 `DOWN_DETECT`)
+/* ───────── PR-04 비가동 관리 — 화면 제거됨 ─────────
  *
- * `reasonCd` 는 코드(CHANGEOVER 등)로 보냅니다. 표시명('금형 교체')을 보내면 0건이 됩니다.
+ * 비가동 사유 등록은 공장 현장의 별도 시스템에서 처리합니다(2026-09-04 결정).
+ * 웹 화면·메뉴를 걷어냈고, 서버 API 는 그 시스템이 쓰므로 그대로 둡니다.
+ * 되살릴 일이 생기면 이 자리에 loadDowntimes · registerDowntime · updateDowntime 을 다시 둡니다.
  */
-export async function loadDowntimes({ date, eqptCd, reasonCd, page, size }) {
-  const [codes, data] = await Promise.all([
-    loadCodeGroups('DOWN_REASON', 'DOWN_DETECT'),
-    unwrapAll({
-      summary: productionService.getProductionDowntimesSummary({ date }),
-      list: productionService.getProductionDowntimes({ date, eqptCd, reasonCd, page, size }),
-    }),
-  ]);
-  return { ...data, codes, listMeta: data.metas?.list };
-}
 
-/**
- * 정지·복구 시각을 서버 형식(`yyyy-MM-dd HH:mm[:ss]`)으로 맞춥니다.
- *
- * 폼에서 `08:12` 처럼 시각만 적으면 조회 일자를 앞에 붙입니다.
- * @param {string} value 입력값
- * @param {string} date 기준 일자 (YYYY-MM-DD)
- * @returns {string|undefined} 비어 있으면 undefined
- */
-export function normalizeDowntimeAt(value, date) {
-  const v = String(value ?? '').trim();
-  if (!v) return undefined;
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(v)) return `${date} ${v.length === 4 ? `0${v}` : v}`;
-  return v;
-}
-
-/** ⑨ 이상 알림 Agent 의 사유 후보 제안 */
-export const fetchReasonSuggestion = ({ eqptCd, stopAt }) =>
-  unwrap(productionService.getProductionDowntimesReasonSuggestion({ eqptCd, stopAt }), { candidates: [] });
-
-export const registerDowntime = ({ eqptCd, stopAt, resumeAt, reasonCd, remark }) =>
-  command(productionService.postProductionDowntimes({ eqptCd, stopAt, resumeAt, reasonCd, remark }));
-
-/** 수정은 서버가 사유·비고·복구 시각만 받습니다 (설비·정지 시각을 보내면 400) */
-export const updateDowntime = ({ downtimeId, reasonCd, remark, resumeAt }) =>
-  command(productionService.putProductionDowntimesByDowntimeId({ downtimeId, reasonCd, remark, resumeAt }));
