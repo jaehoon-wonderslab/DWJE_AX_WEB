@@ -8,6 +8,7 @@
  * rows:    [{ cells: [{ v, tone, align, span, mono, bold }], tone, group }]
  *   · tone  — 'ok' | 'warn' | 'bad' | 'group' | 'total'
  *   · span  — 가로 병합 칸 수 (해당 칸이 오른쪽 칸들을 흡수)
+ *   · faint — 근거가 약한 값(참고값에서 나온 계산 등)을 흐리게
  *   · node  — v 대신 넣는 요소. Text 로 감싸지 않으므로 마스킹 배지·입력칸처럼
  *             View 를 담는 칸에 씁니다 (v 와 같이 주면 node 가 이깁니다)
  *
@@ -91,6 +92,7 @@ export default function XlsTable({ columns, rows, style, maxHeight, nativeID, fo
                       cell.align === 'left' && s.xlsLeft,
                       (cell.align === 'right' || cell.num) && s.xlsNum,
                       cell.bold && { fontWeight: '700' },
+                      cell.faint && { opacity: 0.55 },
                       row.tone === 'total' && s.xlsTotalText,
                       ...toneText(cell.tone || row.tone),
                     ]}

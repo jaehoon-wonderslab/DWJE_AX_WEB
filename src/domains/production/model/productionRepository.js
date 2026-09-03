@@ -402,104 +402,81 @@ const isPress = (p) => /프레스|press/i.test(`${p?.name || ''}`);
  * @returns {Promise<{rows:Array, processes:Array, window:object, baseline:string}>}
  */
 export async function loadPressReport({ targetDate, processId, topN = 10 }) {
-  const master = await unwrap(commonService.getCommonMastersProcesses({}), { processes: [] });
-  const presses = (master?.processes || []).filter(isPress);
-  const nameOf = Object.fromEntries((master?.processes || []).map((p) => [p.id, p.name]));
+  const pid = processId && processId !== '전체' ? processId : undefined;
 
-  /**
-   * 조회 대상 공정
-   *
-   * '전체' 는 **프레스 작업장 전부**입니다. 공정을 빼고 부르면 용접·도금까지 섞여
-   * PRESS 자료에 다른 공정 제품이 올라옵니다(실제로 Welding 제품이 올라왔습니다).
-   */
-  const pids = processId && processId !== '전체' ? [processId] : presses.map((p) => p.id);
-  if (!pids.length) return { rows: [], processes: presses, window: shiftWindow(targetDate), baseline: '' };
-
-  const week = weekDates(targetDate);
-  const base = Array.from({ length: 7 }, (_, i) => shiftDate(targetDate, -(i + 1))); // 기준선용 직전 7일
-
-  /** (날짜, 공정) 한 쌍당 한 번만 부릅니다 — 주간·기준선 구간이 겹칩니다 */
-  const cache = new Map();
-  const at = (date) =>
-    Promise.all(
-      pids.map((pid) => {
-        const key = `${date}|${pid}`;
-        if (!cache.has(key)) cache.set(key, productsOf(date, pid));
-        return cache.get(key);
-      })
-    ).then((lists) => lists.flat());
-
-  const [dayList, weekList, baseList] = await Promise.all([
-    at(targetDate),
-    Promise.all(week.filter((d) => d !== targetDate).map(at)),
-    Promise.all(base.map(at)),
+  const [master, sheet] = await Promise.all([
+    unwrap(commonService.getCommonMastersProcesses({}), { processes: [] }),
+    sheetOf(targetDate, pid),
   ]);
 
-  const eqptCnt = pids.reduce((n, id) => n + (presses.find((p) => p.id === id)?.eqptCnt || 0), 0);
+  /**
+   * 주간실적은 서버 `weekQty` 를 그대로 씁니다
+   *
+   * 그 주 **보고 구간들의 합**입니다 — 주간목표(`일목표 × weekDays`)와 기준이 같아 나눌 수 있습니다.
+   * 낮 근무까지 포함한 연속 구간은 `weekQtyAllShift` 로 따로 옵니다(2026-09-04 열 분리).
+   * 한 이름에 두 기준이 섞여 있던 동안에는 화면이 날짜만큼 시트를 되풀이해 불러 다시 더했는데,
+   * 이제 필요 없습니다.
+   */
+  const weekDays = sheet?.weekDays || 1;
 
-  const dayQty = sumBy([dayList]);
-  const dayOk = sumBy([dayList], 'okQty');
-  const dayNg = sumBy([dayList], 'ngQty');
-  const weekQty = sumBy([dayList, ...weekList]);
-  const baseQty = sumBy(baseList);
-  const baseDays = base.length;
-
-  /** 같은 제품이 여러 프레스 작업장에서 나오므로 제품 단위로 한 행씩 묶습니다 */
-  const nmOf = {};
-  dayList.forEach((x) => { if (x?.product) nmOf[x.product] = x.productNm || x.product; });
-
-  const rows = Object.keys(dayQty)
-    .map((code) => {
-      /** 일목표 — 목표 마스터가 붙기 전까지 최근 7일 평균 실적 */
-      const target = baseQty[code] ? Math.round(baseQty[code] / baseDays) : null;
-      const weekTarget = target === null ? null : target * week.length;
-      const wq = weekQty[code] || 0;
-      const qty = dayQty[code];
-      const ng = dayNg[code] || 0;
-      return {
-        product: code,
-        productNm: nmOf[code] || code,
-        process: pids.length === 1 ? nameOf[pids[0]] || pids[0] : 'Press',
-        qty,
-        okQty: dayOk[code] ?? null,
-        ngQty: ng,
-        defectRate: qty ? round1((ng / qty) * 100) : null,
-        target,
-        rate: target ? round1((qty / target) * 100) : null,
-        weekTarget,
-        weekQty: wq,
-        weekRate: weekTarget ? round1((wq / weekTarget) * 100) : null,
-        eqptCnt: eqptCnt || null,
-      };
-    })
+  /**
+   * 서버가 이미 제품 한 줄씩 줍니다 — **여기서 합치지 않습니다.**
+   *
+   * `eqptCnt` 는 제품 단위 `count(DISTINCT eqpt_cd)` 라 행끼리 더하면 같은 설비를 두 번 셉니다
+   * (D63A 의 S136 은 실제 1대인데 품목별로 세어 더하면 2대 — API 세션 확인, 2026-09-04).
+   */
+  const rows = (sheet?.rows || [])
+    .map((r) => ({
+      product: r.product,
+      productNm: r.productNm || r.product,
+      process: pid ? r.processNm || r.processId : 'Press',
+      qty: r.qty ?? 0,
+      okQty: r.okQty ?? null,
+      ngQty: r.ngQty ?? 0,
+      defectRate: r.qty ? round1(((r.ngQty || 0) / r.qty) * 100) : null,
+      eqptCnt: r.eqptCnt ?? null,
+      /** 작성자가 저장해 둔 값 (없으면 null) */
+      savedTarget: r.targetQty ?? null,
+      decision: r.decision || undefined,
+      dri: r.dri || undefined,
+      due: r.due || undefined,
+      /**
+       * 일목표 **참고값** — 그 주 보고 구간 일평균 실적
+       *
+       * 진짜 목표가 아닙니다. 제품별 일목표는 데이터도 스키마도 없어 서버가 `targetQty: null` 을 줍니다
+       * (`PROD_DAY_TARGET` 은 공정 단위이고 값도 비어 있습니다 — API 세션 확인, 2026-09-04).
+       * 입력칸의 회색 밑값으로만 씁니다. 이 값으로 달성률을 내면 산술적으로 늘 100% 가 됩니다.
+       */
+      targetRef: weekDays ? Math.round((r.weekQty || 0) / weekDays) : null,
+      weekQty: r.weekQty ?? 0,
+      weekQtyAllShift: r.weekQtyAllShift ?? null,
+      weekDays,
+    }))
     .sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0))
     .slice(0, topN === 0 ? undefined : topN);
 
   return {
     rows,
-    processes: presses,
-    window: shiftWindow(targetDate),
-    baseline: `최근 ${baseDays}일 평균 실적 (${base[base.length - 1]} ~ ${base[0]})`,
+    reportId: sheet?.reportId ?? null,
+    processes: (master?.processes || []).filter(isPress),
+    processCds: sheet?.processCds || [],
+    window: sheet?.periodFrom && sheet?.periodTo
+      ? { from: String(sheet.periodFrom).slice(0, 16), to: String(sheet.periodTo).slice(0, 16) }
+      : shiftWindow(targetDate),
+    baseline: `그 주 보고 구간 일평균 (${weekDays}개 구간)`,
   };
 }
 
-/** 하루치 제품별 실적 — 조회에 실패해도 보고서 전체를 막지 않습니다 */
-async function productsOf(date, processId) {
-  const data = await unwrap(dashboardService.getDashboardProcessProducts({ date, processId }), { items: [] });
-  return data?.items || [];
-}
+/** 하루치 조간회의 자료 — 조회에 실패해도 보고서 전체를 막지 않습니다 */
+const sheetOf = (targetDate, processId) =>
+  unwrap(productionService.getProductionDailyReportsSheet({ targetDate, processId }), { rows: [] });
 
-/** 여러 날·여러 공정치 제품별 실적을 제품코드로 합산 */
-function sumBy(lists, key = 'qty') {
-  const out = {};
-  lists.flat().forEach((x) => {
-    if (!x?.product) return;
-    out[x.product] = (out[x.product] || 0) + (x[key] || 0);
-  });
-  return out;
-}
-
+/** 소수 첫째 자리까지 (불량률·달성률 표기용) */
 const round1 = (n) => Math.round(n * 10) / 10;
+
+/** 작성자가 채운 행(일목표 · 결정항목 · DRI · 기한) 저장 — 보낸 제품만 갱신됩니다 */
+export const saveDailyReportRows = (reportId, rows) =>
+  command(productionService.postProductionDailyReportsByReportIdRows({ reportId, rows }));
 
 /* ───────── PR-04 이전 보고서 ───────── */
 

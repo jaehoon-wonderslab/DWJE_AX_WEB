@@ -80,6 +80,31 @@ export function getProductionDailyReportsDraft(params) {
 }
 
 /**
+ * 조간회의 자료 본문 — 제품별 한 행
+ *
+ * 집계 구간은 서버가 대상일로 정합니다(전일 20:00 ~ 당일 08:00).
+ * `processId` 를 빼면 프레스 작업장 전부입니다.
+ *
+ * @param {object} params targetDate, processId
+ * @returns {Promise<object>} periodFrom, periodTo, weekFrom, rows[]
+ */
+export function getProductionDailyReportsSheet(params) {
+  return request('getProductionDailyReportsSheet', params);
+}
+
+/**
+ * 조간회의 자료 행 저장 — 작성자가 채운 일목표 · 결정항목 · DRI · 기한
+ *
+ * 보낸 제품만 갱신합니다. 값에 null 을 보내면 그 칸을 비웁니다.
+ * 저장 키는 (보고서, 제품)이라 같은 제품이 여러 작업장에 있으면 값을 함께 씁니다.
+ *
+ * @param {object} params reportId, rows[{product, targetQty, decision, dri, due}]
+ */
+export function postProductionDailyReportsByReportIdRows(params) {
+  return request('postProductionDailyReportsByReportIdRows', params);
+}
+
+/**
  * 보고서 초안 재생성
  *
  * `POST /api/v1/production/daily-reports/draft/regenerate`

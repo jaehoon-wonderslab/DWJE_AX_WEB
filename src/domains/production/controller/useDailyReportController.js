@@ -10,8 +10,14 @@
  *
  * ■ 집계 구간
  * 조간회의 자료는 **전날 20:00 ~ 당일 08:00** 야간 근무분을 봅니다.
- * 서버 초안(`periodFrom`·`periodTo`)은 아직 08:00~08:00 이라, 화면은 구간을 표기하고
- * 실적은 일 단위로 받습니다. 서버에 구간 변경을 요청해 두었습니다.
+ * 서버가 대상일만 받아 이 구간을 계산합니다(2026-09-04 반영).
+ *
+ * 다만 **그 전에 만들어 둔 초안은 옛 구간(08:00~08:00)이 박혀 있습니다.** 초안이 든 값과
+ * 화면이 말하는 구간이 어긋나면 안 되므로, 초안이 있으면 초안의 구간을 그대로 보여 주고
+ * 어긋난 사실을 화면에 알립니다(「초안 재생성」으로 맞출 수 있습니다).
+ *
+ * 양식 본문(제품별 실적)은 아직 일 단위 조회라 이 구간과 다릅니다 —
+ * 보고서 전용 조회를 요청해 두었습니다.
  *
  * ■ 결재선
  * 항목 보정 → 임시 저장 → 확정 / 반려는 서버 초안(`sections`)을 그대로 씁니다.
@@ -28,7 +34,7 @@ import { labelOf } from '@domains/common/model/codeRepository';
 import {
   confirmDailyReport, correctDailyReport, flattenDraftFields, loadDailyReport,
   loadDailyReportCodes, loadPressReport, pressLevel, regenerateDailyDraft, rejectDailyReport,
-  saveDailyReport, shiftWindow,
+  saveDailyReport, saveDailyReportRows, shiftWindow,
 } from '../model/productionRepository';
 
 /** 표시 개수 선택지 — 0 은 전량 */
@@ -66,7 +72,21 @@ export function useDailyReportController() {
   const draft = data?.draft;
 
   /** 조간회의 자료 본문 — 제품별 실적·주간누적 */
-  const { data: sheet, loading: sheetLoading } = useAsync(
+  /**
+   * 화면에 적을 집계 구간
+   *
+   * 초안이 있으면 **초안에 박힌 구간**이 진실입니다 — 초안의 수량이 그 구간으로 집계된 값이라,
+   * 화면만 20:00~08:00 이라고 적으면 값과 설명이 어긋납니다.
+   */
+  const expected = useMemo(() => shiftWindow(targetDate), [targetDate]);
+  const draftWindow = draft?.periodFrom && draft?.periodTo
+    ? { from: String(draft.periodFrom).slice(0, 16), to: String(draft.periodTo).slice(0, 16) }
+    : null;
+  const win = draftWindow || expected;
+  /** 옛 구간(08:00~08:00)이 박힌 초안 — 재생성하면 맞습니다 */
+  const windowStale = !!draftWindow && (draftWindow.from !== expected.from || draftWindow.to !== expected.to);
+
+  const { data: sheet, loading: sheetLoading, reload: reloadSheet } = useAsync(
     () => loadPressReport({ targetDate, processId, topN }),
     [targetDate, processId, topN],
     { initialData: { rows: [], processes: [], window: shiftWindow(targetDate), baseline: '' } }
@@ -93,14 +113,43 @@ export function useDailyReportController() {
     setManual((prev) => ({ ...prev, [product]: { ...(prev[product] || {}), [key]: value } }));
   }, []);
 
-  /** 본문 행 — 실적에 담당자 입력과 달성률 구간을 붙입니다 */
+  /**
+   * 본문 행 — 실적에 담당자 입력을 얹고 달성률을 계산합니다
+   *
+   * 일목표는 작성자가 채우는 값입니다. 아직 안 채웠으면 참고값(`targetRef`)으로 계산하고
+   * `provisional` 로 표시해, 화면이 그 숫자를 흐리게 그리도록 합니다.
+   */
   const rows = useMemo(
-    () => (sheet?.rows || []).map((r) => ({
-      ...r,
-      ...(manual[r.product] || {}),
-      level: pressLevel(r.rate),
-      weekLevel: pressLevel(r.weekRate),
-    })),
+    () => (sheet?.rows || []).map((r) => {
+      const m = manual[r.product] || {};
+      const raw = m.target === undefined ? (r.savedTarget === null ? '' : String(r.savedTarget)) : m.target;
+      const typed = raw === null || raw === '' ? null : Number(String(raw).replace(/[^\d.-]/g, ''));
+      const target = Number.isFinite(typed) && typed > 0 ? typed : null;
+
+      /**
+       * 목표를 안 채웠으면 **달성률도 상태도 내지 않습니다**
+       *
+       * 참고값(그 주 야간 일평균)으로 계산하면 주간달성률이 산술적으로 늘 100.0% 가 됩니다 —
+       * 주간목표 = 참고값 × 일수 = 주간실적 이기 때문입니다. 근거 없는 숫자가 목표처럼 보이면
+       * 안 된다는 원칙(API 세션과 합의, 2026-09-04)에 따라 비웁니다.
+       * 참고값은 입력칸의 회색 밑값으로만 남습니다.
+       */
+      const weekTarget = target ? target * r.weekDays : null;
+      const rate = target ? Math.round((r.qty / target) * 1000) / 10 : null;
+      const weekRate = weekTarget ? Math.round((r.weekQty / weekTarget) * 1000) / 10 : null;
+      return {
+        ...r,
+        ...m,
+        targetInput: raw ?? '',
+        target,
+        provisional: target === null,
+        weekTarget,
+        rate,
+        weekRate,
+        level: pressLevel(rate),
+        weekLevel: pressLevel(weekRate),
+      };
+    }),
     [sheet, manual]
   );
 
@@ -166,6 +215,43 @@ export function useDailyReportController() {
 
   const regenerate = useCallback(() => runAction(() => regenerateDailyDraft(targetDate)), [runAction, targetDate]);
 
+  /** 작성자가 손댄 행이 있는가 (일목표 · 결정항목 · DRI · 기한) */
+  const rowsDirty = Object.keys(manual).length > 0;
+
+  /**
+   * 행 저장 — **손댄 행만** 보냅니다
+   *
+   * 서버는 보낸 제품만 갱신하고, 같은 제품을 두 번 보내면 400 입니다.
+   * 빈 문자열은 `null` 로 바꿔 그 칸을 비웁니다.
+   */
+  const saveRows = useCallback(async () => {
+    const payload = Object.entries(manual).map(([product, v]) => {
+      const n = v.target === undefined || v.target === '' ? null : Number(String(v.target).replace(/[^\d.-]/g, ''));
+      return {
+        product,
+        targetQty: Number.isFinite(n) && n > 0 ? n : null,
+        decision: v.decision?.trim() || null,
+        dri: v.dri?.trim() || null,
+        due: v.due?.trim() || null,
+      };
+    });
+    if (!payload.length) {
+      toast('저장할 변경 항목이 없습니다');
+      return { ok: false };
+    }
+    if (!sheet?.reportId) {
+      toast('보고서 초안이 없습니다. 「초안 재생성」을 먼저 눌러 주세요');
+      return { ok: false };
+    }
+    const res = await saveDailyReportRows(sheet.reportId, payload);
+    toast(res.message || (res.ok ? `${payload.length}개 제품을 저장했습니다` : '저장하지 못했습니다'));
+    if (res.ok) {
+      setManual({});
+      reloadSheet();
+    }
+    return res;
+  }, [manual, sheet, toast, reloadSheet]);
+
   /** 양식 그대로 내려받습니다 (열 순서·머리글 동일) */
   const exportExcel = useCallback(() => {
     const qty = canData('qty');
@@ -177,7 +263,7 @@ export function useDailyReportController() {
         r.level?.label || '—',
         r.process,
         r.productNm,
-        hide(r.target),
+        r.target === null ? '—' : hide(r.target),
         hide(r.qty),
         r.rate === null ? '—' : `${fixed(r.rate)}%`,
         hide(r.weekTarget),
@@ -202,7 +288,13 @@ export function useDailyReportController() {
     processOptions,
     topN,
     setTopN,
-    window: sheet?.window || shiftWindow(targetDate),
+    window: win,
+    expectedWindow: expected,
+    reportId: sheet?.reportId ?? null,
+    processCds: sheet?.processCds || [],
+    rowsDirty,
+    saveRows,
+    windowStale,
     baseline: sheet?.baseline || '',
     rows,
     setManualCell,

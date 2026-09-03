@@ -56,7 +56,8 @@ const TONE = { normal: 'ok', watch: 'warn', risk: 'bad' };
 
 export default function DailyReportView({
   loading, sheetLoading, targetDate, dateInput, setTargetDate, processId, setProcessId, processOptions,
-  topN, setTopN, window: win, baseline, rows, setManualCell,
+  topN, setTopN, window: win, expectedWindow, windowStale, baseline, rows, setManualCell,
+  rowsDirty, saveRows, processCds,
   draft, codes, stateLabel, events, noteField, dirty, setFieldValue,
   save, correct, confirm, reject, regenerate, exportExcel,
 }) {
@@ -147,7 +148,7 @@ export default function DailyReportView({
       { v: r.level?.label || '—', tone: TONE[r.level?.level] || undefined, bold: true },
       { v: r.process },
       { v: r.productNm, align: 'left', wrap: true },
-      qtyCell(r.target),
+      { node: <TargetCell row={r} locked={locked} onChange={(v) => setManualCell(r.product, 'target', v)} /> },
       qtyCell(r.qty),
       { v: r.rate === null ? '—' : `${fixed(r.rate)}%`, num: true, bold: true },
       { node: <WeekCell row={r} /> },
@@ -178,7 +179,14 @@ export default function DailyReportView({
         <SelectField label="표시" value={topN} options={TOP_N_OPTIONS} onChange={setTopN} style={{ minWidth: 132 }} />
       </View>
 
-      <Hint>{`집계 구간 ${win.from} ~ ${win.to} — 전날 저녁 근무부터 당일 조간회의 직전까지입니다.`}</Hint>
+      <Hint
+        icon={windowStale ? 'alert' : 'info'}
+        style={windowStale ? { borderColor: theme.color.warning, backgroundColor: theme.alpha('warning', 0.12) } : null}
+      >
+        {windowStale
+          ? `이 초안은 옛 집계 구간(${win.from} ~ ${win.to})으로 만들어졌습니다. 조간회의 자료 구간은 ${expectedWindow.from} ~ ${expectedWindow.to} 입니다 — 「초안 재생성」으로 맞출 수 있습니다.`
+          : `집계 구간 ${win.from} ~ ${win.to} — 전날 저녁 근무부터 당일 조간회의 직전까지입니다.`}
+      </Hint>
 
       <Card tight>
         {/* ───── 양식 머리 ───── */}
@@ -233,12 +241,30 @@ export default function DailyReportView({
 
         <View style={{ paddingHorizontal: 14 }}>
         <SourceNote>
-          {`출처: MES 제품별 실적 · 집계 구간 ${win.from} ~ ${win.to} · 일목표 기준 ${baseline || '—'}`}
+          {`출처: MES 조간회의 자료 조회 · 집계 구간 ${win.from} ~ ${win.to}`
+            + (processCds?.length ? ` · 집계한 작업장 ${processCds.join(' · ')}` : '')}
         </SourceNote>
         <Text style={[s.textXs, { marginTop: 4 }]}>
-          일목표·주간목표는 목표 마스터가 연동되기 전까지 기준선으로 계산한 값이며, 결정항목 · DRI · 기한은 작성자가
-          직접 채우는 칸입니다(아직 서버에 저장되지 않습니다).
+          <Text style={{ fontWeight: '700' }}>일목표는 작성자가 채우는 칸입니다.</Text> 제품별 일목표는 아직 어디에도
+          없어(공정 단위 `PROD_DAY_TARGET` 만 있고 값도 비어 있습니다), 채우기 전에는 일목표 · 달성률 · 주간목표 ·
+          주간달성률을 <Text style={{ fontWeight: '700' }}>비워 둡니다</Text> — 없는 목표로 달성률을 내면 늘 100% 근처가
+          나와 보고서로 쓸 수 없습니다. 입력칸의 회색 숫자는 {baseline || '—'}이며, 참고하시라고 깔아 둔 밑값입니다.
         </Text>
+        <Text style={[s.textXs, { marginTop: 3 }]}>
+          주간실적은 그 주 첫 보고 구간부터 대상일까지, 같은 야간 구간만 더한 값입니다.
+        </Text>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {rowsDirty ? (
+            <View style={[s.rowGap6, { marginRight: 'auto' }]}>
+              <Badge tone="amber">미저장</Badge>
+              <Text style={s.textXs}>일목표 · 결정항목 · DRI · 기한을 고쳤습니다</Text>
+            </View>
+          ) : (
+            <Text style={[s.textXs, { marginRight: 'auto' }]}>일목표 · 결정항목 · DRI · 기한은 「행 저장」을 눌러야 남습니다.</Text>
+          )}
+          <Button label="행 저장" size="sm" icon="save" variant={rowsDirty ? 'primary' : undefined} onPress={saveRows} disabled={locked || !rowsDirty} />
+        </View>
 
         {/* ───── 특이사항 ───── */}
         {noteField ? (
@@ -303,7 +329,7 @@ export default function DailyReportView({
       </Card>
 
       <Grid cols={[1, 1]}>
-        <Card title="구간 합계" sub={`${win.from} ~ ${win.to}`}>
+        <Card title="표 합계" sub={`${win.from} ~ ${win.to} · 표시한 ${comma(rows.length)}종의 합`}>
           <KeyValue
             keyWidth={92}
             rows={[
@@ -311,8 +337,8 @@ export default function DailyReportView({
               ['실적 일자', dateWithWeekday(resultDate)],
               ['표시 제품', `${comma(rows.length)}종`],
               ['실적 합계', <BlindValue field="qty" value={`${comma(rows.reduce((n, r) => n + (r.qty || 0), 0))} EA`} textStyle={[s.kvVal, s.num]} />],
-              ['일목표 합계', <BlindValue field="qty" value={`${comma(rows.reduce((n, r) => n + (r.target || 0), 0))} EA`} textStyle={[s.kvVal, s.num]} />],
               ['불량 합계', <BlindValue field="qty" value={`${comma(rows.reduce((n, r) => n + (r.ngQty || 0), 0))} EA`} textStyle={[s.kvVal, s.num]} />],
+              ['일목표 미기입', `${comma(rows.filter((r) => r.provisional).length)}종 / ${comma(rows.length)}종`],
             ]}
           />
         </Card>
@@ -339,6 +365,41 @@ export default function DailyReportView({
 }
 
 /**
+ * 일목표 칸 — 작성자가 채웁니다
+ *
+ * 제품별 일목표는 아직 어디에도 없어, 채우기 전까지 최근 7일 평균 실적을 밑값으로 깝니다.
+ * 밑값 상태는 흐리게 그려 작성자가 채운 목표와 구분합니다.
+ */
+function TargetCell({ row, locked, onChange }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const canData = useAuthStore((state) => state.canData);
+
+  if (!canData('qty')) return <BlindValue field="qty" value="" />;
+
+  return (
+    <TextInput
+      style={[s.xlsCellText, s.xlsNum, {
+        paddingVertical: 2,
+        paddingHorizontal: 4,
+        borderRadius: 3,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: theme.alpha('border', locked ? 0.4 : 1),
+        backgroundColor: locked ? 'transparent' : theme.alpha('muted', 0.4),
+        opacity: row.provisional ? 0.55 : 1,
+      }]}
+      editable={!locked}
+      keyboardType="numeric"
+      value={row.targetInput}
+      placeholder={row.targetRef === null ? '—' : comma(row.targetRef)}
+      placeholderTextColor={theme.color.mutedForeground}
+      onChangeText={onChange}
+    />
+  );
+}
+
+/**
  * 주간누적 칸 — 양식대로 세 줄(주간목표 / 주간실적 / 달성률)이고 달성률만 굵습니다.
  *
  * 수량이 마스킹 대상이라 권한이 없으면 값 대신 비공개 배지만 그립니다.
@@ -352,7 +413,7 @@ function WeekCell({ row }) {
   if (!canData('qty')) return <BlindValue field="qty" value="" />;
 
   return (
-    <View>
+    <View style={{ opacity: row.provisional ? 0.55 : 1 }}>
       <Text style={line}>{`주간목표 ${comma(row.weekTarget)}`}</Text>
       <Text style={line}>{`주간실적 ${comma(row.weekQty)}`}</Text>
       <Text style={[...line, { fontWeight: '700' }]}>{row.weekRate === null ? '—' : `${fixed(row.weekRate)}%`}</Text>
