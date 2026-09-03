@@ -6,7 +6,7 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
 import { recentRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { downloadFromServer, downloadXls } from '@shared/utils/exportUtil';
+import { downloadFromServer, downloadXls, downloadXlsxTree } from '@shared/utils/exportUtil';
 import { minutesText, today } from '@shared/utils/formatUtil';
 import { periodUnit } from '@domains/common/model/paramModel';
 import { loadModelOptions, loadResults, trendSeriesOf } from '../model/productionRepository';
@@ -248,40 +248,13 @@ export function useProductionResultController() {
    * 서버가 응답하지 못하면 화면에 있는 만큼이라도 내려받게 둡니다.
    */
   const exportExcel = useCallback(async () => {
-    // 하위 제품별 상세 실적(_children)까지 포함된 계층형 엑셀 데이터 조립
-    const exportRows = [];
-    items.forEach((r) => {
-      exportRows.push([
-        r.period,
-        r.inputQty !== null && r.inputQty !== undefined ? r.inputQty : '—',
-        r.okQty !== null && r.okQty !== undefined ? r.okQty : '—',
-        r.ngQty !== null && r.ngQty !== undefined ? r.ngQty : '—',
-        r.defectRate === null || r.defectRate === undefined ? '—' : `${r.defectRate}%`,
-        r.uptimeRate === null || r.uptimeRate === undefined ? '—' : `${r.uptimeRate}%`,
-        r.downtimeMin === null || r.downtimeMin === undefined ? '—' : minutesText(r.downtimeMin),
-      ]);
-      if (Array.isArray(r._children)) {
-        r._children.forEach((c) => {
-          exportRows.push([
-            `   └ ${c.period}`,
-            c.inputQty !== null && c.inputQty !== undefined ? c.inputQty : '—',
-            c.okQty !== null && c.okQty !== undefined ? c.okQty : '—',
-            c.ngQty !== null && c.ngQty !== undefined ? c.ngQty : '—',
-            c.defectRate === null || c.defectRate === undefined ? '—' : `${c.defectRate}%`,
-            '—',
-            '—',
-          ]);
-        });
-      }
-    });
-
-    downloadXls({
+    // 3depth 계층(일자 ➔ 제품 ➔ 공정/프레스 기기) 및 엑셀 그룹핑(+/-) 지원 .xlsx 다운로드
+    await downloadXlsxTree({
       name: `생산_실적_집계_${from}_${to}`,
-      head: ['일자 / 제품명', '투입 수량', '양품 수량', '불량 수량', '불량률', '가동률', '비가동 시간'],
-      rows: exportRows,
+      head: ['일자 / 제품명 / 공정·설비', '투입 수량', '양품 수량', '불량 수량', '불량률', '가동률', '비가동 시간'],
+      rows: items,
     });
-    toast?.('생산 실적 집계 엑셀 다운로드가 완료되었습니다.');
-  }, [items, from, to, toast]);
+  }, [items, from, to]);
 
   return {
     loading,

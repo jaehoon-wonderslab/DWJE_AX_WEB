@@ -89,16 +89,26 @@ export default function TabulatorTable({
       },
       columns: [
         {
-          title: '일자 / 제품명',
+          title: '일자 / 제품명 / 공정·설비',
           field: 'period',
-          width: 220,
+          width: 270,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
             const val = cell.getValue() || '—';
-            if (rowData.isChild) {
+            if (rowData.isGrandChild || rowData.depth === 3) {
+              const isPress = (rowData.processNm || '').includes('프레스');
+              const tagColor = isPress ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#c084fc' : '#7e22ce');
+              const tagBg = isPress ? (isDark ? '#451a03' : '#fef3c7') : (isDark ? '#3b0764' : '#f3e8ff');
+              const tagBorder = isPress ? (isDark ? '#78350f' : '#fde68a') : (isDark ? '#581c87' : '#e9d5ff');
+              return `<span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
+                <span style="font-weight: 700; color: ${tagColor}; background: ${tagBg}; border: 1px solid ${tagBorder}; padding: 1px 6px; border-radius: 4px; font-size: 10.5px;">${rowData.processNm || '공정'}</span>
+                <span>${val}</span>
+              </span>`;
+            }
+            if (rowData.isChild || rowData.depth === 2) {
               return `<span style="display: inline-flex; align-items: center; font-weight: 600; color: ${colors.primary}; background: ${isDark ? '#1e293b' : '#eff6ff'}; padding: 2px 7px; border-radius: 4px; font-size: 11.5px; border: 1px solid ${isDark ? '#334155' : '#bfdbfe'};">${val}</span>`;
             }
             return `<span style="font-weight: 600; font-size: 13px;">${val}</span>`;
@@ -160,7 +170,7 @@ export default function TabulatorTable({
           headerSort: false,
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
-            if (rowData.isChild) return `<span style="color: ${colors.mutedText};">—</span>`;
+            if (rowData.isChild || rowData.isGrandChild || rowData.depth > 1) return `<span style="color: ${colors.mutedText};">—</span>`;
             return `<span>${pct(cell.getValue())}</span>`;
           },
         },
@@ -173,7 +183,7 @@ export default function TabulatorTable({
           headerSort: false,
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
-            if (rowData.isChild) return `<span style="color: ${colors.mutedText};">—</span>`;
+            if (rowData.isChild || rowData.isGrandChild || rowData.depth > 1) return `<span style="color: ${colors.mutedText};">—</span>`;
             return `<span>${mins(cell.getValue())}</span>`;
           },
         },

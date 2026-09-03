@@ -161,7 +161,7 @@ export default function ProductionResultView({
 
       <Card
         title="집계 결과"
-        sub={`${filters.unit} · 전체 ${comma(itemsMeta?.total ?? items.length)}건 (일자별 행 좌측 [+] 클릭 시 제품별 실적 확인)`}
+        sub={`${filters.unit} · 전체 ${comma(itemsMeta?.total ?? items.length)}건 (행 좌측 [+] 클릭 시 제품 ➔ 공정/프레스 기기별 상세 실적 확인)`}
         actions={
           <Button
             label="엑셀 다운로드"

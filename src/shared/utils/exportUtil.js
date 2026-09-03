@@ -194,3 +194,178 @@ export function printDocument({ nodeId, title, role }) {
     win.print();
   }, 400);
 }
+
+/**
+ * 계층 트리 데이터(일자 ➔ 제품 ➔ 공정/프레스 기기)를 엑셀 그룹핑(+/- 아웃라인)이 적용된
+ * 순수 .xlsx 파일로 내려받습니다.
+ *
+ * @param {object} config { name, head, rows, blindCount }
+ */
+export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
+  if (!isWeb) {
+    toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
+    return;
+  }
+  if (!rows?.length) {
+    toast('내려받을 데이터가 없습니다');
+    return;
+  }
+
+  try {
+    const ExcelJS = await import('exceljs').then((m) => m.default || m);
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '덕우전자 AX 시스템';
+    wb.lastModifiedBy = '덕우전자 AX 시스템';
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet('생산실적집계', {
+      views: [{ showGridLines: true }],
+      properties: {
+        outlineProperties: {
+          summaryBelow: false,
+          summaryRight: false,
+        },
+      },
+    });
+
+    // 컬럼 정의
+    ws.columns = [
+      { header: head?.[0] || '일자 / 제품명 / 공정·설비', key: 'name', width: 38 },
+      { header: head?.[1] || '투입 수량', key: 'inputQty', width: 16 },
+      { header: head?.[2] || '양품 수량', key: 'okQty', width: 16 },
+      { header: head?.[3] || '불량 수량', key: 'ngQty', width: 16 },
+      { header: head?.[4] || '불량률', key: 'defectRate', width: 14 },
+      { header: head?.[5] || '가동률', key: 'uptimeRate', width: 14 },
+      { header: head?.[6] || '비가동 시간', key: 'downtimeMin', width: 16 },
+    ];
+
+    // 헤더 스타일링 (Shadcn 깔끔한 테마)
+    const headerRow = ws.getRow(1);
+    headerRow.height = 28;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: 'Pretendard', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' },
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'medium', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    const borderStyle = {
+      top: { style: 'thin', color: { argb: 'FFF1F5F9' } },
+      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      left: { style: 'thin', color: { argb: 'FFF1F5F9' } },
+      right: { style: 'thin', color: { argb: 'FFF1F5F9' } },
+    };
+
+    const numFmt = (v) => (v != null && typeof v === 'number' ? v : v ?? '—');
+    const pctFmt = (v) => (v != null && v !== '' ? (typeof v === 'number' ? `${v.toFixed(1)}%` : `${v}%`) : '—');
+
+    let totalExportedRows = 0;
+
+    // 1depth ➔ 2depth ➔ 3depth 순회
+    rows.forEach((r1) => {
+      totalExportedRows++;
+      // Depth 1 (일자)
+      const row1 = ws.addRow({
+        name: r1.period,
+        inputQty: numFmt(r1.inputQty),
+        okQty: numFmt(r1.okQty),
+        ngQty: numFmt(r1.ngQty),
+        defectRate: pctFmt(r1.defectRate),
+        uptimeRate: pctFmt(r1.uptimeRate),
+        downtimeMin: r1.downtimeMin != null ? `${r1.downtimeMin}분` : '—',
+      });
+      row1.height = 24;
+      row1.font = { name: 'Pretendard', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      row1.outlineLevel = 0;
+      row1.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cell.border = borderStyle;
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: colNumber === 1 ? 'left' : 'right',
+        };
+        if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+          cell.numFmt = '#,##0';
+        }
+      });
+
+      if (Array.isArray(r1._children) && r1._children.length > 0) {
+        r1._children.forEach((r2) => {
+          totalExportedRows++;
+          // Depth 2 (제품)
+          const row2 = ws.addRow({
+            name: `   └ ${r2.period}`,
+            inputQty: numFmt(r2.inputQty),
+            okQty: numFmt(r2.okQty),
+            ngQty: numFmt(r2.ngQty),
+            defectRate: pctFmt(r2.defectRate),
+            uptimeRate: '—',
+            downtimeMin: '—',
+          });
+          row2.height = 22;
+          row2.font = { name: 'Pretendard', size: 10, bold: true, color: { argb: 'FF2563EB' } };
+          row2.outlineLevel = 1; // 엑셀 그룹 1레벨
+          row2.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.border = borderStyle;
+            cell.alignment = {
+              vertical: 'middle',
+              horizontal: colNumber === 1 ? 'left' : 'right',
+            };
+            if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+              cell.numFmt = '#,##0';
+            }
+          });
+
+          if (Array.isArray(r2._children) && r2._children.length > 0) {
+            r2._children.forEach((r3) => {
+              totalExportedRows++;
+              // Depth 3 (공정 / 프레스 기기)
+              const procLabel = r3.processNm ? `[${r3.processNm}] ` : '';
+              const row3 = ws.addRow({
+                name: `       └ ${procLabel}${r3.period}`,
+                inputQty: numFmt(r3.inputQty),
+                okQty: numFmt(r3.okQty),
+                ngQty: numFmt(r3.ngQty),
+                defectRate: pctFmt(r3.defectRate),
+                uptimeRate: '—',
+                downtimeMin: '—',
+              });
+              row3.height = 21;
+              row3.font = { name: 'Pretendard', size: 9.5, color: { argb: 'FF475569' } };
+              row3.outlineLevel = 2; // 엑셀 그룹 2레벨
+              row3.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                cell.border = borderStyle;
+                cell.alignment = {
+                  vertical: 'middle',
+                  horizontal: colNumber === 1 ? 'left' : 'right',
+                };
+                if (colNumber >= 2 && colNumber <= 4 && typeof cell.value === 'number') {
+                  cell.numFmt = '#,##0';
+                }
+              });
+            });
+          }
+        });
+      }
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    saveBlob(blob, `${name}.xlsx`);
+    logDownload({ reportName: name, format: '엑셀 (.xlsx)', rowCount: totalExportedRows, blindCount });
+    toast(`${name}.xlsx 파일을 내려받았습니다. (엑셀 좌측 +/- 그룹핑 지원)`);
+  } catch (err) {
+    console.error('XLSX 다운로드 오류:', err);
+    toast('엑셀 파일 생성 중 오류가 발생했습니다.');
+  }
+}

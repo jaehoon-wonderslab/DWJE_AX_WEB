@@ -19,3 +19,6 @@ npm-debug.*
 .env
 .env.local
 .env.*.local
+
+# 일회성 검증 스크립트 (재사용할 것은 tests/specs 로)
+scratch/
