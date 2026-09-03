@@ -12,7 +12,7 @@ import { ChartEmpty, num } from '../charts/chartData';
 import { FONT, tokens } from './d3Theme';
 import Tooltip from './Tooltip';
 import { motion, useDataChanged } from './useDataChanged';
-import { useChartSize } from './useChartSize';
+import { labelStride, useChartSize } from './useChartSize';
 
 const PAD = { l: 38, r: 12, t: 14, b: 26 };
 const MAX_BAR = 30;
@@ -73,9 +73,14 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
       }
     });
 
-    // x 라벨 — 자리가 좁으면 눕힙니다
-    const rotate = x.bandwidth() < 24;
+    // x 라벨 — 먼저 솎아 내고, 그래도 좁으면 눕힙니다.
+    // 눕히기만 하면 라벨이 서로 겹쳐 읽을 수 없습니다 (설비 455대에서 454번 겹쳤습니다).
+    const stride = labelStride(bars.length, iw);
+    const shown = bars.filter((_, i) => i % stride === 0);
+    const gap = iw / Math.max(1, shown.length);
+    const rotate = gap < 44;
     bars.forEach((d, i) => {
+      if (i % stride !== 0) return;
       const cx = x(i) + x.bandwidth() / 2;
       const t = g.append('text')
         .attr('font-size', FONT.axis).attr('fill', c.axis)

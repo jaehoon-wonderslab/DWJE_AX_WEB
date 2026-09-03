@@ -56,19 +56,41 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
   /** 한 쪽 건수 선택 — 두 갈래 모두에서 씁니다 */
   const SizePicker = () =>
     showSize && onSize ? (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8 }}>
-        {sizes.map((n) => (
-          <TouchableOpacity
-            key={n}
-            onPress={() => onSize(n)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={n === 0 ? '전체 보기' : `한 쪽에 ${n}건`}
-            style={[btn, { borderColor: theme.color.border, paddingHorizontal: 7 }, n === size && { backgroundColor: theme.color.secondary }]}
-          >
-            <Text style={[s.textXs, { fontSize: 11, fontWeight: n === size ? '700' : '400' }]}>{n === 0 ? '전체' : n}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={[s.textXs, { color: theme.color.mutedForeground, fontSize: 11.5, marginRight: 2 }]}>페이지당</Text>
+        {sizes.map((n) => {
+          const isSelected = n === size || (!size && n === 50);
+          return (
+            <TouchableOpacity
+              key={n}
+              onPress={() => onSize(n)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={n === 0 ? '전체 보기' : `한 쪽에 ${n}건`}
+              style={[
+                btn,
+                {
+                  borderColor: isSelected ? theme.color.primary : theme.color.border,
+                  backgroundColor: isSelected ? theme.alpha('primary', 0.08) : 'transparent',
+                  paddingHorizontal: 8,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  s.textXs,
+                  {
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? '700' : '500',
+                    color: isSelected ? theme.color.primary : theme.color.foreground,
+                  },
+                ]}
+              >
+                {n === 0 ? '전체' : n}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     ) : null;
 
@@ -76,8 +98,10 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
   if (!total) return null;
   if (showingAll || (totalPages <= 1 && total <= per)) {
     return (
-      <View style={[wrap, style]}>
-        <Text style={[s.textXs, { fontSize: 11.5 }]}>{`전체 ${comma(total)}건`}</Text>
+      <View style={[wrap, { borderTopWidth: 1, borderTopColor: theme.color.border }, style]}>
+        <Text style={[s.textXs, { fontSize: 12, color: theme.color.mutedForeground }]}>
+          전체 <Text style={{ fontWeight: '700', color: theme.color.foreground }}>{comma(total)}</Text>건
+        </Text>
         <View style={{ marginLeft: 'auto' }}><SizePicker /></View>
       </View>
     );
@@ -97,25 +121,33 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={[btn, disabled && { opacity: 0.35 }, { borderColor: theme.color.border }]}
+      style={[
+        btn,
+        {
+          borderColor: theme.color.border,
+          backgroundColor: 'transparent',
+        },
+        disabled && { opacity: 0.3 },
+      ]}
     >
-      <Icon name={icon} size={13} color={theme.color.mutedForeground} />
+      <Icon name={icon} size={14} color={disabled ? theme.color.mutedForeground : theme.color.foreground} />
     </TouchableOpacity>
   );
 
   return (
-    <View style={[wrap, style]}>
-      <Text style={[s.textXs, { fontSize: 11.5 }]}>
-        {`전체 ${comma(total)}건 중 ${comma(first)}–${comma(last)}`}
+    <View style={[wrap, { borderTopWidth: 1, borderTopColor: theme.color.border }, style]}>
+      <Text style={[s.textXs, { fontSize: 12, color: theme.color.mutedForeground }]}>
+        전체 <Text style={{ fontWeight: '700', color: theme.color.foreground }}>{comma(total)}</Text>건 중{' '}
+        <Text style={{ fontWeight: '600', color: theme.color.foreground }}>{`${comma(first)}–${comma(last)}`}</Text>
       </Text>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
         <Arrow to={1} icon="chevronLeft" label="첫 쪽" disabled={current <= 1} />
         <Arrow to={current - 1} icon="arrowLeft" label="이전 쪽" disabled={current <= 1} />
 
         {pageWindow(current, totalPages).map((n, i) =>
           n === '…' ? (
-            <Text key={`gap-${i}`} style={[s.textXs, { paddingHorizontal: 2 }]}>…</Text>
+            <Text key={`gap-${i}`} style={[s.textXs, { paddingHorizontal: 4, color: theme.color.mutedForeground }]}>…</Text>
           ) : (
             <TouchableOpacity
               key={n}
@@ -125,15 +157,19 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
               accessibilityLabel={`${n}쪽`}
               style={[
                 btn,
-                { borderColor: theme.color.border, paddingHorizontal: 8, minWidth: 30 },
-                n === current && { backgroundColor: theme.color.primary, borderColor: theme.color.primary },
+                { borderColor: theme.color.border, minWidth: 32, paddingHorizontal: 8 },
+                n === current
+                  ? { backgroundColor: theme.color.primary, borderColor: theme.color.primary }
+                  : { backgroundColor: 'transparent' },
               ]}
             >
               <Text
                 style={[
                   s.textXs,
-                  { fontSize: 11.5, fontWeight: n === current ? '700' : '500' },
-                  n === current && { color: theme.color.primaryForeground },
+                  { fontSize: 12, fontWeight: n === current ? '700' : '500' },
+                  n === current
+                    ? { color: theme.color.primaryForeground }
+                    : { color: theme.color.foreground },
                 ]}
               >
                 {n}
@@ -145,7 +181,12 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
         <Arrow to={current + 1} icon="arrowRight" label="다음 쪽" disabled={current >= totalPages} />
         <Arrow to={totalPages} icon="chevronRight" label="마지막 쪽" disabled={current >= totalPages} />
 
-        <SizePicker />
+        {showSize && onSize ? (
+          <>
+            <View style={{ width: 1, height: 18, backgroundColor: theme.color.border, marginHorizontal: 8 }} />
+            <SizePicker />
+          </>
+        ) : null}
       </View>
     </View>
   );
@@ -154,16 +195,16 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
 const wrap = {
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 10,
+  gap: 12,
   flexWrap: 'wrap',
-  paddingVertical: 10,
-  paddingHorizontal: 14,
+  paddingVertical: 12,
+  paddingHorizontal: 16,
 };
 const btn = {
-  height: 26,
-  minWidth: 26,
-  paddingHorizontal: 5,
-  borderRadius: 7,
+  height: 30,
+  minWidth: 30,
+  paddingHorizontal: 6,
+  borderRadius: 6,
   borderWidth: 1,
   alignItems: 'center',
   justifyContent: 'center',

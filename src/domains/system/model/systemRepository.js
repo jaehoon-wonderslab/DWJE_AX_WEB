@@ -150,6 +150,27 @@ export async function loadMenuPerms() {
 export const toggleMenuPerm = (deptId, screenId) => command(systemService.putSystemMenuPerms({ deptId, screenId }));
 export const toggleMenuGroup = (deptId, group, allowed) => command(systemService.putSystemMenuPermsGroup({ deptId, group, allowed }));
 export const copyMenuPerm = (v) => command(systemService.postSystemMenuPermsCopy(v));
+/**
+ * 메뉴 권한 단건 변경 (허용 여부 명시)
+ *
+ * 서버 요청 본문은 `deptId · screenId · allowed` 입니다. allowed 를 빼고 보내면
+ * 서버가 true 로 간주해 체크 해제가 되지 않았습니다.
+ *
+ * @param {number|string} deptId 부서 ID
+ * @param {string} screenId 화면 ID
+ * @param {boolean} allowed true 허용 · false 해제
+ */
+export const setMenuPerm = (deptId, screenId, allowed) =>
+  command(systemService.putSystemMenuPerms({ deptId, screenId, allowed }));
+/**
+ * 메뉴 권한 그룹 일괄 변경 — 서버 본문 키는 `groupNm` 입니다 (`group` 은 받지 않는 항목이라 400)
+ *
+ * @param {number|string} deptId 부서 ID
+ * @param {string} groupNm 메뉴 그룹 이름 (매트릭스 행의 group)
+ * @param {boolean} allowed true 전체 허용 · false 전체 해제
+ */
+export const setMenuGroupPerm = (deptId, groupNm, allowed) =>
+  command(systemService.putSystemMenuPermsGroup({ deptId, groupNm, allowed }));
 
 /* ═══════ SY-03 데이터 접근 권한 ═══════ */
 /**
@@ -159,16 +180,25 @@ export const copyMenuPerm = (v) => command(systemService.postSystemMenuPermsCopy
  * 사번을 고르지 않았으면 호출을 건너뛰고, 없는 사번이면 서버가 404 를 주므로
  * 화면에서 "대상 없음" 으로 표시합니다. (로그아웃 대상이 아닙니다)
  */
-export async function loadDataPerms(empNo) {
+export async function loadDataPerms(empNo, { page, size } = {}) {
   const data = await unwrapAll({
     matrix: systemService.getSystemDataPerms({}),
     ...(empNo ? { preview: systemService.getSystemDataPermsPreview({ empNo }) } : {}),
     byUser: systemService.getSystemDataPermsByUser({}),
-    audit: systemService.getSystemDataPermsAudit({}),
+    audit: systemService.getSystemDataPermsAudit({ page, size }),
   });
-  return { ...data, matrix: normalizePermMatrix(data.matrix) };
+  return { ...data, matrix: normalizePermMatrix(data.matrix), auditMeta: data.metas?.audit };
 }
 export const toggleDataPerm = (deptId, fieldKey) => command(systemService.putSystemDataPerms({ deptId, fieldKey }));
+/**
+ * 데이터 권한 변경 (허용 여부 명시) — 서버 본문은 `deptId · fieldKey · allowed` 입니다.
+ *
+ * @param {number|string} deptId 부서 ID
+ * @param {string} fieldKey 데이터 항목 키 (qty · yield · price · customer · plan · mold · worker)
+ * @param {boolean} allowed true 허용 · false 해제
+ */
+export const setDataPerm = (deptId, fieldKey, allowed) =>
+  command(systemService.putSystemDataPerms({ deptId, fieldKey, allowed }));
 
 /* ═══════ SY-04 이상 알림 발송 조건 ═══════ */
 export async function loadAlertConditions({ severity, enabled, keyword, page, size }) {
@@ -184,6 +214,22 @@ export const updateAlertCondition = (condId, v) => command(systemService.putAler
 export const deleteAlertCondition = (condId) => command(systemService.deleteAlertConditionsByCondId({ condId }));
 export const toggleAlertCondition = (condId) => command(systemService.patchAlertConditionsByCondIdState({ condId }));
 export const testAlertCondition = (condId) => command(systemService.postAlertConditionsByCondIdTestSend({ condId }));
+/**
+ * 발송 조건 화면 (상태 필터를 서버 키로)
+ *
+ * 목록 API 의 상태 필터 파라미터는 `state`(ON | OFF) 입니다.
+ * 예전 `enabled` 는 서버가 모르는 키라 조용히 무시되어 '활성/중지' 를 골라도 전체가 나왔습니다.
+ *
+ * @param {object} p { severity, state:'ON'|'OFF'|undefined, keyword, page, size }
+ */
+export async function loadAlertConditionsByState({ severity, state, keyword, page, size }) {
+  const data = await unwrapAll({
+    summary: systemService.getAlertConditionsSummary({}),
+    list: systemService.getAlertConditions({ severity, state, keyword, page, size }),
+    groups: systemService.getAlertRecipientGroups({}),
+  });
+  return { ...data, listMeta: data.metas?.list };
+}
 
 /* ═══════ SY-05 알림 수신자 관리 ═══════ */
 export async function loadRecipients({ groupId, state, page, size }) {
@@ -205,6 +251,7 @@ export const toggleRecipientState = (recipientId) => command(systemService.patch
 export const createDuty = (v) => command(systemService.postAlertDuties(v));
 export const updateDuty = (dutyId, v) => command(systemService.putAlertDutiesByDutyId({ dutyId, ...v }));
 export const deleteDuty = (dutyId) => command(systemService.deleteAlertDutiesByDutyId({ dutyId }));
+export const updateEscalationRules = (stages) => command(systemService.putAlertEscalationRules({ stages }));
 
 /* ═══════ SY-06 용어 사전 ═══════ */
 export async function loadGlossary({ keyword, domain, mineOnly, page, size }) {
@@ -224,13 +271,29 @@ export const updateVariant = (variantId, v) => command(systemService.putGlossary
 export const deleteVariant = (variantId) => command(systemService.deleteGlossaryVariantsByVariantId({ variantId }));
 export const normalizeText = (text) => command(systemService.postGlossaryNormalize({ text }));
 export const reindexGlossary = () => command(systemService.postGlossaryReindex({}));
+/**
+ * 용어 사전 화면 (분류 필터를 서버 키로)
+ *
+ * 목록 API 의 분류 파라미터는 `domainCd` 입니다. 예전 `domain` 은 서버가 모르는 키라
+ * 분류를 골라도 전체가 나왔습니다. '내가 등록한 유사어만' 은 서버 파라미터가 없어 화면에서 걸러 냅니다.
+ *
+ * @param {object} p { keyword, domainCd, page, size }
+ */
+export async function loadGlossaryByDomain({ keyword, domainCd, page, size }) {
+  const data = await unwrapAll({
+    summary: systemService.getGlossarySummary({}),
+    terms: systemService.getGlossaryTerms({ keyword, domainCd, page, size }),
+    domains: systemService.getGlossaryDomains({}),
+  });
+  return { ...data, termsMeta: data.metas?.terms };
+}
 
 /* ═══════ SY-07 제품군 순위 ═══════ */
-export function loadProductRank(topN) {
+export function loadProductRank(topN, { page, size } = {}) {
   return unwrapAll({
     families: systemService.getProductsFamilies({}),
     ranking: systemService.getProductsRanking({ topN }),
-    logs: systemService.getProductsRankLogs({}),
+    logs: systemService.getProductsRankLogs({ page, size }),
   });
 }
 export const loadFamilyProducts = (familyCd) => unwrap(systemService.getProductsFamiliesByFamilyCdProducts({ familyCd }), { items: [] });
@@ -384,3 +447,47 @@ export const fetchSyncJob = (jobId) => unwrap(systemService.getSyncJobsByJobId({
 export const retrySyncJob = (jobId) => command(systemService.postSyncJobsByJobIdRetry({ jobId }));
 export const runManualSync = (v) => command(systemService.postSyncJobsManual(v));
 export const testConnection = () => command(systemService.postSyncConnectionTest({}));
+
+/* ═══════ 추가 함수 (SY-08 · SY-13 · SY-14 — 기존 함수는 그대로 두고 덧붙였습니다) ═══════ */
+
+/**
+ * 부서 선택지 (코드값) — 다운로드 이력의 `deptId` 처럼 부서 **ID** 를 받는 조회용.
+ * `loadDeptOptions` 는 이름만 돌려주므로 ID 가 필요한 화면은 이것을 씁니다.
+ * @returns {Promise<Array<{value:string,label:string}>>}
+ */
+export async function loadDeptIdOptions() {
+  const data = await unwrap(systemService.getSystemDepts({}), { items: [] });
+  return (data?.items || data?.depts || [])
+    .filter((d) => (d.deptId ?? d.id) != null && (d.deptNm ?? d.name))
+    .map((d) => ({ value: String(d.deptId ?? d.id), label: d.deptNm ?? d.name }));
+}
+
+/**
+ * 지표 기준 목록 — 서버 파라미터 이름(applied · level)으로 보냅니다.
+ *
+ * `loadMetricStandards` 는 enabled · grade 로 보내는데 서버는 그 이름을 몰라 조용히 무시했습니다
+ * (적용 상태·판정 필터가 무엇을 골라도 전체가 나왔습니다).
+ * @param {{category?:string, applied?:boolean, level?:string, page?:number, size?:number}} p
+ */
+export async function loadMetricStandardsFiltered({ category, applied, level, page, size }) {
+  const data = await unwrapAll({
+    summary: systemService.getMetricsStandardsSummary({}),
+    list: systemService.getMetricsStandards({ category, applied, level, page, size }),
+    history: systemService.getMetricsStandardsHistory({ size: 6 }),
+  });
+  return { ...data, listMeta: data.metas?.list };
+}
+
+/**
+ * 지표 적용/해제 — 서버 본문은 `on(true|false)` 입니다 (카탈로그의 `applied` 는 E-VALID-001 로 거부됩니다).
+ * 본문 없이 보내면 토글되는데, 화면이 보는 값과 어긋날 수 있어 목표 상태를 명시해 보냅니다.
+ */
+export const setMetricApplied = (stdId, on) =>
+  command(systemService.patchMetricsStandardsByStdIdState({ stdId, on }));
+
+/**
+ * 학습데이터 내보내기 — 서버가 받는 항목은 from · to · yearMonth · scope · format 입니다.
+ * 카탈로그의 `ratingFilter` 는 서버가 거부합니다(E-VALID-001) → 기간으로 내보냅니다.
+ */
+export const exportTrainsetByRange = ({ from, to }) =>
+  command(systemService.postAiChatHistoryExportTrainset({ from, to, format: 'jsonl' }));

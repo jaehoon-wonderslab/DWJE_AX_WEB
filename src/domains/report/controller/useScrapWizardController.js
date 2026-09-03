@@ -12,8 +12,10 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
 import { currentMonthRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { loadProcessOptions } from '@domains/common/model/dataRangeRepository';
+import { loadModelOptions } from '@domains/production/model/productionRepository';
 import {
-  addManualRow, adjustUnitPrice, calculateScrap, createScrapDraft, loadMesVouchers,
+  addManualRow, adjustUnitPrice, calculateScrap, createScrapDraft, deleteScrapDraft, loadMesVouchers,
   publishScrapReport, removeManualRow, saveApprovalLine, saveScrapDraft, sendReviewRequest,
 } from '../model/reportRepository';
 
@@ -25,6 +27,10 @@ export function useScrapWizardController() {
   const [calc, setCalc] = useState(null);
   const [cond, setCond] = useState({ ...currentMonthRange(), process: '전체', model: '전체', originType: '전체' });
   const [picked, setPicked] = useState([]);
+
+  // 모델 및 공정 기준정보 선택지
+  const { data: modelOptions } = useAsync(loadModelOptions, [], { silent: true, initialData: [{ value: '전체', label: '전체' }] });
+  const { data: processOptions } = useAsync(loadProcessOptions, [], { silent: true, initialData: [{ value: '전체', label: '전체' }] });
 
   // 1단계 — MES 폐기 전표 조회 (전표가 많아 쪽 단위로 봅니다)
   const voucherPaging = usePaging({ resetKey: `${cond.from}|${cond.to}|${cond.process}|${cond.model}|${cond.originType}` });
@@ -162,6 +168,25 @@ export function useScrapWizardController() {
     return res;
   }, [draft, toast]);
 
+  const cancelDraft = useCallback(async () => {
+    if (!draft?.draftId) {
+      setStep(1);
+      setPicked([]);
+      setCalc(null);
+      setDraft(null);
+      return { ok: true };
+    }
+    const res = await deleteScrapDraft(draft.draftId);
+    toast(res.message);
+    if (res.ok) {
+      setDraft(null);
+      setCalc(null);
+      setPicked([]);
+      setStep(1);
+    }
+    return res;
+  }, [draft, toast]);
+
   return {
     voucherPaging,
     vouchersMeta: voucherData?.meta,
@@ -178,6 +203,9 @@ export function useScrapWizardController() {
     setPicked,
     togglePick,
     reset,
+    cancelDraft,
+    modelOptions,
+    processOptions,
     saveForm,
     addRow,
     removeRow,

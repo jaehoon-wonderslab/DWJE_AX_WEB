@@ -73,8 +73,9 @@ export function useMenuPermController() {
     avgCount: depts.length ? (depts.reduce((n, d) => n + (matrix[d.id] || []).length, 0) / depts.length).toFixed(1) : '0',
     // 서버 요청은 `allowed` 를 함께 받습니다(없으면 true 로 간주해 해제가 되지 않습니다).
     // 지금 체크돼 있으면 해제, 아니면 허용을 보냅니다.
-    toggle: (screenId, deptId) => run(() => repo.toggleMenuPerm(deptId, screenId, !(matrix[deptId] || []).includes(screenId))),
-    toggleGroup: (group, deptId, allowed) => run(() => repo.toggleMenuGroup(deptId, group, allowed)),
+    toggle: (screenId, deptId) => run(() => repo.setMenuPerm(deptId, screenId, !(matrix[deptId] || []).includes(screenId))),
+    // 그룹 일괄 — 서버 본문 키는 groupNm 입니다 (PermMatrix 가 넘기는 group 은 그룹 이름)
+    toggleGroup: (group, deptId, allowed) => run(() => repo.setMenuGroupPerm(deptId, group, allowed)),
     copyPerm: (v) => run(() => repo.copyMenuPerm(v)),
     exportExcel,
   };

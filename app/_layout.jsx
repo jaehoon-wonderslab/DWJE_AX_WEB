@@ -15,7 +15,7 @@ import { Platform, StatusBar, Text, View } from 'react-native';
 import { Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@services/setup'; // 목(mock) 핸들러 등록 — 실 서버 모드에서는 아무 일도 하지 않습니다
-import { DrawerHost, Loading, ModalHost, ToastHost } from '@shared/components/ui';
+import { DrawerHost, GlobalApiSpinner, Loading, ModalHost, ToastHost } from '@shared/components/ui';
 import { FONT_FAMILY } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthBootstrap } from '@domains/auth/controller/useAuthBootstrap';
@@ -79,6 +79,7 @@ export default function RootLayout() {
         <ModalHost />
         <DrawerHost />
         <ToastHost />
+        <GlobalApiSpinner />
       </View>
     </SafeAreaProvider>
   );

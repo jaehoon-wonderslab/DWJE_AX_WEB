@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react';
 import { fetchMe } from '@domains/auth/model/authRepository';
 import { useAsync } from '@shared/hooks/useAsync';
+import { usePaging } from '@shared/hooks/usePaging';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
@@ -18,7 +19,11 @@ export function useDataPermController() {
 
   // 미리보기 대상 — 기본값은 로그인 계정. 사번이 있어야 미리보기 API 를 부를 수 있습니다.
   const [previewEmpNo, setPreviewEmpNo] = useState(me?.empNo || '');
-  const { data, loading, reload } = useAsync(() => repo.loadDataPerms(previewEmpNo), [previewEmpNo]);
+  const auditPaging = usePaging({ resetKey: previewEmpNo });
+  const { data, loading, reload } = useAsync(
+    () => repo.loadDataPerms(previewEmpNo, auditPaging.params),
+    [previewEmpNo, auditPaging.page, auditPaging.size]
+  );
 
   const matrixData = data?.matrix;
   const fields = matrixData?.fields || [];
@@ -29,7 +34,7 @@ export function useDataPermController() {
     async (fieldKey, deptId) => {
       // 서버 요청은 `allowed` 를 함께 받습니다(없으면 true 로 간주해 해제가 되지 않습니다)
       const allowed = !(matrix[deptId] || []).includes(fieldKey);
-      const res = await repo.toggleDataPerm(deptId, fieldKey, allowed);
+      const res = await repo.setDataPerm(deptId, fieldKey, allowed);
       toast(res.message);
       if (res.ok) {
         reload();
@@ -65,6 +70,8 @@ export function useDataPermController() {
     setPreviewEmpNo,
     byUser: data?.byUser?.items || [],
     audit: data?.audit?.items || [],
+    auditPaging,
+    auditMeta: data?.auditMeta,
     fieldNameOf,
     toggle,
     exportExcel,

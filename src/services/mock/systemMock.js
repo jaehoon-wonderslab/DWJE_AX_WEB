@@ -356,6 +356,14 @@ export const systemMock = {
     });
   },
 
+  deleteAlertConditionsByCondId: ({ condId }) => {
+    const s = store();
+    const idx = s.conditions.findIndex((x) => x.condId === condId);
+    if (idx === -1) return fail('E-NOTFOUND', '대상 조건을 찾을 수 없습니다.');
+    const [c] = s.conditions.splice(idx, 1);
+    logPerm(c.name, '알림 조건', '발송 조건 삭제');
+    return ok(`'${c.name}' 발송 조건을 삭제했습니다.`);
+  },
   /* ═══════════ SY-05 알림 수신자 관리 ═══════════ */
   getAlertRecipientsSummary: () => {
     const st = store();
@@ -438,28 +446,35 @@ export const systemMock = {
     return ok('당번을 등록했습니다.');
   },
 
-  deleteAlertDutiesByDutyId: ({ dutyId, remove, ...body }) => {
+  putAlertDutiesByDutyId: ({ dutyId, ...body }) => {
     const st = store();
-    if (remove) {
-      st.duties = st.duties.filter((d) => d.dutyId !== dutyId);
-      return ok('당번을 삭제했습니다.');
-    }
     const d = st.duties.find((x) => x.dutyId === dutyId);
     if (!d) return fail('E-NOTFOUND', '대상 당번을 찾을 수 없습니다.');
     Object.assign(d, body);
-    return ok('당번을 수정했습니다.');
+    return ok('당번 정보를 수정했습니다.');
   },
 
-  getAlertEscalationRules: ({ rules }) => {
+  deleteAlertDutiesByDutyId: ({ dutyId }) => {
     const st = store();
-    if (rules) {
-      st.escalation = rules;
-      return ok('승격 규칙을 저장했습니다.');
-    }
-    return { items: st.escalation };
+    const idx = st.duties.findIndex((d) => d.dutyId === dutyId);
+    if (idx === -1) return fail('E-NOTFOUND', '대상 당번을 찾을 수 없습니다.');
+    st.duties.splice(idx, 1);
+    return ok('당번을 삭제했습니다.');
+  },
+
+  getAlertEscalationRules: () => ({ items: store().escalation }),
+
+  putAlertEscalationRules: ({ stages, rules }) => {
+    const st = store();
+    st.escalation = stages || rules || st.escalation;
+    return ok('승격 규칙을 수정했습니다.', { items: st.escalation });
   },
 
   /* ═══════════ SY-06 용어 사전 ═══════════ */
+  getGlossaryDomains: () => ({
+    domains: GLOSSARY_DOMAINS.map((d, i) => ({ domainId: `DOM_${i + 1}`, code: d, name: d })),
+  }),
+
   getGlossarySummary: () => {
     const st = store();
     const me = mockState.currentUser.empNo;
@@ -511,6 +526,15 @@ export const systemMock = {
     if (definition) g.definition = definition;
     if (domain) g.domain = domain;
     return ok('공식 용어를 수정했습니다.');
+  },
+
+  deleteGlossaryTermsByTermId: ({ termId }) => {
+    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-002', '공식 용어는 통합관리자만 삭제할 수 있습니다.');
+    const st = store();
+    const idx = st.glossary.findIndex((x) => x.termId === termId);
+    if (idx === -1) return fail('E-NOTFOUND', '대상 용어를 찾을 수 없습니다.');
+    const [removed] = st.glossary.splice(idx, 1);
+    return ok(`'${removed.term}' 용어를 삭제했습니다.`);
   },
 
   postGlossaryTermsByTermIdVariants: ({ termId, word }) => {

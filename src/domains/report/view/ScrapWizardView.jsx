@@ -9,7 +9,7 @@ import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import { APPROVERS, REVIEW_OWNERS } from '@shared/constants/organization';
-import { Badge, Button, Card, CheckRow, DateField, Filters, Hint, KeyValue, Loading, Pagination, SelectField, SourceNote, StatCard, Steps, Table, TextAreaField, TextField, openFormModal } from '@shared/components/ui';
+import { Badge, Button, Card, CheckRow, DateField, Filters, Hint, KeyValue, Loading, Pagination, SelectField, SourceNote, StatCard, Steps, Table, TextAreaField, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -18,12 +18,25 @@ import { comma, fixed } from '@shared/utils/formatUtil';
 
 export default function ScrapWizardView({
   steps, step, goStep, draft, calc, cond, setCond, items, loadingVouchers,
-  picked, setPicked, togglePick, reset, saveForm, addRow, removeRow, savePrice,
-  saveReview, requestReview, publish, voucherPaging, vouchersMeta,
+  picked, setPicked, togglePick, reset, cancelDraft, saveForm, addRow, removeRow, savePrice,
+  saveReview, requestReview, publish, voucherPaging, vouchersMeta, modelOptions, processOptions,
 }) {
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
   const canData = useAuthStore((state) => state.canData);
+
+  const confirmCancelDraft = () => {
+    openConfirmModal({
+      title: '초안 취소',
+      message: '현재 작성 중인 폐기 보고서 초안과 수기 항목, 조정된 단가가 모두 삭제됩니다. 계속하시겠습니까?',
+      confirmLabel: '초안 삭제',
+      danger: true,
+      onConfirm: async () => {
+        const res = await cancelDraft();
+        if (res?.ok) goToScreen('rpt-scrap');
+      },
+    });
+  };
 
   // 초안은 2단계로 넘어갈 때 만듭니다. 1단계(전표 조회·선택)는 초안 없이 그립니다
   if (step > 1 && !draft) return <Loading text="초안을 준비하는 중입니다…" />;
@@ -39,6 +52,9 @@ export default function ScrapWizardView({
         actions={
           <>
             <Button label="폐기 보고서 목록" size="sm" icon="arrowLeft" onPress={() => goToScreen('rpt-scrap')} />
+            {draft?.draftId ? (
+              <Button label="초안 취소·삭제" size="sm" variant="danger" icon="trash" onPress={confirmCancelDraft} />
+            ) : null}
             <Button label="초기화" size="sm" icon="refresh" onPress={reset} />
           </>
         }
@@ -47,7 +63,20 @@ export default function ScrapWizardView({
       <Steps items={steps} step={step} onPick={goStep} />
 
       {step === 1 ? (
-        <Step1 cond={cond} setCond={setCond} items={items} loading={loadingVouchers} picked={picked} setPicked={setPicked} togglePick={togglePick} qty={qty} paging={voucherPaging} meta={vouchersMeta} />
+        <Step1
+          cond={cond}
+          setCond={setCond}
+          items={items}
+          loading={loadingVouchers}
+          picked={picked}
+          setPicked={setPicked}
+          togglePick={togglePick}
+          qty={qty}
+          paging={voucherPaging}
+          meta={vouchersMeta}
+          modelOptions={modelOptions}
+          processOptions={processOptions}
+        />
       ) : null}
 
       {step === 2 ? <Step2 draft={draft} saveForm={saveForm} addRow={addRow} removeRow={removeRow} qty={qty} /> : null}
@@ -81,18 +110,21 @@ export default function ScrapWizardView({
 }
 
 /* ───────── 1단계 : MES 폐기 대상 검색 ───────── */
-function Step1({ cond, setCond, items, loading, picked, setPicked, togglePick, qty, paging, meta }) {
+function Step1({ cond, setCond, items, loading, picked, setPicked, togglePick, qty, paging, meta, modelOptions = [], processOptions = [] }) {
   const s = useCommonStyles();
   const pickedRows = items.filter((v) => picked.includes(v.voucherId));
   const pickedQty = pickedRows.reduce((a, v) => a + v.qty, 0);
+
+  const procOpts = processOptions?.length ? processOptions : ['전체', 'Press', 'A Plating', 'B Plating', 'Coating'];
+  const mdlOpts = modelOptions?.length ? modelOptions : ['전체', 'KRIOS', 'EOS-S', 'EOS-SC', 'BOI', 'MEM-B', 'MEM-S'];
 
   return (
     <View>
       <Filters>
         <DateField label="발생 시작일" value={cond.from} onChange={(v) => setCond({ ...cond, from: v })} />
         <DateField label="발생 종료일" value={cond.to} onChange={(v) => setCond({ ...cond, to: v })} />
-        <SelectField label="공정" value={cond.process} options={['전체', 'Press', 'A Plating', 'B Plating', 'Coating']} onChange={(v) => setCond({ ...cond, process: v })} />
-        <SelectField label="모델" value={cond.model} options={['전체', 'KRIOS', 'EOS-S', 'EOS-SC', 'BOI', 'MEM-B', 'MEM-S']} onChange={(v) => setCond({ ...cond, model: v })} />
+        <SelectField label="공정" value={cond.process} options={procOpts} onChange={(v) => setCond({ ...cond, process: v })} />
+        <SelectField label="모델" value={cond.model} options={mdlOpts} onChange={(v) => setCond({ ...cond, model: v })} />
         <SelectField label="발생 구분" value={cond.originType} options={['전체', '제조공정', '협력업체', 'IQC']} onChange={(v) => setCond({ ...cond, originType: v })} />
       </Filters>
 

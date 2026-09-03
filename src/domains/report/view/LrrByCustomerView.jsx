@@ -13,7 +13,7 @@ import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import ReportDoc, { ReportTitle } from '@shared/components/layout/ReportDoc';
-import { Button, Card, EmptyState, Filters, Loading, ProgressBar, SelectField, StatCard, Table, XlsTable } from '@shared/components/ui';
+import { Badge, BlindValue, Button, Card, EmptyState, Filters, Loading, ProgressBar, SelectField, StatCard, Table, XlsTable } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { yearOptions } from '@shared/stores/useAppStore';
 import { useCommonStyles } from '@shared/theme/styles';
@@ -56,6 +56,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
   const baseYear = data.baseYear ?? filters.baseYear;
   const qty = (v) => (canData('qty') ? nz(v) : '비공개');
   const yld = (v) => (canData('yield') ? (v === null || v === undefined ? '-' : `${v}%`) : '비공개');
+  const cust = (v) => (canData('customer') ? (v ?? '—') : '비공개');
 
   const defect = pivot(data.byDefectType, 'cnt');
   const customer = pivot(data.byCustomerMonth, 'qty');
@@ -78,7 +79,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
           rows={pv.rows.map((r) => ({
             key: r.label,
             cells: [
-              { v: r.label, align: 'left' },
+              { v: valueLabel === '고객사' ? cust(r.label) : r.label, align: 'left' },
               { v: qty(r.total), num: true, bold: true },
               ...r.cells.map((v) => ({ v: qty(v), num: true })),
             ],
@@ -124,7 +125,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
         />
 
         <Grid cols={4}>
-          <StatCard label={`${baseYear}년 누적 출하수량`} field="qty" value={nz(sum.shipQty)} unit="EA" sub={`고객사 ${byCustomer.length}개사`} />
+          <StatCard label={`${baseYear}년 누적 출하수량`} field="qty" value={nz(sum.shipQty)} unit="EA" sub={canData('customer') ? `고객사 ${byCustomer.length}개사` : '고객사 비공개'} />
           <StatCard label="LRR 건수" field="qty" value={nz(sum.lrrCnt)} unit="건" sub="고객사 라인 불량 통보" />
           <StatCard label="LRR(%)" field="yield" value={sum.lrrRate ?? '—'} unit="%" sub="출하수량 대비" tone={Number(sum.lrrRate) > 0 ? 'down' : 'up'} />
           <StatCard
@@ -160,7 +161,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
               minWidth={760}
               keyExtractor={(r) => r.customer || '—'}
               columns={[
-                { key: 'customer', title: '고객사', flex: 1, minWidth: 140, render: (r) => <Text style={s.td}>{r.customer ?? '—'}</Text> },
+                { key: 'customer', title: '고객사', flex: 1, minWidth: 140, render: (r) => <BlindValue field="customer" value={r.customer ?? '—'} textStyle={s.td} /> },
                 { key: 'shipQty', title: "Ship Q'ty", width: 130, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{qty(r.shipQty)}</Text> },
                 { key: 'lrrQty', title: "LRR Q'ty", width: 120, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{qty(r.lrrQty)}</Text> },
                 { key: 'lrrRate', title: 'LRR(%)', width: 96, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{yld(r.lrrRate)}</Text> },

@@ -53,6 +53,11 @@ export const useUiStore = create((set, get) => ({
   openDrawer: (config) => set({ drawer: config }),
   closeDrawer: () => set({ drawer: null }),
 
+  // ── 전역 API 로딩 스피너 ────────────────────────────────
+  apiLoadingCount: 0,
+  startApiLoading: () => set((state) => ({ apiLoadingCount: state.apiLoadingCount + 1 })),
+  endApiLoading: () => set((state) => ({ apiLoadingCount: Math.max(0, state.apiLoadingCount - 1) })),
+
   // ── 사이드바 ────────────────────────────────────────────
   sidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),

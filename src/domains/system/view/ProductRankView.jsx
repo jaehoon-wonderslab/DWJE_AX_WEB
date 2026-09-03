@@ -8,12 +8,12 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, BlindNote, BlindValue, Button, Card, Hint, Loading, SelectField, StatCard, Table, openConfirmModal } from '@shared/components/ui';
+import { Badge, BlindNote, BlindValue, Button, Card, Hint, Loading, Pagination, SelectField, StatCard, Table, openConfirmModal } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useCommonStyles } from '@shared/theme/styles';
 
 export default function ProductRankView({
-  loading, families, isDefault, ranking, logs, logsTotal, topN, setTopN, openFamily, setOpenFamily, openFamilyNm, familyProducts,
+  loading, families, isDefault, ranking, logs, logsTotal, logsPaging, logsMeta, topN, setTopN, openFamily, setOpenFamily, openFamilyNm, familyProducts,
   exportExcel, moveFamily, setFamilyRank, moveProduct, resetOrder,
 }) {
   const s = useCommonStyles();
@@ -63,13 +63,13 @@ export default function ProductRankView({
             keyExtractor={(r) => r.familyCd}
             onRowPress={(r) => setOpenFamily(openFamily === r.familyCd ? null : r.familyCd)}
             columns={[
-              { key: 'rank', title: '순위', width: 66, align: 'center', render: (r) => <Text style={[s.td, s.num, { textAlign: 'center', fontWeight: '700' }]}>{r.rank}</Text> },
-              { key: 'familyNm', title: '제품군', flex: 1, minWidth: 180, render: (r) => <Text style={[s.td, { fontWeight: '600' }]}>{r.familyNm ?? r.name}</Text> },
-              { key: 'productCnt', title: '제품 수', width: 84, align: 'right', num: true },
+              { key: 'rank', title: '순위', width: 58, align: 'center', render: (r) => <Text style={[s.td, s.num, { textAlign: 'center', fontWeight: '700' }]}>{r.rank}</Text> },
+              { key: 'familyNm', title: '제품군', flex: 1, minWidth: 140, render: (r) => <Text style={[s.td, { fontWeight: '600' }]}>{r.familyNm ?? r.name}</Text> },
+              { key: 'productCnt', title: '제품 수', width: 76, align: 'right', num: true },
               {
                 key: 'move',
                 title: '이동',
-                width: 190,
+                width: 180,
                 render: (r) => (
                   <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
                     <Button label="▲" size="sm" disabled={r.rank === 1} onPress={() => moveFamily(r.familyCd, 'up')} />
@@ -78,7 +78,7 @@ export default function ProductRankView({
                       value={String(r.rank)}
                       options={families.map((_, i) => String(i + 1))}
                       onChange={(v) => setFamilyRank(r.familyCd, v)}
-                      style={{ width: 84 }}
+                      style={{ width: 68 }}
                     />
                   </View>
                 ),
@@ -86,7 +86,7 @@ export default function ProductRankView({
               {
                 key: 'detail',
                 title: '상세',
-                width: 90,
+                width: 104,
                 render: (r) => (
                   <Button
                     label={openFamily === r.familyCd ? '닫기' : '제품 순서'}
@@ -162,6 +162,7 @@ export default function ProductRankView({
           ]}
           rows={logs}
         />
+        <Pagination meta={logsMeta} {...(logsPaging?.bind || {})} />
       </Card>
     </View>
   );

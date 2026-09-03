@@ -21,10 +21,10 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
   const s = useCommonStyles();
   const theme = useTheme();
 
-  const W = 620;
+  const W = 640;
   const H = height;
-  const pl = 38;
-  const pr = 12;
+  const pl = 52;
+  const pr = 28;
   const pt = 14;
   const pb = 24;
   const iw = W - pl - pr;

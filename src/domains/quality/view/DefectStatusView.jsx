@@ -13,11 +13,10 @@ import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
-import { compositionOf } from '@domains/common/model/metricModel';
 import { comma, fixed } from '@shared/utils/formatUtil';
 
 export default function DefectStatusView({
-  loading, summary, typeItems, lineItems, lineLoading, filters, setFrom, setTo, setProcessId, setDefectTypeCd, search, exportExcel, processOptions, defectTypeOptions }) {
+  loading, summary, typeRows = [], lineItems, lineLoading, filters, setFrom, setTo, setProcessId, setDefectTypeCd, search, exportExcel, processOptions, defectTypeOptions }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const { goToScreen } = useAppNavigation();
@@ -25,13 +24,7 @@ export default function DefectStatusView({
 
   const blindQty = (v) => (canData('qty') ? comma(v ?? 0) : '비공개');
 
-  /**
-   * 유형별 구성 — 비중의 분모는 **불량 수량 원장(ngQty)** 입니다.
-   * 서버가 준 ratio 는 표시된 유형들의 합을 분모로 써서 유형이 없는 몫만큼 부풀려져 있습니다.
-   * 남는 몫은 '유형 미상' 으로 드러내 합이 원장과 맞게 합니다.
-   */
-  const { rows: typeRows } = compositionOf(typeItems, summary?.ngQty, { labelKey: 'defectType', valueKey: 'cnt' });
-
+  /** 유형별 구성 행(원장 기준 비중 재계산 + 유형 미상)은 컨트롤러가 만듭니다 — 엑셀과 같은 행입니다 */
   /** 비중 막대는 1위 유형이 가득 차도록 상대 배율로 그립니다 */
   const maxRatio = Math.max(0, ...typeRows.map((r) => Number(r.ratio) || 0));
 
@@ -113,14 +106,15 @@ export default function DefectStatusView({
                     const v = Number(r.momChange);
                     if (!Number.isFinite(v)) return <Text style={[s.td, s.num]}>—</Text>;
                     return (
-                      <Text style={[s.td, s.num, { color: v < 0 ? theme.color.success : theme.color.destructive }]}>
-                        {`${v > 0 ? '+' : ''}${v}%`}
+                      <Text style={[s.td, s.num, { color: v === 0 ? theme.color.mutedForeground : v < 0 ? theme.color.success : theme.color.destructive }]}>
+                        {`${v > 0 ? '+' : ''}${fixed(v, 1)}%`}
                       </Text>
                     );
                   },
                 },
               ]}
               rows={typeRows}
+              emptyText="해당 조건의 불량 실적이 없습니다."
             />
           </Card>
 

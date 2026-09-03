@@ -105,6 +105,14 @@ export function useChatHistoryController() {
     loadDetail: repo.fetchChatDetail,
     rate,
     exportExcel,
-    exportTrainset: async () => toast((await repo.exportTrainset('유용')).message),
+    /**
+     * 학습데이터 내보내기 — 서버는 ratingFilter 를 받지 않습니다(E-VALID-001 · 받는 항목 from·to·yearMonth·scope·format).
+     * 조회 중인 기간을 그대로 보내고, '유용' 평가만 담는 것은 서버 쪽 처리에 맡깁니다.
+     */
+    exportTrainset: async () => {
+      const res = await repo.exportTrainsetByRange({ from, to });
+      const cnt = res.data?.sampleCnt;
+      toast(res.ok && cnt != null ? `${res.message} (표본 ${cnt}건)` : res.message);
+    },
   };
 }

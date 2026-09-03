@@ -277,7 +277,7 @@ export default function AccountView({
             {
               key: 'action',
               title: '관리',
-              width: 250,
+              width: 260,
               render: (r) => (
                 <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
                   <Button label="편집" size="sm" onPress={() => openUserForm(r)} />

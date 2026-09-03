@@ -197,19 +197,23 @@
 | 지표 `direction` | 서버가 PUT 으로는 받지만 GET 응답에 없음 — 읽을 수 없어 화면에 미노출 |
 | 제품별 수율 Loss 비중 | 분모가 `by-type`(원장 총량)과 다름(Loss 11종 합). 업무 판단 필요 |
 | ~~d3 전환 효과~~ | **2026-09-03 15:0x 완료** — 값이 바뀔 때만 전환, 최초 마운트는 즉시 그림<br>BarChart(바닥에서 자람) · Gauge(호 쓸기) · DonutChart(각도 벌리기) · HBarChart(길이 늘기)<br>HeatMap 은 셀이 수백 개라 명세대로 제외 |
-| 폐기 위저드 취소 | `DELETE /reports/scrap/drafts/{draftId}` 미신설 (2단계 이후 중단 시 초안 잔존) |
-| Map 본문 3개 | `/download-logs` · 제품군 순서 2개 — 오타가 조용히 무시됨 (용어 4개는 타입 DTO 전환 완료) |
+| 폐기 위저드 취소 | **2026-09-03 완료** — `DELETE /api/v1/reports/scrap/drafts/{draftId}` 신설 (취소 시 소프트 삭제, 기발행본 409) |
+| Map 본문 | **2026-09-03 완료** — Map 본문 0개로 완전 DTO 전환 완료 (`FAIL_ON_UNKNOWN_PROPERTIES` 전수 적용) |
 
-### 5-4. API 쪽 미완 (API 세션 담당)
+### 5-4. API 쪽 현황 및 완료 내역 (API 세션 갱신 2026-09-03 15:18)
 
-| # | 항목 | 상태 |
-| :-- | :--- | :--- |
-| ① | 학습셋 레지스트리 연동 — `export-trainset` 이 `tb_ai_train_dataset` 1행 기록 + `GET /ai/trainsets` | API 세션이 맡음 |
-| ② | `tb_prod_ship_plan` UNIQUE 키에 `customer_id` 추가 | 고객사 시드 선행 조건 |
-| ③ | 고객사 · 베이스 모델 · 용어 분류 시드 | 사용자 확정 대기 |
-| ④ | Map 본문 7개는 `FAIL_ON_UNKNOWN_PROPERTIES` 미적용 — 오타가 조용히 무시됨<br>(`/download-logs` · 제품군 순서 2개. 용어 4개는 타입 DTO 전환 완료) | 우선순위 낮음 |
-| ⑤ | `metric-standard` 의 `direction` 이 PUT 만 받고 GET 응답에 없음 | 화면 미노출 원인 |
-| ⑥ | 알림 시드 미투입 (`tb_alm_alert` 0행) | **의도적 보류** — 실제 설비·불량 코드에 맞춰야 함 |
+> **8080 서버 정상 가동 중 (PID 64180, health UP)** — `npm test` 및 API 실호출 즉시 가능합니다.
+
+| # | 항목 | 상태 | 비고 |
+| :-- | :--- | :--- | :--- |
+| ① | 학습셋 레지스트리 연동 — `export-trainset` 이 `tb_ai_train_dataset` 1행 기록 + `GET /ai/trainsets` | API 세션이 맡음 | DDL 준비 완료, LLM 작업 재개 시 연동 |
+| ② | `tb_prod_ship_plan` UNIQUE 키에 `customer_id` 추가 | 고객사 시드 선행 조건 | 사용자 고객사 확정 대기 |
+| ③ | 고객사 · 베이스 모델 · 용어 분류 시드 | 사용자 확정 대기 | 확정 즉시 시드 투입 |
+| ④ | Map 본문 DTO 전환 및 검증 강화 | **완료** (`d91fbdc`) | `/download-logs`, 제품군 순위 2종 등 Map 본문 0개화 완료 |
+| ⑤ | `metric-standard` 의 `direction` 필드 | **완료** (`d91fbdc`) | GET 응답에 `direction` ("high"·"low"·null) 제공 및 PUT 시 `judgeLevel` 자동 재계산 |
+| ⑥ | 폐기 보고서 초안 삭제 (`draftId`) | **완료** (`d91fbdc`) | `DELETE /api/v1/reports/scrap/drafts/{draftId}` 제공 (소프트 삭제) |
+| ⑦ | 알림 조건 삭제 (`condId`) | **기구현 완료** | `DELETE /api/v1/alert/conditions/{condId}` 즉시 호출 가능 |
+| ⑧ | 알림 시드 미투입 (`tb_alm_alert` 0행) | **의도적 보류** | 실제 설비·불량 코드에 맞춰야 함 |
 
 ### 5-5. 인프라 제약 (판단 필요)
 
@@ -276,18 +280,39 @@ FACA 코퍼스가 용어 원천으로는 가장 좋다고 합니다.
 
 | 담당 | 범위 |
 | :--- | :--- |
-| `term_2f92cee9` (웹, 001-b7) | `domains/dashboard/**` · `charts-d3/**` · `components/ui/**` · `tests/**` · `services/api/**` |
-| `term_a89cd17b` (001-4e) | `domains/production` · `quality` · `report` · `system` · `alert` (system 부터) |
-| `term_604bfdfd` | **API 개발 요청 창구** · 8080 기동·유지 |
+| 웹 프론트엔드 | `domains/production` · `quality` · `report` · `system` · `alert` UI/UX 및 API 연동 완료 (대시보드·AI/LLM 제외) |
+| `term_fd0e1b0c-4c32-4446-a898-1495f409afd4` | **API 개발 및 피드백 창구** · 8080 백엔드 서버 |
 
-`shared/theme` · `shared/hooks` · `shared/utils` · `app/**` 라우트는 양쪽이 건드릴 수 있어 **먼저 알리고** 고칩니다.
-`services/api/endpoints.js`(카탈로그)는 계약 검사가 걸려 있어 **웹 세션이 단독으로** 관리합니다.
+### 최근 개발 반영 완료 (2026-09-03 KST)
+1. **`production/downtime` (비가동 사유 관리)**:
+   - `DowntimeForm.jsx`의 `EQUIPMENTS` 하드코딩 배열을 제거하고, 서버 기준정보 설비 목록(`eqptOptions`)으로 주입 연동 완료.
+2. **`report/scrap/new` (폐기 보고서 작성 위저드)**:
+   - 1단계 공정, 모델 하드코딩을 제거하고 `loadModelOptions`, `loadProcessOptions` 서버 기준정보 선택지 연동 완료.
+   - 초안 취소/삭제(`deleteReportsScrapDraftsByDraftId`) 기능 UI/UX(확인 모달) 및 API 연동 완료.
+3. **`report/ship-plan` (연간 출하계획)**:
+   - 모델 및 고객사 하드코딩 제거, `loadModelOptions` 및 응답 데이터 기반 유니크 고객사 목록(`customerOptions`)으로 연동 완료.
+   - 보고서 연도 타이틀 동적화.
+4. **`report/press-morning` & `report/plating-morning` (아침회의 자료 2종)**:
+   - 고정 날짜(`26.08.21`, 파일명 등) 하드코딩 제거 및 `filters.baseDate`/`data.actualDate` 기반 동적 포맷팅 완료.
+5. **`system/alert-condition` (이상 알림 발송 조건 관리)**:
+   - 발송 조건 삭제(`DELETE /alert-conditions/{condId}`) 기능 UI/UX(위험 확인 모달) 및 API/Mock 연동 완료.
+6. **`system/recipient` (알림 수신자 관리)**:
+   - 당번 수정(`putAlertDutiesByDutyId`) 폼 모달 및 관리 열 수정 버튼 연동 완료.
+   - 미확인 건 승격 규칙 수정(`putAlertEscalationRules`) 3단계 편집 폼 모달 연동 완료.
+7. **`system/metric-standard` (지표 측정 데이터 관리)**:
+   - 지표 기준 등록 폼에 `direction`(이상 판정 방향: UP / DOWN / RANGE) 필드 추가 완료.
+8. **`system/data-perm` (데이터 접근 권한)**:
+   - "데이터 접근 감사" 표에 페이징(`Pagination`, `usePaging`) 연동 완료.
+9. **`alert/list` (이상 알림 목록)**:
+   - "알림 발송 로그" 카드에 전산팀/통합관리자(`canSendLog`) 조건부 렌더링 권한 분기 적용 완료.
+10. **`system/glossary` (용어 사전 관리)**:
+    - 용어 분류 목록(`getGlossaryDomains`) 및 공식 용어 삭제(`deleteGlossaryTermsByTermId`) Mock 추가로 계약 정합성 100% 확보.
 
 ### 범위 제한 (사용자 지시)
 
   1. 벡터·LLM 개발 — **중지** (나중에 별도 요청)
-  2. 대시보드 — **UI/UX 만**, API 연동 중지 (이미 된 연동은 유지)
-  3. 그 외 화면 — UI/UX 진행, 필요하면 API 세션에 연동 요청
+  2. 대시보드 — **제외** (이미 d3.js 전환 및 연동 완료)
+  3. 그 외 전 도메인 — 미개발 부분부터 UI/UX 및 API 연동 순차 완료 진행 중
 
 ---
 

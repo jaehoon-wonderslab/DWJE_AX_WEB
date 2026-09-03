@@ -42,9 +42,9 @@ function PickerBody({ initial, onChange }) {
 
   const products = data?.products || [];
 
-  const families = useMemo(() => ['전체', ...new Set(products.map((p) => p.family))], [products]);
-  const customers = useMemo(() => ['전체', ...new Set(products.map((p) => p.customer))], [products]);
-  const projects = useMemo(() => ['전체', ...new Set(products.map((p) => p.project))], [products]);
+  const families = useMemo(() => ['전체', ...new Set(products.map((p) => p.family).filter(Boolean))], [products]);
+  const customers = useMemo(() => ['전체', ...new Set(products.map((p) => p.customer).filter(Boolean))], [products]);
+  const projects = useMemo(() => ['전체', ...new Set(products.map((p) => p.project).filter(Boolean))], [products]);
 
   const rows = useMemo(() => {
     const q = keyword.trim().toLowerCase();

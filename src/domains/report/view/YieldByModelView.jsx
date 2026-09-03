@@ -95,8 +95,9 @@ export default function YieldByModelView({
       toast('전체를 불러오지 못해 현재 쪽만 내려받습니다');
     }
     const { head, rows: body } = buildExport(src);
-    if (kind === 'csv') downloadCsv({ name: `제품별수율_${lastDataDate().slice(0, 7)}`, head, rows: body });
-    else downloadXls({ name: '제품별 수율', head, rows: body });
+    const ym = String(src?.yearMonth || data.yearMonth || lastDataDate().slice(0, 7));
+    if (kind === 'csv') downloadCsv({ name: `제품별수율_${ym}`, head, rows: body });
+    else downloadXls({ name: `제품별 수율 ${ym}`, head, rows: body });
   };
 
   return (

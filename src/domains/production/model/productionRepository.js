@@ -2,6 +2,7 @@
  * [Model] 생산관리 리포지토리 (PR-01 ~ PR-05)
  */
 import * as commonService from '@services/api/commonService';
+import * as dashboardService from '@services/api/dashboardService';
 import * as productionService from '@services/api/productionService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
 import { loadCodeGroups } from '@domains/common/model/codeRepository';
@@ -68,16 +69,59 @@ export async function loadModelOptions() {
  * `itemCd` 는 품목 코드 정확 일치용으로 서버에 남아 있습니다.
  */
 export async function loadResults({ from, to, unit, modelCd, page, size }) {
-  const params = { from, to, unit: periodUnit(unit), modelCd };
+  // 사용자의 요구: 주별, 월별, 기간선택 시 1개의 덩어리가 아니라 해당 기간의 모든 개별 날짜 정보가 출력되도록 항상 'day' 단위로 조회
+  const params = { from, to, unit: 'day', modelCd };
   const data = await unwrapAll({
     // 표는 쪽 단위로, 추이 차트는 기간 전체를 그립니다
     results: productionService.getProductionResults({ ...params, page, size }),
     trend: productionService.getProductionResultsTrend(params),
   });
+
+  let items = data.results?.items ? fillRatesAll(data.results.items) : [];
+
+  // Tabulator Tree 뷰를 위한 하위 제품별 실적(_children) 비동기 연동 (제품명, 양품, 불량, 불량률)
+  if (Array.isArray(items) && items.length > 0) {
+    items = await Promise.all(
+      items.map(async (row) => {
+        try {
+          if (row.period && /^\d{4}-\d{2}-\d{2}$/.test(row.period)) {
+            const prodRes = await unwrap(
+              dashboardService.getDashboardProcessProductProduction({ date: row.period }),
+              { items: [] }
+            );
+            const prodList = prodRes?.items || [];
+            if (Array.isArray(prodList) && prodList.length > 0) {
+              const children = prodList.map((p) => {
+                const totalQty = p.qty || 0;
+                const defRate = p.defectRate != null ? Number(p.defectRate) : 0;
+                const ng = Math.round(totalQty * (defRate / 100));
+                const ok = Math.max(0, totalQty - ng);
+                return {
+                  period: p.product || p.productName || '기타',
+                  isChild: true,
+                  inputQty: totalQty,
+                  okQty: ok,
+                  ngQty: ng,
+                  defectRate: defRate,
+                  uptimeRate: null,
+                  downtimeMin: null,
+                };
+              });
+              return { ...row, _children: children };
+            }
+          }
+        } catch (e) {
+          // 실패 시 자식 없이 원본 행 유지
+        }
+        return row;
+      })
+    );
+  }
+
   return {
     ...data,
     resultsMeta: data.metas?.results,
-    results: data.results && { ...data.results, items: fillRatesAll(data.results.items) },
+    results: data.results && { ...data.results, items },
   };
 }
 
@@ -123,6 +167,39 @@ export async function loadEquipmentOptions() {
  * @returns {Promise<{RPT_DOC_STATE:Array, RPT_DOC_EVENT:Array, RPT_ORIGIN:Array}>}
  */
 export const loadDailyReportCodes = () => loadCodeGroups('RPT_DOC_STATE', 'RPT_DOC_EVENT', 'RPT_ORIGIN');
+
+/**
+ * 보고서 상태 코드(RPT_DOC_STATE) → 배지 색
+ *
+ * 표시명은 공통코드에서 받고, 색만 여기서 정합니다. 모르는 코드는 무색.
+ */
+const DAILY_STATE_TONE = { DRAFT: '', SAVED: 'blue', CONFIRMED: 'green', PUBLISHED: 'green', REJECTED: 'red' };
+export const dailyStateTone = (code) => DAILY_STATE_TONE[code] ?? '';
+
+/** 편집·확정·반려가 막히는 상태 (확정 후 수정 불가) */
+export const isDailyReportLocked = (state) => state === 'CONFIRMED' || state === 'PUBLISHED';
+
+/** 이력 화면의 행 클릭 — 작성 화면으로 보내는 상태 (검토가 아직 끝나지 않은 것) */
+export const isDailyReportEditable = (state) => !isDailyReportLocked(state);
+
+/**
+ * 초안 섹션 코드 → 표시명
+ *
+ * 서버가 섹션 이름을 따로 주지 않아(코드만 옴) 여기서 한 번만 맞춥니다. 모르는 코드는 그대로 표시.
+ */
+const DAILY_SECTION_TITLE = { RESULT: '생산 실적', ACTION: '비가동·조치 사항', NOTE: '특이사항' };
+export const dailySectionTitle = (code) => DAILY_SECTION_TITLE[code] ?? code ?? '';
+
+/**
+ * 항목의 기입 출처 판정 — 명세의 「자동 기입」(초록) / 「확인 필요」(주황)
+ *
+ * MES·AI 가 채운 값이고 아직 보정된 적이 없으면 자동 기입, 수기(MANUAL)이거나 보정된 값이면 확인 필요.
+ */
+export const isAutoFilled = (field) => !field?.corrected && field?.origin !== 'MANUAL';
+
+/** 생성 이력 종류(RPT_DOC_EVENT) → 점 색 */
+const DAILY_EVENT_TONE = { CONFIRM: 'green', PUBLISH: 'green', REJECT: 'red', CORRECT: 'amber', REGENERATE: 'amber' };
+export const dailyEventTone = (type) => DAILY_EVENT_TONE[type] ?? 'gray';
 
 /** 보고서 초안 + 생성 이력 */
 export async function loadDailyReport(targetDate) {

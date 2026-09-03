@@ -35,11 +35,16 @@ export function usePaging({ size: initialSize = 50, resetKey = '' } = {}) {
     setPage(1); // 쪽 크기가 바뀌면 쪽 번호의 의미도 달라집니다
   }, []);
 
+  const reset = useCallback(() => {
+    setPage(1);
+  }, []);
+
   return {
     page,
     size,
     setPage,
     setSize,
+    reset,
     /** 리포지토리에 그대로 넘기는 요청 파라미터 */
     params: { page, size },
     /** <Pagination> 에 그대로 펼쳐 넣는 값 */

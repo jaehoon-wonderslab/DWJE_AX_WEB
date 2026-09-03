@@ -17,10 +17,10 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
   const bars = data.map((d) => ({ ...d, v: num(d.v), v2: num(d.v2) }));
   if (!bars.length || bars.every((d) => d.v === null && d.v2 === null)) return <ChartEmpty height={height} />;
 
-  const W = 620;
+  const W = 640;
   const H = height;
-  const pl = 38;
-  const pr = 12;
+  const pl = 52;
+  const pr = 28;
   const pt = 14;
   const pb = 26;
   const iw = W - pl - pr;
@@ -32,13 +32,20 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
   const step = iw / bars.length;
   const Y = (v) => pt + ih - ((v || 0) / hi) * ih;
 
+  const fmt = (v) => {
+    if (v >= 10_000_000) return `${Math.round(v / 1_000_000)}M`;
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 10_000) return `${Math.round(v / 1_000)}k`;
+    return Math.round(v).toLocaleString();
+  };
+
   return (
     <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       {[0, 0.25, 0.5, 0.75, 1].map((t) => (
         <React.Fragment key={t}>
           <Line x1={pl} y1={Y(hi * t)} x2={W - pr} y2={Y(hi * t)} stroke={theme.color.border} strokeDasharray="3 3" strokeWidth={1} />
           <SvgText x={pl - 6} y={Y(hi * t) + 3} textAnchor="end" fontSize={9} fill={theme.color.mutedForeground}>
-            {Math.round(hi * t).toLocaleString()}
+            {fmt(hi * t)}
           </SvgText>
         </React.Fragment>
       ))}

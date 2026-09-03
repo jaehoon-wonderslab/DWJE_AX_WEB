@@ -9,6 +9,7 @@ import { Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpaci
 import { useAppStore } from '@shared/stores/useAppStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
+import DatePickerPopover from './DatePickerPopover';
 import Icon from './Icon';
 
 /**
@@ -81,19 +82,36 @@ export function TextAreaField({ label, value, onChangeText, placeholder, rows = 
  *
  * @param {object} props options 는 문자열 배열이거나 [{value,label}] 배열
  */
-export function SelectField({ label, value, options = [], onChange, style, required, full, error, hint, placeholder = '선택' }) {
+export function SelectField({ label, value, options = [], onChange, style, inputStyle, required, full, error, hint, placeholder = '선택' }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
 
-  const items = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
-  const current = items.find((o) => o.value === value);
+  const items = (options || [])
+    .filter((o) => o !== null && o !== undefined)
+    .map((o) => (typeof o === 'object' && o !== null ? o : { value: String(o), label: String(o) }));
+  const current = items.find((o) => o && o.value === value);
+  const overrideMinWidth = style?.width != null ? { minWidth: 0, width: '100%' } : (style?.minWidth != null ? { minWidth: style.minWidth } : null);
 
   return (
-    <Field label={label} style={style} required={required} full={full} error={error} hint={hint}>
+    <Field
+      label={label}
+      style={[{ position: 'relative', zIndex: open ? 9999 : undefined }, style]}
+      required={required}
+      full={full}
+      error={error}
+      hint={hint}
+    >
       <TouchableOpacity
-        style={[s.input, { flexDirection: 'row', alignItems: 'center', gap: 8 }, error && s.inputError, full && { width: '100%' }]}
-        onPress={() => setOpen(true)}
+        style={[
+          s.input,
+          { flexDirection: 'row', alignItems: 'center', gap: 6 },
+          overrideMinWidth,
+          inputStyle,
+          error && s.inputError,
+          full && { width: '100%' },
+        ]}
+        onPress={() => setOpen((prev) => !prev)}
         activeOpacity={0.7}
       >
         <Text style={[s.textSm, { flex: 1, color: current ? theme.color.foreground : theme.color.mutedForeground }]} numberOfLines={1}>
@@ -102,82 +120,177 @@ export function SelectField({ label, value, options = [], onChange, style, requi
         <Icon name="chevronDown" size={13} color={theme.color.mutedForeground} />
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: theme.overlay, justifyContent: 'center', padding: 24 }} onPress={() => setOpen(false)}>
+      {open && (
+        <>
+          {/* 바깥 클릭 시 닫히도록 투명 백드롭 */}
           <Pressable
             style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9998,
+              backgroundColor: 'transparent',
+            }}
+            onPress={() => setOpen(false)}
+          />
+
+          {/* 컴포넌트 바로 아래 열리는 드롭다운 팝오버 */}
+          <View
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              minWidth: '100%',
+              marginTop: 4,
               backgroundColor: theme.color.popover,
               borderRadius: theme.metrics.radius,
               borderWidth: 1,
               borderColor: theme.color.border,
-              maxHeight: 420,
-              alignSelf: 'center',
-              width: '100%',
-              maxWidth: 420,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 10,
+              elevation: 12,
+              maxHeight: 280,
+              zIndex: 9999,
               overflow: 'hidden',
             }}
           >
-            {label ? (
-              <View style={s.cardHead}>
-                <Text style={s.cardHeadTitle}>{label}</Text>
-              </View>
-            ) : null}
-            <ScrollView>
-              {items.map((o) => (
-                <TouchableOpacity
-                  key={String(o.value)}
-                  style={{
-                    paddingVertical: 11,
-                    paddingHorizontal: 14,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    backgroundColor: o.value === value ? theme.color.accent : 'transparent',
-                  }}
-                  onPress={() => {
-                    onChange?.(o.value, o);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={[s.textSm, { flex: 1, fontSize: 13 }]}>{o.label}</Text>
-                  {o.value === value ? <Icon name="check" size={14} color={theme.color.foreground} /> : null}
-                </TouchableOpacity>
-              ))}
+            <ScrollView style={{ maxHeight: 280 }}>
+              {items.map((o) => {
+                const isSelected = o.value === value;
+                return (
+                  <TouchableOpacity
+                    key={String(o.value)}
+                    style={{
+                      paddingVertical: 9,
+                      paddingHorizontal: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      backgroundColor: isSelected ? theme.color.accent : 'transparent',
+                    }}
+                    onPress={() => {
+                      onChange?.(o.value, o);
+                      setOpen(false);
+                    }}
+                    activeOpacity={0.65}
+                  >
+                    <Text
+                      style={[
+                        s.textSm,
+                        {
+                          flex: 1,
+                          fontSize: 13,
+                          fontWeight: isSelected ? '600' : '400',
+                          color: isSelected ? theme.color.primary || theme.color.foreground : theme.color.foreground,
+                        },
+                      ]}
+                    >
+                      {o.label}
+                    </Text>
+                    {isSelected ? <Icon name="check" size={13} color={theme.color.primary || theme.color.foreground} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+        </>
+      )}
     </Field>
   );
 }
 
 /**
- * 날짜 입력 — 웹에서는 브라우저 기본 날짜 선택기를 그대로 씁니다.
- * (RN 의 TextInput 에 웹 전용 type 속성을 넘겨 <input type="date"> 로 렌더링)
- *
- * 선택 범위는 실적 보유 기간(`GET /api/v1/common/data-range`)으로 제한합니다.
- * 실적이 없는 날짜를 고르면 화면이 통째로 0 으로 보이기 때문입니다.
- * 기간 밖을 일부러 열어야 하면 `min` · `max` 를 직접 넘기세요. (`null` 이면 제한 없음)
+ * 날짜 입력 — 키보드로 직접 입력(YYYY-MM-DD)할 수도 있고,
+ * 우측 달력 아이콘을 누르면 컴포넌트 바로 아래에 달력 팝오버가 열려 마우스 이동을 최소화합니다.
  */
 export function DateField({ label, value, onChange, style, required, full, error, hint, min, max }) {
   const s = useCommonStyles();
+  const theme = useTheme();
   const [focused, setFocused] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const dataRange = useAppStore((state) => state.dataRange);
 
   const lo = min === undefined ? dataRange?.fromDate : min;
   const hi = max === undefined ? dataRange?.toDate : max;
-  const webProps = Platform.OS === 'web' ? { type: 'date', min: lo || undefined, max: hi || undefined } : {};
 
   return (
-    <Field label={label} style={style} required={required} full={full} error={error} hint={hint}>
-      <TextInput
-        style={[s.input, focused && s.inputFocus, error && s.inputError, full && { width: '100%' }]}
-        value={value ?? ''}
-        onChangeText={onChange}
-        placeholder="YYYY-MM-DD"
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        {...webProps}
+    <Field
+      label={label}
+      style={[{ position: 'relative', zIndex: pickerOpen ? 9999 : undefined }, style]}
+      required={required}
+      full={full}
+      error={error}
+      hint={hint}
+    >
+      <View
+        style={[
+          s.input,
+          {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 0,
+            paddingHorizontal: 0,
+            overflow: 'hidden',
+          },
+          focused && s.inputFocus,
+          error && s.inputError,
+          full && { width: '100%' },
+        ]}
+      >
+        <TextInput
+          style={[
+            s.td,
+            s.num,
+            {
+              flex: 1,
+              height: '100%',
+              paddingVertical: 7,
+              paddingLeft: 10,
+              paddingRight: 4,
+              borderWidth: 0,
+              backgroundColor: 'transparent',
+              outline: 'none',
+              color: theme.color.foreground,
+              fontSize: 13,
+            },
+          ]}
+          value={value ?? ''}
+          onChangeText={onChange}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={theme.color.mutedForeground}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+        <TouchableOpacity
+          onPress={() => setPickerOpen((prev) => !prev)}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel="달력에서 날짜 선택"
+          style={{
+            paddingHorizontal: 8,
+            height: '100%',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderLeftWidth: 1,
+            borderLeftColor: theme.color.border,
+            backgroundColor: pickerOpen ? theme.alpha('primary', 0.1) : theme.alpha('secondary', 0.4),
+          }}
+        >
+          <Icon name="calendar" size={15} color={pickerOpen ? theme.color.primary : theme.color.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      <DatePickerPopover
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        value={value}
+        onSelect={(d) => onChange?.(d)}
+        min={lo}
+        max={hi}
       />
     </Field>
   );
@@ -244,5 +357,5 @@ export function RadioRow({ options, value, onChange, style }) {
 /** 조회 조건 줄 — 필드들을 가로로 늘어놓습니다 */
 export function Filters({ children, style }) {
   const s = useCommonStyles();
-  return <View style={[s.filters, style]}>{children}</View>;
+  return <View style={[s.filters, { position: 'relative', zIndex: 100 }, style]}>{children}</View>;
 }

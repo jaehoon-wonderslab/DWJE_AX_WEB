@@ -225,18 +225,47 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
   });
 
   test('제품군 순서를 바꾸고 기본 순서로 되돌린다', async () => {
+    // 서버는 순위 전체를 배열로 받습니다 — 화면(useProductRankController)이 만드는 모양 그대로입니다.
+    // 예전엔 {familyCd, toIndex} 라는 없는 모양을 보내고 400 이면 건너뛰게 해 두어서,
+    // 이 검사가 한 번도 실제로 순서를 바꿔 본 적이 없었습니다.
     const before = await api.data('/products/families');
-    const families = before.families || before.items || [];
+    const families = (before.families || before.items || []).slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
     if (families.length < 2) skip('제품군이 2개 미만이라 순서를 바꿀 수 없습니다');
 
+    const swapped = [families[1], families[0], ...families.slice(2)];
     const moved = await api.send('PUT', '/products/families/order', {
-      familyCd: families[1].familyCd, toIndex: 0,
+      orders: swapped.map((f, i) => ({ familyCd: f.familyCd, rank: i + 1 })),
     });
-    if (moved.status === 400) skip(`순서 변경 요청 형식이 다릅니다: ${moved.body?.message}`);
     eq(moved.status, 200, `순서 변경 실패: ${moved.body?.message}`);
+
+    const after = await api.data('/products/families');
+    const top = (after.families || after.items || []).slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))[0];
+    eq(top?.familyCd, families[1].familyCd, '순서를 바꿨는데 1위가 그대로입니다');
 
     const reset = await api.send('POST', '/products/families/order/reset', {});
     eq(reset.status, 200, `기본 순서 복원 실패: ${reset.body?.message} — 복원이 안 되면 테스트가 데이터를 바꿔 놓습니다`);
+  });
+
+  test('제품군 순서는 정해진 키만 받는다', async () => {
+    // 예전에는 키가 어긋난 항목을 조용히 버리고 200 을 줬습니다 —
+    // 10개를 보냈는데 3개만 반영되고도 화면은 성공으로 읽었습니다.
+    const before = await api.data('/products/families');
+    const one = (before.families || before.items || [])[0];
+    if (!one) skip('제품군이 없습니다');
+
+    const bad = [];
+    const cases = [
+      ['키 이름 오타', { orders: [{ family_cd: one.familyCd, rank: 1 }] }],
+      ['순위 누락', { orders: [{ familyCd: one.familyCd }] }],
+      ['빈 배열', { orders: [] }],
+      ['바깥 키 오타', { order: [{ familyCd: one.familyCd, rank: 1 }] }],
+    ];
+    for (const [name, body] of cases) {
+      const r = await api.send('PUT', '/products/families/order', body);
+      if (r.status !== 400) bad.push(`${name}: ${r.status} (400 이어야 합니다)`);
+      else if (!r.body?.error?.field) bad.push(`${name}: 400 인데 error.field 가 없습니다`);
+    }
+    eq(bad, [], '어긋난 항목을 조용히 버리면 일부만 반영되고도 성공으로 보입니다');
   });
 });
 

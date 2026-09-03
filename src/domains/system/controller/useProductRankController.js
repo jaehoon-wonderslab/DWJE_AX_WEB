@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
+import { usePaging } from '@shared/hooks/usePaging';
 import { useAppStore } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
@@ -19,7 +20,11 @@ export function useProductRankController() {
   const [openFamily, setOpenFamily] = useState(null);
   const [familyProducts, setFamilyProducts] = useState([]);
 
-  const { data, loading, reload } = useAsync(() => repo.loadProductRank(topN), [topN]);
+  const logsPaging = usePaging();
+  const { data, loading, reload } = useAsync(
+    () => repo.loadProductRank(topN, logsPaging.params),
+    [topN, logsPaging.page, logsPaging.size]
+  );
   const families = data?.families?.items || [];
 
   // 펼친 제품군의 제품 순서를 따로 받아옵니다
@@ -112,6 +117,8 @@ export function useProductRankController() {
     ranking: data?.ranking?.items || [],
     logs: (data?.logs?.items || []).map((l) => ({ ...l, act: l.act || LOG_TYPE[l.type] || l.type || '' })),
     logsTotal: data?.metas?.logs?.total,
+    logsPaging,
+    logsMeta: data?.metas?.logs,
     topN,
     setTopN,
     openFamily,

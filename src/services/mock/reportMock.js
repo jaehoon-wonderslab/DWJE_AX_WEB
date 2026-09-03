@@ -262,6 +262,12 @@ export const reportMock = {
     return { success: true, code: 'SUCCESS', message: '임시 저장했습니다.', data: { success: true, draft: d } };
   },
 
+  deleteReportsScrapDraftsByDraftId: ({ draftId }) => {
+    const s = store();
+    s.draft = null;
+    return { success: true, code: 'SUCCESS', message: '폐기 보고서 초안을 삭제했습니다.', data: { success: true, draftId } };
+  },
+
   postReportsScrapDraftsByDraftIdManualRows: ({ name, model, process, reason, kind, qty, unitPrice }) => {
     const d = store().draft;
     const rowId = `M${d.manualRows.length + 1}-${Date.now().toString(36)}`;

@@ -9,7 +9,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, Hint, KeyValue, Loading, PermMatrix, SelectField, SourceNote, Table } from '@shared/components/ui';
+import { Badge, Button, Card, Hint, KeyValue, Loading, Pagination, PermMatrix, SelectField, SourceNote, Table } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useCommonStyles } from '@shared/theme/styles';
 
@@ -21,7 +21,7 @@ const AUDIT_RESULT = {
 };
 
 export default function DataPermView({
-  loading, me, fields, depts, matrix, adminDepts, preview, previewEmpNo, setPreviewEmpNo, byUser, audit, fieldNameOf, toggle, exportExcel, notifySaved,
+  loading, me, fields, depts, matrix, adminDepts, preview, previewEmpNo, setPreviewEmpNo, byUser, audit, auditPaging, auditMeta, fieldNameOf, toggle, exportExcel, notifySaved,
 }) {
   const previewUser = byUser.find((u) => u.empNo === previewEmpNo);
 
@@ -148,6 +148,7 @@ export default function DataPermView({
           ]}
           rows={audit}
         />
+        <Pagination meta={auditMeta} {...(auditPaging?.bind || {})} />
       </Card>
     </View>
   );

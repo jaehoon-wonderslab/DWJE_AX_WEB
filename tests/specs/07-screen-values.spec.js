@@ -142,4 +142,14 @@ suite('화면 값 ↔ API 값', () => {
     ok(r.text.includes(first.period), `첫 행 기간 ${first.period} 이 화면에 있어야 합니다`);
     ok(r.text.includes(first.inputQty.toLocaleString()), `첫 행 투입수량 ${first.inputQty} 가 화면에 있어야 합니다`);
   });
+
+  test('제품군 순위 관리 — 순위 이동 셀렉트와 제품 순서 버튼이 겹치지 않는다', async () => {
+    await visit(ctx.page, '/system/product-rank');
+    const select = await ctx.page.locator('div[tabindex="0"], [role="button"]').filter({ hasText: /^1$/ }).first().boundingBox();
+    const detail = await ctx.page.locator('text=제품 순서').first().boundingBox();
+    ok(select, '순위 셀렉트가 있어야 합니다');
+    ok(detail, '제품 순서 버튼이 있어야 합니다');
+    const gap = detail.x - (select.x + select.width);
+    ok(gap >= 8, `순위 셀렉트 우측(${select.x + select.width})과 제품 순서 버튼(${detail.x}) 사이에 여백이 있어야 합니다 (현재: ${gap}px)`);
+  });
 });

@@ -165,6 +165,18 @@ export function putReportsScrapDraftsByDraftId(params) {
 }
 
 /**
+ * 초안 취소(삭제)
+ *
+ * `DELETE /api/v1/reports/scrap/drafts/{draftId}`
+ * @param {object} [params] 요청 파라미터 없음
+ * @returns {Promise<object>} success, draftId
+ * @privateRemarks 접근 권한 품질보증팀·생산관리팀·통합관리자 · 우선순위 2
+ */
+export function deleteReportsScrapDraftsByDraftId(params) {
+  return request('deleteReportsScrapDraftsByDraftId', params);
+}
+
+/**
  * 수기 폐기 행 추가 (2단계)
  *
  * `POST /api/v1/reports/scrap/drafts/{draftId}/manual-rows`

@@ -26,7 +26,8 @@ export function useGlossaryController() {
 
   const paging = usePaging({ resetKey: `${keyword}|${domain}|${mineOnly}` });
   const { data, loading, reload } = useAsync(
-    () => repo.loadGlossary({ keyword, domain, mineOnly, ...paging.params }),
+    // 분류 필터의 서버 키는 domainCd 입니다 (domain 으로 보내면 무시되어 필터가 걸리지 않았습니다)
+    () => repo.loadGlossaryByDomain({ keyword, domainCd: domain, ...paging.params }),
     // 쪽을 넘겨도 다시 조회되도록 page · size 를 의존성에 둡니다 (예전엔 빠져 있어 2쪽이 열리지 않았습니다)
     [keyword, domain, mineOnly, paging.page, paging.size]
   );

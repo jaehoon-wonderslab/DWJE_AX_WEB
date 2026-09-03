@@ -11,7 +11,7 @@
  *     onRowPress={(row) => showEquipment(row.id)}
  *   />
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -52,7 +52,7 @@ export default function Table({
   });
 
   const body = (
-    <View style={[{ minWidth: minWidth || undefined }, style]}>
+    <View style={[{ minWidth: minWidth || '100%', width: '100%' }, style]}>
       {/* 머리글 */}
       <View style={s.theadRow}>
         {columns.map((col) => (
@@ -70,44 +70,76 @@ export default function Table({
           <Text style={s.emptyText}>{emptyText}</Text>
         </View>
       ) : (
-        rows.map((row, ri) => {
-          const content = (
-            <View style={[s.tr, ri === rows.length - 1 && s.trLast]}>
-              {columns.map((col) => (
-                <View key={col.key} style={cellStyle(col)}>
-                  {col.render ? (
-                    <View style={{ paddingVertical: 8, paddingHorizontal: 14, alignItems: alignFlex(col.align) }}>
-                      {col.render(row, ri)}
-                    </View>
-                  ) : (
-                    <Text style={[s.td, alignStyle(col), col.mono && s.mono, col.num && s.num]} numberOfLines={col.wrap ? 0 : 1}>
-                      {row[col.key] ?? '—'}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          );
-          const key = rowKey(row, ri);
-          return onRowPress ? (
-            <TouchableOpacity key={key} activeOpacity={0.6} onPress={() => onRowPress(row, ri)}>
-              {content}
-            </TouchableOpacity>
-          ) : (
-            <View key={key}>{content}</View>
-          );
-        })
+        rows.map((row, ri) => (
+          <TableRow
+            key={rowKey(row, ri)}
+            row={row}
+            ri={ri}
+            isLast={ri === rows.length - 1}
+            columns={columns}
+            cellStyle={cellStyle}
+            alignStyle={alignStyle}
+            onRowPress={onRowPress}
+            s={s}
+            theme={theme}
+          />
+        ))
       )}
     </View>
   );
 
-  // 열이 많으면 가로 스크롤로 감쌉니다
+  // 열이 많으면 가로 스크롤로 감싸되 기본 너비는 항상 100%를 채웁니다
   return minWidth ? (
-    <ScrollView horizontal showsHorizontalScrollIndicator style={{ backgroundColor: theme.color.card }}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator
+      style={{ width: '100%', backgroundColor: theme.color.card }}
+      contentContainerStyle={{ minWidth: '100%', width: '100%' }}
+    >
       {body}
     </ScrollView>
   ) : (
-    body
+    <View style={{ width: '100%' }}>{body}</View>
+  );
+}
+
+/** 마우스 오버 시 하이라이트 색상을 부여하는 개별 행 컴포넌트 */
+function TableRow({ row, ri, isLast, columns, cellStyle, alignStyle, onRowPress, s, theme }) {
+  const [hovered, setHovered] = useState(false);
+
+  const hoverBg = theme.alpha ? theme.alpha('primary', 0.05) : 'rgba(0, 102, 204, 0.05)';
+  const bgStyle = hovered ? { backgroundColor: hoverBg } : undefined;
+
+  const content = (
+    <View style={[s.tr, isLast && s.trLast, bgStyle]}>
+      {columns.map((col) => (
+        <View key={col.key} style={cellStyle(col)}>
+          {col.render ? (
+            <View style={{ paddingVertical: 8, paddingHorizontal: 14, alignItems: alignFlex(col.align) }}>
+              {col.render(row, ri)}
+            </View>
+          ) : (
+            <Text style={[s.td, alignStyle(col), col.mono && s.mono, col.num && s.num]} numberOfLines={col.wrap ? 0 : 1}>
+              {row[col.key] ?? '—'}
+            </Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+
+  // web 환경에서 onMouseEnter / onMouseLeave 지원
+  const hoverProps = {
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+  };
+
+  return onRowPress ? (
+    <TouchableOpacity activeOpacity={0.7} onPress={() => onRowPress(row, ri)} {...hoverProps}>
+      {content}
+    </TouchableOpacity>
+  ) : (
+    <View {...hoverProps}>{content}</View>
   );
 }
 

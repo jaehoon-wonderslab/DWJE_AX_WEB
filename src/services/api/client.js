@@ -10,6 +10,7 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { useAuthStore } from '@shared/stores/useAuthStore';
+import { useUiStore } from '@shared/stores/useUiStore';
 
 /** API 서버 주소 — .env 의 EXPO_PUBLIC_API_URL */
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
@@ -234,55 +235,60 @@ export async function request(key, params = {}, options = {}) {
   const { url, rest: raw } = buildPath(def.path, params);
   const rest = dropEmptyParams(raw);
 
-  // [1] 목 모드 — 등록된 핸들러가 있으면 서버 대신 목 응답을 돌려줍니다
-  //     (백엔드 구현이 끝난 live 엔드포인트는 목 모드에서도 [2] 로 내려갑니다)
-  if (shouldMock(def)) {
-    const handler = mockHandlers[key];
-    if (MOCK_DELAY > 0) await sleep(MOCK_DELAY);
-    if (!handler) {
-      // 아직 목이 없는 API 는 빈 성공 응답으로 처리해 화면이 깨지지 않게 합니다
-      return { success: true, code: 'SUCCESS', message: `[mock 미구현] ${def.name}`, data: null, masked: [] };
-    }
-    const data = await handler(rest, def);
-    if (data && data.success !== undefined) return data; // 핸들러가 전체 응답을 만든 경우
-    return { success: true, code: 'SUCCESS', message: `${def.name} 조회가 완료되었습니다.`, data, masked: [] };
-  }
-
-  // [2] 실 서버 호출
-  const isBodyMethod = ['POST', 'PUT', 'PATCH'].includes(def.method);
-  const config = {
-    url,
-    method: def.method.toLowerCase(),
-    ...(isBodyMethod ? { data: rest } : { params: rest }),
-    ...options,
-  };
-
+  useUiStore.getState().startApiLoading();
   try {
-    const res = await apiClient(config);
-    return res.data;
-  } catch (error) {
-    // 서버가 표준 포맷으로 에러를 내려준 경우 그대로 전달합니다
-    if (error.response?.data?.success !== undefined) return error.response.data;
+    // [1] 목 모드 — 등록된 핸들러가 있으면 서버 대신 목 응답을 돌려줍니다
+    //     (백엔드 구현이 끝난 live 엔드포인트는 목 모드에서도 [2] 로 내려갑니다)
+    if (shouldMock(def)) {
+      const handler = mockHandlers[key];
+      if (MOCK_DELAY > 0) await sleep(MOCK_DELAY);
+      if (!handler) {
+        // 아직 목이 없는 API 는 빈 성공 응답으로 처리해 화면이 깨지지 않게 합니다
+        return { success: true, code: 'SUCCESS', message: `[mock 미구현] ${def.name}`, data: null, masked: [] };
+      }
+      const data = await handler(rest, def);
+      if (data && data.success !== undefined) return data; // 핸들러가 전체 응답을 만든 경우
+      return { success: true, code: 'SUCCESS', message: `${def.name} 조회가 완료되었습니다.`, data, masked: [] };
+    }
 
-    // 제한 시간 초과 — 서버 오류와 구분해 안내합니다
-    if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+    // [2] 실 서버 호출
+    const isBodyMethod = ['POST', 'PUT', 'PATCH'].includes(def.method);
+    const config = {
+      url,
+      method: def.method.toLowerCase(),
+      ...(isBodyMethod ? { data: rest } : { params: rest }),
+      ...options,
+    };
+
+    try {
+      const res = await apiClient(config);
+      return res.data;
+    } catch (error) {
+      // 서버가 표준 포맷으로 에러를 내려준 경우 그대로 전달합니다
+      if (error.response?.data?.success !== undefined) return error.response.data;
+
+      // 제한 시간 초과 — 서버 오류와 구분해 안내합니다
+      if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+        return {
+          success: false,
+          code: 'E-TIMEOUT',
+          message: `조회 시간이 초과되었습니다(${Math.round(REQUEST_TIMEOUT_MS / 1000)}초). 조회 기간을 좁혀 다시 시도해 주세요.`,
+          data: null,
+          error: { code: 'E-TIMEOUT', message: error.message },
+        };
+      }
+
+      const code = error.response?.data?.error?.code || 'E-SERVER';
       return {
         success: false,
-        code: 'E-TIMEOUT',
-        message: `조회 시간이 초과되었습니다(${Math.round(REQUEST_TIMEOUT_MS / 1000)}초). 조회 기간을 좁혀 다시 시도해 주세요.`,
+        code,
+        message: ERROR_CODES[code] || '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
         data: null,
-        error: { code: 'E-TIMEOUT', message: error.message },
+        error: { code, message: error.message },
       };
     }
-
-    const code = error.response?.data?.error?.code || 'E-SERVER';
-    return {
-      success: false,
-      code,
-      message: ERROR_CODES[code] || '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
-      data: null,
-      error: { code, message: error.message },
-    };
+  } finally {
+    useUiStore.getState().endApiLoading();
   }
 }
 

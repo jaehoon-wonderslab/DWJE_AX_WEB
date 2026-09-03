@@ -4,7 +4,7 @@
  * 양식 구조가 바뀌면 파서 버전을 함께 올려 관리합니다.
  */
 import { useCallback } from 'react';
-import { loadCodeGroups } from '@domains/common/model/codeRepository';
+import { labelOf, loadCodeGroups } from '@domains/common/model/codeRepository';
 import { useAsync } from '@shared/hooks/useAsync';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
@@ -23,9 +23,14 @@ export function useReportFormsController() {
   );
   const items = data?.items || [];
 
+  /**
+   * 등록·수정 — 서버(ReportFormRequest)가 받는 키만 보냅니다: name · type · disclosurePolicy (· fields).
+   * 모르는 키가 섞이면 400 이라 폼 값 중 필요한 것만 골라 담습니다.
+   */
   const submitForm = useCallback(
     async (formId, values) => {
-      const res = formId ? await updateReportForm(formId, values) : await createReportForm(values);
+      const payload = { name: values.name?.trim(), type: values.type, disclosurePolicy: values.disclosurePolicy || undefined };
+      const res = formId ? await updateReportForm(formId, payload) : await createReportForm(payload);
       toast(res.message);
       if (res.ok) reload();
       return res;
@@ -37,9 +42,16 @@ export function useReportFormsController() {
     downloadXls({
       name: '보고서 양식 목록',
       head: ['양식명', '유형', '항목 수', '고객사 공개 정책', '파서 버전', '수정일'],
-      rows: items.map((f) => [f.name, f.type, f.fieldCnt, f.disclosurePolicy, f.parserVer, f.updatedAt]),
+      rows: items.map((f) => [
+        f.name,
+        f.typeNm || labelOf(codes?.RPT_FORM_TYPE, f.type),
+        f.fieldCnt,
+        labelOf(codes?.VEC_CONFIDENTIAL, f.disclosurePolicy),
+        f.parserVer,
+        String(f.updatedAt || '').slice(0, 10),
+      ]),
     });
-  }, [items]);
+  }, [items, codes]);
 
   return { loading, items, codes, submitForm, exportExcel, loadFormFields };
 }

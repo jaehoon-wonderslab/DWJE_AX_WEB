@@ -13,6 +13,7 @@ const PERIOD_UNIT = {
   일별: 'day',
   주별: 'week',
   월별: 'month',
+  기간선택: 'day',
   분기별: 'quarter',
   연간: 'year',
   연별: 'year',

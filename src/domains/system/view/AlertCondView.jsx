@@ -8,7 +8,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, Filters, Hint, Loading, Pagination, SelectField, SourceNote, StatCard, Table, TextField, openFormModal } from '@shared/components/ui';
+import { Badge, Button, Card, Filters, Hint, Loading, Pagination, SelectField, SourceNote, StatCard, Table, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { labelOf, withAll } from '@domains/common/model/codeRepository';
@@ -18,7 +18,7 @@ import { useCommonStyles } from '@shared/theme/styles';
 
 export default function AlertCondView({
   loading, items, summary, codes, groupOptions, metricOptions, filters, setSeverity, setEnabled, setKeyword, reload,
-  exportExcel, submitCond, toggleCond, testCond, paging, itemsMeta,
+  exportExcel, submitCond, toggleCond, testCond, removeCond, paging, itemsMeta,
 }) {
   const sev = codes?.ALM_SEVERITY || [];
   const chan = codes?.ALM_CHANNEL || [];
@@ -33,14 +33,24 @@ export default function AlertCondView({
   const toast = useUiStore((state) => state.toast);
   const openModal = useUiStore((state) => state.openModal);
 
+  /** 수신 그룹 표기 — 목록 행에는 이름 또는 {groupId,name} 으로 옵니다 */
+  const groupNmOf = (g) => (g && typeof g === 'object' ? g.name ?? g.groupNm ?? '' : g);
+  const groupIdOf = (g) => (g && typeof g === 'object' ? g.groupId : groupOptions.find((o) => o.label === g)?.value);
+
   /** 발송 조건 등록·편집 */
   const openCondForm = (row) =>
     openFormModal({
       title: row ? '발송 조건 편집' : '발송 조건 등록',
       sub: '언제 · 무엇을 기준으로 보낼지 정의합니다 (수신자는 알림 수신자 관리에서 지정)',
       wide: true,
+      // 목록 행의 수신 그룹은 이름(또는 {groupId,name}) 으로 오므로 폼 값(groupId)으로 되돌립니다
       initial: row
-        ? { ...row, metricStdId: row.metricId, channels: (row.channels || [])[0], groupIds: (row.groupIds || [])[0] }
+        ? {
+            ...row,
+            metricStdId: row.metricId,
+            channels: (row.channels || [])[0],
+            groupIds: (row.groupIds || [])[0] ?? groupIdOf((row.groups || [])[0]),
+          }
         : { severity: 'WARN', channels: 'MAIL', validWindow: 'ALWAYS', dedupMin: 'M30', op: 'GE', duration: 'IMMEDIATE', target: 'ALL_EQPT' },
       fields: [
         { key: 'name', label: '조건명', required: true, placeholder: '예) 불량률 임계 초과' },
@@ -66,32 +76,45 @@ export default function AlertCondView({
       })).ok,
     });
 
-  /** 발송 조건 테스트 — 실제 발송 전 미리보기 */
+  /**
+   * 발송 조건 테스트 — 서버가 실제 수신자에게 테스트 발송한 결과를 보여 줍니다.
+   * 응답은 `{ sentCnt, recipients[], channels[] }` 입니다 (예전엔 없는 `preview` 를 읽어 화면이 죽었습니다).
+   */
   const testSend = async (row) => {
     const res = await testCond(row.condId);
     if (!res.ok) {
       toast(res.message);
       return;
     }
-    const p = res.data.preview;
+    const d = res.data || {};
+    const recips = (d.recipients || []).map((r) => (r && typeof r === 'object' ? [r.name, r.dept].filter(Boolean).join(' · ') || r.empNo : r));
+    const chans = (d.channels || row.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—';
     openModal({
       title: '발송 조건 테스트',
-      sub: `${row.name} · ${row.channels}`,
+      sub: `${row.name} · ${chans}`,
       render: () => (
         <View>
-          <Text style={[s.textSm, { fontWeight: '700', marginBottom: 6 }]}>{p.title}</Text>
-          <Text style={[s.textSm, { lineHeight: 21 }]}>{p.body}</Text>
-          <SourceNote>{p.note}</SourceNote>
+          <Text style={[s.textSm, { fontWeight: '700', marginBottom: 6 }]}>{`테스트 발송 ${d.sentCnt ?? 0}건`}</Text>
+          {recips.length ? (
+            <Text style={[s.textSm, { lineHeight: 21 }]}>{`수신자: ${recips.join(', ')}`}</Text>
+          ) : (
+            <Text style={[s.textSm, { lineHeight: 21 }]}>연결된 수신 그룹에 수신 상태인 멤버가 없어 실제 발송은 없었습니다. 알림 수신자 관리에서 그룹 멤버를 지정하세요.</Text>
+          )}
+          <SourceNote>{`${row.metric || ''} · ${labelOf(op, row.op)} ${row.threshold} · 심각도 ${labelOf(sev, row.severity)} — 테스트 발송도 알림 발송 로그에 기록됩니다.`}</SourceNote>
         </View>
       ),
-      footer: (close) => (
-        <>
-          <Button label="닫기" onPress={close} />
-          <Button label="테스트 발송" variant="primary" onPress={() => { close(); toast(res.message); }} />
-        </>
-      ),
+      footer: (close) => <Button label="닫기" variant="primary" onPress={close} />,
     });
   };
+
+  const confirmDelete = (row) =>
+    openConfirmModal({
+      title: '발송 조건 삭제',
+      message: `'${row.name}' 발송 조건을 삭제합니다. 삭제된 조건은 복구할 수 없습니다.`,
+      confirmLabel: '삭제',
+      danger: true,
+      onConfirm: () => removeCond(row.condId),
+    });
 
   if (loading) return <Loading />;
 
@@ -111,9 +134,10 @@ export default function AlertCondView({
 
       <Grid cols={4}>
         <StatCard label="등록 조건" value={summary?.total ?? 0} unit="건" sub={`활성 ${summary?.enabled ?? 0} · 중지 ${summary?.disabled ?? 0}`} />
-        <StatCard label="위험 등급" value={summary?.severityRisk ?? 0} unit="건" sub="즉시 발송 대상" tone="down" />
+        {/* 서버 요약에 심각도별 건수(severityRisk)가 없어 오늘 발송 건수를 보입니다 (API 요청 사항) */}
+        <StatCard label="오늘 발송" value={summary?.todaySent ?? 0} unit="건" sub={`중복 억제 ${summary?.dedupCnt ?? 0}건`} tone={summary?.todaySent ? 'down' : ''} />
         <StatCard label="수신 그룹" value={summary?.groupCnt ?? 0} unit="개" sub="알림 수신자 관리에서 편성" />
-        <StatCard label="중지 조건" value={summary?.disabled ?? 0} unit="건" sub="임시 중지 상태" />
+        <StatCard label="중지 조건" value={summary?.disabled ?? 0} unit="건" sub="임시 중지 상태" tone={summary?.disabled ? 'down' : ''} />
       </Grid>
       <Gap />
 
@@ -128,10 +152,12 @@ export default function AlertCondView({
         <Button label="조회" variant="primary" onPress={reload} />
       </Filters>
 
-      <Card title="발송 조건" sub={`${items.length}건`} tight>
+      <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건`} tight>
         <Table
           minWidth={1400}
           keyExtractor={(r) => r.condId}
+          emptyText="등록된 발송 조건이 없습니다. '조건 등록' 으로 첫 조건을 만드세요."
+
           columns={[
             { key: 'name', title: '조건명', width: 170 },
             { key: 'metric', title: '감지 지표', width: 190 },
@@ -140,19 +166,20 @@ export default function AlertCondView({
             { key: 'target', title: '대상 범위', width: 160, render: (r) => <Text style={s.td}>{labelOf(target, r.target)}</Text> },
             { key: 'severity', title: '심각도', width: 84, render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
             { key: 'channels', title: '발송 채널', width: 150, render: (r) => <Text style={s.td}>{(r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—'}</Text> },
-            { key: 'groups', title: '수신 그룹', width: 200, render: (r) => <Text style={s.td}>{(r.groups || []).join(' · ') || '—'}</Text> },
+            { key: 'groups', title: '수신 그룹', width: 200, render: (r) => <Text style={s.td}>{(r.groups || []).map(groupNmOf).join(' · ') || '—'}</Text> },
             { key: 'validWindow', title: '유효 시간대', width: 120, render: (r) => <Text style={s.td}>{labelOf(win, r.validWindow)}</Text> },
             { key: 'dedupMin', title: '중복 억제', width: 90, render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
             { key: 'on', title: '상태', width: 80, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
             {
               key: 'action',
               title: '관리',
-              width: 200,
+              width: 250,
               render: (r) => (
                 <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
                   <Button label="편집" size="sm" onPress={() => openCondForm(r)} />
                   <Button label={r.on ? '중지' : '활성'} size="sm" onPress={() => toggleCond(r.condId)} />
                   <Button label="테스트" size="sm" onPress={() => testSend(r)} />
+                  <Button label="삭제" size="sm" variant="danger" onPress={() => confirmDelete(r)} />
                 </View>
               ),
             },
