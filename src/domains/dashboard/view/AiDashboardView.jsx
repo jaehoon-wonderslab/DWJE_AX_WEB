@@ -17,6 +17,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed, rate } from '@shared/utils/formatUtil';
+import { saveChartAsPng } from '@shared/utils/exportUtil';
 import EquipmentDetail from './components/EquipmentDetail';
 
 export default function AiDashboardView({
@@ -76,7 +77,28 @@ export default function AiDashboardView({
       <Gap />
 
       <Grid cols={3}>
-        <Card title="시간대별 불량률 추이" sub="오늘 · 2시간 간격">
+        <Card
+          title="시간대별 불량률 추이"
+          sub="오늘 · 2시간 간격"
+          nativeID="chart-card-hourly-trend"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-hourly-trend',
+                  fileName: '시간대별_불량률_추이',
+                  title: '시간대별 불량률 추이',
+                  sub: '오늘 · 2시간 간격',
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <LineChart
             labels={trend?.labels}
             series={trend?.rateSeries || trend?.series}
@@ -93,7 +115,28 @@ export default function AiDashboardView({
           ) : null}
         </Card>
 
-        <Card title="라인별 생산량 · 불량률" sub="프레스 10대 · 오늘">
+        <Card
+          title="라인별 생산량 · 불량률"
+          sub="프레스 10대 · 오늘"
+          nativeID="chart-card-line-prod"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-line-prod',
+                  fileName: '라인별_생산량_불량률',
+                  title: '라인별 생산량 · 불량률',
+                  sub: '프레스 10대 · 오늘',
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <BarChart data={(lineProduction?.lines || []).map((l) => ({ l: l.eqptCd.replace('PR-', ''), v: l.qty }))} height={110} />
           <Text style={[s.textXs, { marginTop: 2, marginBottom: -4, marginLeft: 2 }]}>불량률 (%)</Text>
           <LineChart
@@ -108,19 +151,82 @@ export default function AiDashboardView({
           />
         </Card>
 
-        <Card title="공정 품질 지수" sub="6축 · 목표 대비">
+        <Card
+          title="공정 품질 지수"
+          sub="6축 · 목표 대비"
+          nativeID="chart-card-quality-index"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-quality-index',
+                  fileName: '공정_품질_지수',
+                  title: '공정 품질 지수',
+                  sub: '6축 · 목표 대비',
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <RadarChart axes={(qualityIndex?.axes || []).map((a) => ({ l: a.label, v: a.value, t: a.target }))} height={200} />
         </Card>
       </Grid>
       <Gap />
 
       <Grid cols={3}>
-        <Card title="불량 유형 구성" sub={`오늘 · 총 ${comma(composition?.total)}EA`}>
+        <Card
+          title="불량 유형 구성"
+          sub={`오늘 · 총 ${comma(composition?.total)}EA`}
+          nativeID="chart-card-defect-composition"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-defect-composition',
+                  fileName: '불량_유형_구성',
+                  title: '불량 유형 구성',
+                  sub: `오늘 · 총 ${comma(composition?.total)}EA`,
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <DonutChart segs={(composition?.segments || []).map((x) => ({ l: x.label, v: x.value }))} height={186} unitLabel="EA" />
           <SourceNote>{composition?.note}</SourceNote>
         </Card>
 
-        <Card title="공정별 수율" sub={`오늘 · 목표 ${processYield?.target ?? 97}% · 목표 대비 편차`}>
+        <Card
+          title="공정별 수율"
+          sub={`오늘 · 목표 ${processYield?.target ?? 97}% · 목표 대비 편차`}
+          nativeID="chart-card-process-yield"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-process-yield',
+                  fileName: '공정별_수율',
+                  title: '공정별 수율',
+                  sub: `오늘 · 목표 ${processYield?.target ?? 97}%`,
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <DotPlot
             unit="%"
             min={94}
@@ -131,7 +237,28 @@ export default function AiDashboardView({
           <SourceNote>{processYield?.note}</SourceNote>
         </Card>
 
-        <Card title="생산 계획 대비 실적" sub="프레스 10대 · 2시간 구간">
+        <Card
+          title="생산 계획 대비 실적"
+          sub="프레스 10대 · 2시간 구간"
+          nativeID="chart-card-plan-actual"
+          right={
+            <Button
+              label="차트 이미지 저장"
+              size="sm"
+              variant="outline"
+              icon="download"
+              onPress={() =>
+                saveChartAsPng({
+                  containerId: 'chart-card-plan-actual',
+                  fileName: '생산_계획_대비_실적',
+                  title: '생산 계획 대비 실적',
+                  sub: '프레스 10대 · 2시간 구간',
+                  isDark: theme.isDark,
+                })
+              }
+            />
+          }
+        >
           <BarChart data={(planActual?.items || []).map((x) => ({ l: x.slot, v: x.plan, v2: x.actual }))} height={186} />
           <View style={[s.legend, { marginTop: 6 }]}>
             <View style={s.rowGap6}>
@@ -150,7 +277,28 @@ export default function AiDashboardView({
       </Grid>
       <Gap />
 
-      <Card title="설비별 시간대 가동률" sub="프레스 10대 × 2시간 구간 · 값이 낮을수록 진하게 표시">
+      <Card
+        title="설비별 시간대 가동률"
+        sub="프레스 10대 × 2시간 구간 · 값이 낮을수록 진하게 표시"
+        nativeID="chart-card-equipment-heatmap"
+        right={
+          <Button
+            label="차트 이미지 저장"
+            size="sm"
+            variant="outline"
+            icon="download"
+            onPress={() =>
+              saveChartAsPng({
+                containerId: 'chart-card-equipment-heatmap',
+                fileName: '설비별_시간대_가동률',
+                title: '설비별 시간대 가동률',
+                sub: '프레스 10대 × 2시간 구간',
+                isDark: theme.isDark,
+              })
+            }
+          />
+        }
+      >
         <HeatMap rows={heatmap?.rows || []} cols={heatmap?.cols || []} data={heatmap?.data || []} lo={heatmap?.lo} hi={heatmap?.hi} unit="%" invert />
         <SourceNote>{heatmap?.note}</SourceNote>
       </Card>

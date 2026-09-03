@@ -398,67 +398,107 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
 /**
  * D3 SVG 차트를 고해상도 PNG 이미지로 변환하여 다운로드합니다.
  */
-export function saveChartAsPng({
-  svgId = 'production-trend-d3-svg',
-  fileName = '생산_추이_차트',
+/**
+ * D3 SVG 차트를 고해상도 PNG 이미지로 변환하여 다운로드합니다.
+ * svgId 또는 containerId를 받아 단일/복수 SVG 차트를 모두 완벽하게 캡처합니다.
+ */
+export async function saveChartAsPng({
+  svgId,
+  containerId,
+  fileName = '차트',
   title = '',
   sub = '',
   isDark = false,
+  showLegend = false,
 } = {}) {
   try {
     if (typeof document === 'undefined') return;
-    const svg = document.getElementById(svgId);
-    if (!svg) {
-      toast('차트 요소를 찾을 수 없습니다.');
+
+    let svgs = [];
+    if (containerId) {
+      const container = document.getElementById(containerId);
+      if (container) {
+        svgs = Array.from(container.querySelectorAll('svg'));
+      }
+    } else if (svgId) {
+      const el = document.getElementById(svgId);
+      if (el) svgs = [el];
+    }
+
+    if (!svgs.length) {
+      toast('저장할 차트 요소를 찾을 수 없습니다.');
       return;
     }
 
-    const svgClone = svg.cloneNode(true);
-    const svgWidth = parseInt(svg.getAttribute('width'), 10) || svg.clientWidth || 800;
-    const svgHeight = parseInt(svg.getAttribute('height'), 10) || svg.clientHeight || 240;
-
-    const topPadding = title ? 48 : 16;
-    const bottomPadding = 44; // 범례
-    const canvasWidth = Math.max(svgWidth + 40, 840);
-    const canvasHeight = svgHeight + topPadding + bottomPadding;
-
-    const svgString = new XMLSerializer().serializeToString(svgClone);
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    // 각 SVG를 Image 객체로 비동기 변환
     const URL = window.URL || window.webkitURL || window;
-    const blobURL = URL.createObjectURL(svgBlob);
+    const items = await Promise.all(
+      svgs.map((svg) => {
+        return new Promise((resolve, reject) => {
+          const clone = svg.cloneNode(true);
+          const w = parseInt(svg.getAttribute('width'), 10) || svg.clientWidth || 600;
+          const h = parseInt(svg.getAttribute('height'), 10) || svg.clientHeight || 200;
 
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const scale = 2; // Retina 고해상도 2배수
-      canvas.width = canvasWidth * scale;
-      canvas.height = canvasHeight * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(scale, scale);
+          const svgString = new XMLSerializer().serializeToString(clone);
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const blobURL = URL.createObjectURL(svgBlob);
 
-      // 배경 채우기
-      ctx.fillStyle = isDark ? '#0f172a' : '#ffffff';
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          const img = new Image();
+          img.onload = () => resolve({ img, w, h, blobURL });
+          img.onerror = () => {
+            URL.revokeObjectURL(blobURL);
+            reject(new Error('SVG 이미지 로드 실패'));
+          };
+          img.src = blobURL;
+        });
+      })
+    );
 
-      // 타이틀
-      if (title) {
-        ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
-        ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, Pretendard, sans-serif';
-        ctx.fillText(title, 24, 30);
+    const maxW = Math.max(...items.map((it) => it.w), 500);
+    const topPadding = title ? 48 : 20;
+    const bottomPadding = showLegend ? 44 : 20;
+    const gap = 14;
+    const totalSvgH = items.reduce((acc, it) => acc + it.h, 0) + (items.length - 1) * gap;
 
-        if (sub) {
-          const titleWidth = ctx.measureText(title).width;
-          ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
-          ctx.font = 'normal 12px -apple-system, BlinkMacSystemFont, Pretendard, sans-serif';
-          ctx.fillText(sub, 24 + titleWidth + 12, 30);
-        }
+    const canvasWidth = Math.max(maxW + 40, 600);
+    const canvasHeight = topPadding + totalSvgH + bottomPadding;
+
+    const canvas = document.createElement('canvas');
+    const scale = 2; // Retina 고해상도 2배수
+    canvas.width = canvasWidth * scale;
+    canvas.height = canvasHeight * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // 배경 채우기
+    ctx.fillStyle = isDark ? '#0f172a' : '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // 타이틀
+    if (title) {
+      ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
+      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, Pretendard, sans-serif';
+      ctx.fillText(title, 20, 30);
+
+      if (sub) {
+        const titleWidth = ctx.measureText(title).width;
+        ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+        ctx.font = 'normal 12px -apple-system, BlinkMacSystemFont, Pretendard, sans-serif';
+        ctx.fillText(sub, 20 + titleWidth + 12, 30);
       }
+    }
 
-      // SVG 차트 그리기
-      ctx.drawImage(img, 20, topPadding, svgWidth, svgHeight);
+    // SVG 차트들 세로로 그리기
+    let curY = topPadding;
+    items.forEach((it) => {
+      ctx.drawImage(it.img, 20, curY, it.w, it.h);
+      URL.revokeObjectURL(it.blobURL);
+      curY += it.h + gap;
+    });
 
-      // 범례
-      const legendY = topPadding + svgHeight + 22;
+    // 선택적 범례 (생산량/불량률)
+    if (showLegend) {
+      const legendY = curY + 6;
       const centerX = canvasWidth / 2;
 
       // 범례 1: 생산량
@@ -481,15 +521,13 @@ export function saveChartAsPng({
 
       ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
       ctx.fillText('불량률 % (우측 축)', centerX + 50, legendY);
+    }
 
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        saveBlob(blob, `${fileName}.png`);
-        URL.revokeObjectURL(blobURL);
-        toast(`${fileName}.png 차트 이미지를 저장했습니다.`);
-      }, 'image/png');
-    };
-    img.src = blobURL;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      saveBlob(blob, `${fileName}.png`);
+      toast(`${fileName}.png 차트 이미지를 저장했습니다.`);
+    }, 'image/png');
   } catch (err) {
     console.error('차트 이미지 저장 오류:', err);
     toast('차트 이미지 저장 중 오류가 발생했습니다.');

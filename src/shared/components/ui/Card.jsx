@@ -12,10 +12,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 
-export default function Card({ title, sub, right, children, style, bodyStyle, tight }) {
+export default function Card({ title, sub, right, children, style, bodyStyle, tight, nativeID }) {
   const s = useCommonStyles();
   return (
-    <View style={[s.card, style]}>
+    <View nativeID={nativeID} style={[s.card, style]}>
       {title ? (
         <View style={s.cardHead}>
           <View style={{ flexShrink: 1 }}>

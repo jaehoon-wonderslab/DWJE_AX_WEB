@@ -174,14 +174,20 @@ export default function ProductionResultView({
           />
         }
       >
-        <ProductionTrendD3Chart
-          labels={trendChart?.labels || []}
-          qty={trendChart?.qty || []}
-          ngQty={trendChart?.ngQty || []}
-          defectRate={trendChart?.defectRate || []}
-          unit={filters.unit}
-          height={240}
-        />
+        {loading ? (
+          <View style={{ height: 240, alignItems: 'center', justifyContent: 'center' }}>
+            <Loading text="생산·불량 추이 데이터를 불러오는 중입니다…" />
+          </View>
+        ) : (
+          <ProductionTrendD3Chart
+            labels={trendChart?.labels || []}
+            qty={trendChart?.qty || []}
+            ngQty={trendChart?.ngQty || []}
+            defectRate={trendChart?.defectRate || []}
+            unit={filters.unit}
+            height={240}
+          />
+        )}
       </Card>
       <Gap />
 
@@ -199,8 +205,10 @@ export default function ProductionResultView({
         }
       >
         <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 6 }}>
-          {loading && !items.length ? (
-            <Loading />
+          {loading ? (
+            <View style={{ minHeight: 200, alignItems: 'center', justifyContent: 'center' }}>
+              <Loading text="실적 집계 데이터를 불러오는 중입니다…" />
+            </View>
           ) : (
             <TabulatorTable
               rows={items}
