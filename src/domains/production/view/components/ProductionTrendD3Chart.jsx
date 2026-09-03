@@ -175,6 +175,7 @@ export default function ProductionTrendD3Chart({
         }}
       >
         <svg
+          id="production-trend-d3-svg"
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}

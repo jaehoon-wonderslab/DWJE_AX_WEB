@@ -13,6 +13,7 @@ import { openProductPicker } from '@domains/dashboard/view/ProductPicker';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed, minutesText } from '@shared/utils/formatUtil';
+import { saveChartAsPng } from '@shared/utils/exportUtil';
 import ProductionTrendD3Chart from './components/ProductionTrendD3Chart';
 
 const UNIT_OPTIONS = ['일별', '주별', '월별', '기간선택'];
@@ -143,11 +144,36 @@ export default function ProductionResultView({
         </View>
 
         <View style={{ justifyContent: 'flex-end' }}>
-          <Button label="조회" variant="primary" onPress={search} />
+          <Button
+            label="조회"
+            variant="primary"
+            style={{ height: 38, minWidth: 64, justifyContent: 'center' }}
+            onPress={search}
+          />
         </View>
       </Filters>
 
-      <Card title={`${filters.unit} 생산·불량 추이`} sub={`${filters.from} ~ ${filters.to}`}>
+      <Card
+        title={`${filters.unit} 생산·불량 추이`}
+        sub={`${filters.from} ~ ${filters.to}`}
+        right={
+          <Button
+            label="차트 이미지 저장"
+            size="sm"
+            variant="outline"
+            icon="download"
+            onPress={() =>
+              saveChartAsPng({
+                svgId: 'production-trend-d3-svg',
+                fileName: `생산_불량_추이_${filters.from}_${filters.to}`,
+                title: `${filters.unit} 생산·불량 추이`,
+                sub: `${filters.from} ~ ${filters.to}`,
+                isDark: theme.isDark,
+              })
+            }
+          />
+        }
+      >
         <ProductionTrendD3Chart
           labels={trendChart?.labels || []}
           qty={trendChart?.qty || []}

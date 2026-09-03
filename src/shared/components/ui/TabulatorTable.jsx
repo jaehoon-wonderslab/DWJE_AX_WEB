@@ -50,6 +50,101 @@ export default function TabulatorTable({
     if (!tableContainerRef.current) return;
     isBuiltRef.current = false;
 
+    const getSortField = (s) => (typeof s.column === 'string' ? s.column : (s.column?.getField ? s.column.getField() : s.field));
+
+    // 다중 컬럼 정렬 토글 핸들러 (Shift 키 없이도 복수 컬럼 동시 정렬 지원)
+    const handleSortToggle = (field) => {
+      const tbl = tabulatorInstanceRef.current || table;
+      if (!field || !tbl) return;
+
+      const rawSorters = tbl.getSorters() || [];
+      const current = rawSorters
+        .map((s) => ({
+          column: getSortField(s),
+          dir: s.dir,
+        }))
+        .filter((s) => !!s.column);
+
+      const idx = current.findIndex((s) => s.column === field);
+
+      if (idx < 0) {
+        // 1회 클릭: desc 추가 (투입/불량 등 큰 값 우선)
+        current.push({ column: field, dir: 'desc' });
+      } else if (current[idx].dir === 'desc') {
+        // 2회 클릭: asc로 변경
+        current[idx].dir = 'asc';
+      } else {
+        // 3회 클릭: 해당 컬럼 정렬 해제
+        current.splice(idx, 1);
+      }
+
+      if (current.length > 0) {
+        tbl.setSort(current);
+      } else {
+        tbl.clearSort();
+      }
+      updateSortHeadersUI(tbl, tbl.getSorters());
+    };
+
+    // 다중 컬럼 정렬 헤더 UI 갱신 및 네이티브 클릭 리스너 연결
+    const updateSortHeadersUI = (tbl, sorters = []) => {
+      if (!tbl) return;
+      try {
+        const cols = tbl.getColumns();
+        const activeSorters = (sorters || [])
+          .map((s) => ({
+            field: getSortField(s),
+            dir: s.dir,
+          }))
+          .filter((s) => !!s.field);
+
+        cols.forEach((col) => {
+          const f = col.getField();
+          const el = col.getElement();
+          if (!el) return;
+
+          if (el && !el.dataset.sortAttached) {
+            el.dataset.sortAttached = 'true';
+            el.addEventListener('click', (e) => {
+              if (e.target.tagName === 'INPUT' || e.target.closest('.tabulator-header-filter')) {
+                return;
+              }
+              e.stopPropagation();
+              handleSortToggle(f);
+            });
+          }
+
+          const sIdx = activeSorters.findIndex((s) => s.field === f);
+          const sInfo = sIdx >= 0 ? activeSorters[sIdx] : null;
+
+          const titleEl = el.querySelector('.tabulator-col-title');
+          let indicator = el.querySelector('.custom-sort-indicator');
+          if (!indicator && titleEl) {
+            indicator = document.createElement('span');
+            indicator.className = 'custom-sort-indicator';
+            indicator.style.cssText = 'display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; vertical-align: middle; cursor: pointer;';
+            titleEl.appendChild(indicator);
+          }
+
+          if (indicator) {
+            if (sInfo) {
+              const arrow = sInfo.dir === 'asc' ? '▲' : '▼';
+              const rankBadge = activeSorters.length > 1
+                ? `<span style="font-size: 9px; font-weight: 700; background: ${colors.primary}; color: #ffffff; border-radius: 9px; min-width: 13px; height: 13px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">${sIdx + 1}</span>`
+                : '';
+              indicator.innerHTML = `<span style="color: ${colors.primary}; font-weight: bold; font-size: 11px;">${arrow}</span>${rankBadge}`;
+              el.setAttribute('aria-sort', sInfo.dir === 'asc' ? 'ascending' : 'descending');
+            } else {
+              indicator.innerHTML = `<span style="color: ${colors.mutedText}; opacity: 0.35; font-size: 9.5px;">▲▼</span>`;
+              el.setAttribute('aria-sort', 'none');
+            }
+          }
+        });
+      } catch (err) {
+        console.error('[updateSortHeadersUI error]', err);
+      }
+    };
+
     // Tabulator 6.x 초기화 (내장 페이징 및 Tree 뷰 활성화)
     const table = new Tabulator(tableContainerRef.current, {
       data: rows,
@@ -61,7 +156,18 @@ export default function TabulatorTable({
       dataTreeChildField: '_children',
       dataTreeChildIndent: 18,
       dataTreeFilter: true, // 자식 행(제품·설비)이 검색 조건에 매칭되면 상위 부모 행도 함께 유지
-      headerSortTristate: true,
+      headerSort: false, // 커스텀 다중 정렬(Multi-Column Sort) 사용
+      rowFormatter: function(row) {
+        const data = row.getData();
+        // 마지막 depth (3depth) 또는 자식이 없는 행은 +/- 컨트롤 숨김
+        if (data.isGrandChild || data.depth === 3 || (!data._children || data._children.length === 0)) {
+          const el = row.getElement();
+          const treeCtrl = el.querySelector('.tabulator-data-tree-control');
+          if (treeCtrl) {
+            treeCtrl.style.display = 'none';
+          }
+        }
+      },
       pagination: true,
       paginationMode: 'local',
       paginationSize: 25,
@@ -96,7 +202,7 @@ export default function TabulatorTable({
           width: 360,
           headerHozAlign: 'left',
           hozAlign: 'left',
-          headerSort: true,
+          headerSort: false,
           sorter: 'string',
           headerFilter: 'input',
           headerFilterPlaceholder: '일자·제품·공장·설비 검색',
@@ -137,7 +243,7 @@ export default function TabulatorTable({
               const tagBg = isPress ? (isDark ? '#451a03' : '#fef3c7') : (isDark ? '#3b0764' : '#f3e8ff');
               const tagBorder = isPress ? (isDark ? '#78350f' : '#fde68a') : (isDark ? '#581c87' : '#e9d5ff');
               const plantText = rowData.plantNm || '제1공장';
-              return `<span style="display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
+              return `<span data-depth="3" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
                 <span style="font-weight: 700; color: ${isDark ? '#93c5fd' : '#1d4ed8'}; background: ${isDark ? '#1e3a8a' : '#dbeafe'}; border: 1px solid ${isDark ? '#2563eb' : '#bfdbfe'}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${plantText}</span>
                 <span style="font-weight: 700; color: ${tagColor}; background: ${tagBg}; border: 1px solid ${tagBorder}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${rowData.processNm || '공정'}</span>
                 <span>${val}</span>
@@ -154,7 +260,7 @@ export default function TabulatorTable({
           field: 'inputQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
@@ -174,7 +280,7 @@ export default function TabulatorTable({
           field: 'okQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
@@ -194,7 +300,7 @@ export default function TabulatorTable({
           field: 'ngQty',
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
@@ -216,7 +322,7 @@ export default function TabulatorTable({
           width: 105,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           headerFilter: 'input',
           headerFilterPlaceholder: '% >=',
@@ -238,7 +344,7 @@ export default function TabulatorTable({
           width: 105,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
@@ -252,7 +358,7 @@ export default function TabulatorTable({
           width: 125,
           headerHozAlign: 'right',
           hozAlign: 'right',
-          headerSort: true,
+          headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
@@ -263,8 +369,16 @@ export default function TabulatorTable({
       ],
     });
 
+    table.on('sortChanged', (sorters) => {
+      updateSortHeadersUI(table, sorters);
+    });
+
     table.on('tableBuilt', () => {
       isBuiltRef.current = true;
+      if (typeof window !== 'undefined') {
+        window._dwje_tabulator = table;
+      }
+      updateSortHeadersUI(table, table.getSorters());
     });
 
     tabulatorInstanceRef.current = table;
@@ -310,29 +424,19 @@ export default function TabulatorTable({
           background-color: transparent !important;
           border-right: none !important;
           padding: 11px 16px !important;
-        }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col.tabulator-sortable {
           cursor: pointer !important;
           user-select: none !important;
           transition: background-color 0.15s ease !important;
         }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col.tabulator-sortable:hover {
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col:hover {
           background-color: ${isDark ? '#1e293b' : '#f1f5f9'} !important;
         }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-col-sorter {
-          display: inline-flex !important;
-          align-items: center !important;
-          margin-left: 6px !important;
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter {
+          cursor: default !important;
         }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-arrow {
-          border-bottom-color: ${colors.mutedText} !important;
-          border-top-color: ${colors.mutedText} !important;
-        }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col[aria-sort="ascending"] .tabulator-arrow {
-          border-bottom-color: ${colors.primary} !important;
-        }
-        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col[aria-sort="descending"] .tabulator-arrow {
-          border-top-color: ${colors.primary} !important;
+        /* 3depth(마지막 depth)의 +/- 트리 컨트롤 완전히 숨김 */
+        .tabulator-shadcn-${tableId} .tabulator-row:has([data-depth="3"]) .tabulator-data-tree-control {
+          display: none !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-content {
           padding: 0 !important;
