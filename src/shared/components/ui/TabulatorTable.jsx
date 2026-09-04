@@ -152,9 +152,10 @@ export default function TabulatorTable({
       responsiveLayout: false,
       placeholder: emptyText,
       dataTree: true,
+      dataTreeElementColumn: 'date',
       dataTreeStartExpanded: false,
       dataTreeChildField: '_children',
-      dataTreeChildIndent: 18,
+      dataTreeChildIndent: 16,
       dataTreeFilter: true, // 자식 행(제품·설비)이 검색 조건에 매칭되면 상위 부모 행도 함께 유지
       headerSort: false, // 커스텀 다중 정렬(Multi-Column Sort) 사용
       rowFormatter: function(row) {
@@ -197,67 +198,168 @@ export default function TabulatorTable({
       },
       columns: [
         {
-          title: '일자 / 제품명 / 공장·공정·설비',
-          field: 'period',
-          width: 360,
+          title: '일자',
+          field: 'date',
+          width: 145,
+          minWidth: 135,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
           sorter: 'string',
           headerFilter: 'input',
-          headerFilterPlaceholder: '일자·제품·공장·설비 검색',
+          headerFilterPlaceholder: '일자 검색',
           headerFilterLiveFilter: true,
           headerFilterFunc: (headerValue, rowValue, rowData) => {
             if (!headerValue) return true;
             const q = String(headerValue).trim().toLowerCase();
-            const v = String(rowValue || '').toLowerCase();
-            const plant = String(rowData?.plantNm || '').toLowerCase();
-            const proc = String(rowData?.processNm || '').toLowerCase();
-            if (v.includes(q) || plant.includes(q) || proc.includes(q)) return true;
-            // 부모 행일 경우, 하위 자식(제품) 또는 손자(설비/공정)에 검색어가 포함되어 있으면 부모 행 유지
+            const date = String(rowData?.date || rowValue || '').toLowerCase();
+            if (date.includes(q)) return true;
             if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((child) => {
-                const cv = String(child.period || '').toLowerCase();
-                const cp = String(child.plantNm || '').toLowerCase();
-                const cproc = String(child.processNm || '').toLowerCase();
-                if (cv.includes(q) || cp.includes(q) || cproc.includes(q)) return true;
-                if (Array.isArray(child._children)) {
-                  return child._children.some((gc) => {
-                    const gv = String(gc.period || '').toLowerCase();
-                    const gp = String(gc.plantNm || '').toLowerCase();
-                    const gproc = String(gc.processNm || '').toLowerCase();
-                    return gv.includes(q) || gp.includes(q) || gproc.includes(q);
-                  });
-                }
-                return false;
+              return rowData._children.some((c) => {
+                const cd = String(c.date || c.period || '').toLowerCase();
+                return cd.includes(q);
               });
             }
             return false;
           },
           formatter: (cell) => {
             const rowData = cell.getRow().getData();
-            const val = cell.getValue() || '—';
+            const val = cell.getValue() || rowData.date || rowData.period || '—';
+            if (rowData.isGrandChild || rowData.depth === 3) {
+              return `<span data-depth="3" style="color: ${colors.mutedText}; font-size: 11px; opacity: 0.45; font-family: monospace;">↳ ↳</span>`;
+            }
+            if (rowData.isChild || rowData.depth === 2) {
+              const shortDate = val && val.length >= 10 ? val.slice(5) : val;
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: ${colors.mutedText};">
+                <span style="opacity: 0.65;">↳</span>
+                <span style="font-family: monospace; font-weight: 500;">${shortDate}</span>
+              </span>`;
+            }
+            return `<span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12.5px; color: ${colors.rowText};">
+              <span style="color: ${colors.primary}; font-size: 11.5px;">📅</span>
+              <span>${val}</span>
+            </span>`;
+          },
+        },
+        {
+          title: '제품명',
+          field: 'productNm',
+          width: 140,
+          minWidth: 125,
+          headerHozAlign: 'left',
+          hozAlign: 'left',
+          headerSort: false,
+          sorter: 'string',
+          headerFilter: 'input',
+          headerFilterPlaceholder: '제품명 검색',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
+            if (!headerValue) return true;
+            const q = String(headerValue).trim().toLowerCase();
+
+            // Depth 2 (제품) 또는 Depth 3 (제품 하위 공정/설비): 해당 행의 제품명이 일치하면 표시
+            const prod = String(rowData?.productNm || rowData?.parentProductNm || (rowData?.depth === 2 ? rowData?.period : '') || '').toLowerCase();
+            if (prod && prod.includes(q)) return true;
+
+            // Depth 1 (일자 부모 행): 하위 제품 중 검색어를 포함하는 것이 있으면 부모 행 유지
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((child) => {
+                const cp = String(child.productNm || child.parentProductNm || child.period || '').toLowerCase();
+                return cp.includes(q);
+              });
+            }
+
+            return false;
+          },
+          formatter: (cell) => {
+            const rowData = cell.getRow().getData();
+            const val = cell.getValue() || rowData.productNm || '';
+            if (rowData.isGrandChild || rowData.depth === 3) {
+              const pName = val || rowData.parentProductNm || '';
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; color: ${colors.mutedText}; font-size: 11px; opacity: 0.75;">
+                <span>↳</span>
+                <span style="font-weight: 500;">${pName || '—'}</span>
+              </span>`;
+            }
+            if (rowData.isChild || rowData.depth === 2) {
+              const displayVal = val || rowData.period || '기타';
+              return `<span style="display: inline-flex; align-items: center; font-weight: 600; color: ${colors.primary}; background: ${isDark ? '#1e293b' : '#eff6ff'}; padding: 2px 7px; border-radius: 4px; font-size: 11.5px; border: 1px solid ${isDark ? '#334155' : '#bfdbfe'};">${displayVal}</span>`;
+            }
+            // Depth 1 (일자 행)
+            const childCount = Array.isArray(rowData._children) ? rowData._children.length : 0;
+            return `<span style="color: ${colors.mutedText}; font-size: 11.5px; font-weight: 500;">전체 (${childCount ? `${childCount}개 품목` : '일자 합계'})</span>`;
+          },
+        },
+        {
+          title: '공장·공정·설비',
+          field: 'facility',
+          minWidth: 260,
+          headerHozAlign: 'left',
+          hozAlign: 'left',
+          headerSort: false,
+          sorter: 'string',
+          headerFilter: 'input',
+          headerFilterPlaceholder: '공장·공정·설비 검색',
+          headerFilterLiveFilter: true,
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
+            if (!headerValue) return true;
+            const q = String(headerValue).trim().toLowerCase();
+
+            // Depth 3: 설비명, 공정명, 공장명, facility 문자열 검색
+            const fac = String(rowData?.facility || '').toLowerCase();
+            const equip = String(rowData?.equipNm || rowData?.period || '').toLowerCase();
+            const plant = String(rowData?.plantNm || '').toLowerCase();
+            const proc = String(rowData?.processNm || '').toLowerCase();
+            if (fac.includes(q) || equip.includes(q) || plant.includes(q) || proc.includes(q)) return true;
+
+            // Depth 2: 하위 설비(자식) 중 검색어를 포함하는 것이 있으면 표시
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((child) => {
+                const cf = String(child.facility || child.equipNm || child.period || '').toLowerCase();
+                const cp = String(child.plantNm || '').toLowerCase();
+                const cproc = String(child.processNm || '').toLowerCase();
+                if (cf.includes(q) || cp.includes(q) || cproc.includes(q)) return true;
+                // Depth 1인 경우 손자(설비)까지 탐색
+                if (Array.isArray(child._children)) {
+                  return child._children.some((gc) => {
+                    const gf = String(gc.facility || gc.equipNm || gc.period || '').toLowerCase();
+                    const gp = String(gc.plantNm || '').toLowerCase();
+                    const gproc = String(gc.processNm || '').toLowerCase();
+                    return gf.includes(q) || gp.includes(q) || gproc.includes(q);
+                  });
+                }
+                return false;
+              });
+            }
+
+            return false;
+          },
+          formatter: (cell) => {
+            const rowData = cell.getRow().getData();
             if (rowData.isGrandChild || rowData.depth === 3) {
               const isPress = (rowData.processNm || '').includes('프레스');
               const tagColor = isPress ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#c084fc' : '#7e22ce');
               const tagBg = isPress ? (isDark ? '#451a03' : '#fef3c7') : (isDark ? '#3b0764' : '#f3e8ff');
               const tagBorder = isPress ? (isDark ? '#78350f' : '#fde68a') : (isDark ? '#581c87' : '#e9d5ff');
               const plantText = rowData.plantNm || '제1공장';
+              const equipText = rowData.equipNm || rowData.period || '—';
               return `<span data-depth="3" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 11.5px; color: ${isDark ? '#cbd5e1' : '#334155'};">
                 <span style="font-weight: 700; color: ${isDark ? '#93c5fd' : '#1d4ed8'}; background: ${isDark ? '#1e3a8a' : '#dbeafe'}; border: 1px solid ${isDark ? '#2563eb' : '#bfdbfe'}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${plantText}</span>
                 <span style="font-weight: 700; color: ${tagColor}; background: ${tagBg}; border: 1px solid ${tagBorder}; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${rowData.processNm || '공정'}</span>
-                <span>${val}</span>
+                <span style="font-weight: 600;">${equipText}</span>
               </span>`;
             }
             if (rowData.isChild || rowData.depth === 2) {
-              return `<span style="display: inline-flex; align-items: center; font-weight: 600; color: ${colors.primary}; background: ${isDark ? '#1e293b' : '#eff6ff'}; padding: 2px 7px; border-radius: 4px; font-size: 11.5px; border: 1px solid ${isDark ? '#334155' : '#bfdbfe'};">${val}</span>`;
+              return `<span style="color: ${colors.mutedText}; font-size: 11px; background: ${isDark ? '#1e293b' : '#f1f5f9'}; border: 1px solid ${colors.border}; padding: 1px 6px; border-radius: 3px;">품목별 소계</span>`;
             }
-            return `<span style="font-weight: 600; font-size: 13px;">${val}</span>`;
+            // Depth 1
+            return `<span style="color: ${colors.mutedText}; font-size: 11.5px;">—</span>`;
           },
         },
         {
           title: '투입',
           field: 'inputQty',
+          minWidth: 85,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
@@ -265,10 +367,21 @@ export default function TabulatorTable({
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
           headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue) => {
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
             if (!headerValue) return true;
             const target = Number(String(headerValue).replace(/,/g, ''));
-            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+            if (isNaN(target)) return true;
+            if ((Number(rowValue) || 0) >= target) return true;
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((c) => {
+                if ((Number(c.inputQty) || 0) >= target) return true;
+                if (Array.isArray(c._children)) {
+                  return c._children.some((gc) => (Number(gc.inputQty) || 0) >= target);
+                }
+                return false;
+              });
+            }
+            return false;
           },
           formatter: (cell) => {
             const v = cell.getValue();
@@ -278,6 +391,7 @@ export default function TabulatorTable({
         {
           title: '양품',
           field: 'okQty',
+          minWidth: 85,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
@@ -285,10 +399,21 @@ export default function TabulatorTable({
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
           headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue) => {
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
             if (!headerValue) return true;
             const target = Number(String(headerValue).replace(/,/g, ''));
-            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+            if (isNaN(target)) return true;
+            if ((Number(rowValue) || 0) >= target) return true;
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((c) => {
+                if ((Number(c.okQty) || 0) >= target) return true;
+                if (Array.isArray(c._children)) {
+                  return c._children.some((gc) => (Number(gc.okQty) || 0) >= target);
+                }
+                return false;
+              });
+            }
+            return false;
           },
           formatter: (cell) => {
             const v = cell.getValue();
@@ -298,6 +423,7 @@ export default function TabulatorTable({
         {
           title: '불량',
           field: 'ngQty',
+          minWidth: 80,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
@@ -305,10 +431,21 @@ export default function TabulatorTable({
           headerFilter: 'input',
           headerFilterPlaceholder: '>=',
           headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue) => {
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
             if (!headerValue) return true;
             const target = Number(String(headerValue).replace(/,/g, ''));
-            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+            if (isNaN(target)) return true;
+            if ((Number(rowValue) || 0) >= target) return true;
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((c) => {
+                if ((Number(c.ngQty) || 0) >= target) return true;
+                if (Array.isArray(c._children)) {
+                  return c._children.some((gc) => (Number(gc.ngQty) || 0) >= target);
+                }
+                return false;
+              });
+            }
+            return false;
           },
           formatter: (cell) => {
             const v = cell.getValue();
@@ -319,7 +456,8 @@ export default function TabulatorTable({
         {
           title: '불량률',
           field: 'defectRate',
-          width: 105,
+          width: 95,
+          minWidth: 90,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
@@ -327,10 +465,21 @@ export default function TabulatorTable({
           headerFilter: 'input',
           headerFilterPlaceholder: '% >=',
           headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue) => {
+          headerFilterFunc: (headerValue, rowValue, rowData) => {
             if (!headerValue) return true;
             const target = Number(String(headerValue).replace(/%/g, ''));
-            return isNaN(target) ? true : (Number(rowValue) || 0) >= target;
+            if (isNaN(target)) return true;
+            if ((Number(rowValue) || 0) >= target) return true;
+            if (Array.isArray(rowData?._children)) {
+              return rowData._children.some((c) => {
+                if ((Number(c.defectRate) || 0) >= target) return true;
+                if (Array.isArray(c._children)) {
+                  return c._children.some((gc) => (Number(gc.defectRate) || 0) >= target);
+                }
+                return false;
+              });
+            }
+            return false;
           },
           formatter: (cell) => {
             const v = cell.getValue();
@@ -341,7 +490,8 @@ export default function TabulatorTable({
         {
           title: '가동률',
           field: 'uptimeRate',
-          width: 105,
+          width: 95,
+          minWidth: 90,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
@@ -355,7 +505,8 @@ export default function TabulatorTable({
         {
           title: '비가동 시간',
           field: 'downtimeMin',
-          width: 125,
+          width: 110,
+          minWidth: 100,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,

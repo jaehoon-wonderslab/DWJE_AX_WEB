@@ -65,7 +65,7 @@ export async function loadModelOptions() {
 /**
  * 각 제품의 공정 및 프레스 기기별 3depth 불량 상세 내역을 생성합니다.
  */
-function makeProcessChildren(productName, totalQty, ngQty) {
+function makeProcessChildren(productName, totalQty, ngQty, date) {
   const pName = String(productName || '기타');
   let hash = 0;
   for (let i = 0; i < pName.length; i++) hash = (hash * 31 + pName.charCodeAt(i)) >>> 0;
@@ -94,9 +94,14 @@ function makeProcessChildren(productName, totalQty, ngQty) {
 
   return [
     {
+      date: date || '',
       period: `MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
+      productNm: pName,
+      parentProductNm: pName,
       plantNm: plant1,
       processNm: '프레스 공정',
+      equipNm: `MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
+      facility: `${plant1} · 프레스 공정 · MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
       isGrandChild: true,
       depth: 3,
       inputQty: q1,
@@ -108,9 +113,14 @@ function makeProcessChildren(productName, totalQty, ngQty) {
       _children: [],
     },
     {
+      date: date || '',
       period: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
+      productNm: pName,
+      parentProductNm: pName,
       plantNm: plant2,
       processNm: '프레스 공정',
+      equipNm: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
+      facility: `${plant2} · 프레스 공정 · MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
       isGrandChild: true,
       depth: 3,
       inputQty: q2,
@@ -122,9 +132,14 @@ function makeProcessChildren(productName, totalQty, ngQty) {
       _children: [],
     },
     {
+      date: date || '',
       period: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
+      productNm: pName,
+      parentProductNm: pName,
       plantNm: plant3,
       processNm: 'AOI 검사',
+      equipNm: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
+      facility: `${plant3} · AOI 검사 · AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
       isGrandChild: true,
       depth: 3,
       inputQty: q3,
@@ -160,6 +175,15 @@ export async function loadResults({ from, to, unit, modelCd, page, size }) {
   if (Array.isArray(items) && items.length > 0) {
     items = await Promise.all(
       items.map(async (row) => {
+        const baseRow = {
+          ...row,
+          date: row.period,
+          period: row.period,
+          productNm: '',
+          facility: '—',
+          depth: 1,
+          isParent: true,
+        };
         try {
           if (row.period && /^\d{4}-\d{2}-\d{2}$/.test(row.period)) {
             const prodRes = await unwrap(
@@ -176,10 +200,17 @@ export async function loadResults({ from, to, unit, modelCd, page, size }) {
                 const prodName = p.product || p.productName || '기타';
 
                 // 3depth: 각 제품이 어떤 프레스 기기 또는 공정에서 불량인지 상세 분배
-                const grandChildren = makeProcessChildren(prodName, totalQty, ng);
+                const grandChildren = makeProcessChildren(prodName, totalQty, ng, row.period);
 
                 return {
+                  date: row.period,
                   period: prodName,
+                  productNm: prodName,
+                  parentProductNm: prodName,
+                  plantNm: '',
+                  processNm: '',
+                  equipNm: '',
+                  facility: '품목별 소계',
                   isChild: true,
                   depth: 2,
                   inputQty: totalQty,
@@ -191,13 +222,13 @@ export async function loadResults({ from, to, unit, modelCd, page, size }) {
                   _children: grandChildren,
                 };
               });
-              return { ...row, _children: children };
+              return { ...baseRow, _children: children };
             }
           }
         } catch (e) {
           // 실패 시 자식 없이 원본 행 유지
         }
-        return row;
+        return baseRow;
       })
     );
   }
