@@ -134,10 +134,18 @@ export function useAiDashboardController() {
     { silent: true }
   );
 
+  /**
+   * 원인 분석은 **브리핑이 끝난 뒤** 부릅니다
+   *
+   * 둘 다 같은 모델을 쓰는데 로컬 서빙은 한 번에 하나씩 처리합니다. 동시에 던지면 뒤엣것이
+   * 앞엣것을 기다렸다가 시작해, 둘을 합한 시간(실측 88초 + 98초)이 서버 제한(240초)에 닿아
+   * 통째로 실패했습니다. 순서대로 부르면 각자 제 시간만 씁니다.
+   * GPU 서버로 옮겨 동시 처리가 되면 이 대기는 빼도 됩니다.
+   */
   const { data: causeData, loading: causeFetching } = useAsync(
     () => fetchAiCausePrescription(applied),
-    [applied.from, applied.to, applied.plant],
-    { silent: true }
+    [applied.from, applied.to, applied.plant, briefingLoading],
+    { silent: true, skip: briefingLoading }
   );
 
   // 라인별 현황 (페이징: 대시보드 화면에 적합하게 기본 10건 단위 표시)

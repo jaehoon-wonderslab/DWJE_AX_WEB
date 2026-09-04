@@ -160,7 +160,7 @@ function Evidence({ item }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const icon = KIND_ICON[item.kind] || 'chart';
-  const shownValue = formatEvidence(item.value, item.unit);
+  const shownValue = formatEvidence(item.value, item.unit, item);
 
   return (
     <View
@@ -187,12 +187,19 @@ function Evidence({ item }) {
  * 근거 값 표기 — 서버가 준 숫자 + 단위
  *
  * 율은 소수 2자리로 둡니다. 98.36 을 98.4 로 줄여 적으면 서버가 대조한 값과 화면 값이 달라집니다.
+ *
+ * **불량률에는 분모를 함께 적습니다.** "100.0%" 만 보면 1개 중 1개인지 3,570개 중 3,570개인지
+ * 알 수 없습니다. 크기를 보여 줘야 사람이 이슈의 무게를 판단할 수 있습니다.
  */
-export function formatEvidence(value, unit) {
+export function formatEvidence(value, unit, item) {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   if (Number.isNaN(n)) return String(value);
-  if (unit === '%') return `${fixed(n, 2)}%`;
+  if (unit === '%') {
+    const { numerator: a, denominator: b } = item || {};
+    const frac = a !== null && a !== undefined && b ? ` (${comma(a)}/${comma(b)})` : '';
+    return `${fixed(n, 2)}%${frac}`;
+  }
   if (unit === 'EA') return `${comma(n)} EA`;
   return unit ? `${comma(n)} ${unit}` : comma(n);
 }

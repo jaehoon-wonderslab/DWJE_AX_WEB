@@ -28,7 +28,7 @@ function riskOf(rate) {
   return { tone: 'green', label: '정상' };
 }
 
-export default function AiCausePrescriptionCard({ causePrescription, loading, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
+export default function AiCausePrescriptionCard({ causePrescription, loading, waiting, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -55,7 +55,10 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, eq
         />
       ) : null}
 
-      {loading && !cp ? (
+      {waiting && !cp ? (
+        // 브리핑이 같은 모델을 쓰는 중이라 아직 시작도 못 했습니다 — 준비 중과 구분해 알립니다
+        <EmptyState text="브리핑 분석이 끝나면 이어서 분석합니다." />
+      ) : loading && !cp ? (
         // 모델 추론이라 수십 초 걸립니다 — 멈춘 것처럼 보이지 않게 미리 알립니다
         <EmptyState text="모델이 분석 중입니다. 수십 초 걸릴 수 있습니다." />
       ) : !ready ? (

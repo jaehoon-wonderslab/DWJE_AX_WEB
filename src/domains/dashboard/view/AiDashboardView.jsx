@@ -211,6 +211,7 @@ export default function AiDashboardView({
             selectedEqptCd={selectedEqptCd}
             onSelectEqpt={changeSelectedEqpt}
             loading={causeLoading}
+            waiting={briefingLoading}
           />
 
           {/* 1. 시간대별 불량률 추이 */}
