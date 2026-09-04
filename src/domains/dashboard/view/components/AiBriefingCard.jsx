@@ -14,6 +14,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Badge, Card, EmptyState, Icon } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
+import { comma, fixed } from '@shared/utils/formatUtil';
 import { useTheme } from '@shared/theme/useTheme';
 
 /**
@@ -28,7 +29,13 @@ import { useTheme } from '@shared/theme/useTheme';
  * anomaly 는 설비코드, doc 은 청크 id. 없으면 서버가 NOT_FOUND 로 그 문장을 버립니다.
  *
  * 모델이 쓴 `ref` 는 화면 링크로만 씁니다. 검증 근거로 삼지 않습니다 — 그것도 지어낼 수 있습니다.
- * `kind:'doc'` 의 `label` 은 서버가 문서 제목으로 덮어써 내려 줍니다.
+ *
+ * **`label` 과 `value` 는 서버가 덮어써 내려 줍니다**(2026-09-05). 모델이 쓴 값이 아니라
+ * 서버가 마스터·DB 에서 구한 값입니다 — 허용 오차 안에서 통과시키면 모델이 쓴 98.4 가 그대로 나가
+ * 실제 98.36 과 달라지기 때문입니다. **검증한 값과 보여 준 값이 같아야 합니다.**
+ *
+ * 그래서 `value` 는 숫자(98.36)로 오고 단위는 `unit`('%' · 'EA')으로 따로 옵니다 —
+ * 표기는 화면이 만듭니다. 이제 모델이 화면에 직접 기여하는 것은 `text` 문장 하나뿐입니다.
  */
 const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', metric: 'chart', defect: 'alert', anomaly: 'activity' };
 
@@ -103,6 +110,7 @@ function Evidence({ item }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const icon = KIND_ICON[item.kind] || 'chart';
+  const shownValue = formatEvidence(item.value, item.unit);
 
   return (
     <View
@@ -120,9 +128,23 @@ function Evidence({ item }) {
     >
       <Icon name={icon} size={11} color={theme.color.mutedForeground} />
       <Text style={s.textXs}>{item.label}</Text>
-      {item.value ? <Text style={[s.textXs, { fontWeight: '700' }]}>{item.value}</Text> : null}
+      {shownValue !== null ? <Text style={[s.textXs, { fontWeight: '700' }]}>{shownValue}</Text> : null}
     </View>
   );
+}
+
+/**
+ * 근거 값 표기 — 서버가 준 숫자 + 단위
+ *
+ * 율은 소수 2자리로 둡니다. 98.36 을 98.4 로 줄여 적으면 서버가 대조한 값과 화면 값이 달라집니다.
+ */
+export function formatEvidence(value, unit) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  if (unit === '%') return `${fixed(n, 2)}%`;
+  if (unit === 'EA') return `${comma(n)} EA`;
+  return unit ? `${comma(n)} ${unit}` : comma(n);
 }
 
 /** 모델이 아직 붙지 않았을 때 — 지어낸 값 대신 상태를 밝힙니다 */

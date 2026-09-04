@@ -17,7 +17,7 @@ import { Badge, Card, EmptyState, SelectField } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { fixed } from '@shared/utils/formatUtil';
-import { NotReady } from './AiBriefingCard';
+import { NotReady, formatEvidence } from './AiBriefingCard';
 
 const RISK = { NORMAL: { tone: 'green', label: '정상' }, WARN: { tone: 'amber', label: '주의' }, CRIT: { tone: 'red', label: '위험' }, CRITICAL: { tone: 'red', label: '위험' } };
 
@@ -90,8 +90,14 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, eq
                   </View>
                   {p.expect ? <Text style={s.textXs}>{`기대 효과 — ${p.expect}`}</Text> : null}
                   <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-                    {`근거 — ${p.basis.map((b) => b.label || b).join(' · ')}`}
+                    {`근거 — ${p.basis.map((b) => [b.label || b, formatEvidence(b.value, b.unit)].filter(Boolean).join(' ')).join(' · ')}`}
                   </Text>
+                  {/* 문서 근거는 인용문이 근거의 실체라 그대로 보여 줍니다 */}
+                  {p.basis.filter((b) => b.quote).map((b, j) => (
+                    <Text key={j} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
+                      {`"${b.quote}"`}
+                    </Text>
+                  ))}
                 </View>
               ))}
             </View>
@@ -123,8 +129,9 @@ function Contribution({ item }) {
       <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.alpha('muted', 0.7), overflow: 'hidden' }}>
         <View style={{ width: `${pctVal}%`, height: '100%', backgroundColor: color }} />
       </View>
+      {/* label · value 모두 서버가 마스터·DB 값으로 덮어써 준 것입니다 (모델이 쓴 값이 아닙니다) */}
       <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-        {item.evidence.map((e) => `${e.label}${e.value ? ` ${e.value}` : ''}`).join(' · ')}
+        {item.evidence.map((e) => [e.label, formatEvidence(e.value, e.unit)].filter(Boolean).join(' ')).join(' · ')}
       </Text>
     </View>
   );
