@@ -171,6 +171,34 @@ export default function ProcessDashboardView({
       </Grid>
       <Gap />
 
+      {/* 공정별 수율 (전체 공정 정밀 수율 분석 - 상단 핵심 카드) */}
+      <Card
+        title="공정별 수율"
+        sub={`목표 ${processYield?.target ?? target ?? 97}% · 목표 대비 편차 및 공정별 수율 정밀 분석`}
+        nativeID="chart-card-process-yield"
+        right={
+          <Button
+            label="차트 이미지 저장"
+            size="sm"
+            variant="outline"
+            icon="download"
+            onPress={() =>
+              saveChartAsPng({
+                containerId: 'chart-card-process-yield',
+                fileName: '공정별_수율',
+                title: '공정별 수율',
+                sub: `목표 ${processYield?.target ?? target ?? 97}%`,
+                isDark: theme.isDark,
+              })
+            }
+          />
+        }
+      >
+        <ProcessYieldView processYield={processYield} />
+        <SourceNote>{processYield?.note || '양품 수량 ÷ (양품 + 불량) 기준. 재작업 투입분은 제외합니다.'}</SourceNote>
+      </Card>
+      <Gap />
+
       <Grid cols={3}>
         <Card title="시간대별 불량률 추이" sub={`${proc?.name} · 2시간 간격`}>
           <LineChart labels={trend?.labels} series={trend?.series} target={trend?.target} unit="%" min={0} max={6} height={186} />
@@ -234,34 +262,6 @@ export default function ProcessDashboardView({
           <SourceNote>현재 선택한 제품 구성으로 네 공정을 비교합니다.</SourceNote>
         </Card>
       </Grid>
-      <Gap />
-
-      {/* 공정별 수율 (전체 공정 정밀 수율 분석) */}
-      <Card
-        title="공정별 수율"
-        sub={`목표 ${processYield?.target ?? target ?? 97}% · 목표 대비 편차 및 공정별 수율 정밀 분석`}
-        nativeID="chart-card-process-yield"
-        right={
-          <Button
-            label="차트 이미지 저장"
-            size="sm"
-            variant="outline"
-            icon="download"
-            onPress={() =>
-              saveChartAsPng({
-                containerId: 'chart-card-process-yield',
-                fileName: '공정별_수율',
-                title: '공정별 수율',
-                sub: `목표 ${processYield?.target ?? target ?? 97}%`,
-                isDark: theme.isDark,
-              })
-            }
-          />
-        }
-      >
-        <ProcessYieldView processYield={processYield} />
-        <SourceNote>{processYield?.note || '양품 수량 ÷ (양품 + 불량) 기준. 재작업 투입분은 제외합니다.'}</SourceNote>
-      </Card>
       <Gap />
 
       <Card title="설비별 시간대 가동률" sub={`${proc?.name} · 2시간 구간 · 값이 낮을수록 진하게 표시`}>
