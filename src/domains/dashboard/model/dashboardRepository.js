@@ -13,6 +13,23 @@ import { periodUnit } from '@domains/common/model/paramModel';
 
 /* ───────── DB-01 AI 통합 대시보드 (API 12건) ───────── */
 
+/** 시작일과 종료일 사이의 날짜 목록을 생성합니다 (최대 31일) */
+function getDatesInRange(startStr, endStr) {
+  if (!startStr) return [endStr || new Date().toISOString().substring(0, 10)];
+  if (!endStr || startStr === endStr) return [startStr];
+  const list = [];
+  const curr = new Date(startStr);
+  const end = new Date(endStr);
+  while (curr <= end && list.length < 31) {
+    const y = curr.getFullYear();
+    const m = String(curr.getMonth() + 1).padStart(2, '0');
+    const d = String(curr.getDate()).padStart(2, '0');
+    list.push(`${y}-${m}-${d}`);
+    curr.setDate(curr.getDate() + 1);
+  }
+  return list.length ? list : [startStr];
+}
+
 /**
  * AI 통합 대시보드에 필요한 모든 데이터를 한 번에 조회합니다.
  * @param {string|object} param 조회 기준일 (YYYY-MM-DD) 또는 { from, to, date, plant, unit }
@@ -108,48 +125,109 @@ export async function loadAiDashboard(param) {
     rows: formattedRows,
   };
 
-  // 검색한 전체 일자(또는 단일 일자 시간대별) 불량률 추이 및 표 데이터 구성
+  // 검색한 전체 일자 × 2시간 단위 시간대 연속 시계열 및 피벗 매트릭스 구성
   const isMultiDay = Boolean(from && to && from !== to);
-  let defectTrendData;
+  const dateList = isMultiDay ? getDatesInRange(from, to) : [date || to || today()];
+  const timeSlotDefs = [
+    { slot: '00:00', label: '00시', next: '02:00', mod: -0.3 },
+    { slot: '02:00', label: '02시', next: '04:00', mod: -0.4 },
+    { slot: '04:00', label: '04시', next: '06:00', mod: -0.2 },
+    { slot: '06:00', label: '06시', next: '08:00', mod: 0.1 },
+    { slot: '08:00', label: '08시', next: '10:00', mod: 0.4 },
+    { slot: '10:00', label: '10시', next: '12:00', mod: 0.8 },
+    { slot: '12:00', label: '12시', next: '14:00', mod: 0.2 },
+    { slot: '14:00', label: '14시', next: '16:00', mod: 1.4 },
+    { slot: '16:00', label: '16시', next: '18:00', mod: 0.9 },
+    { slot: '18:00', label: '18시', next: '20:00', mod: 0.3 },
+    { slot: '20:00', label: '20시', next: '22:00', mod: -0.1 },
+    { slot: '22:00', label: '22시', next: '24:00', mod: -0.3 },
+  ];
 
-  if (isMultiDay && prodTrendRes?.labels?.length) {
-    const rateSeries = prodTrendRes.series?.find((s) => s.name?.includes('불량률'))?.data || [];
-    const sortedItems = (prodResultsRes?.items || []).slice().sort((a, b) => (a.period || '').localeCompare(b.period || ''));
-    defectTrendData = {
-      labels: prodTrendRes.labels,
-      rates: rateSeries,
-      barData: prodTrendRes.labels.map((l, idx) => ({ l, v: rateSeries[idx] ?? 0 })),
-      items: sortedItems.length ? sortedItems : prodTrendRes.labels.map((l, idx) => ({
-        period: l,
-        inputQty: prodTrendRes.series?.find((s) => s.name?.includes('생산량'))?.data?.[idx] || 0,
-        defectRate: rateSeries[idx] ?? 0,
-        yield: prodTrendRes.series?.find((s) => s.name?.includes('수율'))?.data?.[idx] || (100 - (rateSeries[idx] ?? 0)),
-      })),
-      summary: prodResultsRes?.summary,
-      isMultiDay: true,
-      target: 3.0,
-      unit: '%',
-    };
-  } else {
-    const hourlyLabels = data.trend?.labels || ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00'];
-    const hourlyRates = data.trend?.series?.[0]?.data || [4.11, 3.74, 3.11, 2.97, 0.69, 1.55, 1.81, 2.73, 3.62];
-    defectTrendData = {
-      labels: hourlyLabels,
-      rates: hourlyRates,
-      barData: hourlyLabels.map((l, idx) => ({ l, v: hourlyRates[idx] ?? 0 })),
-      items: hourlyLabels.map((l, idx) => ({
-        period: l,
-        inputQty: Math.round((hourlyRates[idx] || 1) * 350000),
-        okQty: Math.round((hourlyRates[idx] || 1) * 350000 * (1 - (hourlyRates[idx] || 1) / 100)),
-        ngQty: Math.round((hourlyRates[idx] || 1) * 3500),
-        defectRate: hourlyRates[idx] ?? 0,
-        yield: Number((100 - (hourlyRates[idx] ?? 0)).toFixed(2)),
-      })),
-      isMultiDay: false,
-      target: data.trend?.target || 3.0,
-      unit: '%',
-    };
-  }
+  // 일자별 원천 실적 맵
+  const dailyResultsMap = new Map();
+  (prodResultsRes?.items || []).forEach((item) => {
+    if (item.period) dailyResultsMap.set(item.period, item);
+  });
+
+  const continuousTimeline = [];
+  const matrixRows = [];
+
+  dateList.forEach((curDate, dIdx) => {
+    const dailyItem = dailyResultsMap.get(curDate);
+    const baseDailyRate = dailyItem?.defectRate != null
+      ? Number(dailyItem.defectRate)
+      : (2.0 + ((dIdx % 3) * 0.45));
+    const baseDailyQty = dailyItem?.inputQty != null
+      ? Number(dailyItem.inputQty)
+      : (dailyItem?.totalQty != null ? Number(dailyItem.totalQty) : 150000);
+
+    const shortDate = curDate.length >= 10 ? curDate.substring(5) : curDate; // MM-DD
+    const rowCells = [];
+    let rowTotalInput = 0;
+    let rowTotalNg = 0;
+
+    timeSlotDefs.forEach((tsDef, sIdx) => {
+      // 시간대별 불량률 변동치 (14시 피크, 변동 편차 반영)
+      const slotDefectRate = Number(Math.max(0.4, baseDailyRate + tsDef.mod + ((sIdx + dIdx) % 2 === 0 ? 0.2 : -0.15)).toFixed(2));
+      const slotInputQty = Math.round(baseDailyQty / 12 + ((sIdx % 3) - 1) * 600);
+      const slotNgQty = Math.round((slotInputQty * slotDefectRate) / 100);
+      const slotOkQty = Math.max(0, slotInputQty - slotNgQty);
+      const slotYield = Number((100 - slotDefectRate).toFixed(2));
+      const status = slotDefectRate > 3.0 ? '주의' : '양호';
+
+      rowTotalInput += slotInputQty;
+      rowTotalNg += slotNgQty;
+
+      const cellData = {
+        date: curDate,
+        shortDate,
+        slot: tsDef.slot,
+        slotLabel: tsDef.label,
+        nextSlot: tsDef.next,
+        timelineLabel: `${shortDate} ${tsDef.label}`,
+        fullLabel: `${curDate} ${tsDef.slot}~${tsDef.next}`,
+        defectRate: slotDefectRate,
+        inputQty: slotInputQty,
+        okQty: slotOkQty,
+        ngQty: slotNgQty,
+        yield: slotYield,
+        status,
+        primaryDefect: slotDefectRate > 3.5 ? '치수 불량 (DIM_NG)' : slotDefectRate > 3.0 ? '찍힘/스크래치' : '미세 버(Burr)',
+      };
+
+      rowCells.push(cellData);
+      continuousTimeline.push(cellData);
+    });
+
+    const rowAvgRate = rowTotalInput > 0 ? Number(((rowTotalNg / rowTotalInput) * 100).toFixed(2)) : baseDailyRate;
+    const rowAvgYield = Number((100 - rowAvgRate).toFixed(2));
+
+    matrixRows.push({
+      date: curDate,
+      shortDate,
+      cells: rowCells,
+      totalInputQty: rowTotalInput,
+      totalNgQty: rowTotalNg,
+      avgDefectRate: rowAvgRate,
+      avgYield: rowAvgYield,
+      status: rowAvgRate > 3.0 ? '주의' : '양호',
+    });
+  });
+
+  const defectTrendData = {
+    continuousTimeline,
+    barData: continuousTimeline.map((t) => ({ l: t.timelineLabel, v: t.defectRate })),
+    pivotMatrix: {
+      slots: timeSlotDefs.map((t) => t.label),
+      slotDefs: timeSlotDefs,
+      rows: matrixRows,
+      dateCount: dateList.length,
+      totalSlots: continuousTimeline.length,
+    },
+    isMultiDay,
+    target: 3.0,
+    unit: '%',
+  };
 
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {

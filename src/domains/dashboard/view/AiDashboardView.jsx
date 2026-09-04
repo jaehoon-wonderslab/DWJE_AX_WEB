@@ -13,7 +13,7 @@
  * 7. 설비별 시간대 가동률 (1행 전체, 프레스 1~10 명칭 적용)
  */
 import React from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart } from '@shared/components/charts-d3';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
@@ -29,6 +29,8 @@ import { comma, fixed, rate } from '@shared/utils/formatUtil';
 import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController';
 import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
+import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
+import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 
 export default function AiDashboardView({
   loading,
@@ -87,6 +89,21 @@ export default function AiDashboardView({
     }
   };
 
+  const showHourlyDetailModal = (cell) => {
+    if (!cell) return;
+    useUiStore.getState().openModal({
+      title: `${cell.date} [${cell.slotLabel} ~ ${cell.nextSlot}] 생산·품질 AI 정밀 진단 리포트`,
+      sub: '제1공장 주력 라인(프레스 10대 · AOI 10대) 2시간 구간 종합 분석',
+      wide: true,
+      render: () => (
+        <HourlyDetailModalContent cell={cell} target={defectTrendData?.target || 3.0} />
+      ),
+      footer: (close) => (
+        <Button label="닫기" variant="primary" style={{ minWidth: 84 }} onPress={close} />
+      ),
+    });
+  };
+
   const displayLines = (lines?.length ? lines : (lineProduction?.lines || [])).map((l) => ({
     ...l,
     processId: l.processId || 'Press',
@@ -104,7 +121,6 @@ export default function AiDashboardView({
         }
       />
 
-      {/* 1. 기간 선택 필터 영역 (실적 집계 조회 기능 그대로 적용 + 1~3공장 숨김 select box) */}
       <Filters>
         <SelectField
           label="집계 단위"
@@ -116,13 +132,18 @@ export default function AiDashboardView({
           label="시작일"
           value={from}
           onChange={setFrom}
-          disabled={unit !== '기간선택' && unit !== '일별'}
         />
         <DateField
           label="종료일"
           value={to}
           onChange={setTo}
-          disabled={unit !== '기간선택' && unit !== '일별'}
+        />
+        <Button
+          label="조회"
+          variant="primary"
+          icon="search"
+          onPress={search}
+          loading={loading}
         />
 
         {/* 1~3공장 선택 select box (기본 제1공장, 미래 사용 목적으로 숨김 처리) */}
@@ -134,36 +155,77 @@ export default function AiDashboardView({
             onChange={setPlant}
           />
         </View>
-
-        <View style={{ justifyContent: 'flex-end' }}>
-          <Button
-            label="조회"
-            variant="primary"
-            style={{ height: 38, minWidth: 64, justifyContent: 'center' }}
-            onPress={search}
-          />
-        </View>
       </Filters>
-      <Gap />
+      <Gap y={16} />
 
-      {/* 2. AI 일일 종합 브리핑 (최상단) */}
-      <AiBriefingCard briefing={briefing} loading={loading} />
-
-      {/* 3. KPI 카드 3종 */}
-      <Grid cols={3}>
-        <StatCard label="공정 불량률" field="yield" value={rate(summary.defectRate)} unit="%" sub={summary.defectRateSub} tone="up" />
-        <StatCard label="설비 가동률" value={fixed(summary.uptimeRate)} unit="%" sub={summary.uptimeRateSub} />
-        <StatCard label="금일 생산량" field="qty" value={comma(summary.todayQty)} unit="EA" sub={summary.todayQtySub} />
-      </Grid>
-      <Gap />
-
+      {/* 2. 로딩 / 콘텐츠 영역 */}
       {loading ? (
-        <View style={{ paddingVertical: 40, alignItems: 'center', justifyContent: 'center' }}>
-          <Loading text="대시보드 데이터를 불러오는 중입니다…" />
-        </View>
+        <Loading message="AI 통합 대시보드 데이터를 불러오는 중..." />
       ) : (
-        <View style={{ gap: 14 }}>
-          {/* AI 공정 원인 분석 및 처방 권고 (XAI 기여도 차트 + 처방 가이드) */}
+        <View style={{ gap: 20 }}>
+          {/* KPI 지표 3종 (3열 배치) */}
+          <Grid cols={3}>
+            <StatCard
+              title="총 생산 수량"
+              value={summary?.totalQty != null ? `${comma(summary.totalQty)} EA` : '—'}
+              sub={`목표 ${comma(summary?.targetQty || 200000)} EA 달성률 ${fixed(summary?.progressRate || 0)}%`}
+              color="primary"
+              badge={
+                <StateBadge
+                  state={(summary?.progressRate || 0) >= 95 ? '정상' : '주의'}
+                  label={`진척률 ${fixed(summary?.progressRate || 0)}%`}
+                />
+              }
+            >
+              <View style={{ marginTop: 8 }}>
+                <ProgressBar value={summary?.progressRate || 0} max={100} color={theme.color.primary} height={4} />
+              </View>
+            </StatCard>
+
+            <StatCard
+              title="평균 불량률"
+              value={summary?.defectRate != null ? `${fixed(summary.defectRate)}%` : '—'}
+              sub={`양품 ${comma(summary?.goodQty || 0)} EA / 불량 ${comma(summary?.defectQty || 0)} EA`}
+              color={(summary?.defectRate || 0) > 3.0 ? 'danger' : 'success'}
+              badge={
+                <StateBadge
+                  state={(summary?.defectRate || 0) > 3.0 ? '위험' : '정상'}
+                  label={(summary?.defectRate || 0) > 3.0 ? '목표 초과' : '목표 달성'}
+                />
+              }
+            >
+              <View style={{ marginTop: 8 }}>
+                <ProgressBar
+                  value={summary?.defectRate || 0}
+                  max={5}
+                  color={(summary?.defectRate || 0) > 3.0 ? theme.color.danger : theme.color.success}
+                  height={4}
+                />
+              </View>
+            </StatCard>
+
+            <StatCard
+              title="설비 가동률"
+              value={summary?.uptimeRate != null ? `${fixed(summary.uptimeRate)}%` : '—'}
+              sub={`가동 ${summary?.runningEquipment || 18}대 / 정지 ${summary?.stoppedEquipment || 2}대`}
+              color="primary"
+              badge={
+                <StateBadge
+                  state={(summary?.uptimeRate || 0) >= 85 ? '정상' : '주의'}
+                  label={`가동률 ${fixed(summary?.uptimeRate || 0)}%`}
+                />
+              }
+            >
+              <View style={{ marginTop: 8 }}>
+                <ProgressBar value={summary?.uptimeRate || 0} max={100} color={theme.color.info} height={4} />
+              </View>
+            </StatCard>
+          </Grid>
+
+          {/* AI 종합 브리핑 카드 */}
+          <AiBriefingCard briefing={briefing} />
+
+          {/* 설비별 AI 원인 분석 및 처방 권고 카드 (설비 선택기 포함) */}
           <AiCausePrescriptionCard
             causePrescription={causePrescription}
             selectedEqptCd={selectedEqptCd}
@@ -171,10 +233,10 @@ export default function AiDashboardView({
             loading={causeLoading}
           />
 
-          {/* 1. 시간대별 불량률 추이 (하나의 막대 그래프 + 검색한 모든 날짜 정보 표) */}
+          {/* 1. 시간대별 불량률 추이 (시계열 & 피벗 매트릭스) */}
           <Card
-            title="시간대별 불량률 추이"
-            sub={`${from} ~ ${to} · ${defectTrendData?.isMultiDay ? '검색 기간 전체 일자별 불량률 추이 및 상세 집계' : '2시간 간격 · 시간대별 불량률 추이 및 상세 집계'}`}
+            title="시간대별 불량률 추이 (시계열 & 피벗 매트릭스)"
+            sub={`${from} ~ ${to} · 2시간 간격 연속 시계열 차트 (가로 스크롤) 및 일자×시간대 피벗 매트릭스`}
             nativeID="chart-card-hourly-trend"
             right={
               <Button
@@ -185,7 +247,7 @@ export default function AiDashboardView({
                 onPress={() =>
                   saveChartAsPng({
                     containerId: 'chart-card-hourly-trend',
-                    fileName: '시간대별_불량률_추이',
+                    fileName: '시간대별_불량률_추이_시계열_피벗',
                     title: '시간대별 불량률 추이',
                     sub: `${from} ~ ${to}`,
                     isDark: theme.isDark,
@@ -194,101 +256,32 @@ export default function AiDashboardView({
               />
             }
           >
-            {/* 하나의 막대 그래프로 표기 */}
-            <BarChart
-              data={defectTrendData?.barData || []}
-              target={defectTrendData?.target || 3.0}
-              unit="%"
-              height={180}
-            />
+            {/* 가로 스크롤 지원하는 전체 연속 시계열 막대 그래프 */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ width: '100%' }}>
+              <View style={{ width: Math.max(760, (defectTrendData?.barData?.length || 0) * 36) }}>
+                <BarChart
+                  data={defectTrendData?.barData || []}
+                  target={defectTrendData?.target || 3.0}
+                  unit="%"
+                  height={180}
+                />
+              </View>
+            </ScrollView>
 
-            {/* 검색한 모든 날짜의 정보를 표에 다 나타냄 */}
-            <View style={{ marginTop: 16 }}>
-              <Table
-                minWidth={600}
-                columns={[
-                  { key: 'period', title: defectTrendData?.isMultiDay ? '일자' : '시간대', width: 130, mono: true },
-                  {
-                    key: 'inputQty',
-                    title: '투입/생산량 (EA)',
-                    flex: 1,
-                    align: 'right',
-                    render: (r) => <Text style={[s.td, s.num, { fontWeight: '500' }]}>{comma(r.inputQty || r.totalQty)}</Text>,
-                  },
-                  {
-                    key: 'okQty',
-                    title: '양품 수량 (EA)',
-                    flex: 1,
-                    align: 'right',
-                    render: (r) => <Text style={[s.td, s.num]}>{comma(r.okQty ?? Math.max(0, (r.inputQty || 0) - (r.ngQty || 0)))}</Text>,
-                  },
-                  {
-                    key: 'ngQty',
-                    title: '불량 수량 (EA)',
-                    width: 120,
-                    align: 'right',
-                    render: (r) => (
-                      <Text style={[s.td, s.num, { color: (r.ngQty || 0) > 0 ? '#ef4444' : undefined }]}>
-                        {comma(r.ngQty || 0)}
-                      </Text>
-                    ),
-                  },
-                  {
-                    key: 'defectRate',
-                    title: '불량률 (%)',
-                    width: 110,
-                    align: 'right',
-                    render: (r) => (
-                      <Text style={[s.td, s.num, { fontWeight: '700', color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a' }]}>
-                        {fixed(r.defectRate)}%
-                      </Text>
-                    ),
-                  },
-                  {
-                    key: 'yield',
-                    title: '수율 (%)',
-                    width: 100,
-                    align: 'right',
-                    render: (r) => (
-                      <Text style={[s.td, s.num]}>
-                        {fixed(r.yield != null ? r.yield : (100 - (Number(r.defectRate) || 0)))}%
-                      </Text>
-                    ),
-                  },
-                  {
-                    key: 'status',
-                    title: '상태',
-                    width: 80,
-                    render: (r) => (
-                      <View style={{
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 4,
-                        backgroundColor: Number(r.defectRate) > 3.0 ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
-                        alignSelf: 'flex-start',
-                      }}>
-                        <Text style={{
-                          fontSize: 11,
-                          fontWeight: '600',
-                          color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a',
-                        }}>
-                          {Number(r.defectRate) > 3.0 ? '주의' : '양호'}
-                        </Text>
-                      </View>
-                    ),
-                  },
-                ]}
-                rows={defectTrendData?.items || []}
-              />
-            </View>
-            <SourceNote>목표 불량률 3.0% 기준 · 검색 기간 내 전체 일자의 생산 투입 및 품질 분석 내역입니다.</SourceNote>
+            {/* 일자 × 시간대 피벗 매트릭스 그리드 */}
+            <HourlyDefectPivotMatrix
+              pivotMatrix={defectTrendData?.pivotMatrix}
+              onCellClick={showHourlyDetailModal}
+              target={defectTrendData?.target || 3.0}
+            />
+            <SourceNote>목표 불량률 3.0% 기준 · 검색 기간 내 전체 일자 및 2시간 단위 시간대별 생산 투입 및 품질 분석 내역입니다.</SourceNote>
           </Card>
 
-          {/* 2. 2열 묶음: 시간대별 주요 불량 수량 추이 (분리된 카드) ↔ 생산 계획 대비 실적 */}
+          {/* 2. 2열 묶음: 유형별 불량 수량 추이 (분리된 카드) ↔ 생산 계획 대비 실적 */}
           <Grid cols={2}>
             {/* 1번 아래쪽의 꺾은선 그래프 분리 카드 */}
             <Card
-              title="시간대별 주요 불량 수량 추이"
+              title="유형별 불량 수량 추이"
               sub={`${from} ~ ${to} · 2시간 간격 · 주요 유형별 불량 수량 (EA)`}
               nativeID="chart-card-hourly-ng-count"
               right={
@@ -300,8 +293,8 @@ export default function AiDashboardView({
                   onPress={() =>
                     saveChartAsPng({
                       containerId: 'chart-card-hourly-ng-count',
-                      fileName: '시간대별_주요_불량_수량_추이',
-                      title: '시간대별 주요 불량 수량 추이',
+                      fileName: '유형별_불량_수량_추이',
+                      title: '유형별 불량 수량 추이',
                       sub: `${from} ~ ${to}`,
                       isDark: theme.isDark,
                     })
