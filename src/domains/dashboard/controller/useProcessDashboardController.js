@@ -192,6 +192,7 @@ export function useProcessDashboardController() {
     productUptime: view.productUptime,
     processCompare: view.processCompare,
     heatmap: view.heatmap,
+    processYield: view.processYield,
     changeProcess,
     pickTopN,
     removeModel,

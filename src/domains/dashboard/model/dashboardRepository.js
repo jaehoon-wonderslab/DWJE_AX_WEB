@@ -365,10 +365,38 @@ export async function loadProcessDashboard({ date, processId, productCodes }) {
     processCompare: dashboardService.getDashboardProcessProcessCompare({ date, productCodes }),
     heatmap: dashboardService.getDashboardProcessEquipmentUptimeHeatmap({ ...params, interval: '2h' }),
     detail: dashboardService.getDashboardProcessProducts(params),
+    processYield: dashboardService.getDashboardAiProcessYield({ date }),
   });
+
+  // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
+  let processYield = data.processYield;
+  if (processYield?.items?.length) {
+    const target = Number(processYield.target) || 97.0;
+    const items = processYield.items.map((x) => {
+      const qty = Number(x.qty) || (Number(x.okQty || 0) + Number(x.ngQty || 0));
+      const ok = Number(x.okQty) || Math.max(0, qty - Number(x.ngQty || 0));
+      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : 98.0);
+      const level = yieldRate < target - 1.5 ? 'bad' : yieldRate < target ? 'warn' : 'ok';
+      return {
+        ...x,
+        process: x.process || x.processNm || x.processId,
+        l: x.process || x.processNm || x.processId,
+        v: yieldRate,
+        yieldRate,
+        cls: level,
+        level,
+      };
+    });
+    processYield = {
+      ...processYield,
+      target,
+      items,
+    };
+  }
 
   return {
     ...data,
+    processYield,
     summary: fillRates(data.summary),
     production: data.production && { ...data.production, items: fillRatesAll(data.production.items) },
     productYield: data.productYield && { ...data.productYield, items: fillRatesAll(data.productYield.items) },

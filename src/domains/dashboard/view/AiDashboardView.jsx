@@ -31,7 +31,6 @@ import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
-import ProcessYieldView from './components/ProcessYieldView';
 
 export default function AiDashboardView({
   loading,
@@ -169,7 +168,10 @@ export default function AiDashboardView({
             <StatCard
               title="총 생산 수량"
               value={summary?.totalQty != null ? `${comma(summary.totalQty)} EA` : '—'}
-              sub={`목표 ${comma(summary?.targetQty || 200000)} EA 달성률 ${fixed(summary?.progressRate || 0)}%`}
+              // 목표가 없으면 달성률도 내지 않습니다 — 200,000 을 기본값으로 두면 없는 목표로 달성률이 나옵니다
+              sub={summary?.targetQty
+                ? `목표 ${comma(summary.targetQty)} EA · 달성률 ${fixed(summary.progressRate ?? 0)}%`
+                : '일목표가 등록되지 않아 달성률을 낼 수 없습니다'}
               color="primary"
               badge={
                 <StateBadge
@@ -229,6 +231,7 @@ export default function AiDashboardView({
           {/* 설비별 AI 원인 분석 및 처방 권고 카드 (설비 선택기 포함) */}
           <AiCausePrescriptionCard
             causePrescription={causePrescription}
+            eqptOptions={(causePrescription?.availableEquipments || []).map((e) => ({ value: e.eqptCd, label: e.eqptNm || e.eqptCd }))}
             selectedEqptCd={selectedEqptCd}
             onSelectEqpt={changeSelectedEqpt}
             loading={causeLoading}
@@ -378,34 +381,7 @@ export default function AiDashboardView({
             <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
-          {/* 5. 공정별 수율 (고시인성 수율 게이지 및 목표 마커 뷰) */}
-          <Card
-            title="공정별 수율"
-            sub={`목표 ${processYield?.target ?? 97}% · 목표 대비 편차 및 공정별 수율 정밀 분석`}
-            nativeID="chart-card-process-yield"
-            right={
-              <Button
-                label="차트 이미지 저장"
-                size="sm"
-                variant="outline"
-                icon="download"
-                onPress={() =>
-                  saveChartAsPng({
-                    containerId: 'chart-card-process-yield',
-                    fileName: '공정별_수율',
-                    title: '공정별 수율',
-                    sub: `목표 ${processYield?.target ?? 97}%`,
-                    isDark: theme.isDark,
-                  })
-                }
-              />
-            }
-          >
-            <ProcessYieldView processYield={processYield} />
-            <SourceNote>{processYield?.note || '양품 수량 ÷ (양품 + 불량) 기준. 재작업 투입분은 제외합니다.'}</SourceNote>
-          </Card>
-
-          {/* 6. 설비별 시간대 가동률 (1개의 행으로 구성, 프레스 1~10 (PR-01~10) 명칭 적용) */}
+          {/* 5. 설비별 시간대 가동률 (1개의 행으로 구성, 프레스 1~10 (PR-01~10) 명칭 적용) */}
           <Card
             title="설비별 시간대 가동률"
             sub="프레스 10대 × 2시간 구간 · 값이 낮을수록 진하게 표시"
@@ -437,7 +413,8 @@ export default function AiDashboardView({
               unit="%"
               invert
             />
-            <SourceNote>{heatmap?.note || '진한 칸일수록 가동률이 낮은 구간입니다. PR-03·PR-05의 10~12시 구간이 금일 최저치입니다.'}</SourceNote>
+            {/* 어느 설비가 최저인지는 서버가 판단합니다 — 기본 문구에 설비 코드를 박아 두면 실제와 무관하게 그려집니다 */}
+            <SourceNote>{heatmap?.note || '진한 칸일수록 가동률이 낮은 구간입니다.'}</SourceNote>
           </Card>
         </View>
       )}
