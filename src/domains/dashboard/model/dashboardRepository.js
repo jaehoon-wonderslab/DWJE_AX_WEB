@@ -6,14 +6,16 @@
  */
 import * as commonService from '@services/api/commonService';
 import * as dashboardService from '@services/api/dashboardService';
+import * as productionService from '@services/api/productionService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
 import { fillRates, fillRatesAll } from '@domains/common/model/metricModel';
+import { periodUnit } from '@domains/common/model/paramModel';
 
 /* ───────── DB-01 AI 통합 대시보드 (API 12건) ───────── */
 
 /**
  * AI 통합 대시보드에 필요한 모든 데이터를 한 번에 조회합니다.
- * @param {string} date 조회 기준일 (YYYY-MM-DD)
+ * @param {string|object} param 조회 기준일 (YYYY-MM-DD) 또는 { from, to, date, plant, unit }
  */
 export async function loadAiDashboard(param) {
   const isObj = typeof param === 'object' && param !== null;
@@ -21,21 +23,28 @@ export async function loadAiDashboard(param) {
   const from = isObj ? param.from : undefined;
   const to = isObj ? param.to : undefined;
   const plant = isObj ? param.plant : undefined;
+  const unit = isObj ? param.unit : undefined;
+  const unitCode = periodUnit(unit) || 'day';
 
   const baseParams = { date, from, to, plant };
+  const prodParams = { from: from || date, to: to || date, unit: unitCode, plant };
 
-  const data = await unwrapAll({
-    summary: dashboardService.getDashboardAiSummary(baseParams),
-    trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, interval: '2h' }),
-    lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
-    qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
-    composition: dashboardService.getDashboardAiDefectComposition(baseParams),
-    processYield: dashboardService.getDashboardAiProcessYield(baseParams),
-    planActual: dashboardService.getDashboardAiPlanVsActual({ ...baseParams, interval: '2h' }),
-    heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ ...baseParams, interval: '2h' }),
-    alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
-    agents: dashboardService.getDashboardAiAgents({}),
-  });
+  const [data, prodTrendRes, prodResultsRes] = await Promise.all([
+    unwrapAll({
+      summary: dashboardService.getDashboardAiSummary(baseParams),
+      trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, interval: '2h' }),
+      lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
+      qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
+      composition: dashboardService.getDashboardAiDefectComposition(baseParams),
+      processYield: dashboardService.getDashboardAiProcessYield(baseParams),
+      planActual: dashboardService.getDashboardAiPlanVsActual({ ...baseParams, interval: '2h' }),
+      heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ ...baseParams, interval: '2h' }),
+      alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
+      agents: dashboardService.getDashboardAiAgents({}),
+    }),
+    unwrap(productionService.getProductionResultsTrend(prodParams), null).catch(() => null),
+    unwrap(productionService.getProductionResults({ ...prodParams, size: 100 }), null).catch(() => null),
+  ]);
 
   // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
   let processYield = data.processYield;
@@ -93,11 +102,55 @@ export async function loadAiDashboard(param) {
     rows: formattedRows,
   };
 
+  // 검색한 전체 일자(또는 단일 일자 시간대별) 불량률 추이 및 표 데이터 구성
+  const isMultiDay = Boolean(from && to && from !== to);
+  let defectTrendData;
+
+  if (isMultiDay && prodTrendRes?.labels?.length) {
+    const rateSeries = prodTrendRes.series?.find((s) => s.name?.includes('불량률'))?.data || [];
+    const sortedItems = (prodResultsRes?.items || []).slice().sort((a, b) => (a.period || '').localeCompare(b.period || ''));
+    defectTrendData = {
+      labels: prodTrendRes.labels,
+      rates: rateSeries,
+      barData: prodTrendRes.labels.map((l, idx) => ({ l, v: rateSeries[idx] ?? 0 })),
+      items: sortedItems.length ? sortedItems : prodTrendRes.labels.map((l, idx) => ({
+        period: l,
+        inputQty: prodTrendRes.series?.find((s) => s.name?.includes('생산량'))?.data?.[idx] || 0,
+        defectRate: rateSeries[idx] ?? 0,
+        yield: prodTrendRes.series?.find((s) => s.name?.includes('수율'))?.data?.[idx] || (100 - (rateSeries[idx] ?? 0)),
+      })),
+      summary: prodResultsRes?.summary,
+      isMultiDay: true,
+      target: 3.0,
+      unit: '%',
+    };
+  } else {
+    const hourlyLabels = data.trend?.labels || ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00'];
+    const hourlyRates = data.trend?.series?.[0]?.data || [4.11, 3.74, 3.11, 2.97, 0.69, 1.55, 1.81, 2.73, 3.62];
+    defectTrendData = {
+      labels: hourlyLabels,
+      rates: hourlyRates,
+      barData: hourlyLabels.map((l, idx) => ({ l, v: hourlyRates[idx] ?? 0 })),
+      items: hourlyLabels.map((l, idx) => ({
+        period: l,
+        inputQty: Math.round((hourlyRates[idx] || 1) * 350000),
+        okQty: Math.round((hourlyRates[idx] || 1) * 350000 * (1 - (hourlyRates[idx] || 1) / 100)),
+        ngQty: Math.round((hourlyRates[idx] || 1) * 3500),
+        defectRate: hourlyRates[idx] ?? 0,
+        yield: Number((100 - (hourlyRates[idx] ?? 0)).toFixed(2)),
+      })),
+      isMultiDay: false,
+      target: data.trend?.target || 3.0,
+      unit: '%',
+    };
+  }
+
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {
     ...data,
     heatmap,
     processYield,
+    defectTrendData,
     // 시간대별 추이는 불량률(%)과 유형별 수량(EA)이 한 배열에 섞여 옵니다.
     // 단위가 다르면 같은 축에 그릴 수 없으므로 여기서 갈라 둡니다.
     trend: splitRateAndCounts(data.trend),

@@ -14,10 +14,18 @@ import Tooltip from './Tooltip';
 import { motion, useDataChanged } from './useDataChanged';
 import { labelStride, useChartSize } from './useChartSize';
 
-const PAD = { l: 38, r: 12, t: 14, b: 26 };
-const MAX_BAR = 30;
+const PAD = { l: 42, r: 16, t: 16, b: 28 };
+const MAX_BAR = 32;
 
-export default function BarChart({ data = [], height = 170, stacked = false }) {
+export default function BarChart({
+  data = [],
+  height = 170,
+  stacked = false,
+  unit = '',
+  target = null,
+  min = undefined,
+  max = undefined,
+}) {
   const theme = useTheme();
   const { ref, width } = useChartSize(height);
   const svgRef = useRef(null);
@@ -27,7 +35,8 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
   const bars = data.map((d) => ({ ...d, v: num(d.v), v2: num(d.v2) }));
   const empty = !bars.length || bars.every((d) => d.v === null && d.v2 === null);
 
-  const minColW = 40;
+  const isPercent = unit === '%';
+  const minColW = isPercent || bars.some((d) => String(d.l).length > 6) ? 68 : 40;
   const contentWidth = Math.max(width || 300, bars.length * minColW + PAD.l + PAD.r);
 
   useEffect(() => {
@@ -37,8 +46,12 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
     const c = tokens(theme);
 
     const total = (d) => (stacked ? (d.v || 0) + (d.v2 || 0) : Math.max(d.v || 0, d.v2 || 0));
-    const x = scaleBand().domain(bars.map((_, i) => i)).range([PAD.l, PAD.l + iw]).padding(0.3);
-    const y = scaleLinear().domain([0, Math.max(...bars.map(total)) || 1]).nice().range([PAD.t + ih, PAD.t]);
+    const hiVal = Math.max(...bars.map(total), num(target) ?? 0);
+    const yHi = max !== undefined ? max : (isPercent ? Math.max(4.5, hiVal * 1.2) : (hiVal || 1));
+    const yLo = min !== undefined ? min : 0;
+
+    const x = scaleBand().domain(bars.map((_, i) => i)).range([PAD.l, PAD.l + iw]).padding(0.32);
+    const y = scaleLinear().domain([yLo, yHi]).nice().range([PAD.t + ih, PAD.t]);
     const bw = Math.min(MAX_BAR, x.bandwidth());
 
     const svg = select(svgRef.current);
@@ -52,8 +65,22 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
       g.append('text')
         .attr('x', PAD.l - 6).attr('y', y(t) + 3).attr('text-anchor', 'end')
         .attr('font-size', FONT.axis).attr('fill', c.axis)
-        .text(Math.round(t).toLocaleString());
+        .text(isPercent ? `${t.toFixed(1)}%` : Math.round(t).toLocaleString());
     });
+
+    // 목표선 (target)
+    if (num(target) !== null) {
+      const yTarget = y(target);
+      if (yTarget >= PAD.t && yTarget <= PAD.t + ih) {
+        g.append('line')
+          .attr('x1', PAD.l).attr('x2', PAD.l + iw).attr('y1', yTarget).attr('y2', yTarget)
+          .attr('stroke', c.target || '#ef4444').attr('stroke-dasharray', '5 4').attr('stroke-width', 1.5);
+        g.append('text')
+          .attr('x', PAD.l + iw).attr('y', yTarget - 5).attr('text-anchor', 'end')
+          .attr('font-size', FONT.axis).attr('font-weight', '600').attr('fill', c.target || '#ef4444')
+          .text(`목표 ${target}${unit}`);
+      }
+    }
 
     const base = PAD.t + ih;
     const move = motion(animate);
@@ -78,21 +105,27 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
       // 막대 상단 수치 라벨 상시 표기 (Halo 테두리 적용)
       if (d.v !== null && d.v > 0) {
         const yPos = y(d.v || 0) - 4;
+        const valText = isPercent
+          ? `${Number(d.v).toFixed(2)}%`
+          : d.v >= 10000 ? `${(d.v / 10000).toFixed(1)}만` : Math.round(d.v).toLocaleString();
         g.append('text')
           .attr('x', cx - (d.v2 !== null && !stacked ? bw * 0.25 : 0))
           .attr('y', yPos)
           .attr('text-anchor', 'middle')
           .attr('font-size', 9.5)
           .attr('font-weight', '600')
-          .attr('fill', c.text)
+          .attr('fill', (target && d.v > target) ? '#ef4444' : c.text)
           .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff')
           .attr('stroke-width', 2.5)
           .attr('paint-order', 'stroke')
-          .text(d.v >= 10000 ? `${(d.v / 10000).toFixed(1)}만` : Math.round(d.v).toLocaleString());
+          .text(valText);
       }
       if (d.v2 !== null && d.v2 > 0) {
         const yPos2 = stacked ? y((d.v || 0) + d.v2) - 4 : y(d.v2) - 4;
         const xPos2 = stacked ? cx : cx + bw * 0.28;
+        const val2Text = isPercent
+          ? `${Number(d.v2).toFixed(2)}%`
+          : d.v2 >= 10000 ? `${(d.v2 / 10000).toFixed(1)}만` : Math.round(d.v2).toLocaleString();
         g.append('text')
           .attr('x', xPos2)
           .attr('y', yPos2)
@@ -103,7 +136,7 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
           .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff')
           .attr('stroke-width', 2.5)
           .attr('paint-order', 'stroke')
-          .text(d.v2 >= 10000 ? `${(d.v2 / 10000).toFixed(1)}만` : Math.round(d.v2).toLocaleString());
+          .text(val2Text);
       }
     });
 
@@ -133,13 +166,17 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
         .attr('fill', 'transparent')
         .on('mouseenter', () => {
           const rows = [];
-          if (d.v !== null) rows.push({ name: '값', value: d.v.toLocaleString(), color: c.series(0) });
-          if (d.v2 !== null) rows.push({ name: '보조', value: d.v2.toLocaleString(), color: c.series(1) });
+          const vStr = isPercent ? `${Number(d.v).toFixed(2)}%` : d.v.toLocaleString();
+          if (d.v !== null) rows.push({ name: isPercent ? '불량률' : '값', value: vStr, color: c.series(0) });
+          if (d.v2 !== null) {
+            const v2Str = isPercent ? `${Number(d.v2).toFixed(2)}%` : d.v2.toLocaleString();
+            rows.push({ name: '보조', value: v2Str, color: c.series(1) });
+          }
           if (rows.length) setHover({ at: { x: x(i) + x.bandwidth() / 2, y: PAD.t }, title: String(d.l), rows });
         })
         .on('mouseleave', () => setHover(null));
     });
-  }, [data, width, height, theme, stacked, empty, animate]);
+  }, [data, width, height, theme, stacked, empty, animate, unit, target, min, max]);
 
   if (empty) return <ChartEmpty height={height} />;
 

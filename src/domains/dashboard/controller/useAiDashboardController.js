@@ -99,8 +99,8 @@ export function useAiDashboardController() {
     [applied.from, applied.to, applied.unit, applied.plant]
   );
 
-  // 라인별 현황 (페이징)
-  const paging = usePaging({ resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
+  // 라인별 현황 (페이징: 대시보드 화면에 적합하게 기본 10건 단위 표시)
+  const paging = usePaging({ size: 10, resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
   const { data: lineData, loading: linesLoading, reload: reloadLines } = useAsync(
     () => fetchAiLines(applied, paging.params),
     [applied.from, applied.to, applied.plant, paging.page, paging.size],
@@ -184,6 +184,7 @@ export function useAiDashboardController() {
     search,
     summary: data?.summary || {},
     trend: data?.trend,
+    defectTrendData: data?.defectTrendData,
     lineProduction: data?.lineProduction,
     qualityIndex: data?.qualityIndex,
     composition: data?.composition,

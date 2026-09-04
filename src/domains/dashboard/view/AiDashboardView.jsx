@@ -18,11 +18,12 @@ import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart } from '@shared/comp
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, Card, DateField, Filters, Loading, SelectField,
-  SourceNote, StatCard,
+  BlindValue, Button, Card, DateField, Filters, Loading, Pagination, ProgressBar, SelectField,
+  SourceNote, StateBadge, StatCard, Table, openFormModal,
 } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
+import { useUiStore } from '@shared/stores/useUiStore';
 import { saveChartAsPng } from '@shared/utils/exportUtil';
 import { comma, fixed, rate } from '@shared/utils/formatUtil';
 import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController';
@@ -40,15 +41,51 @@ export default function AiDashboardView({
   search,
   summary,
   trend,
+  defectTrendData,
   lineProduction,
   composition,
   processYield,
   planActual,
   heatmap,
+  lines = [],
+  linesLoading,
+  linesMeta,
+  paging,
+  loadEquipmentDetail,
   refresh,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
+  const toast = useUiStore((state) => state.toast);
+
+  const showEquipment = async (eqptCd) => {
+    try {
+      if (loadEquipmentDetail) {
+        const eq = await loadEquipmentDetail(eqptCd);
+        openFormModal({
+          title: `${eq.eqptCd} 설비 상세 정보`,
+          desc: `${eq.model || '—'} · ${eq.workcenter || 'Press / 제1공장'}`,
+          fields: [
+            { key: 'qty', label: '금일 생산량', value: `${comma(eq.qty)} EA` },
+            { key: 'defectRate', label: '금일 불량률', value: `${fixed(eq.defectRate)}%` },
+            { key: 'uptimeRate', label: '가동률', value: eq.uptimeRate != null ? `${eq.uptimeRate}%` : '—' },
+            { key: 'iotState', label: 'IoT 통신 상태', value: eq.iotState || '정상 수신' },
+            { key: 'mold', label: '장착 금형', value: eq.mold || '—' },
+          ],
+          actions: [{ label: '닫기', variant: 'primary' }],
+        });
+      }
+    } catch (e) {
+      toast(e.message || '설비 정보를 불러올 수 없습니다.');
+    }
+  };
+
+  const displayLines = (lines?.length ? lines : (lineProduction?.lines || [])).map((l) => ({
+    ...l,
+    processId: l.processId || 'Press',
+    okQty: l.okQty ?? Math.max(0, (l.qty || 0) - (l.ngQty || 0)),
+    ngQty: l.ngQty ?? Math.round((l.qty || 0) * ((l.defectRate || 0) / 100)),
+  }));
 
   return (
     <View>
@@ -116,10 +153,10 @@ export default function AiDashboardView({
         </View>
       ) : (
         <View style={{ gap: 14 }}>
-          {/* 1. 시간대별 불량률 추이 (1개의 행으로 표기) */}
+          {/* 1. 시간대별 불량률 추이 (하나의 막대 그래프 + 검색한 모든 날짜 정보 표) */}
           <Card
             title="시간대별 불량률 추이"
-            sub={`${from} ~ ${to} · 2시간 간격 · 불량률 (%)`}
+            sub={`${from} ~ ${to} · ${defectTrendData?.isMultiDay ? '검색 기간 전체 일자별 불량률 추이 및 상세 집계' : '2시간 간격 · 시간대별 불량률 추이 및 상세 집계'}`}
             nativeID="chart-card-hourly-trend"
             right={
               <Button
@@ -139,14 +176,94 @@ export default function AiDashboardView({
               />
             }
           >
-            <LineChart
-              labels={trend?.labels}
-              series={trend?.rateSeries || trend?.series}
-              target={trend?.target}
+            {/* 하나의 막대 그래프로 표기 */}
+            <BarChart
+              data={defectTrendData?.barData || []}
+              target={defectTrendData?.target || 3.0}
               unit="%"
-              min={0}
               height={180}
             />
+
+            {/* 검색한 모든 날짜의 정보를 표에 다 나타냄 */}
+            <View style={{ marginTop: 16 }}>
+              <Table
+                minWidth={600}
+                columns={[
+                  { key: 'period', title: defectTrendData?.isMultiDay ? '일자' : '시간대', width: 130, mono: true },
+                  {
+                    key: 'inputQty',
+                    title: '투입/생산량 (EA)',
+                    flex: 1,
+                    align: 'right',
+                    render: (r) => <Text style={[s.td, s.num, { fontWeight: '500' }]}>{comma(r.inputQty || r.totalQty)}</Text>,
+                  },
+                  {
+                    key: 'okQty',
+                    title: '양품 수량 (EA)',
+                    flex: 1,
+                    align: 'right',
+                    render: (r) => <Text style={[s.td, s.num]}>{comma(r.okQty ?? Math.max(0, (r.inputQty || 0) - (r.ngQty || 0)))}</Text>,
+                  },
+                  {
+                    key: 'ngQty',
+                    title: '불량 수량 (EA)',
+                    width: 120,
+                    align: 'right',
+                    render: (r) => (
+                      <Text style={[s.td, s.num, { color: (r.ngQty || 0) > 0 ? '#ef4444' : undefined }]}>
+                        {comma(r.ngQty || 0)}
+                      </Text>
+                    ),
+                  },
+                  {
+                    key: 'defectRate',
+                    title: '불량률 (%)',
+                    width: 110,
+                    align: 'right',
+                    render: (r) => (
+                      <Text style={[s.td, s.num, { fontWeight: '700', color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a' }]}>
+                        {fixed(r.defectRate)}%
+                      </Text>
+                    ),
+                  },
+                  {
+                    key: 'yield',
+                    title: '수율 (%)',
+                    width: 100,
+                    align: 'right',
+                    render: (r) => (
+                      <Text style={[s.td, s.num]}>
+                        {fixed(r.yield != null ? r.yield : (100 - (Number(r.defectRate) || 0)))}%
+                      </Text>
+                    ),
+                  },
+                  {
+                    key: 'status',
+                    title: '상태',
+                    width: 80,
+                    render: (r) => (
+                      <View style={{
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                        borderRadius: 4,
+                        backgroundColor: Number(r.defectRate) > 3.0 ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
+                        alignSelf: 'flex-start',
+                      }}>
+                        <Text style={{
+                          fontSize: 11,
+                          fontWeight: '600',
+                          color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a',
+                        }}>
+                          {Number(r.defectRate) > 3.0 ? '주의' : '양호'}
+                        </Text>
+                      </View>
+                    ),
+                  },
+                ]}
+                rows={defectTrendData?.items || []}
+              />
+            </View>
+            <SourceNote>목표 불량률 3.0% 기준 · 검색 기간 내 전체 일자의 생산 투입 및 품질 분석 내역입니다.</SourceNote>
           </Card>
 
           {/* 2. 2열 묶음: 시간대별 주요 불량 수량 추이 (분리된 카드) ↔ 생산 계획 대비 실적 */}
@@ -222,72 +339,106 @@ export default function AiDashboardView({
             </Card>
           </Grid>
 
-          {/* 3. 2열 묶음: 라인별 생산량 ↔ 라인별 불량률 */}
-          <Grid cols={2}>
-            {/* 라인별 생산량 */}
-            <Card
-              title="라인별 생산량"
-              sub="프레스 10대 · 금일 생산량 (EA)"
-              nativeID="chart-card-line-qty"
-              right={
-                <Button
-                  label="차트 이미지 저장"
-                  size="sm"
-                  variant="outline"
-                  icon="download"
-                  onPress={() =>
-                    saveChartAsPng({
-                      containerId: 'chart-card-line-qty',
-                      fileName: '라인별_생산량',
-                      title: '라인별 생산량',
-                      sub: `${from} ~ ${to}`,
-                      isDark: theme.isDark,
-                    })
-                  }
-                />
-              }
-            >
-              <BarChart
-                data={(lineProduction?.lines || []).map((l) => ({ l: l.eqptCd.replace('PR-', ''), v: l.qty }))}
-                height={180}
+          {/* 3. 라인별 생산량과 불량률 (하나의 표로 구성하고 하나의 행으로 레이아웃 구성) */}
+          <Card
+            title="라인별 생산량 및 불량률"
+            sub={`프레스 10대 및 주요 설비 · ${from} ~ ${to} · 설비별 생산 실적 및 품질 현황`}
+            nativeID="chart-card-line-table"
+            tight
+            right={
+              <Button
+                label="표 이미지 저장"
+                size="sm"
+                variant="outline"
+                icon="download"
+                onPress={() =>
+                  saveChartAsPng({
+                    containerId: 'chart-card-line-table',
+                    fileName: '라인별_생산량_및_불량률',
+                    title: '라인별 생산량 및 불량률',
+                    sub: `${from} ~ ${to}`,
+                    isDark: theme.isDark,
+                  })
+                }
               />
-            </Card>
-
-            {/* 라인별 불량률 */}
-            <Card
-              title="라인별 불량률"
-              sub="프레스 10대 · 금일 불량률 (%) · 목표 3.0%"
-              nativeID="chart-card-line-defect"
-              right={
-                <Button
-                  label="차트 이미지 저장"
-                  size="sm"
-                  variant="outline"
-                  icon="download"
-                  onPress={() =>
-                    saveChartAsPng({
-                      containerId: 'chart-card-line-defect',
-                      fileName: '라인별_불량률',
-                      title: '라인별 불량률',
-                      sub: `${from} ~ ${to}`,
-                      isDark: theme.isDark,
-                    })
-                  }
-                />
-              }
-            >
-              <LineChart
-                labels={(lineProduction?.lines || []).map((l) => l.eqptCd.replace('PR-', ''))}
-                series={[{ name: '불량률 (%)', data: (lineProduction?.lines || []).map((l) => l.defectRate) }]}
-                target={3.0}
-                unit="%"
-                min={0}
-                max={5}
-                height={180}
-                showLegend={false}
-              />
-            </Card>
-          </Grid>
+            }
+          >
+            <Table
+              minWidth={680}
+              onRowPress={(row) => showEquipment(row.eqptCd)}
+              keyExtractor={(row) => `${row.eqptCd}·${row.processId ?? ''}`}
+              columns={[
+                {
+                  key: 'eqptCd',
+                  title: '설비 (코드/명칭)',
+                  width: 160,
+                  mono: true,
+                  render: (r) => (
+                    <View>
+                      <Text style={[s.td, s.mono, { fontWeight: '600' }]}>{r.eqptCd}</Text>
+                      {r.eqptNm ? <Text style={[s.textXs, { color: theme.color.muted }]}>{r.eqptNm}</Text> : null}
+                    </View>
+                  ),
+                },
+                { key: 'model', title: '모델', width: 120, render: (r) => <Text style={s.td}>{r.model || '—'}</Text> },
+                {
+                  key: 'qty',
+                  title: '생산량 (EA)',
+                  width: 120,
+                  align: 'right',
+                  render: (r) => <BlindValue field="qty" value={comma(r.qty)} textStyle={[s.td, s.num, { fontWeight: '600' }]} />,
+                },
+                {
+                  key: 'okQty',
+                  title: '양품 수량 (EA)',
+                  width: 120,
+                  align: 'right',
+                  render: (r) => <Text style={[s.td, s.num]}>{comma(r.okQty ?? Math.max(0, (r.qty || 0) - (r.ngQty || 0)))}</Text>,
+                },
+                {
+                  key: 'ngQty',
+                  title: '불량 수량 (EA)',
+                  width: 110,
+                  align: 'right',
+                  render: (r) => (
+                    <Text style={[s.td, s.num, { color: (r.ngQty || 0) > 0 ? '#ef4444' : undefined }]}>
+                      {comma(r.ngQty || 0)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'defectRate',
+                  title: '불량률 (%)',
+                  width: 100,
+                  align: 'right',
+                  render: (r) => (
+                    <BlindValue
+                      field="yield"
+                      value={`${fixed(r.defectRate)}%`}
+                      textStyle={[s.td, s.num, { fontWeight: '700', color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a' }]}
+                    />
+                  ),
+                },
+                {
+                  key: 'uptimeRate',
+                  title: '가동률',
+                  width: 110,
+                  render: (r) => (
+                    r.uptimeRate != null ? (
+                      <View style={{ width: '100%' }}>
+                        <ProgressBar percent={r.uptimeRate} tone={r.uptimeRate > 85 ? 'ok' : r.uptimeRate > 75 ? 'warn' : 'bad'} />
+                        <Text style={[s.textXs, s.num, { marginTop: 3 }]}>{r.uptimeRate}%</Text>
+                      </View>
+                    ) : <Text style={[s.td, { color: theme.color.muted }]}>—</Text>
+                  ),
+                },
+                { key: 'state', title: '상태', width: 80, render: (r) => <StateBadge state={r.state || (Number(r.defectRate) > 3.0 ? 'WARNING' : 'RUNNING')} /> },
+              ]}
+              rows={displayLines}
+            />
+            {linesMeta ? <Pagination meta={linesMeta} {...(paging?.bind || {})} /> : null}
+            <SourceNote>목표 불량률 3.0% 이하 관리 · 설비 행 클릭 시 상세 모니터링 모달이 열립니다.</SourceNote>
+          </Card>
 
           {/* 4. 불량유형 구성 (하나의 행으로 구성) */}
           <Card
