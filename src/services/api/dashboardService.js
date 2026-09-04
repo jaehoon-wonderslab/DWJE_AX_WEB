@@ -164,6 +164,28 @@ export function getDashboardAiAgents(params) {
   return request('getDashboardAiAgents', params);
 }
 
+/**
+ * AI 일일 종합 브리핑
+ *
+ * `GET /api/v1/dashboard/ai/briefing`
+ * @param {object} [params] date
+ * @returns {Promise<object>} status, overallYield, overallDefectRate, todayQty, criticalLine, summaryLines, generatedAt
+ */
+export function getDashboardAiBriefing(params) {
+  return request('getDashboardAiBriefing', params);
+}
+
+/**
+ * AI 공정 원인 분석 및 처방 권고
+ *
+ * `GET /api/v1/dashboard/ai/cause-prescription`
+ * @param {object} [params] date, eqptCd
+ * @returns {Promise<object>} selectedEqpt, availableEquipments, featureContributions, prescriptions, analyzedAt
+ */
+export function getDashboardAiCausePrescription(params) {
+  return request('getDashboardAiCausePrescription', params);
+}
+
 /* ───────── 공정 및 제품 대시보드 ───────── */
 
 /**

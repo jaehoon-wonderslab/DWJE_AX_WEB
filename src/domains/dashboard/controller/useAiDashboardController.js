@@ -14,7 +14,7 @@ import { usePaging } from '@shared/hooks/usePaging';
 import { recentRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { today } from '@shared/utils/formatUtil';
-import { fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
+import { fetchAiCausePrescription, fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 
 export const AGG_UNITS = [
   { value: '일별', label: '일별' },
@@ -98,6 +98,24 @@ export function useAiDashboardController() {
     () => loadAiDashboard(applied),
     [applied.from, applied.to, applied.unit, applied.plant]
   );
+
+  // AI 공정 원인 분석 및 처방 대상 설비 선택 상태
+  const [selectedEqptCd, setSelectedEqptCd] = useState('PR-03');
+  const [causePrescriptionOverride, setCausePrescriptionOverride] = useState(null);
+  const [causeLoading, setCauseLoading] = useState(false);
+
+  const changeSelectedEqpt = useCallback(async (newEqptCd) => {
+    setSelectedEqptCd(newEqptCd);
+    setCauseLoading(true);
+    try {
+      const res = await fetchAiCausePrescription(applied, newEqptCd);
+      setCausePrescriptionOverride(res);
+    } catch (e) {
+      toast('설비별 AI 원인 분석 데이터를 조회하지 못했습니다.');
+    } finally {
+      setCauseLoading(false);
+    }
+  }, [applied, toast]);
 
   // 라인별 현황 (페이징: 대시보드 화면에 적합하게 기본 10건 단위 표시)
   const paging = usePaging({ size: 10, resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
@@ -183,6 +201,11 @@ export function useAiDashboardController() {
     setPlant,
     search,
     summary: data?.summary || {},
+    briefing: data?.briefing,
+    causePrescription: causePrescriptionOverride || data?.causePrescription,
+    selectedEqptCd,
+    changeSelectedEqpt,
+    causeLoading,
     trend: data?.trend,
     defectTrendData: data?.defectTrendData,
     lineProduction: data?.lineProduction,

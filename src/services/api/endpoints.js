@@ -417,6 +417,22 @@ export const ENDPOINTS = {
     roles: '전 부서', blind: [], priority: 1,
     tables: 'ax.tb_ai_agent, ax.tb_ai_agent_run',
   },
+  getDashboardAiBriefing: {
+    no: 321, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
+    name: 'AI 일일 종합 브리핑', method: 'GET', path: '/api/v1/dashboard/ai/briefing',
+    params: 'date',
+    response: 'status, overallYield, overallDefectRate, todayQty, criticalLine, summaryLines, generatedAt',
+    roles: '전 부서', blind: [], priority: 1,
+    tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
+  },
+  getDashboardAiCausePrescription: {
+    no: 322, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
+    name: 'AI 공정 원인 분석 및 처방 권고', method: 'GET', path: '/api/v1/dashboard/ai/cause-prescription',
+    params: 'date, eqptCd',
+    response: 'selectedEqpt, availableEquipments, featureContributions, prescriptions, analyzedAt',
+    roles: '전 부서', blind: [], priority: 1,
+    tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
+  },
   getDashboardProcessSummary: {
     no: 33, domain: '대시보드', comp: 'DB-02', screen: '공정 및 제품 대시보드', funcId: 'DB-02-F10',
     name: '공정·제품 요약 지표', method: 'GET', path: '/api/v1/dashboard/process/summary',

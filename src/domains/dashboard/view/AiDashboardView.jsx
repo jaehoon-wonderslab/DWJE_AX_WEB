@@ -27,6 +27,8 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { saveChartAsPng } from '@shared/utils/exportUtil';
 import { comma, fixed, rate } from '@shared/utils/formatUtil';
 import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController';
+import AiBriefingCard from './components/AiBriefingCard';
+import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 
 export default function AiDashboardView({
   loading,
@@ -40,6 +42,11 @@ export default function AiDashboardView({
   setPlant,
   search,
   summary,
+  briefing,
+  causePrescription,
+  selectedEqptCd,
+  changeSelectedEqpt,
+  causeLoading,
   trend,
   defectTrendData,
   lineProduction,
@@ -139,7 +146,10 @@ export default function AiDashboardView({
       </Filters>
       <Gap />
 
-      {/* 2. KPI 카드 3종 */}
+      {/* 2. AI 일일 종합 브리핑 (최상단) */}
+      <AiBriefingCard briefing={briefing} loading={loading} />
+
+      {/* 3. KPI 카드 3종 */}
       <Grid cols={3}>
         <StatCard label="공정 불량률" field="yield" value={rate(summary.defectRate)} unit="%" sub={summary.defectRateSub} tone="up" />
         <StatCard label="설비 가동률" value={fixed(summary.uptimeRate)} unit="%" sub={summary.uptimeRateSub} />
@@ -153,6 +163,14 @@ export default function AiDashboardView({
         </View>
       ) : (
         <View style={{ gap: 14 }}>
+          {/* AI 공정 원인 분석 및 처방 권고 (XAI 기여도 차트 + 처방 가이드) */}
+          <AiCausePrescriptionCard
+            causePrescription={causePrescription}
+            selectedEqptCd={selectedEqptCd}
+            onSelectEqpt={changeSelectedEqpt}
+            loading={causeLoading}
+          />
+
           {/* 1. 시간대별 불량률 추이 (하나의 막대 그래프 + 검색한 모든 날짜 정보 표) */}
           <Card
             title="시간대별 불량률 추이"
