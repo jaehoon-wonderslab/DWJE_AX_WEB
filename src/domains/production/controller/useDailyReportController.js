@@ -55,7 +55,7 @@ export function useDailyReportController() {
   const { data: sheet, loading, reload } = useAsync(
     () => loadPressReport({ targetDate, processId, topN }),
     [targetDate, processId, topN],
-    { initialData: { rows: [], processes: [], processCds: [], window: shiftWindow(targetDate), baseline: '' } }
+    { initialData: { rows: [], totals: null, processes: [], processCds: [], window: shiftWindow(targetDate), baseline: '' } }
   );
 
   /** 공정 선택지 — 프레스 작업장만 (양식이 PRESS 자료입니다) */
@@ -169,6 +169,7 @@ export function useDailyReportController() {
     window: sheet?.window || shiftWindow(targetDate),
     baseline: sheet?.baseline || '',
     rows,
+    totals: sheet?.totals || null,
     setManualCell,
     rowsDirty,
     saveRows,

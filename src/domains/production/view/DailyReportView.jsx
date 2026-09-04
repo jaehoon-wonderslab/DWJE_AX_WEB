@@ -56,7 +56,7 @@ const TONE = { normal: 'ok', watch: 'warn', risk: 'bad' };
 
 export default function DailyReportView({
   loading, targetDate, dateInput, setTargetDate, processId, setProcessId, processOptions, processCds,
-  topN, setTopN, window: win, baseline, rows, setManualCell, rowsDirty, saveRows, exportExcel,
+  topN, setTopN, window: win, baseline, rows, totals, setManualCell, rowsDirty, saveRows, exportExcel,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -204,16 +204,18 @@ export default function DailyReportView({
         </View>
       </Card>
 
-      <Card title="표 합계" sub={`${win.from} ~ ${win.to} · 표시한 ${comma(rows.length)}종의 합`}>
+      <Card title="구간 합계" sub={`${win.from} ~ ${win.to} · 표에 자르기 전 전량 기준`}>
         <KeyValue
-          keyWidth={92}
+          keyWidth={104}
           rows={[
             ['대상일', dateWithWeekday(targetDate)],
             ['실적 일자', dateWithWeekday(resultDate)],
-            ['표시 제품', `${comma(rows.length)}종`],
-            ['실적 합계', <BlindValue field="qty" value={`${comma(rows.reduce((n, r) => n + (r.qty || 0), 0))} EA`} textStyle={[s.kvVal, s.num]} />],
-            ['불량 합계', <BlindValue field="qty" value={`${comma(rows.reduce((n, r) => n + (r.ngQty || 0), 0))} EA`} textStyle={[s.kvVal, s.num]} />],
-            ['일목표 미기입', `${comma(rows.filter((r) => r.provisional).length)}종 / ${comma(rows.length)}종`],
+            ['제품', `${comma(totals?.productCnt ?? rows.length)}종 (표에는 ${comma(rows.length)}종)`],
+            ['실적 합계', <BlindValue field="qty" value={`${comma(totals?.qty ?? 0)} EA`} textStyle={[s.kvVal, s.num]} />],
+            ['불량 합계', <BlindValue field="qty" value={`${comma(totals?.ngQty ?? 0)} EA`} textStyle={[s.kvVal, s.num]} />],
+            ['주간 실적 합계', <BlindValue field="qty" value={`${comma(totals?.weekQty ?? 0)} EA`} textStyle={[s.kvVal, s.num]} />],
+            ['이 구간 미가동', `${comma(totals?.idleCnt ?? 0)}종`],
+            ['일목표 미기입', `${comma(totals?.noTargetCnt ?? 0)}종 / ${comma(totals?.productCnt ?? rows.length)}종`],
           ]}
         />
       </Card>
@@ -245,11 +247,14 @@ function TargetCell({ row, onChange }) {
         borderStyle: 'dashed',
         borderColor: theme.color.border,
         backgroundColor: theme.alpha('muted', 0.4),
-        opacity: row.provisional ? 0.55 : 1,
+        opacity: row.provisional ? 0.55 : row.targetOrigin === 'MASTER' ? 0.8 : 1,
+        borderStyle: row.targetOrigin === 'MASTER' ? 'dotted' : 'dashed',
       }]}
       keyboardType="numeric"
       value={row.targetInput}
       placeholder={row.targetRef === null ? '—' : comma(row.targetRef)}
+      // 마스터에서 온 밑값은 옅게 — 작성자가 오늘 정한 목표와 구분합니다
+      selectTextOnFocus
       placeholderTextColor={theme.color.mutedForeground}
       onChangeText={onChange}
     />

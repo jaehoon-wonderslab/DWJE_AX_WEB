@@ -315,7 +315,7 @@ export async function loadPressReport({ targetDate, processId, topN = 10 }) {
    * `eqptCnt` 는 제품 단위 `count(DISTINCT eqpt_cd)` 라 행끼리 더하면 같은 설비를 두 번 셉니다
    * (D63A 의 S136 은 실제 1대인데 품목별로 세어 더하면 2대 — API 세션 확인, 2026-09-04).
    */
-  const rows = (sheet?.rows || [])
+  const all = (sheet?.rows || [])
     .map((r) => ({
       product: r.product,
       productNm: r.productNm || r.product,
@@ -325,8 +325,14 @@ export async function loadPressReport({ targetDate, processId, topN = 10 }) {
       ngQty: r.ngQty ?? 0,
       defectRate: r.qty ? round1(((r.ngQty || 0) / r.qty) * 100) : null,
       eqptCnt: r.eqptCnt ?? null,
-      /** 작성자가 저장해 둔 값 (없으면 null) */
+      /**
+       * 이미 정해져 있는 일목표와 그 출처
+       *
+       * `MANUAL` 작성자가 그날 넣은 값 · `MASTER` 목표 마스터의 밑값 · `null` 둘 다 없음.
+       * 마스터 값은 **덮어쓸 수 있는 밑값**이라, 누가 정한 목표인지 화면에서 구분해 보여 줍니다.
+       */
       savedTarget: r.targetQty ?? null,
+      targetOrigin: r.targetQtyOrigin ?? null,
       decision: r.decision || undefined,
       dri: r.dri || undefined,
       due: r.due || undefined,
@@ -337,16 +343,35 @@ export async function loadPressReport({ targetDate, processId, topN = 10 }) {
        * (`PROD_DAY_TARGET` 은 공정 단위이고 값도 비어 있습니다 — API 세션 확인, 2026-09-04).
        * 입력칸의 회색 밑값으로만 씁니다. 이 값으로 달성률을 내면 산술적으로 늘 100% 가 됩니다.
        */
-      targetRef: weekDays ? Math.round((r.weekQty || 0) / weekDays) : null,
+      /** 주간 실적이 0 이면 밑값도 없습니다 — '0' 을 깔면 목표가 0 인 것처럼 읽힙니다 */
+      targetRef: weekDays && r.weekQty ? Math.round(r.weekQty / weekDays) : null,
       weekQty: r.weekQty ?? 0,
       weekQtyAllShift: r.weekQtyAllShift ?? null,
       weekDays,
     }))
-    .sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0))
-    .slice(0, topN === 0 ? undefined : topN);
+    .sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0));
+
+  /**
+   * 합계는 **자르기 전 전량**으로 냅니다
+   *
+   * 표는 상위 N 종만 보여 주지만 합계까지 그러면 조용히 모자랍니다.
+   * 대상일 구간에 실적이 없고 그 주에만 돈 제품(qty 0, weekQty 만 값)도 합계에는 들어가야 합니다.
+   */
+  const totals = all.reduce(
+    (t, r) => ({
+      productCnt: t.productCnt + 1,
+      qty: t.qty + (r.qty || 0),
+      ngQty: t.ngQty + (r.ngQty || 0),
+      weekQty: t.weekQty + (r.weekQty || 0),
+      idleCnt: t.idleCnt + (r.qty ? 0 : 1),
+      noTargetCnt: t.noTargetCnt + (r.savedTarget ? 0 : 1),
+    }),
+    { productCnt: 0, qty: 0, ngQty: 0, weekQty: 0, idleCnt: 0, noTargetCnt: 0 }
+  );
 
   return {
-    rows,
+    rows: topN === 0 ? all : all.slice(0, topN),
+    totals,
     processes: (master?.processes || []).filter(isPress),
     processCds: sheet?.processCds || [],
     window: sheet?.periodFrom && sheet?.periodTo
