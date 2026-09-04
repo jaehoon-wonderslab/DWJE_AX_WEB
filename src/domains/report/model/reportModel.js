@@ -98,13 +98,19 @@ export const processScopeOf = (list = []) => (list.length ? list.map((p) => p.id
 
 /**
  * 아침회의 조회 조건 → 서버 파라미터.
- * 화면 선택값('전체' · 묶음 키 · 공정 id)을 processScope(공정 id 쉼표 목록) 로 바꿉니다.
+ *
+ * 화면 선택값('전체' · 묶음 키 · 공정 id)을 `processScope`(작업장 코드 쉼표 목록) 로 바꿉니다.
+ * **'전체' 는 아무것도 보내지 않습니다** — 서버가 기본 범위를 갖습니다(2026-09-04).
+ * press-morning 은 프레스 3개, plating-morning 은 도금·코팅 18개입니다.
+ *
+ * 화면이 코드를 나열해 보내면 한 곳만 빠뜨려도 조용히 어긋납니다. 범위의 주인은 서버 한 곳입니다.
+ * 서버가 실제로 무엇을 집계했는지는 응답 `processCds` 로 확인하고 각주에 찍습니다.
+ *
  * @param {string} scope '전체' | 묶음 key(press…) | 공정 id
  * @param {object} groups groupProcesses() 결과
- * @param {string[]} allKeys 이 화면이 다루는 묶음 key 목록 ('전체' 일 때 합칩니다)
  */
-export function morningScopeParam(scope, groups = {}, allKeys = []) {
-  if (!scope || scope === '전체') return processScopeOf(allKeys.flatMap((k) => groups[k] || []));
+export function morningScopeParam(scope, groups = {}) {
+  if (!scope || scope === '전체') return undefined;
   if (groups[scope]) return processScopeOf(groups[scope]);
   return scope;
 }

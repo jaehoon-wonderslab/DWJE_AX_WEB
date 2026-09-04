@@ -30,7 +30,7 @@ export function usePressMorningController() {
     () => [{ value: '전체', label: 'Press 전체' }, ...(groups?.press || []).map((p) => ({ value: p.id, label: p.name }))],
     [groups]
   );
-  const scopeParam = useMemo(() => morningScopeParam(processScope, groups || {}, GROUP_KEYS), [processScope, groups]);
+  const scopeParam = useMemo(() => morningScopeParam(processScope, groups || {}), [processScope, groups]);
 
   const { data, loading, reload } = useAsync(
     () => loadPressMorning({ baseDate, processScope: scopeParam, state }),

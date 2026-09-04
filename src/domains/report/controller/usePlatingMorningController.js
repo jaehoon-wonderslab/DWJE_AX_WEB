@@ -33,7 +33,7 @@ export function usePlatingMorningController() {
     ],
     []
   );
-  const scopeParam = useMemo(() => morningScopeParam(processScope, groups || {}, GROUP_KEYS), [processScope, groups]);
+  const scopeParam = useMemo(() => morningScopeParam(processScope, groups || {}), [processScope, groups]);
 
   const { data, loading, reload } = useAsync(
     () => loadPlatingMorning({ baseDate, processScope: scopeParam, state }),

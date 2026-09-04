@@ -27,6 +27,20 @@ export default function PressMorningView({
   const report = data?.report;
   const rows = report?.rows || [];
   const baseDate = report?.baseDate || filters.baseDate;
+  const processCds = report?.processCds || [];
+  const sum = report?.summary || {};
+
+  /**
+   * 목표가 등록된 공정이 몇 곳인지 밝힙니다
+   *
+   * 일목표 마스터가 일부 공정에만 있으면 달성률은 그 공정들만의 값입니다.
+   * 실적 합계와 달성률의 근거가 다른 셈이라, 적어 두지 않으면 "숫자가 안 맞는다" 는 말이 나옵니다.
+   */
+  const targetNote = !sum.processCnt || sum.rateProcessCnt >= sum.processCnt
+    ? ''
+    : sum.rateProcessCnt
+      ? ` · 일목표가 등록된 공정은 ${sum.processCnt}곳 중 ${sum.rateProcessCnt}곳입니다 — 달성률·상태는 그 공정만의 값입니다`
+      : ' · 일목표가 등록된 공정이 없어 달성률·상태를 낼 수 없습니다 (실적만 표시합니다)';
 
   let blindCnt = 0;
   const mask = (field, v) => {
@@ -72,7 +86,8 @@ export default function PressMorningView({
           resultDate={baseDate}
           rows={rows}
           mask={mask}
-          note="일목표·실적은 MES 실적과 불량 이력에서 자동 집계됩니다. 결정항목·DRI·기한은 아침회의에서 확정합니다."
+          note={`일목표·실적은 MES 실적과 불량 이력에서 자동 집계됩니다. 결정항목·DRI·기한은 아침회의에서 확정합니다.${
+            processCds.length ? ` · 집계한 작업장 ${processCds.join(' · ')}` : ''}${targetNote}`}
         />
       )}
     </View>
