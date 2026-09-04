@@ -50,7 +50,7 @@
 | `/production/monitor` | `prod-monitor` | 생산 모니터링 (10초 폴링) | [08](./08_production_monitor.md) | 2 |
 | `/production/result` | `prod-result` | 실적 집계·조회 | [09](./09_production_result.md) | 3 |
 | `/production/daily-report` | `prod-daily` | 일일 생산현황 보고 | [10](./10_production_daily-report.md) | 7 |
-| `/production/daily-report/history` | `daily-history` | 이전 보고서 *(하위)* | [11](./11_production_daily-report_history.md) | 2 |
+| `/production/daily-report/history` | `daily-history` | 이전 보고서 *(하위 · API 없음)* | [11](./11_production_daily-report_history.md) | 0 |
 | `/production/downtime` | `prod-down` | 비가동 관리 | [12](./12_production_downtime.md) | 5 |
 
 ## 5. 품질관리
@@ -59,8 +59,6 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `/quality/defect` | `qc-defect` | 불량 현황 조회 | [13](./13_quality_defect.md) | 3 |
 | `/quality/aoi` | `qc-aoi` | AOI 판정 분석·예측 | [14](./14_quality_aoi.md) | 9 |
-| `/quality/report` | `qc-report` | 품질 보고서 *(하위)* | [15](./15_quality_report.md) | 13 |
-| `/quality/report-forms` | `report-forms` | 보고서 양식 관리 *(하위)* | [16](./16_quality_report-forms.md) | 4 |
 
 ## 6. 보고서
 
@@ -71,8 +69,7 @@
 | `/report/ship-plan` | `rpt-ship-plan` | 연간 출하계획 | [19](./19_report_ship-plan.md) | 1 |
 | `/report/yield-by-model` | `rpt-yield-model` | 제품별 수율 | [20](./20_report_yield-by-model.md) | 1 |
 | `/report/lrr-by-customer` | `rpt-lrr-customer` | 고객사별 LRR | [21](./21_report_lrr-by-customer.md) | 1 |
-| `/report/scrap` | `rpt-scrap` | 폐기 보고서 | [22](./22_report_scrap.md) | 2 |
-| `/report/scrap/new` | `rpt-scrap-new` | 폐기 보고서 작성 (5단계) *(하위)* | [23](./23_report_scrap_new.md) | 10 |
+| `/report/scrap` | `rpt-scrap` | 폐기 보고서 | [22](./22_report_scrap.md) | 1 |
 
 ## 7. 이상 알림
 
@@ -116,19 +113,16 @@
 | `/production/monitor` | 3 | 4 | | 1 | **●** | | xls | | **10초** |
 | `/production/result` | 4 | | 1 | 1 | △ | | xls | | |
 | `/production/daily-report` | | | | | | 모달 1 | xls | | |
-| `/production/daily-report/history` | 3 | | | 1 | **●** | 모달 1 | xls | | |
+| `/production/daily-report/history` | `daily-history` | 이전 보고서 *(하위 · API 없음)* | [11](./11_production_daily-report_history.md) | 0 |
 | `/production/downtime` | 3 | 4 | | 1 | **●** | 모달 1 | xls | | |
 | `/quality/defect` | 4 | | | 2 | | | xls | | |
 | `/quality/aoi` | 3 | 4(Pred) | 1 | 4 | | 모달 1 | xls | | |
-| `/quality/report` | 3 | | | 2 | | 모달 3 | xls·ppt·pdf | | |
-| `/quality/report-forms` | | | | 1 | | 모달 2 | xls | | |
 | `/report/press-morning` | 3 | 4 | | 2 | | | xls·csv | ● | |
 | `/report/plating-morning` | 3 | 4 | | 2 | | | xls·csv | ● | |
 | `/report/ship-plan` | 4 | 4 | | 2 | | | xls·csv | ● | |
 | `/report/yield-by-model` | 3 | 4 | | 2 | **●** | | xls·csv | ● | |
 | `/report/lrr-by-customer` | 3 | 4 | | 3 | | | xls·csv | ● | |
-| `/report/scrap` | 4 | 4 | | 1 | | | xls | ● | |
-| `/report/scrap/new` | 5 | 4 | | 4 | △ | 마법사 5 + 모달 3 | | | |
+| `/report/scrap` | `rpt-scrap` | 폐기 보고서 | [22](./22_report_scrap.md) | 1 |
 | `/alert/list` | 3+탭 | | | 3 | △ | 모달 1 | xls | | |
 | `/system/account` | | 4 | | 4 | △ | 모달 7 | xls | | |
 | `/system/menu-perm` | | 4 | | 매트릭스+1 | | 모달 1 | xls | | |

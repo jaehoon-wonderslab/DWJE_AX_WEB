@@ -224,133 +224,17 @@ export const reportMock = {
   },
 
   /* ───────── RP-06 폐기 보고서 ───────── */
-  getReportsScrap: ({ page = 1, size = 50 }) => ({ items: store().published, meta: { page, size, total: store().published.length } }),
 
-  getReportsScrapByDocNo: ({ docNo }) => ({
-    header: SCRAP_HEADER,
-    summary: SCRAP_SUMMARY,
-    models: SCRAP_MODELS,
-    rows: SCRAP_DETAIL.map((d) => ({ ...d, ratio: (d.qty / SCRAP_SUMMARY.totalQty) * 100 })),
-    reviewOpinions: SCRAP_REVIEW_OPINIONS,
-    docNo: docNo || SCRAP_SUMMARY.docNo,
-  }),
 
-  /* ───────── RP-07 폐기 보고서 작성 위저드 ───────── */
-  getReportsScrapMesVouchers: ({ from, to, processId, modelCd, originType, page = 1, size = 100 }) => {
-    let items = SCRAP_MES_VOUCHERS;
-    if (from) items = items.filter((v) => v.occurDate >= from);
-    if (to) items = items.filter((v) => v.occurDate <= to);
-    if (processId && processId !== '전체') items = items.filter((v) => v.process === processId);
-    if (modelCd && modelCd !== '전체') items = items.filter((v) => v.model === modelCd);
-    if (originType && originType !== '전체') items = items.filter((v) => v.originType === originType);
-    return { items, meta: { page, size, total: items.length } };
-  },
 
-  postReportsScrapDrafts: () => {
-    const st = store();
-    st.draft = newScrapDraft();
-    return { success: true, code: 'SUCCESS', message: '작성 중인 내용을 초기화했습니다.', data: { draftId: st.draft.draftId, docNo: st.draft.docNo, draft: st.draft } };
-  },
 
-  putReportsScrapDraftsByDraftId: ({ step, cond, pickedVoucherIds, form, review }) => {
-    const d = store().draft;
-    if (step !== undefined) d.step = step;
-    if (cond) d.cond = { ...d.cond, ...cond };
-    if (pickedVoucherIds) d.pickedVoucherIds = pickedVoucherIds;
-    if (form) d.form = { ...d.form, ...form };
-    if (review) d.review = { ...d.review, ...review };
-    return { success: true, code: 'SUCCESS', message: '임시 저장했습니다.', data: { success: true, draft: d } };
-  },
 
-  deleteReportsScrapDraftsByDraftId: ({ draftId }) => {
-    const s = store();
-    s.draft = null;
-    return { success: true, code: 'SUCCESS', message: '폐기 보고서 초안을 삭제했습니다.', data: { success: true, draftId } };
-  },
 
-  postReportsScrapDraftsByDraftIdManualRows: ({ name, model, process, reason, kind, qty, unitPrice }) => {
-    const d = store().draft;
-    const rowId = `M${d.manualRows.length + 1}-${Date.now().toString(36)}`;
-    d.manualRows.push({
-      rowId,
-      name: name || '수기 폐기분',
-      kind: kind || 'Loss',
-      model: model || '기타 모델 (MEM-B 외)',
-      process: process || '전 공정',
-      reason: reason || '',
-      qty: Number(qty) || 0,
-      unitPrice: Number(unitPrice) || SCRAP_UNIT_PRICE[model] || 60.5,
-    });
-    return { success: true, code: 'SUCCESS', message: '수기 폐기 행을 추가했습니다.', data: { rowId, draft: d } };
-  },
 
-  deleteReportsScrapDraftsByDraftIdManualRowsByRowId: ({ rowId }) => {
-    const d = store().draft;
-    d.manualRows = d.manualRows.filter((m) => m.rowId !== rowId);
-    return { success: true, code: 'SUCCESS', message: '수기 폐기 행을 삭제했습니다.', data: { success: true, draft: d } };
-  },
 
-  postReportsScrapDraftsByDraftIdCalculate: () => {
-    const d = store().draft;
-    const groups = calcGroups(d);
-    return { success: true, code: 'SUCCESS', message: '폐기 금액을 산정했습니다.', data: { rows: groups, summary: calcSummary(groups), cond: d.cond, manualCnt: d.manualRows.length, voucherCnt: d.pickedVoucherIds.length } };
-  },
 
-  putReportsScrapDraftsByDraftIdUnitPrice: ({ key, unitPrice, reason }) => {
-    const d = store().draft;
-    // 단가를 비우면 '미산정' 으로 표시하고 금액 합계에서 제외합니다 (금액 입력은 필수가 아님)
-    if (unitPrice === '' || unitPrice === null || unitPrice === undefined) {
-      d.priceAdj[key] = { pending: true, reason: reason || '단가 확정 후 재산정' };
-      return { success: true, code: 'SUCCESS', message: '단가 미산정으로 저장했습니다 — 금액 합계에서 제외됩니다.', data: { success: true } };
-    }
-    const price = Number(unitPrice);
-    if (Number.isNaN(price) || price < 0) {
-      return { success: false, code: 'E-VALID-001', message: '단가는 0 이상의 숫자여야 합니다.', data: null };
-    }
-    d.priceAdj[key] = { unitPrice: price, reason: reason || '' };
-    return { success: true, code: 'SUCCESS', message: '단가를 조정했습니다 — 사유가 감사 로그에 기록됩니다.', data: { success: true } };
-  },
 
-  putReportsScrapDraftsByDraftIdApprovalLine: ({ depts, appr, due, notifyChannels }) => {
-    const d = store().draft;
-    if (depts) d.review.depts = depts;
-    if (appr) d.review.appr = appr;
-    if (due) d.review.due = due;
-    if (notifyChannels) d.review.notifyChannels = notifyChannels;
-    return { success: true, code: 'SUCCESS', message: '검토 부서·결재선을 저장했습니다.', data: { success: true } };
-  },
 
-  postReportsScrapDraftsByDraftIdReviewRequest: () => {
-    const d = store().draft;
-    const sentCnt = d.review.depts.filter((x) => x.on).length;
-    return { success: true, code: 'SUCCESS', message: `검토 요청을 ${sentCnt}개 부서에 발송했습니다.`, data: { sentCnt } };
-  },
-
-  postReportsScrapDraftsByDraftIdPublish: () => {
-    const st = store();
-    const d = st.draft;
-    const groups = calcGroups(d);
-    const summary = calcSummary(groups);
-    st.published.unshift({
-      docNo: d.form.docNo,
-      periodFrom: d.cond.from,
-      periodTo: d.cond.to,
-      totalQty: summary.totalQty,
-      totalAmt: summary.totalAmt,
-      state: '검토 요청',
-    });
-    return { success: true, code: 'SUCCESS', message: `폐기 보고서 ${d.form.docNo} 를 생성했습니다.`, data: { docNo: d.form.docNo, reportId: d.draftId, publishedAt: nowStamp() } };
-  },
-
-  /* ───────── 공통 출력 ───────── */
-  postReportsByReportIdExport: ({ format, fileName }) => ({
-    success: true,
-    code: 'SUCCESS',
-    message: `${fileName || '보고서'} 를 ${String(format).toUpperCase()} 형식으로 내려받았습니다 (비공개 항목 제외)`,
-    data: { format },
-  }),
-
-  getReportsByReportIdPrint: ({ reportId }) => ({ reportId, printedAt: nowStamp() }),
 };
 
 export { calcGroups, calcSummary };

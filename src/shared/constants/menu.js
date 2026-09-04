@@ -82,7 +82,6 @@ export const MENU = [
  */
 export const EXTRA_PAGES = [
   { id: 'daily-history', name: '이전 보고서', path: '/production/daily-report/history', group: '생산관리', parent: 'prod-daily' },
-  { id: 'rpt-scrap-new', name: '폐기 보고서 작성', path: '/report/scrap/new', group: '보고서', parent: 'rpt-scrap' },
 ];
 
 /** 접근 권한이 없을 때 이동할 기본 화면 */

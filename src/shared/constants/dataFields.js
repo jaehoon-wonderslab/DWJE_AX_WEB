@@ -42,14 +42,14 @@ export const MENU_ACCESS_DEFAULT = {
     'prod-monitor', 'prod-result',
     'qc-defect', 'qc-aoi',
     'alert-list', 'sys-gloss',
-    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap', 'rpt-scrap-new',
+    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
   ],
   생산관리팀: [
     'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
     'prod-monitor', 'prod-result', 'prod-daily', 'daily-history',
     'qc-defect', 'qc-aoi',
     'alert-list', 'sys-gloss',
-    'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap', 'rpt-scrap-new',
+    'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap',
   ],
   제조팀: [
     'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
@@ -69,7 +69,7 @@ export const MENU_ACCESS_DEFAULT = {
     'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
     'prod-result', 'qc-defect',
     'alert-list', 'sys-gloss', 'sys-rank',
-    'rpt-ship-plan', 'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap', 'rpt-scrap-new',
+    'rpt-ship-plan', 'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
   ],
   통합관리자: '*',
 };
