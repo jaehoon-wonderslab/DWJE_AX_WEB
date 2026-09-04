@@ -61,82 +61,12 @@ export const productionMock = {
 
   getProductionResultsTrend: () => RESULT_TREND,
 
-  /* ───────── PR-03 일일 생산현황 보고 ───────── */
-  getProductionDailyReportsDraft: () => store().draft,
-
-  postProductionDailyReportsDraftRegenerate: () => {
-    const st = store();
-    st.draft = JSON.parse(JSON.stringify(DAILY_DRAFT));
-    st.draft.version += 1;
-    st.draft.generatedAt = nowStamp();
-    st.events.unshift({ ts: nowStamp(), type: '초안 재생성', detail: `v${st.draft.version} 재생성`, by: mockState.currentUser.name });
-    return { success: true, code: 'SUCCESS', message: '초안을 다시 생성했습니다.', data: { reportId: st.draft.reportId, version: st.draft.version } };
-  },
-
-  putProductionDailyReportsByReportId: ({ sections }) => {
-    const st = store();
-    if (sections) st.draft.sections = sections;
-    const correctionCnt = (st.draft.correctionCnt || 0) + 1;
-    st.draft.correctionCnt = correctionCnt;
-    st.events.unshift({ ts: nowStamp(), type: '항목 보정', detail: `${correctionCnt}번째 보정`, by: mockState.currentUser.name });
-    return { success: true, code: 'SUCCESS', message: '보고서 항목을 보정했습니다.', data: { reportId: st.draft.reportId, correctionCnt } };
-  },
-
-  postProductionDailyReportsByReportIdSave: ({ sections }) => {
-    const st = store();
-    if (sections) st.draft.sections = sections;
-    return { success: true, code: 'SUCCESS', message: '보고서를 임시 저장했습니다.', data: { success: true } };
-  },
-
-  postProductionDailyReportsByReportIdConfirm: () => {
-    const st = store();
-    st.draft.state = '확정';
-    const confirmedAt = nowStamp();
-    st.events.unshift({ ts: confirmedAt, type: '확정', detail: `v${st.draft.version} 확정`, by: mockState.currentUser.name });
-    const row = st.history.find((h) => h.reportId === st.draft.reportId);
-    if (row) {
-      row.state = '확정';
-      row.confirmedAt = confirmedAt;
-    }
-    return {
-      success: true,
-      code: 'SUCCESS',
-      message: '보고서를 확정했습니다.',
-      data: { state: '확정', confirmedAt, confirmedBy: mockState.currentUser.name },
-    };
-  },
-
-  postProductionDailyReportsByReportIdReject: ({ reason }) => {
-    const st = store();
-    st.draft.state = '반려';
-    st.events.unshift({ ts: nowStamp(), type: '반려', detail: reason || '사유 미기재', by: mockState.currentUser.name });
-    return { success: true, code: 'SUCCESS', message: '보고서를 반려했습니다.', data: { state: '반려' } };
-  },
-
-  getProductionDailyReportsByReportIdEvents: () => ({ events: store().events }),
-
-  getProductionDailyReports: ({ from, to, state, page = 1, size = 50 }) => {
-    let items = store().history;
-    if (from) items = items.filter((r) => r.targetDate >= from);
-    if (to) items = items.filter((r) => r.targetDate <= to);
-    if (state && state !== '전체') items = items.filter((r) => r.state === state);
-    return { items, meta: { page, size, total: items.length } };
-  },
-
-  postProductionDailyReportsByReportIdCopy: ({ targetDate }) => {
-    const st = store();
-    const newReportId = `DR-${String(targetDate || '').replace(/-/g, '')}`;
-    st.history.unshift({
-      reportId: newReportId,
-      targetDate,
-      version: 1,
-      state: '검토 대기',
-      generatedAt: nowStamp(),
-      confirmedAt: '',
-      correctionCnt: 0,
-    });
-    return { success: true, code: 'SUCCESS', message: '이전 보고서를 새 기간으로 복제했습니다.', data: { newReportId } };
-  },
+  /* ───────── PR-03 일일 생산현황 보고 ─────────
+   *
+   * 2026-09-04 — 서버에서 보고서 문서·결재 모형이 걷혔습니다.
+   * 초안·확정·반려·생성 이력·이력 목록 목(mock)도 함께 지웠습니다.
+   * 남은 두 건은 실 서버 전용이라 목을 두지 않습니다(집계 구간·설비 대수가 DB 계산값입니다).
+   */
 
   /* ───────── PR-05 비가동 관리 ───────── */
   getProductionDowntimesSummary: () => {

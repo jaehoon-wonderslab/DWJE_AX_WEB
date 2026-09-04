@@ -1,104 +1,49 @@
 /**
  * [View] PR-04 이전 보고서 (경로: /production/daily-report/history)
  *
- * 일일 생산현황 보고서의 과거 이력을 조회하고, 이전 보고서를 새 기간으로 복제합니다.
- * 사용 API 2건 — /api/v1/production/daily-reports, /{reportId}/copy
+ * **붙일 API 가 없습니다.** 2026-09-04 서버에서 보고서 문서·결재 모형이 걷히면서
+ * 보고서 이력 조회·복제 API 가 함께 사라졌습니다(`GET /production/daily-reports` 404).
+ *
+ * 화면을 지우지 않고 남겨 둔 이유 — 이 기능을 없앨지는 사용자 판단이고,
+ * 메뉴가 서버 화면 마스터에도 등록되어 있어 함께 정리해야 합니다.
+ * 되살릴 때 붙일 자리를 남겨 두는 편이 낫다고 봤습니다.
+ *
+ * 조간회의 결과(일목표·판정·담당·기한)는 사라지지 않았습니다 —
+ * `ax.tb_prod_daily_decision` 에 (대상일, 제품) 으로 남고, 대상일을 고르면 다시 보입니다.
  */
 import React from 'react';
 import { Text, View } from 'react-native';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, DateField, Filters, Loading, Pagination, SelectField, Table, openFormModal } from '@shared/components/ui';
+import { Button, Card, Hint } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
-import { lastDataDate } from '@shared/stores/useAppStore';
 import { useCommonStyles } from '@shared/theme/styles';
-import { comma } from '@shared/utils/formatUtil';
-import { dailyStateTone } from '../model/productionRepository';
 
-export default function DailyHistoryView({
-  paging, itemsMeta,
-  loading, items, filters, stateOptions = ['전체'], stateLabel = (v) => v,
-  setFrom, setTo, setState, search, openRow, copyReport, exportExcel,
-}) {
+export default function DailyHistoryView() {
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
-
-  /** 행 클릭 — 검토 중인 보고서는 작성 화면으로, 확정본은 안내만 */
-  const onRowPress = (row) => {
-    if (openRow(row) === 'edit') goToScreen('prod-daily');
-  };
-
-  /** 이전 보고서를 새 기간으로 다시 생성합니다 */
-  const openCopyForm = (row) =>
-    openFormModal({
-      title: '보고서 복제',
-      sub: '이전 보고서를 새 기간으로 다시 생성합니다',
-      fields: [
-        { key: 'source', label: '원본 보고서', type: 'static', value: `${row.targetDate} · v${row.version} (${stateLabel(row.state)})`, full: true },
-        { key: 'targetDate', label: '새 대상 일자', type: 'date', required: true, value: lastDataDate(), max: null },
-        { key: 'keepText', label: '복제 범위', type: 'radio', full: true, value: '수치만 새로 집계', options: ['수치만 새로 집계', '본문까지 그대로 복제'] },
-      ],
-      note: '수치는 새 기간 기준으로 다시 집계되며, 본문은 선택에 따라 초안이 다시 만들어집니다.',
-      submitLabel: '복제',
-      onSubmit: async (v) => {
-        const res = await copyReport(row.reportId, v.targetDate);
-        return res.ok ? true : false;
-      },
-    });
 
   return (
     <View>
       <PageHead
         title="이전 보고서"
-        desc="일일 생산현황 보고서의 과거 이력입니다. 검토 중인 보고서는 행을 눌러 작성 화면에서 이어서 보정하고, 이전 보고서를 새 기간으로 복제할 수 있습니다."
-        actions={
-          <>
-            <Button label="일일 생산현황 보고" size="sm" icon="arrowLeft" onPress={() => goToScreen('prod-daily')} />
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} disabled={!items.length} />
-          </>
-        }
+        desc="지난 일일 생산현황 보고서를 날짜별로 찾아보는 화면입니다."
+        actions={<Button label="일일 생산현황 보고" size="sm" icon="file" onPress={() => goToScreen('prod-daily')} />}
       />
 
-      <Filters>
-        <DateField label="시작일" value={filters.from} onChange={setFrom} />
-        <DateField label="종료일" value={filters.to} onChange={setTo} />
-        <SelectField label="상태" value={filters.state} options={stateOptions} onChange={setState} />
-        <Button label="조회" variant="primary" onPress={search} />
-      </Filters>
+      <Hint icon="alert">이 화면은 현재 붙일 API 가 없습니다. 보고서 이력 조회·복제 기능이 서버에서 걷혔습니다.</Hint>
 
-      <Card title="보고서 이력" sub={`전체 ${comma(itemsMeta?.total ?? items.length)}건 · 행을 누르면 검토 중인 보고서는 작성 화면으로 이동합니다`} tight>
-        {loading && !items.length ? (
-          <Loading />
-        ) : (
-          <Table
-            minWidth={820}
-            keyExtractor={(r) => r.reportId ?? `${r.targetDate}-${r.version}`}
-            onRowPress={onRowPress}
-            emptyText="조회 조건에 맞는 보고서가 없습니다."
-            columns={[
-              { key: 'targetDate', title: '대상 일자', width: 120 },
-              { key: 'version', title: '버전', width: 70, align: 'center', render: (r) => <Text style={[s.td, s.num, { textAlign: 'center' }]}>{`v${r.version}`}</Text> },
-              { key: 'state', title: '상태', width: 100, render: (r) => <Badge tone={dailyStateTone(r.state)}>{stateLabel(r.state)}</Badge> },
-              { key: 'generatedAt', title: '생성 일시', flex: 1, minWidth: 150, render: (r) => <Text style={[s.td, s.num]}>{r.generatedAt || '—'}</Text> },
-              {
-                key: 'confirmedAt',
-                title: '확정 일시',
-                flex: 1,
-                minWidth: 150,
-                render: (r) => <Text style={[s.td, s.num]}>{r.confirmedAt ? `${r.confirmedAt}${r.confirmedBy ? ` · ${r.confirmedBy}` : ''}` : '—'}</Text>,
-              },
-              {
-                key: 'correctionCnt',
-                title: '보정',
-                width: 80,
-                align: 'center',
-                render: (r) => (r.correctionCnt ? <Badge tone="amber">{`${r.correctionCnt}건`}</Badge> : <Text style={[s.td, { textAlign: 'center' }]}>—</Text>),
-              },
-              { key: 'copy', title: '복제', width: 82, render: (r) => <Button label="복제" size="sm" onPress={() => openCopyForm(r)} /> },
-            ]}
-            rows={items}
-          />
-        )}
-        <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
+      <Card title="준비 중">
+        <Text style={s.textSm}>
+          2026-09-04 서버 개편으로 보고서 문서·결재 모형(초안 · 확정 · 반려 · 생성 이력 · 이력 목록)이
+          걷혔습니다. 이 화면이 쓰던 조회·복제 API 도 함께 사라졌습니다.
+        </Text>
+        <Text style={[s.textSm, { marginTop: 8 }]}>
+          <Text style={{ fontWeight: '700' }}>조간회의 결과는 남아 있습니다.</Text> 일목표 · 결정항목 · DRI · 기한은
+          대상일과 제품으로 저장되므로, 「일일 생산현황 보고」에서 날짜를 고르면 그날 적어 둔 내용이 그대로 나옵니다.
+        </Text>
+        <Text style={[s.textSm, { marginTop: 8 }]}>
+          결재 흐름을 되살릴지, 이 화면과 메뉴를 걷어낼지는 확인 후 정합니다.
+        </Text>
       </Card>
     </View>
   );

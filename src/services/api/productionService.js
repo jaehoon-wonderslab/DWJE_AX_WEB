@@ -67,19 +67,6 @@ export function getProductionResultsTrend(params) {
 /* ───────── 일일 생산현황 보고 ───────── */
 
 /**
- * 보고서 초안 조회
- *
- * `GET /api/v1/production/daily-reports/draft`
- * @param {object} params targetDate
- * @returns {Promise<object>} reportId, version, state, periodFrom, periodTo, generatedAt, sections[], summary
- * @remarks 전일 08:00~당일 08:00
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function getProductionDailyReportsDraft(params) {
-  return request('getProductionDailyReportsDraft', params);
-}
-
-/**
  * 조간회의 자료 본문 — 제품별 한 행
  *
  * 집계 구간은 서버가 대상일로 정합니다(전일 20:00 ~ 당일 08:00).
@@ -93,118 +80,19 @@ export function getProductionDailyReportsSheet(params) {
 }
 
 /**
- * 조간회의 자료 행 저장 — 작성자가 채운 일목표 · 결정항목 · DRI · 기한
+ * 조간회의 결과 저장 — 작성자가 채운 일목표 · 결정항목 · DRI · 기한
  *
- * 보낸 제품만 갱신합니다. 값에 null 을 보내면 그 칸을 비웁니다.
- * 저장 키는 (보고서, 제품)이라 같은 제품이 여러 작업장에 있으면 값을 함께 씁니다.
+ * 키는 (대상일, 제품)입니다. 보고서 문서가 없어졌으므로 reportId 를 쓰지 않습니다.
+ * 보낸 제품만 갱신하고, 값에 null 을 보내면 그 칸을 비웁니다.
  *
- * @param {object} params reportId, rows[{product, targetQty, decision, dri, due}]
+ * @param {object} params targetDate, rows[{product, targetQty, decision, dri, due}]
+ * @returns {Promise<object>} targetDate, savedCnt
  */
-export function postProductionDailyReportsByReportIdRows(params) {
-  return request('postProductionDailyReportsByReportIdRows', params);
-}
-
-/**
- * 보고서 초안 재생성
- *
- * `POST /api/v1/production/daily-reports/draft/regenerate`
- * @param {object} params targetDate
- * @returns {Promise<object>} reportId, version
- * @remarks 기존 초안 버전 증가
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function postProductionDailyReportsDraftRegenerate(params) {
-  return request('postProductionDailyReportsDraftRegenerate', params);
-}
-
-/**
- * 보고서 항목 보정
- *
- * `PUT /api/v1/production/daily-reports/{reportId}`
- * @param {object} params sections[], remark
- * @returns {Promise<object>} reportId, correctionCnt
- * @remarks 보정 건수 기록
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function putProductionDailyReportsByReportId(params) {
-  return request('putProductionDailyReportsByReportId', params);
-}
-
-/**
- * 보고서 임시 저장
- *
- * `POST /api/v1/production/daily-reports/{reportId}/save`
- * @param {object} params sections[]
- * @returns {Promise<object>} success
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 2
- */
-export function postProductionDailyReportsByReportIdSave(params) {
-  return request('postProductionDailyReportsByReportIdSave', params);
-}
-
-/**
- * 보고서 확정
- *
- * `POST /api/v1/production/daily-reports/{reportId}/confirm`
- * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} state, confirmedAt, confirmedBy
- * @remarks 확정 후 수정 불가
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function postProductionDailyReportsByReportIdConfirm(params) {
-  return request('postProductionDailyReportsByReportIdConfirm', params);
-}
-
-/**
- * 보고서 반려
- *
- * `POST /api/v1/production/daily-reports/{reportId}/reject`
- * @param {object} params reason
- * @returns {Promise<object>} state
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function postProductionDailyReportsByReportIdReject(params) {
-  return request('postProductionDailyReportsByReportIdReject', params);
-}
-
-/**
- * 보고서 생성 이력
- *
- * `GET /api/v1/production/daily-reports/{reportId}/events`
- * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} events[{ts,type,detail,by}]
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 2
- */
-export function getProductionDailyReportsByReportIdEvents(params) {
-  return request('getProductionDailyReportsByReportIdEvents', params);
+export function postProductionDailyReportsRows(params) {
+  return request('postProductionDailyReportsRows', params);
 }
 
 /* ───────── 이전 보고서 ───────── */
-
-/**
- * 보고서 이력 조회
- *
- * `GET /api/v1/production/daily-reports`
- * @param {object} params from, to, state, page, size
- * @returns {Promise<object>} items[{targetDate,version,state,generatedAt,confirmedAt,correctionCnt}], meta
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 1
- */
-export function getProductionDailyReports(params) {
-  return request('getProductionDailyReports', params);
-}
-
-/**
- * 보고서 복제
- *
- * `POST /api/v1/production/daily-reports/{reportId}/copy`
- * @param {object} params targetDate
- * @returns {Promise<object>} newReportId
- * @remarks 구조 유지·기간만 변경
- * @privateRemarks 접근 권한 생산관리팀·통합관리자 · 우선순위 2
- */
-export function postProductionDailyReportsByReportIdCopy(params) {
-  return request('postProductionDailyReportsByReportIdCopy', params);
-}
 
 /* ───────── 비가동 관리 ───────── */
 
