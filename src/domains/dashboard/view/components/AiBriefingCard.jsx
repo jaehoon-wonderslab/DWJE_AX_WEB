@@ -1,352 +1,127 @@
 /**
- * [Component] AI 일일 종합 브리핑 카드 (Daily AI Executive Summary)
+ * [Component] AI 일일 품질·생산 종합 브리핑
  *
- * 제1공장 10대 프레스 및 AOI 라인의 생산·품질 현황을 LLM/sLLM 엔진이 실시간 종합 분석하여
- * 4가지 핵심 관점(종합 진단, 이상 감지, 인과관계 원인 추론, 조치 권고)으로 요약 브리핑합니다.
+ * 파인튜닝한 sLLM 이 당일 지표를 읽고 "오늘 무엇을 봐야 하는지" 를 몇 문장으로 씁니다.
+ *
+ * ■ 문장마다 근거를 함께 그립니다
+ * 서버 계약이 `lines[{ text, evidence[{kind,label,value,ref}] }]` 입니다.
+ * **근거가 없는 문장은 그리지 않습니다.** 2026-09-05 이전에는 여기에
+ * 없는 설비(PR-03)·수집하지 않는 값(타발 압력 ±14% · 금형 온도 48.5℃)·
+ * 상수 계획 수량(150,000 → 달성률 14,642%)이 그려지고 있었습니다.
+ * 판단을 돕는 화면에서 근거 없는 문장은 없는 것만 못합니다.
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Card, Icon } from '@shared/components/ui';
+import { Text, View } from 'react-native';
+import { Badge, Card, EmptyState, Icon } from '@shared/components/ui';
+import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
-import { comma, fixed } from '@shared/utils/formatUtil';
+
+/**
+ * 근거 종류 → 아이콘
+ *
+ * 서버 검증기가 대조할 수 있는 종류만 옵니다(2026-09-05 합의) —
+ * `qty` · `defect_rate` · `yield` · `defect` · `anomaly` 는 서버가 값을 **다시 계산해 대조**하고,
+ * `doc` 은 FACA 문서 청크가 실재하고 인용문이 그 안에 있는지로 확인합니다.
+ * 모델이 쓴 `ref` 는 화면 링크로만 쓰고 검증 근거로 삼지 않습니다 — 그것도 모델이 지어낼 수 있습니다.
+ */
+const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', defect: 'alert', anomaly: 'activity' };
+
+/** 상태 → 배지 색 */
+const TONE = { NORMAL: 'green', WARN: 'amber', CRIT: 'red', CRITICAL: 'red' };
+const LABEL = { NORMAL: '정상', WARN: '주의', CRIT: '위험', CRITICAL: '위험' };
 
 export default function AiBriefingCard({ briefing, loading }) {
+  const s = useCommonStyles();
   const theme = useTheme();
 
-  if (!briefing) return null;
-
-  const {
-    status = 'NORMAL',
-    overallDefectRate = 2.14,
-    targetDefectRate = 3.0,
-    todayQty = 142850,
-    planQty = 150000,
-    achievementRate = 95.2,
-    criticalLine = {
-      eqptNm: '프레스 3호기 (PR-03)',
-      defectRate: 4.25,
-      primaryDefect: '치수 불량',
-      anomalyScore: 84,
-    },
-    summaryLines = [],
-    generatedAt,
-    engine = 'Master AI v2.4 (Qwen2.5-7B LoRA + GraphRAG)',
-  } = briefing;
-
-  const isWarn = status === 'WARN' || status === 'CRITICAL';
-
-  // 불릿별 테마 색상 및 라벨
-  const bulletConfigs = [
-    { label: '종합 진단', color: theme.color.primary },
-    { label: '이상 감지', color: isWarn ? theme.color.danger : theme.color.warning },
-    { label: '원인 추론', color: '#8b5cf6' },
-    { label: '조치 권고', color: theme.color.success },
-  ];
+  /**
+   * **서버가 검증한 문장만** 그립니다
+   *
+   * 근거가 붙어 있는지만 보면 부족합니다 — 모델은 그럴듯한 근거를 지어냅니다.
+   * 서버가 값을 다시 계산해 대조하고 `verified` 를 붙여 주므로 그것만 신뢰합니다.
+   */
+  const lines = (briefing?.lines || []).filter((l) => l?.text && l.verified !== false && (l.evidence || []).length);
+  const dropped = briefing?.droppedCnt || 0;
+  const ready = !!briefing?.modelVer && lines.length > 0;
 
   return (
     <Card
-      style={[
-        styles.card,
-        {
-          borderColor: isWarn ? theme.alpha('danger', 0.4) : theme.alpha('primary', 0.4),
-          backgroundColor: theme.mode === 'dark' ? '#181b22' : '#f8faff',
-        },
-      ]}
+      title="AI 일일 품질·생산 종합 브리핑"
+      sub={ready ? `${briefing.modelVer} · ${briefing.generatedAt || ''}` : '파인튜닝 sLLM'}
+      right={ready && briefing.status ? <Badge tone={TONE[briefing.status] || ''}>{LABEL[briefing.status] || briefing.status}</Badge> : null}
     >
-      {/* 1. 브리핑 상단 헤더 */}
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {
-                backgroundColor: isWarn
-                  ? theme.alpha('danger', 0.15)
-                  : theme.alpha('primary', 0.15),
-              },
-            ]}
-          >
-            <Icon
-              name="cpu"
-              size={18}
-              color={isWarn ? theme.color.danger : theme.color.primary}
-            />
-          </View>
-          <View>
-            <View style={styles.headlineRow}>
-              <Text
-                style={[
-                  styles.titleText,
-                  { color: theme.color.text, fontWeight: '700' },
-                ]}
-              >
-                AI 일일 품질·생산 종합 브리핑
-              </Text>
-              <View
-                style={[
-                  styles.aiBadge,
-                  {
-                    backgroundColor: isWarn
-                      ? theme.alpha('danger', 0.12)
-                      : theme.alpha('primary', 0.12),
-                    borderColor: isWarn
-                      ? theme.alpha('danger', 0.3)
-                      : theme.alpha('primary', 0.3),
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.aiBadgeText,
-                    {
-                      color: isWarn ? theme.color.danger : theme.color.primary,
-                      fontWeight: '600',
-                    },
-                  ]}
-                >
-                  {isWarn ? '이상 감지 / 주의 권고' : '안정 운전 중'}
-                </Text>
+      {loading && !briefing ? (
+        <EmptyState text="브리핑을 불러오는 중입니다." />
+      ) : !ready ? (
+        <NotReady reason={briefing?.reason} />
+      ) : (
+        <View style={{ gap: 12 }}>
+          {lines.map((line, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: theme.color.primary }} />
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                  {line.evidence.map((e, j) => (
+                    <Evidence key={j} item={e} />
+                  ))}
+                </View>
               </View>
             </View>
-            <Text style={[styles.subText, { color: theme.color.textDim }]}>
-              {engine} · 생성시각: {generatedAt || '실시간 갱신'}
+          ))}
+          {dropped ? (
+            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+              {`모델이 낸 문장 중 ${dropped}건은 근거가 확인되지 않아 뺐습니다.`}
             </Text>
-          </View>
+          ) : null}
         </View>
-
-        {/* 2. 우측 핵심 지표 피처 칩 3종 */}
-        <View style={styles.metricsRow}>
-          <View
-            style={[
-              styles.metricPill,
-              {
-                backgroundColor: theme.color.card,
-                borderColor: theme.color.border,
-              },
-            ]}
-          >
-            <Text style={[styles.pillLabel, { color: theme.color.textDim }]}>
-              당일 불량률
-            </Text>
-            <Text
-              style={[
-                styles.pillValue,
-                {
-                  color:
-                    overallDefectRate > targetDefectRate
-                      ? theme.color.danger
-                      : theme.color.text,
-                },
-              ]}
-            >
-              {fixed(overallDefectRate)}%
-            </Text>
-            <Text style={[styles.pillSub, { color: theme.color.textDim }]}>
-              (목표 {targetDefectRate}%)
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.metricPill,
-              {
-                backgroundColor: theme.color.card,
-                borderColor: theme.color.border,
-              },
-            ]}
-          >
-            <Text style={[styles.pillLabel, { color: theme.color.textDim }]}>
-              생산 달성률
-            </Text>
-            <Text style={[styles.pillValue, { color: theme.color.primary }]}>
-              {fixed(achievementRate)}%
-            </Text>
-            <Text style={[styles.pillSub, { color: theme.color.textDim }]}>
-              ({comma(todayQty)} / {comma(planQty)})
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.metricPill,
-              {
-                backgroundColor: isWarn
-                  ? theme.alpha('danger', 0.08)
-                  : theme.color.card,
-                borderColor: isWarn
-                  ? theme.alpha('danger', 0.25)
-                  : theme.color.border,
-              },
-            ]}
-          >
-            <Text style={[styles.pillLabel, { color: theme.color.textDim }]}>
-              집중 관리 대상
-            </Text>
-            <Text
-              style={[
-                styles.pillValue,
-                {
-                  color: isWarn ? theme.color.danger : theme.color.text,
-                  fontSize: 13,
-                },
-              ]}
-            >
-              {criticalLine?.eqptNm || 'PR-03'}
-            </Text>
-            <Text
-              style={[
-                styles.pillSub,
-                { color: isWarn ? theme.color.danger : theme.color.textDim },
-              ]}
-            >
-              (불량률 {fixed(criticalLine?.defectRate)}%)
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 3. 브리핑 본문 요약 (4대 관점 불릿 리스트) */}
-      <View
-        style={[
-          styles.contentBox,
-          {
-            backgroundColor: theme.color.card,
-            borderColor: theme.color.border,
-          },
-        ]}
-      >
-        {summaryLines.map((line, idx) => {
-          const cfg = bulletConfigs[idx] || bulletConfigs[0];
-          return (
-            <View key={idx} style={styles.lineItem}>
-              <View
-                style={[
-                  styles.bulletBadge,
-                  { backgroundColor: theme.alpha(cfg.color, 0.12) },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.bulletBadgeText,
-                    { color: cfg.color, fontWeight: '700' },
-                  ]}
-                >
-                  {cfg.label}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.lineText,
-                  { color: theme.color.text, lineHeight: 22 },
-                ]}
-              >
-                {line}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+      )}
     </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 14,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconWrapper: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headlineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  titleText: {
-    fontSize: 16,
-  },
-  aiBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  aiBadgeText: {
-    fontSize: 11,
-  },
-  subText: {
-    fontSize: 11,
-    marginTop: 3,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  metricPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  pillLabel: {
-    fontSize: 11,
-  },
-  pillValue: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  pillSub: {
-    fontSize: 11,
-  },
-  contentBox: {
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 10,
-  },
-  lineItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  bulletBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    minWidth: 62,
-    alignItems: 'center',
-    marginTop: 1,
-  },
-  bulletBadgeText: {
-    fontSize: 11,
-  },
-  lineText: {
-    fontSize: 13,
-    flex: 1,
-  },
-});
+/**
+ * 근거 한 조각 — 지표 값 · 문서 · LOT
+ *
+ * 사람이 "그 숫자 어디서 났나" 를 바로 확인할 수 있어야 합니다.
+ */
+function Evidence({ item }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const icon = KIND_ICON[item.kind] || 'chart';
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 2,
+        paddingHorizontal: 7,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: theme.color.border,
+        backgroundColor: theme.alpha('muted', 0.45),
+      }}
+    >
+      <Icon name={icon} size={11} color={theme.color.mutedForeground} />
+      <Text style={s.textXs}>{item.label}</Text>
+      {item.value ? <Text style={[s.textXs, { fontWeight: '700' }]}>{item.value}</Text> : null}
+    </View>
+  );
+}
+
+/** 모델이 아직 붙지 않았을 때 — 지어낸 값 대신 상태를 밝힙니다 */
+export function NotReady({ reason }) {
+  const s = useCommonStyles();
+  return (
+    <View style={{ gap: 6, paddingVertical: 10 }}>
+      <Text style={[s.textSm, { fontWeight: '600' }]}>모델 준비 중입니다.</Text>
+      <Text style={s.textXs}>
+        {reason === 'MODEL_NOT_READY'
+          ? '파인튜닝한 sLLM 이 아직 연결되지 않았습니다. 붙는 대로 이 자리에 근거와 함께 표시됩니다.'
+          : '아직 근거를 갖춘 분석 결과가 없습니다. 근거 없는 문장은 표시하지 않습니다.'}
+      </Text>
+    </View>
+  );
+}

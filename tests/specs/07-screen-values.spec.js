@@ -33,12 +33,15 @@ suite('화면 값 ↔ API 값', () => {
   });
 
   test('AI 통합 대시보드 — 생산량·불량률이 API 와 같다', async () => {
-    const d = ctx.f.baseDate;
-    const want = await api.data('/dashboard/ai/summary', { date: d });
     const r = await visit(ctx.page, '/dashboard/ai');
 
-    eq(shown(r.text, '금일 생산량'), want.todayQty, '생산량');
-    eq(shown(r.text, '공정 불량률'), want.defectRate, '불량률');
+    // 화면이 스스로 고른 종료일을 그대로 읽어 같은 날짜로 API 를 부릅니다
+    // (기간 선택이 붙어 화면 기본 날짜가 고정 기준일과 다릅니다)
+    const d = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').last().inputValue();
+    const want = await api.data('/dashboard/ai/summary', { date: d });
+
+    eq(shown(r.text, '총 생산 수량'), want.todayQty, '생산량');
+    eq(shown(r.text, '평균 불량률'), want.defectRate, '불량률');
   });
 
   test('공정 대시보드 — 선택 조합의 수치가 API 와 같다', async () => {

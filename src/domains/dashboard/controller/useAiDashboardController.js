@@ -99,8 +99,13 @@ export function useAiDashboardController() {
     [applied.from, applied.to, applied.unit, applied.plant]
   );
 
-  // AI 공정 원인 분석 및 처방 대상 설비 선택 상태
-  const [selectedEqptCd, setSelectedEqptCd] = useState('PR-03');
+  /**
+   * AI 공정 원인 분석 대상 설비
+   *
+   * 기본값을 'PR-03' 으로 박아 두던 것을 걷어냈습니다 — 설비 마스터 1,511대 중
+   * `PR-` 로 시작하는 코드는 한 대도 없습니다. 서버가 분석 대상을 정해 주면 그것을 따릅니다.
+   */
+  const [selectedEqptCd, setSelectedEqptCd] = useState('');
   const [causePrescriptionOverride, setCausePrescriptionOverride] = useState(null);
   const [causeLoading, setCauseLoading] = useState(false);
 

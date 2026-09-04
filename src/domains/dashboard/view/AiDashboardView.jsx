@@ -163,66 +163,41 @@ export default function AiDashboardView({
         <Loading message="AI 통합 대시보드 데이터를 불러오는 중..." />
       ) : (
         <View style={{ gap: 20 }}>
-          {/* KPI 지표 3종 (3열 배치) */}
+          {/*
+            KPI 지표 3종
+            StatCard 는 label · value · unit · sub · tone · right 를 받습니다.
+            title · color · badge · 자식 요소는 받지 않아 그려지지 않고 있었습니다 —
+            카드 제목이 하나도 안 나오고 진척 막대도 없는 상태였습니다(2026-09-05 고침).
+          */}
           <Grid cols={3}>
             <StatCard
-              title="총 생산 수량"
-              value={summary?.totalQty != null ? `${comma(summary.totalQty)} EA` : '—'}
-              // 목표가 없으면 달성률도 내지 않습니다 — 200,000 을 기본값으로 두면 없는 목표로 달성률이 나옵니다
+              label="총 생산 수량"
+              field="qty"
+              value={summary?.todayQty != null ? comma(summary.todayQty) : '—'}
+              unit={summary?.todayQty != null ? 'EA' : ''}
+              /* 목표가 없으면 달성률도 내지 않습니다 — 200,000 을 기본값으로 두면 없는 목표로 달성률이 나옵니다 */
               sub={summary?.targetQty
                 ? `목표 ${comma(summary.targetQty)} EA · 달성률 ${fixed(summary.progressRate ?? 0)}%`
                 : '일목표가 등록되지 않아 달성률을 낼 수 없습니다'}
-              color="primary"
-              badge={
-                <StateBadge
-                  state={(summary?.progressRate || 0) >= 95 ? '정상' : '주의'}
-                  label={`진척률 ${fixed(summary?.progressRate || 0)}%`}
-                />
-              }
-            >
-              <View style={{ marginTop: 8 }}>
-                <ProgressBar value={summary?.progressRate || 0} max={100} color={theme.color.primary} height={4} />
-              </View>
-            </StatCard>
+            />
 
             <StatCard
-              title="평균 불량률"
-              value={summary?.defectRate != null ? `${fixed(summary.defectRate)}%` : '—'}
-              sub={`양품 ${comma(summary?.goodQty || 0)} EA / 불량 ${comma(summary?.defectQty || 0)} EA`}
-              color={(summary?.defectRate || 0) > 3.0 ? 'danger' : 'success'}
-              badge={
-                <StateBadge
-                  state={(summary?.defectRate || 0) > 3.0 ? '위험' : '정상'}
-                  label={(summary?.defectRate || 0) > 3.0 ? '목표 초과' : '목표 달성'}
-                />
-              }
-            >
-              <View style={{ marginTop: 8 }}>
-                <ProgressBar
-                  value={summary?.defectRate || 0}
-                  max={5}
-                  color={(summary?.defectRate || 0) > 3.0 ? theme.color.danger : theme.color.success}
-                  height={4}
-                />
-              </View>
-            </StatCard>
+              label="평균 불량률"
+              field="yield"
+              /* 불량률은 소수 2자리 — 1.98% 를 2.0% 로 반올림하면 관리 목표 근처에서 판단이 흐려집니다 */
+              value={summary?.defectRate != null ? fixed(summary.defectRate, 2) : '—'}
+              unit={summary?.defectRate != null ? '%' : ''}
+              tone={(summary?.defectRate || 0) > 3.0 ? 'down' : 'up'}
+              sub={`양품 ${comma(summary?.okQty ?? 0)} EA / 불량 ${comma(summary?.ngQty ?? 0)} EA`}
+            />
 
             <StatCard
-              title="설비 가동률"
-              value={summary?.uptimeRate != null ? `${fixed(summary.uptimeRate)}%` : '—'}
-              sub={`가동 ${summary?.runningEquipment || 18}대 / 정지 ${summary?.stoppedEquipment || 2}대`}
-              color="primary"
-              badge={
-                <StateBadge
-                  state={(summary?.uptimeRate || 0) >= 85 ? '정상' : '주의'}
-                  label={`가동률 ${fixed(summary?.uptimeRate || 0)}%`}
-                />
-              }
-            >
-              <View style={{ marginTop: 8 }}>
-                <ProgressBar value={summary?.uptimeRate || 0} max={100} color={theme.color.info} height={4} />
-              </View>
-            </StatCard>
+              label="설비 가동률"
+              value={summary?.uptimeRate ? fixed(summary.uptimeRate) : '—'}
+              unit={summary?.uptimeRate ? '%' : ''}
+              /* 가동 18대 / 정지 2대 는 응답에 없는 필드의 기본값이었습니다 — 이 응답은 설비 대수를 주지 않습니다 */
+              sub={summary?.uptimeRate ? '수집된 설비 기준' : '가동률 수집값이 없습니다 (생산 모니터링에서 확인)'}
+            />
           </Grid>
 
           {/* AI 종합 브리핑 카드 */}
