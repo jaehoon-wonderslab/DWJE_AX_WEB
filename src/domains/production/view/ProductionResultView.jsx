@@ -52,7 +52,7 @@ export default function ProductionResultView({
   }, [models, isAll]);
 
   return (
-    <View>
+    <View style={{ width: '100%' }}>
       <PageHead
         title="실적 집계·조회"
         desc="MES 생산 실적을 기간·제품·라인별로 집계해 조회합니다."

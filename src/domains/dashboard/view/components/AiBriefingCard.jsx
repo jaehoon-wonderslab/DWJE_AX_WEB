@@ -88,6 +88,9 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
 
   if (!lines.length) return emptyText ? <Text style={s.textXs}>{emptyText}</Text> : null;
 
+  /** 문장 안에 숫자가 있는가 — 그 숫자는 검사를 받지 않은 모델 표기입니다 */
+  const hasRawNumber = lines.some((l) => /\d/.test(l.text || ''));
+
   return (
     <View style={{ gap: 12 }}>
       {lines.map((line, i) => (
@@ -101,10 +104,14 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
                   <Evidence key={j} item={e} />
                 ))}
               </View>
-              {/* 문서 근거는 인용문을 그대로 보여 줍니다 — 그 문장이 근거의 실체입니다 */}
-              {(line.evidence || []).filter((e) => e.quote).map((e, j) => (
+              {/*
+                문서 근거는 인용문을 그대로 보여 줍니다 — 그 문장이 근거의 실체입니다.
+                같은 대책이 여러 청크에 걸쳐 있으면 표기만 다른 같은 문장이 여러 번 옵니다
+                (공백·오탈자 차이). 사람이 읽기에는 한 번이면 충분해 눌러 줍니다.
+              */}
+              {dedupeQuotes(line.evidence).map((q, j) => (
                 <Text key={`q${j}`} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
-                  {`"${e.quote}"`}
+                  {`"${q}"`}
                 </Text>
               ))}
             </View>
@@ -116,8 +123,32 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
           {`모델이 낸 문장 중 ${dropped}건은 근거가 확인되지 않아 뺐습니다.`}
         </Text>
       ) : null}
+      {hasRawNumber ? (
+        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+          문장 속 숫자는 모델이 쓴 표기입니다. <Text style={{ fontWeight: '700' }}>확인된 값은 근거 칩</Text>에 있습니다.
+        </Text>
+      ) : null}
     </View>
   );
+}
+
+/**
+ * 인용문 중복 제거
+ *
+ * 같은 대책이 여러 청크에 걸쳐 있으면 공백·오탈자만 다른 같은 문장이 두세 번 옵니다
+ * ("...취약점이 있음." / "...취약점이있음."). 공백과 문장부호를 지운 뒤 비교합니다.
+ */
+function dedupeQuotes(evidence = []) {
+  const seen = new Set();
+  const out = [];
+  evidence.forEach((e) => {
+    if (!e?.quote) return;
+    const norm = String(e.quote).replace(/[\s.,·:;]/g, '');
+    if (seen.has(norm)) return;
+    seen.add(norm);
+    out.push(e.quote);
+  });
+  return out;
 }
 
 /**

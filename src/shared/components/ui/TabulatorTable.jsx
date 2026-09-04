@@ -200,8 +200,8 @@ export default function TabulatorTable({
         {
           title: '일자',
           field: 'date',
-          width: 145,
-          minWidth: 135,
+          width: 175,
+          minWidth: 165,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
@@ -229,16 +229,12 @@ export default function TabulatorTable({
               return `<span data-depth="3" style="color: ${colors.mutedText}; font-size: 11px; opacity: 0.45; font-family: monospace;">↳ ↳</span>`;
             }
             if (rowData.isChild || rowData.depth === 2) {
-              const shortDate = val && val.length >= 10 ? val.slice(5) : val;
-              return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: ${colors.mutedText};">
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: ${colors.mutedText};">
                 <span style="opacity: 0.65;">↳</span>
-                <span style="font-family: monospace; font-weight: 500;">${shortDate}</span>
+                <span style="font-family: monospace; font-weight: 500;">${val}</span>
               </span>`;
             }
-            return `<span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12.5px; color: ${colors.rowText};">
-              <span style="color: ${colors.primary}; font-size: 11.5px;">📅</span>
-              <span>${val}</span>
-            </span>`;
+            return `<span style="font-weight: 700; font-size: 12.5px; color: ${colors.rowText}; font-family: monospace;">${val}</span>`;
           },
         },
         {

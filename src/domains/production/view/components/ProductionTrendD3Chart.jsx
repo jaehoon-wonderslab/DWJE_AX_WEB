@@ -24,16 +24,18 @@ export default function ProductionTrendD3Chart({
   const s = useCommonStyles();
   const theme = useTheme();
   const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   const hasNgQty = Array.isArray(ngQty) && ngQty.some((v) => v !== null && v !== undefined && v > 0);
   const hasRate = Array.isArray(defectRate) && defectRate.some((v) => v !== null && v !== undefined);
 
-  // 차트 너비 및 여백 (항목이 많으면 가로 스크롤로 여유롭게 확장)
+  // 차트 너비 및 여백 (컨테이너 가로 폭을 100% 활용하며, 항목이 매우 많으면 가로 스크롤로 여유롭게 확장)
   const margin = { top: 24, right: 54, bottom: 34, left: 58 };
   const minItemWidth = 52;
   const calculatedWidth = margin.left + margin.right + labels.length * minItemWidth;
-  const width = Math.max(800, calculatedWidth);
-  const isScrollable = calculatedWidth > 800;
+  const availableWidth = containerWidth > 0 ? containerWidth : 800;
+  const width = Math.max(availableWidth, calculatedWidth);
+  const isScrollable = calculatedWidth > availableWidth;
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
@@ -127,7 +129,15 @@ export default function ProductionTrendD3Chart({
   } : null;
 
   return (
-    <View style={{ width: '100%', position: 'relative' }}>
+    <View
+      style={{ width: '100%', position: 'relative' }}
+      onLayout={(e) => {
+        const w = e.nativeEvent?.layout?.width;
+        if (w && w > 0 && Math.abs(w - containerWidth) > 5) {
+          setContainerWidth(w);
+        }
+      }}
+    >
       {/* 툴팁 정보 카드 (호버 시 상단에 표시) */}
       <View style={{ minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, marginBottom: 4 }}>
         {hoveredData ? (

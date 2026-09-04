@@ -10,7 +10,7 @@ import ProductionResultView from '@domains/production/view/ProductionResultView'
 export default function ProductionResultPage() {
   const controller = useProductionResultController();
   return (
-    <PageContainer>
+    <PageContainer fluid>
       <ProductionResultView {...controller} />
     </PageContainer>
   );

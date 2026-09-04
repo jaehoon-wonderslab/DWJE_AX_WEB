@@ -10,11 +10,19 @@ import { ScrollView, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
-export default function PageContainer({ children }) {
+export default function PageContainer({ children, fluid = false, maxWidth, contentContainerStyle, style }) {
   const s = useCommonStyles();
   const theme = useTheme();
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.color.background }} contentContainerStyle={s.content}>
+    <ScrollView
+      style={[{ flex: 1, backgroundColor: theme.color.background }, style]}
+      contentContainerStyle={[
+        s.content,
+        fluid && { maxWidth: '100%' },
+        maxWidth !== undefined && { maxWidth },
+        contentContainerStyle,
+      ]}
+    >
       {children}
     </ScrollView>
   );
