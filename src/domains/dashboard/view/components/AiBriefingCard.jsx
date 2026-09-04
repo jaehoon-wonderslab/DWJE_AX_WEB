@@ -17,14 +17,20 @@ import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
 /**
- * 근거 종류 → 아이콘
+ * 근거 한 조각의 계약 — `{ kind, key, label, value, ref }` (+ `kind:'doc'` 이면 `quote`)
  *
- * 서버 검증기가 대조할 수 있는 종류만 옵니다(2026-09-05 합의) —
- * `qty` · `defect_rate` · `yield` · `defect` · `anomaly` 는 서버가 값을 **다시 계산해 대조**하고,
- * `doc` 은 FACA 문서 청크가 실재하고 인용문이 그 안에 있는지로 확인합니다.
- * 모델이 쓴 `ref` 는 화면 링크로만 쓰고 검증 근거로 삼지 않습니다 — 그것도 모델이 지어낼 수 있습니다.
+ * 서버 검증기가 **대조할 수 있는 종류만** 옵니다(2026-09-05 합의).
+ *   `qty` · `defect_rate` · `yield`(별칭 `metric`) · `defect` · `anomaly`
+ *        → 서버가 DB 에서 값을 다시 구해 모델이 말한 `value` 와 비교합니다.
+ *   `doc` → 청크 실재 · is_current · 열람 권한 · 보존기한 · `chunk_text` 에 `quote` 포함까지 봅니다.
+ *
+ * **`key` 가 대조 대상을 가리킵니다** — yield/metric 은 공정코드, defect 는 불량코드,
+ * anomaly 는 설비코드, doc 은 청크 id. 없으면 서버가 NOT_FOUND 로 그 문장을 버립니다.
+ *
+ * 모델이 쓴 `ref` 는 화면 링크로만 씁니다. 검증 근거로 삼지 않습니다 — 그것도 지어낼 수 있습니다.
+ * `kind:'doc'` 의 `label` 은 서버가 문서 제목으로 덮어써 내려 줍니다.
  */
-const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', defect: 'alert', anomaly: 'activity' };
+const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', metric: 'chart', defect: 'alert', anomaly: 'activity' };
 
 /** 상태 → 배지 색 */
 const TONE = { NORMAL: 'green', WARN: 'amber', CRIT: 'red', CRITICAL: 'red' };
@@ -61,9 +67,17 @@ export default function AiBriefingCard({ briefing, loading }) {
               <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: theme.color.primary }} />
               <View style={{ flex: 1, gap: 5 }}>
                 <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
-                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                  {line.evidence.map((e, j) => (
-                    <Evidence key={j} item={e} />
+                <View style={{ gap: 4 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {line.evidence.map((e, j) => (
+                      <Evidence key={j} item={e} />
+                    ))}
+                  </View>
+                  {/* 문서 근거는 인용문을 그대로 보여 줍니다 — 그 문장이 근거의 실체입니다 */}
+                  {line.evidence.filter((e) => e.quote).map((e, j) => (
+                    <Text key={`q${j}`} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
+                      {`"${e.quote}"`}
+                    </Text>
                   ))}
                 </View>
               </View>
