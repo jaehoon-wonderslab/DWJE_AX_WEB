@@ -268,12 +268,13 @@ export function shiftWindow(targetDate) {
 /**
  * 양식 오른쪽 위 범례 — 달성률 구간별 색
  *
- * 🟢 95% 이상 · 🟡 95% 미만 · 🔴 85% 미만
+ * 🟢 95% 이상 정상 · 🟡 95% 미만 주의 · 🔴 85% 미만 위험
+ * 표기는 아침회의 자료 스크린샷을 따릅니다(Plating 자료에 '위험' 행이 있습니다).
  */
 export const PRESS_LEVELS = [
   { level: 'normal', label: '정상', tone: 'green', min: 95 },
   { level: 'watch', label: '주의', tone: 'amber', min: 85 },
-  { level: 'risk', label: '지연', tone: 'red', min: -Infinity },
+  { level: 'risk', label: '위험', tone: 'red', min: -Infinity },
 ];
 
 /** 달성률(%) → 범례 구간 (값이 없으면 판정하지 않습니다) */
