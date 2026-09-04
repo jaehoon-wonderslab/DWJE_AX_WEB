@@ -69,36 +69,54 @@ export default function AiBriefingCard({ briefing, loading }) {
       ) : !ready ? (
         <NotReady reason={briefing?.reason} />
       ) : (
-        <View style={{ gap: 12 }}>
-          {lines.map((line, i) => (
-            <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: theme.color.primary }} />
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
-                <View style={{ gap: 4 }}>
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {line.evidence.map((e, j) => (
-                      <Evidence key={j} item={e} />
-                    ))}
-                  </View>
-                  {/* 문서 근거는 인용문을 그대로 보여 줍니다 — 그 문장이 근거의 실체입니다 */}
-                  {line.evidence.filter((e) => e.quote).map((e, j) => (
-                    <Text key={`q${j}`} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
-                      {`"${e.quote}"`}
-                    </Text>
-                  ))}
-                </View>
-              </View>
-            </View>
-          ))}
-          {dropped ? (
-            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-              {`모델이 낸 문장 중 ${dropped}건은 근거가 확인되지 않아 뺐습니다.`}
-            </Text>
-          ) : null}
-        </View>
+        <VerifiedLines lines={lines} dropped={dropped} />
       )}
     </Card>
+  );
+}
+
+/**
+ * 검증을 통과한 문장 목록 — 브리핑 · 원인 · 처방이 같은 모양입니다
+ *
+ * 서버가 세 절 모두 `{ text, evidence[], verified }` 로 통일해 내려 줍니다.
+ * 원인에 가중치, 처방에 확신도 같은 값을 따로 두지 않습니다 —
+ * 모델이 지어낼 수 있는 숫자를 늘리지 않는 편이 낫습니다.
+ */
+export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+
+  if (!lines.length) return emptyText ? <Text style={s.textXs}>{emptyText}</Text> : null;
+
+  return (
+    <View style={{ gap: 12 }}>
+      {lines.map((line, i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: theme.color.primary }} />
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                {(line.evidence || []).map((e, j) => (
+                  <Evidence key={j} item={e} />
+                ))}
+              </View>
+              {/* 문서 근거는 인용문을 그대로 보여 줍니다 — 그 문장이 근거의 실체입니다 */}
+              {(line.evidence || []).filter((e) => e.quote).map((e, j) => (
+                <Text key={`q${j}`} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
+                  {`"${e.quote}"`}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </View>
+      ))}
+      {dropped ? (
+        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+          {`모델이 낸 문장 중 ${dropped}건은 근거가 확인되지 않아 뺐습니다.`}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
