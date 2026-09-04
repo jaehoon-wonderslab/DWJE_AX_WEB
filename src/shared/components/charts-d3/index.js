@@ -18,6 +18,7 @@ import GaugeD3 from './Gauge';
 import HBarChartD3 from './HBarChart';
 import HeatMapD3 from './HeatMap';
 import LineChartD3 from './LineChart';
+import ParetoChartD3 from './ParetoChart';
 import RadarChartD3 from './RadarChart';
 
 const web = Platform.OS === 'web';
@@ -30,5 +31,6 @@ export const DotPlot = web ? DotPlotD3 : native.DotPlot;
 export const HeatMap = web ? HeatMapD3 : native.HeatMap;
 export const Gauge = web ? GaugeD3 : native.Gauge;
 export const DonutChart = web ? DonutChartD3 : native.DonutChart;
+export const ParetoChart = ParetoChartD3;
 
 export { num, isNum, withValues, ChartEmpty } from '../charts/chartData';

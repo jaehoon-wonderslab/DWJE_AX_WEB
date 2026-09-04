@@ -35,9 +35,12 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
   }));
   const all = lines.flatMap((se) => se.points.map((p) => p.v)).filter((v) => v !== null);
 
+  const minPointW = 44;
+  const contentWidth = Math.max(width || 300, labels.length * minPointW + PAD.l + PAD.r);
+
   useEffect(() => {
     if (!width || !all.length) return;
-    const iw = Math.max(10, width - PAD.l - PAD.r);
+    const iw = Math.max(10, contentWidth - PAD.l - PAD.r);
     const ih = Math.max(10, height - PAD.t - PAD.b);
     const c = tokens(theme);
 
@@ -88,9 +91,20 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
         .attr('d', path(se.points)).attr('fill', 'none')
         .attr('stroke', col).attr('stroke-width', 2)
         .attr('stroke-dasharray', se.dashed ? '5 4' : null);
+
+      // 포인트 점
       g.selectAll(null).data(se.points.filter(defined)).join('circle')
-        .attr('cx', (d) => x(d.i)).attr('cy', (d) => y(d.v)).attr('r', 3)
+        .attr('cx', (d) => x(d.i)).attr('cy', (d) => y(d.v)).attr('r', 3.2)
         .attr('fill', c.dot).attr('stroke', col).attr('stroke-width', 1.8);
+
+      // 각 포인트 상단 수치 라벨 상시 표기 (Halo 적용)
+      se.points.filter(defined).forEach((d) => {
+        g.append('text')
+          .attr('x', x(d.i)).attr('y', y(d.v) - 6).attr('text-anchor', 'middle')
+          .attr('font-size', 9.5).attr('font-weight', '600').attr('fill', col)
+          .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
+          .text(typeof d.v === 'number' ? (d.v < 10 ? d.v.toFixed(1) : Math.round(d.v).toLocaleString()) : d.v);
+      });
     });
 
     // x 라벨 — 좁으면 솎아 냅니다
@@ -123,14 +137,16 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
         setHover({ at: { x: x(near), y: PAD.t }, title: String(labels[near] ?? ''), rows });
       })
       .on('mouseleave', () => setHover(null));
-  }, [labels, series, width, height, theme, min, max, target, unit]);
+  }, [labels, series, width, height, theme, min, max, target, unit, contentWidth]);
 
   if (!all.length) return <ChartEmpty height={height} />;
 
   return (
     <View>
       <div ref={ref} style={{ width: '100%', position: 'relative' }}>
-        <svg ref={svgRef} width={width} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
+        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
+          <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
+        </div>
         <Tooltip {...(hover || {})} />
       </div>
 

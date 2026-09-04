@@ -74,15 +74,27 @@ export default function RadarChart({ axes = [], height = 210 }) {
     rows.forEach((d, i) => {
       const a = angle(i) - Math.PI / 2;
       const lx = Math.cos(a) * (R + 18);
-      const ly = Math.sin(a) * (R + 18);
+      const valStr = d.v !== null ? ` (${d.v}%)` : '';
       g.append('text')
         .attr('x', lx).attr('y', ly + 3)
         .attr('text-anchor', Math.abs(lx) < 4 ? 'middle' : lx > 0 ? 'start' : 'end')
-        .attr('font-size', FONT.value).attr('fill', c.axis)
-        .text(String(d.l));
+        .attr('font-size', 11).attr('fill', c.text)
+        .attr('font-weight', '600')
+        .text(`${d.l}${valStr}`);
+
+      const vx = Math.cos(a) * ((R * (d.v ?? 0)) / 100);
+      const vy = Math.sin(a) * ((R * (d.v ?? 0)) / 100);
+
+      // 꼭지점 점 표기
+      if (d.v !== null) {
+        g.append('circle')
+          .attr('cx', vx).attr('cy', vy).attr('r', 3.5)
+          .attr('fill', '#ffffff').attr('stroke', c.series(0)).attr('stroke-width', 2);
+      }
+
       g.append('circle')
-        .attr('cx', Math.cos(a) * ((R * (d.v ?? 0)) / 100)).attr('cy', Math.sin(a) * ((R * (d.v ?? 0)) / 100))
-        .attr('r', 9).attr('fill', 'transparent')
+        .attr('cx', vx).attr('cy', vy)
+        .attr('r', 12).attr('fill', 'transparent')
         .on('mouseenter', () => setHover({
           at: { x: cx + lx, y: cy + ly - 12 },
           title: String(d.l),

@@ -27,9 +27,12 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
   const bars = data.map((d) => ({ ...d, v: num(d.v), v2: num(d.v2) }));
   const empty = !bars.length || bars.every((d) => d.v === null && d.v2 === null);
 
+  const minColW = 40;
+  const contentWidth = Math.max(width || 300, bars.length * minColW + PAD.l + PAD.r);
+
   useEffect(() => {
     if (!width || empty) return;
-    const iw = Math.max(10, width - PAD.l - PAD.r);
+    const iw = Math.max(10, contentWidth - PAD.l - PAD.r);
     const ih = Math.max(10, height - PAD.t - PAD.b);
     const c = tokens(theme);
 
@@ -71,6 +74,37 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
           bar(cx + 1, bw * 0.55, y(d.v2), base - y(d.v2), c.series(1));
         }
       }
+
+      // 막대 상단 수치 라벨 상시 표기 (Halo 테두리 적용)
+      if (d.v !== null && d.v > 0) {
+        const yPos = y(d.v || 0) - 4;
+        g.append('text')
+          .attr('x', cx - (d.v2 !== null && !stacked ? bw * 0.25 : 0))
+          .attr('y', yPos)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 9.5)
+          .attr('font-weight', '600')
+          .attr('fill', c.text)
+          .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff')
+          .attr('stroke-width', 2.5)
+          .attr('paint-order', 'stroke')
+          .text(d.v >= 10000 ? `${(d.v / 10000).toFixed(1)}만` : Math.round(d.v).toLocaleString());
+      }
+      if (d.v2 !== null && d.v2 > 0) {
+        const yPos2 = stacked ? y((d.v || 0) + d.v2) - 4 : y(d.v2) - 4;
+        const xPos2 = stacked ? cx : cx + bw * 0.28;
+        g.append('text')
+          .attr('x', xPos2)
+          .attr('y', yPos2)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 9.5)
+          .attr('font-weight', '600')
+          .attr('fill', c.series(1))
+          .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff')
+          .attr('stroke-width', 2.5)
+          .attr('paint-order', 'stroke')
+          .text(d.v2 >= 10000 ? `${(d.v2 / 10000).toFixed(1)}만` : Math.round(d.v2).toLocaleString());
+      }
     });
 
     // x 라벨 — 먼저 솎아 내고, 그래도 좁으면 눕힙니다.
@@ -111,7 +145,9 @@ export default function BarChart({ data = [], height = 170, stacked = false }) {
 
   return (
     <div ref={ref} style={{ width: '100%', position: 'relative' }}>
-      <svg ref={svgRef} width={width} height={height} role="img" aria-label="막대 그래프" style={{ cursor: 'default', display: 'block' }} />
+      <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="막대 그래프" style={{ cursor: 'default', display: 'block' }} />
+      </div>
       <Tooltip {...(hover || {})} />
     </div>
   );

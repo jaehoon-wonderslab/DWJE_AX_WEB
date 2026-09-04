@@ -3,54 +3,167 @@
  *
  * 화면 상태와 데이터 로딩, 도메인 동작만 담당합니다. (JSX 없음)
  * 모달·토스트 같은 화면 표현은 View 가 처리합니다.
+ *
+ * [개선 사항]
+ * 1. 실적 집계 조회와 100% 동일한 기간 선택 (일별, 주별, 월별, 기간선택)
+ * 2. 1~3공장 선택 select box 지원 (기본 제1공장, 뷰에서 숨김 처리)
  */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
-import { useAppStore } from '@shared/stores/useAppStore';
+import { recentRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { downloadXls } from '@shared/utils/exportUtil';
+import { today } from '@shared/utils/formatUtil';
 import { fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 
+export const AGG_UNITS = [
+  { value: '일별', label: '일별' },
+  { value: '주별', label: '주별' },
+  { value: '월별', label: '월별' },
+  { value: '기간선택', label: '기간선택' },
+];
+
+export const PLANT_OPTIONS = [
+  { value: '1공장', label: '제1공장' },
+  { value: '2공장', label: '제2공장' },
+  { value: '3공장', label: '제3공장' },
+];
+
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function formatDate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 주의 시작: 월요일 ~ 일요일 */
+export function getWeekBounds(baseDateStr) {
+  const d = new Date(baseDateStr || Date.now());
+  const day = d.getDay(); // 0: 일, 1: 월, ..., 6: 토
+  const diffToMon = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diffToMon);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { from: formatDate(mon), to: formatDate(sun) };
+}
+
+/** 월의 시작: 1일 ~ 말일 */
+export function getMonthBounds(baseDateStr) {
+  const d = new Date(baseDateStr || Date.now());
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const first = new Date(y, m, 1);
+  const last = new Date(y, m + 1, 0);
+  return { from: formatDate(first), to: formatDate(last) };
+}
+
+/** 3개월(최대 92일) 제한 검증 및 클램프 */
+export function clampThreeMonths(fromStr, toStr) {
+  const fromD = new Date(fromStr);
+  const toD = new Date(toStr);
+  const diffMs = toD.getTime() - fromD.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays > 92) {
+    const clampedTo = new Date(fromD);
+    clampedTo.setDate(fromD.getDate() + 92);
+    return { clamped: true, from: fromStr, to: formatDate(clampedTo) };
+  }
+  return { clamped: false, from: fromStr, to: toStr };
+}
+
 export function useAiDashboardController() {
-  const baseDate = useAppStore((state) => state.baseDate);
   const toast = useUiStore((state) => state.toast);
 
-  const { data, loading, reload } = useAsync(() => loadAiDashboard(baseDate), [baseDate]);
+  // 1. 기간 선택 상태 (실적 집계 조회와 완벽 동일)
+  const initialRange = recentRange(7);
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
+  const [unit, setUnit] = useState('일별');
 
-  // 라인별 현황은 설비가 1,300대를 넘어 따로 · 쪽 단위로 조회합니다.
-  // 대시보드 묶음과 분리해 두어야 쪽을 넘길 때 차트 11개를 다시 부르지 않습니다.
-  const paging = usePaging({ resetKey: baseDate });
+  // 2. 공장 선택 상태 (기본 제1공장, 뷰에서 숨김 처리)
+  const [plant, setPlant] = useState('1공장');
+
+  // 확정된 조회 조건
+  const [applied, setApplied] = useState({
+    from: initialRange.from,
+    to: initialRange.to,
+    unit: '일별',
+    plant: '1공장',
+  });
+
+  // 메인 대시보드 데이터 조회
+  const { data, loading, reload } = useAsync(
+    () => loadAiDashboard(applied),
+    [applied.from, applied.to, applied.unit, applied.plant]
+  );
+
+  // 라인별 현황 (페이징)
+  const paging = usePaging({ resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
   const { data: lineData, loading: linesLoading, reload: reloadLines } = useAsync(
-    () => fetchAiLines(baseDate, paging.params),
-    [baseDate, paging.page, paging.size],
+    () => fetchAiLines(applied, paging.params),
+    [applied.from, applied.to, applied.plant, paging.page, paging.size],
     { silent: true }
   );
 
   const lines = lineData?.lines || [];
 
-  /** 설비 상세 조회 — 모달 표시는 View 가 합니다 */
-  const loadEquipmentDetail = useCallback((eqptCd) => fetchEquipmentDetail(eqptCd, baseDate), [baseDate]);
+  /** 단위 변경 시 날짜 자동 계산 */
+  const changeUnit = useCallback((newUnit) => {
+    setUnit(newUnit);
+    const refDate = to || today();
+    let nextFrom = from;
+    let nextTo = to;
 
-  /**
-   * 라인별 현황을 엑셀로 내려받습니다.
-   *
-   * 화면은 한 쪽만 보여 주지만 내려받기는 전량이어야 합니다 (size 0 = 전량).
-   */
-  const exportExcel = useCallback(async () => {
-    let rows = lines;
-    try {
-      const all = await fetchAiLines(baseDate, { size: 0 });
-      rows = all.lines;
-    } catch {
-      toast('전체를 불러오지 못해 현재 쪽만 내려받습니다');
+    if (newUnit === '주별') {
+      const bounds = getWeekBounds(refDate);
+      nextFrom = bounds.from;
+      nextTo = bounds.to;
+      setFrom(nextFrom);
+      setTo(nextTo);
+      toast(`주별 집계: 월요일(${bounds.from}) ~ 일요일(${bounds.to})로 설정되었습니다`);
+    } else if (newUnit === '월별') {
+      const bounds = getMonthBounds(refDate);
+      nextFrom = bounds.from;
+      nextTo = bounds.to;
+      setFrom(nextFrom);
+      setTo(nextTo);
+      toast(`월별 집계: 1일(${bounds.from}) ~ 말일(${bounds.to})로 설정되었습니다`);
+    } else if (newUnit === '일별') {
+      const range = recentRange(7);
+      nextFrom = range.from;
+      nextTo = range.to;
+      setFrom(nextFrom);
+      setTo(nextTo);
+      toast(`일별 집계: 최근 7일(${nextFrom} ~ ${nextTo})로 설정되었습니다`);
+    } else {
+      const { clamped, to: clampedTo } = clampThreeMonths(from, to);
+      if (clamped) {
+        nextTo = clampedTo;
+        setTo(clampedTo);
+        toast(`조회 기간은 최대 3개월(92일)로 제한됩니다`);
+      }
     }
-    downloadXls({
-      name: 'AI 통합 대시보드',
-      head: ['설비', '모델', '생산량', '불량률', '가동률', '상태'],
-      rows: rows.map((l) => [l.eqptCd, l.model, l.qty, `${l.defectRate}%`, `${l.uptimeRate}%`, l.state]),
-    });
-  }, [lines, baseDate, toast]);
+  }, [from, to, toast]);
+
+  /** 조회 버튼 클릭 시 조건 확정 */
+  const search = useCallback(() => {
+    let finalTo = to;
+    if (unit === '기간선택') {
+      const { clamped, to: clampedTo } = clampThreeMonths(from, to);
+      if (clamped) {
+        finalTo = clampedTo;
+        setTo(clampedTo);
+        toast(`조회 기간은 최대 3개월(92일)로 제한됩니다`);
+      }
+    }
+    setApplied({ from, to: finalTo, unit, plant });
+    toast(`기간 ${from} ~ ${finalTo} (${unit}) 조건으로 조회합니다`);
+  }, [from, to, unit, plant, toast]);
+
+  /** 설비 상세 조회 — 모달 표시는 View 가 합니다 */
+  const loadEquipmentDetail = useCallback((eqptCd) => fetchEquipmentDetail(eqptCd, applied.to), [applied.to]);
 
   const refresh = useCallback(() => {
     reload();
@@ -60,7 +173,15 @@ export function useAiDashboardController() {
 
   return {
     loading,
-    baseDate,
+    from,
+    setFrom,
+    to,
+    setTo,
+    unit,
+    changeUnit,
+    plant,
+    setPlant,
+    search,
     summary: data?.summary || {},
     trend: data?.trend,
     lineProduction: data?.lineProduction,
@@ -69,14 +190,11 @@ export function useAiDashboardController() {
     processYield: data?.processYield,
     planActual: data?.planActual,
     heatmap: data?.heatmap,
-    alerts: data?.alerts?.alerts || [],
-    agents: data?.agents?.agents || [],
     lines,
     linesLoading,
     linesMeta: lineData?.meta,
     paging,
     loadEquipmentDetail,
-    exportExcel,
     refresh,
   };
 }

@@ -15,16 +15,24 @@ import { fillRates, fillRatesAll } from '@domains/common/model/metricModel';
  * AI 통합 대시보드에 필요한 모든 데이터를 한 번에 조회합니다.
  * @param {string} date 조회 기준일 (YYYY-MM-DD)
  */
-export async function loadAiDashboard(date) {
+export async function loadAiDashboard(param) {
+  const isObj = typeof param === 'object' && param !== null;
+  const date = isObj ? (param.to || param.date) : param;
+  const from = isObj ? param.from : undefined;
+  const to = isObj ? param.to : undefined;
+  const plant = isObj ? param.plant : undefined;
+
+  const baseParams = { date, from, to, plant };
+
   const data = await unwrapAll({
-    summary: dashboardService.getDashboardAiSummary({ date }),
-    trend: dashboardService.getDashboardAiDefectTrend({ date, interval: '2h' }),
-    lineProduction: dashboardService.getDashboardAiLineProduction({ date }),
-    qualityIndex: dashboardService.getDashboardAiQualityIndex({ date }),
-    composition: dashboardService.getDashboardAiDefectComposition({ date }),
-    processYield: dashboardService.getDashboardAiProcessYield({ date }),
-    planActual: dashboardService.getDashboardAiPlanVsActual({ date, interval: '2h' }),
-    heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ date, interval: '2h' }),
+    summary: dashboardService.getDashboardAiSummary(baseParams),
+    trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, interval: '2h' }),
+    lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
+    qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
+    composition: dashboardService.getDashboardAiDefectComposition(baseParams),
+    processYield: dashboardService.getDashboardAiProcessYield(baseParams),
+    planActual: dashboardService.getDashboardAiPlanVsActual({ ...baseParams, interval: '2h' }),
+    heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ ...baseParams, interval: '2h' }),
     alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
     agents: dashboardService.getDashboardAiAgents({}),
   });
@@ -47,11 +55,20 @@ export async function loadAiDashboard(date) {
  * 설비가 1,300대를 넘어 대시보드 묶음과 따로 조회합니다.
  * 쪽을 넘길 때마다 대시보드 12건을 다시 부르지 않기 위해서입니다.
  *
- * @param {string} date 기준일 (YYYY-MM-DD)
+ * @param {string|object} param 기준일 (YYYY-MM-DD) 또는 { from, to, date, plant }
  * @param {{page?:number, size?:number}} [params] size 0 이면 전량
  */
-export async function fetchAiLines(date, params = {}) {
-  const { items, meta } = await unwrapPaged(dashboardService.getDashboardAiLines({ date, ...params }), 'lines');
+export async function fetchAiLines(param, params = {}) {
+  const isObj = typeof param === 'object' && param !== null;
+  const date = isObj ? (param.to || param.date) : param;
+  const from = isObj ? param.from : undefined;
+  const to = isObj ? param.to : undefined;
+  const plant = isObj ? param.plant : undefined;
+
+  const { items, meta } = await unwrapPaged(
+    dashboardService.getDashboardAiLines({ date, from, to, plant, ...params }),
+    'lines'
+  );
   return { lines: fillRatesAll(items), meta };
 }
 
