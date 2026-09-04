@@ -13,7 +13,7 @@
  * 7. 설비별 시간대 가동률 (1행 전체, 프레스 1~10 명칭 적용)
  */
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart } from '@shared/components/charts-d3';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
@@ -45,6 +45,7 @@ export default function AiDashboardView({
   search,
   summary,
   briefing,
+  briefingLoading,
   causePrescription,
   selectedEqptCd,
   changeSelectedEqpt,
@@ -201,7 +202,7 @@ export default function AiDashboardView({
           </Grid>
 
           {/* AI 종합 브리핑 카드 */}
-          <AiBriefingCard briefing={briefing} />
+          <AiBriefingCard briefing={briefing} loading={briefingLoading} />
 
           {/* 설비별 AI 원인 분석 및 처방 권고 카드 (설비 선택기 포함) */}
           <AiCausePrescriptionCard
@@ -235,17 +236,17 @@ export default function AiDashboardView({
               />
             }
           >
-            {/* 가로 스크롤 지원하는 전체 연속 시계열 막대 그래프 */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ width: '100%' }}>
-              <View style={{ width: Math.max(760, (defectTrendData?.barData?.length || 0) * 36) }}>
-                <BarChart
-                  data={defectTrendData?.barData || []}
-                  target={defectTrendData?.target || 3.0}
-                  unit="%"
-                  height={180}
-                />
-              </View>
-            </ScrollView>
+            {/*
+              가로 스크롤은 BarChart 가 스스로 답니다 (막대 수 × 최소 칸폭이 컨테이너보다 넓을 때만).
+              바깥에서 한 번 더 감싸면 **스크롤바가 두 개** 생기고, 안쪽 차트가 컨테이너 실제 폭 대신
+              감싼 View 의 고정 폭을 재게 되어 폭 계산도 어긋납니다.
+            */}
+            <BarChart
+              data={defectTrendData?.barData || []}
+              target={defectTrendData?.target || 3.0}
+              unit="%"
+              height={180}
+            />
 
             {/* 차트와 매트릭스 간 구분을 위한 여백 및 구분선 */}
             <View style={{ marginVertical: 24, borderTopWidth: 1, borderTopColor: theme.color.border, opacity: 0.6 }} />

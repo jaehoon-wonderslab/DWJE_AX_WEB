@@ -47,7 +47,7 @@ export async function loadAiDashboard(param) {
   const prodParams = { from: from || date, to: to || date, unit: unitCode, plant };
   const targetEqptCd = isObj ? param.eqptCd || undefined : undefined; // 서버가 분석 대상을 정합니다
 
-  const [data, briefingRes, causePrescriptionRes, prodTrendRes, prodResultsRes] = await Promise.all([
+  const [data, prodTrendRes, prodResultsRes] = await Promise.all([
     unwrapAll({
       summary: dashboardService.getDashboardAiSummary(baseParams),
       trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h' }),
@@ -60,22 +60,9 @@ export async function loadAiDashboard(param) {
       alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
       agents: dashboardService.getDashboardAiAgents({}),
     }),
-    unwrap(dashboardService.getDashboardAiBriefing(baseParams), null).catch(() => null),
-    unwrap(dashboardService.getDashboardAiCausePrescription({ ...baseParams, eqptCd: targetEqptCd }), null).catch(() => null),
     unwrap(productionService.getProductionResultsTrend(prodParams), null).catch(() => null),
     unwrap(productionService.getProductionResults({ ...prodParams, size: 100 }), null).catch(() => null),
   ]);
-
-  /**
-   * AI 브리핑 · 원인 분석은 **서버가 준 것만** 씁니다
-   *
-   * 2026-09-05 — 여기 있던 폴백을 걷어냈습니다. 없는 설비(PR-01~PR-10)와
-   * 수집하지도 않는 값(타발 압력 ±14% · 금형 온도 48.5℃)을 지어내 그리고 있었습니다.
-   * 계획 수량이 150,000 상수라 달성률이 14,642% 로 뜨기도 했습니다.
-   * sLLM 을 붙이는 목적이 이걸 진짜로 바꾸는 것이라, 없으면 화면이 "준비 중" 을 그립니다.
-   */
-  const briefing = briefingRes || null;
-  const causePrescription = causePrescriptionRes || null;
 
   // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
   let processYield = data.processYield;
@@ -252,8 +239,6 @@ export async function loadAiDashboard(param) {
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {
     ...data,
-    briefing,
-    causePrescription,
     heatmap,
     processYield,
     defectTrendData,
@@ -262,6 +247,16 @@ export async function loadAiDashboard(param) {
     lineProduction: data.lineProduction && { ...data.lineProduction, lines: fillRatesAll(data.lineProduction.lines) },
   };
 }
+
+/**
+ * AI 일일 품질·생산 종합 브리핑 — **따로 부릅니다**
+ *
+ * 모델 추론이라 느립니다(로컬 sLLM 실측 약 24초). 대시보드 묶음에 넣으면 나머지 12건이
+ * 다 끝나고도 화면이 그만큼 멈춥니다. 카드만 늦게 채워지는 편이 낫습니다.
+ * 서버가 주지 않으면 `null` 이고 화면은 "준비 중" 을 그립니다.
+ */
+export const fetchAiBriefing = ({ date, from, to, plant }) =>
+  unwrap(dashboardService.getDashboardAiBriefing({ date: to || date, from, to, plant }), null).catch(() => null);
 
 /**
  * 설비별 AI 원인 분석 및 처방 권고 단독 조회 (설비를 바꿀 때)

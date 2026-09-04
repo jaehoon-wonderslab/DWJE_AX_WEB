@@ -424,6 +424,7 @@ export const ENDPOINTS = {
     response: 'status, overallYield, overallDefectRate, todayQty, criticalLine, summaryLines, generatedAt',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
+    timeoutMs: 300000, // sLLM 추론 — 로컬 실측 2문장에 약 24초
   },
   getDashboardAiCausePrescription: {
     no: 322, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
@@ -432,6 +433,7 @@ export const ENDPOINTS = {
     response: 'selectedEqpt, availableEquipments, featureContributions, prescriptions, analyzedAt',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
+    timeoutMs: 300000, // sLLM 추론 + FACA 문서 검색 — 브리핑보다 깁니다
   },
   getDashboardProcessSummary: {
     no: 33, domain: '대시보드', comp: 'DB-02', screen: '공정 및 제품 대시보드', funcId: 'DB-02-F10',

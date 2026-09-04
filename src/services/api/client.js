@@ -46,6 +46,11 @@ function shouldMock(def) {
  */
 const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT ?? 45000);
 
+/**
+ * 엔드포인트가 `timeoutMs` 를 들고 있으면 그 값이 이깁니다.
+ * sLLM 추론처럼 수십 초~수 분 걸리는 것은 기본 45초로 끊기면 원인을 알 수 없습니다.
+ */
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: REQUEST_TIMEOUT_MS,
@@ -257,6 +262,8 @@ export async function request(key, params = {}, options = {}) {
       url,
       method: def.method.toLowerCase(),
       ...(isBodyMethod ? { data: rest } : { params: rest }),
+      // 모델 추론처럼 오래 걸리는 것은 카탈로그가 제 시간을 들고 있습니다 (기본 45초로는 끊깁니다)
+      ...(def.timeoutMs ? { timeout: def.timeoutMs } : null),
       ...options,
     };
 

@@ -64,7 +64,8 @@ export default function AiBriefingCard({ briefing, loading }) {
       right={ready && briefing.status ? <Badge tone={TONE[briefing.status] || ''}>{LABEL[briefing.status] || briefing.status}</Badge> : null}
     >
       {loading && !briefing ? (
-        <EmptyState text="브리핑을 불러오는 중입니다." />
+        // 모델 추론이라 수십 초 걸립니다 — 멈춘 것처럼 보이지 않게 미리 알립니다
+        <EmptyState text="모델이 분석 중입니다. 수십 초 걸릴 수 있습니다." />
       ) : !ready ? (
         <NotReady reason={briefing?.reason} />
       ) : (

@@ -14,7 +14,7 @@ import { usePaging } from '@shared/hooks/usePaging';
 import { recentRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { today } from '@shared/utils/formatUtil';
-import { fetchAiCausePrescription, fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
+import { fetchAiBriefing, fetchAiCausePrescription, fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 
 export const AGG_UNITS = [
   { value: '일별', label: '일별' },
@@ -122,6 +122,24 @@ export function useAiDashboardController() {
     }
   }, [applied, toast]);
 
+  /**
+   * AI 브리핑 · 원인 분석은 **따로 부릅니다**
+   *
+   * 모델 추론이라 느립니다(로컬 sLLM 실측 약 24초). 대시보드 묶음에 넣으면 나머지가 다 와도
+   * 화면 전체가 그만큼 멈춥니다. 두 카드만 늦게 채워지고 나머지는 바로 그려집니다.
+   */
+  const { data: briefing, loading: briefingLoading } = useAsync(
+    () => fetchAiBriefing(applied),
+    [applied.from, applied.to, applied.plant],
+    { silent: true }
+  );
+
+  const { data: causeData, loading: causeFetching } = useAsync(
+    () => fetchAiCausePrescription(applied),
+    [applied.from, applied.to, applied.plant],
+    { silent: true }
+  );
+
   // 라인별 현황 (페이징: 대시보드 화면에 적합하게 기본 10건 단위 표시)
   const paging = usePaging({ size: 10, resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
   const { data: lineData, loading: linesLoading, reload: reloadLines } = useAsync(
@@ -206,11 +224,12 @@ export function useAiDashboardController() {
     setPlant,
     search,
     summary: data?.summary || {},
-    briefing: data?.briefing,
-    causePrescription: causePrescriptionOverride || data?.causePrescription,
+    briefing,
+    briefingLoading,
+    causePrescription: causePrescriptionOverride || causeData,
     selectedEqptCd,
     changeSelectedEqpt,
-    causeLoading,
+    causeLoading: causeLoading || causeFetching,
     trend: data?.trend,
     defectTrendData: data?.defectTrendData,
     lineProduction: data?.lineProduction,
