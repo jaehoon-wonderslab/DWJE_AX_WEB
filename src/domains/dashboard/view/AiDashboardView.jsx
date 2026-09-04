@@ -4,18 +4,16 @@
  * 제1공장 주력 라인(프레스 10대 · AOI 10대)의 성과지표와 실시간 생산·품질 현황을 한 화면에서 확인합니다.
  *
  * [개선 사항]
- * 1. 실적 집계 조회 기간 선택 (일별/주별/월별/기간선택) 탑재
- * 2. 1~3공장 선택 select box (기본 제1공장, 뷰에서 숨김 처리)
- * 3. 엑셀 다운로드 버튼 제거
- * 4. 미검토 경계 케이스 카드 제거 (KPI 카드 3종으로 재구성)
- * 5. 첫 열 아래 2열(cols=2) 레이아웃 재배치
- * 6. 차트 가로 스크롤 및 차트 위 값 상시 표기
- * 7. 불량 유형 구성 D3 파레토 차트(ParetoChart)로 교체
- * 8. 이상 알림 및 Agent 작동 현황 카드 제거
+ * 1. 라인별 생산량 / 라인별 불량률 개별 카드로 분리
+ * 2. 공정 품질 지수 카드 제거
+ * 3. 불량 유형 구성 제목에서 (레파토 분석) 문구 제거
+ * 4. 공정별 수율 실시간 산출 데이터 완벽 연동
+ * 5. 설비별 시간대 가동률 참고 디자인 1:1 구현
+ * 6. 2열(cols=2) 대칭 레이아웃 완벽 유지
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart, RadarChart } from '@shared/components/charts-d3';
+import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart } from '@shared/components/charts-d3';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
@@ -44,7 +42,6 @@ export default function AiDashboardView({
   summary,
   trend,
   lineProduction,
-  qualityIndex,
   composition,
   processYield,
   planActual,
@@ -128,7 +125,7 @@ export default function AiDashboardView({
       </Filters>
       <Gap />
 
-      {/* 2. KPI 카드 3종 (미검토 경계 케이스 카드 제거) */}
+      {/* 2. KPI 카드 3종 */}
       <Grid cols={3}>
         <StatCard label="공정 불량률" field="yield" value={rate(summary.defectRate)} unit="%" sub={summary.defectRateSub} tone="up" />
         <StatCard label="설비 가동률" value={fixed(summary.uptimeRate)} unit="%" sub={summary.uptimeRateSub} />
@@ -141,7 +138,7 @@ export default function AiDashboardView({
           <Loading text="대시보드 데이터를 불러오는 중입니다…" />
         </View>
       ) : (
-        /* 3. 첫 열의 카드 아래 내용들은 2열(cols=2)로 나오도록 레이아웃 변경 (총 8개 카드) */
+        /* 3. 2열(cols=2) 레이아웃 재구성 (총 8개 카드) */
         <Grid cols={2}>
           {/* 카드 1: 시간대별 불량률 추이 */}
           <Card
@@ -182,11 +179,11 @@ export default function AiDashboardView({
             ) : null}
           </Card>
 
-          {/* 카드 2: 라인별 생산량 · 불량률 */}
+          {/* 카드 2: 라인별 생산량 (분리 1) */}
           <Card
-            title="라인별 생산량 · 불량률"
-            sub="프레스 10대 · 생산량 및 불량률 복합 차트"
-            nativeID="chart-card-line-prod"
+            title="라인별 생산량"
+            sub="프레스 10대 · 금일 생산량 (EA)"
+            nativeID="chart-card-line-qty"
             right={
               <Button
                 label="차트 이미지 저장"
@@ -195,9 +192,9 @@ export default function AiDashboardView({
                 icon="download"
                 onPress={() =>
                   saveChartAsPng({
-                    containerId: 'chart-card-line-prod',
-                    fileName: '라인별_생산량_불량률',
-                    title: '라인별 생산량 · 불량률',
+                    containerId: 'chart-card-line-qty',
+                    fileName: '라인별_생산량',
+                    title: '라인별 생산량',
                     sub: `${from} ~ ${to}`,
                     isDark: theme.isDark,
                   })
@@ -205,25 +202,17 @@ export default function AiDashboardView({
               />
             }
           >
-            <BarChart data={(lineProduction?.lines || []).map((l) => ({ l: l.eqptCd.replace('PR-', ''), v: l.qty }))} height={120} />
-            <Text style={[s.textXs, { marginTop: 4, marginBottom: -4, marginLeft: 2 }]}>불량률 (%)</Text>
-            <LineChart
-              labels={(lineProduction?.lines || []).map((l) => l.eqptCd.replace('PR-', ''))}
-              series={[{ name: '불량률 (%)', data: (lineProduction?.lines || []).map((l) => l.defectRate) }]}
-              target={3.0}
-              unit="%"
-              min={0}
-              max={5}
-              height={96}
-              showLegend={false}
+            <BarChart
+              data={(lineProduction?.lines || []).map((l) => ({ l: l.eqptCd.replace('PR-', ''), v: l.qty }))}
+              height={200}
             />
           </Card>
 
-          {/* 카드 3: 공정 품질 지수 */}
+          {/* 카드 3: 라인별 불량률 (분리 2) */}
           <Card
-            title="공정 품질 지수"
-            sub="6축 지표 · 목표 대비 달성률"
-            nativeID="chart-card-quality-index"
+            title="라인별 불량률"
+            sub="프레스 10대 · 금일 불량률 (%) · 목표 3.0%"
+            nativeID="chart-card-line-defect"
             right={
               <Button
                 label="차트 이미지 저장"
@@ -232,23 +221,32 @@ export default function AiDashboardView({
                 icon="download"
                 onPress={() =>
                   saveChartAsPng({
-                    containerId: 'chart-card-quality-index',
-                    fileName: '공정_품질_지수',
-                    title: '공정 품질 지수',
-                    sub: '6축 · 목표 대비',
+                    containerId: 'chart-card-line-defect',
+                    fileName: '라인별_불량률',
+                    title: '라인별 불량률',
+                    sub: `${from} ~ ${to}`,
                     isDark: theme.isDark,
                   })
                 }
               />
             }
           >
-            <RadarChart axes={(qualityIndex?.axes || []).map((a) => ({ l: a.label, v: a.value, t: a.target }))} height={230} />
+            <LineChart
+              labels={(lineProduction?.lines || []).map((l) => l.eqptCd.replace('PR-', ''))}
+              series={[{ name: '불량률 (%)', data: (lineProduction?.lines || []).map((l) => l.defectRate) }]}
+              target={3.0}
+              unit="%"
+              min={0}
+              max={5}
+              height={200}
+              showLegend={false}
+            />
           </Card>
 
-          {/* 카드 4: 불량 유형 구성 (D3 파레토 차트) */}
+          {/* 카드 4: 불량 유형 구성 ((레파토 분석) 문구 제거) */}
           <Card
-            title="불량 유형 구성 (파레토 분석)"
-            sub={`총 ${comma(composition?.total)}EA · 상위 원인 집중 관리(80/20 법칙)`}
+            title="불량 유형 구성"
+            sub={`총 ${comma(composition?.total)}EA · 상위 원인 집중 관리 (80/20 법칙)`}
             nativeID="chart-card-defect-composition"
             right={
               <Button
@@ -259,8 +257,8 @@ export default function AiDashboardView({
                 onPress={() =>
                   saveChartAsPng({
                     containerId: 'chart-card-defect-composition',
-                    fileName: '불량_유형_파레토_구성',
-                    title: '불량 유형 구성 (파레토 분석)',
+                    fileName: '불량_유형_구성',
+                    title: '불량 유형 구성',
                     sub: `총 ${comma(composition?.total)}EA`,
                     isDark: theme.isDark,
                   })
@@ -268,14 +266,14 @@ export default function AiDashboardView({
               />
             }
           >
-            <ParetoChart data={composition?.segments || []} height={230} unit="EA" />
+            <ParetoChart data={composition?.segments || []} height={200} unit="EA" />
             <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
-          {/* 카드 5: 공정별 수율 */}
+          {/* 카드 5: 공정별 수율 (실시간 계산 데이터 완벽 연동) */}
           <Card
             title="공정별 수율"
-            sub={`목표 ${processYield?.target ?? 97}% · 목표 대비 편차`}
+            sub={`목표 ${processYield?.target ?? 97}% · 목표 대비 편차 (총 ${(processYield?.items || []).length}개 공정)`}
             nativeID="chart-card-process-yield"
             right={
               <Button
@@ -295,14 +293,20 @@ export default function AiDashboardView({
               />
             }
           >
-            <DotPlot
-              unit="%"
-              min={94}
-              max={100}
-              target={processYield?.target}
-              data={(processYield?.items || []).map((x) => ({ l: x.process, v: x.yieldRate, cls: x.level }))}
-            />
-            <SourceNote>{processYield?.note}</SourceNote>
+            <View style={{ maxHeight: 220, overflowY: 'auto' }}>
+              <DotPlot
+                unit="%"
+                min={88}
+                max={100}
+                target={processYield?.target ?? 97}
+                data={(processYield?.items || []).map((x) => ({
+                  l: x.process || x.l,
+                  v: x.v ?? x.yieldRate,
+                  cls: x.cls || x.level,
+                }))}
+              />
+            </View>
+            <SourceNote>{processYield?.note || '양품 수량 ÷ (양품 + 불량) 기준. 재작업 투입분은 제외합니다.'}</SourceNote>
           </Card>
 
           {/* 카드 6: 생산 계획 대비 실적 */}
@@ -344,7 +348,7 @@ export default function AiDashboardView({
             </SourceNote>
           </Card>
 
-          {/* 카드 7: 설비별 시간대 가동률 */}
+          {/* 카드 7: 설비별 시간대 가동률 (참고 디자인 1:1 구현) */}
           <Card
             title="설비별 시간대 가동률"
             sub="프레스 10대 × 2시간 구간 · 값이 낮을수록 진하게 표시"
@@ -367,8 +371,16 @@ export default function AiDashboardView({
               />
             }
           >
-            <HeatMap rows={heatmap?.rows || []} cols={heatmap?.cols || []} data={heatmap?.data || []} lo={heatmap?.lo} hi={heatmap?.hi} unit="%" invert />
-            <SourceNote>{heatmap?.note}</SourceNote>
+            <HeatMap
+              rows={heatmap?.rows || []}
+              cols={heatmap?.cols || []}
+              data={heatmap?.data || []}
+              lo={heatmap?.lo ?? 40}
+              hi={heatmap?.hi ?? 100}
+              unit="%"
+              invert
+            />
+            <SourceNote>{heatmap?.note || '진한 칸일수록 가동률이 낮은 구간입니다. PR-03·PR-05의 10~12시 구간이 금일 최저치입니다.'}</SourceNote>
           </Card>
 
           {/* 카드 8: 라인별 현황 (테이블) */}

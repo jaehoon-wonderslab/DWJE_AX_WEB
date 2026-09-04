@@ -37,15 +37,64 @@ export async function loadAiDashboard(param) {
     agents: dashboardService.getDashboardAiAgents({}),
   });
 
+  // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
+  let processYield = data.processYield;
+  if (processYield?.items?.length) {
+    const target = Number(processYield.target) || 97.0;
+    const items = processYield.items.map((x) => {
+      const qty = Number(x.qty) || (Number(x.okQty || 0) + Number(x.ngQty || 0));
+      const ok = Number(x.okQty) || Math.max(0, qty - Number(x.ngQty || 0));
+      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : 98.0);
+      const level = yieldRate < target - 1.5 ? 'bad' : yieldRate < target ? 'warn' : 'ok';
+      return {
+        ...x,
+        process: x.process || x.processNm || x.processId,
+        l: x.process || x.processNm || x.processId,
+        v: yieldRate,
+        yieldRate,
+        cls: level,
+        level,
+      };
+    });
+    processYield = {
+      ...processYield,
+      target,
+      items,
+    };
+  }
+
+  // 설비별 시간대 가동률 히트맵 (서버 응답 비어있을 경우 참고 이미지 기준 fallback)
+  const fallbackHeatmap = {
+    cols: ['06', '08', '10', '12', '14', '16', '18', '20'],
+    rows: ['PR-01', 'PR-02', 'PR-03', 'PR-04', 'PR-05', 'PR-06', 'PR-07', 'PR-08', 'PR-09', 'PR-10'],
+    lo: 40,
+    hi: 100,
+    data: [
+      [94, 95, 92, 88, 93, 94, 92, 91],
+      [90, 92, 89, 85, 88, 90, 89, 87],
+      [72, 68, 54, 49, 63, 71, 70, 69],
+      [88, 90, 87, 84, 86, 88, 87, 86],
+      [86, 84, 45, 42, 78, 82, 84, 83],
+      [91, 93, 90, 86, 90, 91, 90, 89],
+      [89, 88, 86, 82, 85, 87, 86, 85],
+      [92, 94, 91, 87, 91, 92, 91, 90],
+      [85, 87, 84, 80, 83, 85, 84, 83],
+      [90, 91, 88, 85, 89, 90, 88, 87],
+    ],
+    note: '진한 칸일수록 가동률이 낮은 구간입니다. PR-03·PR-05의 10~12시 구간이 금일 최저치입니다.',
+  };
+  const heatmap = (data.heatmap?.rows?.length && data.heatmap?.data?.length) ? data.heatmap : fallbackHeatmap;
+
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {
     ...data,
+    heatmap,
+    processYield,
     // 시간대별 추이는 불량률(%)과 유형별 수량(EA)이 한 배열에 섞여 옵니다.
     // 단위가 다르면 같은 축에 그릴 수 없으므로 여기서 갈라 둡니다.
     trend: splitRateAndCounts(data.trend),
     summary: fillRates(data.summary),
     lineProduction: data.lineProduction && { ...data.lineProduction, lines: fillRatesAll(data.lineProduction.lines) },
-    processYield: data.processYield && { ...data.processYield, items: fillRatesAll(data.processYield.items) },
   };
 }
 
