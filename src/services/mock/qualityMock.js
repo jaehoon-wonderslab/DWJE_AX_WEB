@@ -57,106 +57,13 @@ export const qualityMock = {
   }),
 
   /* ───────── QC-03 품질 보고서 ───────── */
-  postQualityReportsDraft: ({ formId, lotNo, disclosurePolicy }) => {
-    const st = store();
-    st.report = JSON.parse(JSON.stringify(QUALITY_REPORT));
-    if (lotNo) st.report.lotNo = lotNo;
-    if (formId) st.report.formId = formId;
-    if (disclosurePolicy) st.report.disclosurePolicy = disclosurePolicy;
-    return { success: true, code: 'SUCCESS', message: '보고서 초안을 생성했습니다.', data: st.report };
-  },
 
-  getQualityReportsByReportId: () => store().report,
 
-  getQualityReportsByReportIdAutofillStatus: () => ({ fields: QUALITY_AUTOFILL }),
 
-  getQualityReportsByReportIdMasking: () => ({ rules: QUALITY_MASKING }),
 
-  postQualityReportsByReportIdUnmaskRequest: ({ fields, reason }) => {
-    if (!reason) return { success: false, code: 'E-VALID-001', message: '해제 사유는 필수입니다.', data: null };
-    return {
-      success: true,
-      code: 'SUCCESS',
-      message: `마스킹 해제를 요청했습니다 — 승인 후 적용됩니다 (항목 ${fields?.length || 0}건)`,
-      data: { requestId: `UM-${Date.now()}` },
-    };
-  },
 
-  getQualityReportsByReportIdEvidenceImages: ({ criteria = 'ng', limit = 10 }) => {
-    let images = store().report.images;
-    if (criteria === 'borderline') images = images.filter((x) => x.defectType === 'stain');
-    return { images: images.slice(0, Number(limit) || 10) };
-  },
 
-  postQualityReportsByReportIdEvidenceImages: ({ imageIds = [] }) => {
-    const st = store();
-    st.report.images = st.report.images.map((img) => ({ ...img, attached: imageIds.includes(img.id) }));
-    return { success: true, code: 'SUCCESS', message: `증빙 이미지 ${imageIds.length}장을 첨부했습니다`, data: { attachedCnt: imageIds.length } };
-  },
 
-  putQualityReportsByReportId: ({ sections }) => {
-    const st = store();
-    if (sections) st.report.sections = sections;
-    return { success: true, code: 'SUCCESS', message: '임시 저장했습니다.', data: { success: true } };
-  },
 
-  postQualityReportsByReportIdConfirm: () => {
-    const st = store();
-    st.report.state = '확정';
-    return { success: true, code: 'SUCCESS', message: '보고서를 확정했습니다.', data: { state: '확정', confirmedAt: nowStamp(), confirmedBy: mockState.currentUser.name } };
-  },
 
-  postQualityReportsByReportIdReject: ({ reason }) => {
-    const st = store();
-    st.report.state = '반려';
-    return { success: true, code: 'SUCCESS', message: `보고서를 반려했습니다. (${reason || '사유 미기재'})`, data: { state: '반려' } };
-  },
-
-  postQualityReportsByReportIdRegenerate: () => {
-    const st = store();
-    st.report = JSON.parse(JSON.stringify(QUALITY_REPORT));
-    return { success: true, code: 'SUCCESS', message: '보고서 초안을 다시 생성했습니다.', data: { version: 2 } };
-  },
-
-  postQualityReportsByReportIdExport: ({ format }) => ({
-    success: true,
-    code: 'SUCCESS',
-    message:
-      format === 'ppt-img'
-        ? 'PPT용 표·그래프 이미지를 내려받았습니다'
-        : format === 'pdf'
-          ? 'PDF 미리보기를 열었습니다'
-          : '엑셀 파일을 내려받았습니다',
-    data: { format },
-  }),
-
-  getQualityReports: ({ page = 1, size = 50 }) => ({ items: store().history, meta: { page, size, total: store().history.length } }),
-
-  /* ───────── QC-04 보고서 양식 관리 ───────── */
-  getQualityReportForms: () => ({ items: store().forms }),
-
-  postQualityReportForms: ({ name, type, disclosurePolicy }) => {
-    const st = store();
-    if (st.forms.some((f) => f.name === name)) {
-      return { success: false, code: 'E-VALID-002', message: '이미 등록된 양식명입니다.', data: null };
-    }
-    const formId = `F-${Date.now().toString(36).toUpperCase()}`;
-    st.forms.unshift({ formId, name, type, fieldCnt: 0, disclosurePolicy, parserVer: 'v1.0', updatedAt: nowStamp().slice(0, 10) });
-    return { success: true, code: 'SUCCESS', message: '양식을 등록했습니다.', data: { formId, parserVer: 'v1.0' } };
-  },
-
-  putQualityReportFormsByFormId: ({ formId, name, type, disclosurePolicy }) => {
-    const row = store().forms.find((f) => f.formId === formId);
-    if (!row) return { success: false, code: 'E-NOTFOUND', message: '대상 양식을 찾을 수 없습니다.', data: null };
-    if (name) row.name = name;
-    if (type) row.type = type;
-    if (disclosurePolicy) row.disclosurePolicy = disclosurePolicy;
-    // 양식 구조가 바뀌면 파서 버전을 올립니다
-    const [major, minor] = row.parserVer.replace('v', '').split('.').map(Number);
-    row.parserVer = `v${major}.${minor + 1}`;
-    row.updatedAt = nowStamp().slice(0, 10);
-    return { success: true, code: 'SUCCESS', message: `양식을 수정했습니다 — 파서 ${row.parserVer}`, data: { parserVer: row.parserVer } };
-  },
-
-  getQualityReportFormsByFormIdFields: ({ formId }) => ({ fields: REPORT_FORM_FIELDS[formId] || REPORT_FORM_FIELDS['F-SCRAP'] }),
 };

@@ -75,6 +75,31 @@ export function getProductionResultsTrend(params) {
  * @param {object} params targetDate, processId
  * @returns {Promise<object>} periodFrom, periodTo, weekFrom, rows[]
  */
+/* ───────── 일목표 마스터 (제품 × 공정 × 적용일) ─────────
+ * 적용일부터 다음 적용일 전까지 유효합니다 — 종료일을 두지 않습니다.
+ * 끝을 적게 하면 구간이 끊기거나 겹친 상태를 따로 막아야 합니다.
+ */
+
+/** 일목표 조회 — date 를 주면 그 날짜에 유효한 한 건씩, 안 주면 전 이력 (size=0 은 전건) */
+export function getProductionDayTargets(params) {
+  return request('getProductionDayTargets', params);
+}
+
+/** 일목표 등록 — {product, processId, applyFrom, targetQty, remark} */
+export function postProductionDayTargets(params) {
+  return request('postProductionDayTargets', params);
+}
+
+/** 일목표 수정 — 제품·공정은 바꿀 수 없습니다 */
+export function putProductionDayTargetsByTargetId(params) {
+  return request('putProductionDayTargetsByTargetId', params);
+}
+
+/** 일목표 삭제 */
+export function deleteProductionDayTargetsByTargetId(params) {
+  return request('deleteProductionDayTargetsByTargetId', params);
+}
+
 export function getProductionDailyReportsSheet(params) {
   return request('getProductionDailyReportsSheet', params);
 }

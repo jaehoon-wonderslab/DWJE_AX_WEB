@@ -61,62 +61,12 @@ export const recalculatePrediction = ({ target, horizon, trainPeriod }) =>
     trainPeriod,
   }));
 
-/* ───────── QC-03 품질 보고서 ───────── */
-
-/**
- * 품질 보고서 상세 + 양식 + 이력
+/* ───────── QC-03 품질 보고서 · QC-04 보고서 양식 관리 — 화면 제거됨 ─────────
  *
- * reportId 는 숫자 대리키입니다. 문서번호(QR-260828-02)와 다른 값이라
- * 문서번호를 넣으면 400 이 납니다. 지정하지 않으면 이력의 첫 건을 펼칩니다.
+ * 2026-09-04 — 고객이 준 보고서 자료(`Web 프로토타입/보고서 스크린샷`)에 품질 보고서가 없습니다.
+ * 만들기로 한 보고서 6종은 아침회의 자료 2종 · 출하계획 · 제품별 수율 · 고객사별 LRR · 폐기 보고서이고,
+ * 품질 보고서는 그 어디에도 해당하지 않아 화면·메뉴를 걷어냈습니다(사용자 확인).
  *
- * @param {number|null} [reportId]
+ * 보고서 양식 관리(QC-04)는 품질 보고서의 하위 화면이고 그 양식만 다루므로 함께 걷어냈습니다.
+ * 서버 API 도 제거 요청했습니다.
  */
-export async function loadQualityReport(reportId) {
-  const history = await unwrap(qualityService.getQualityReports({}), { items: [] });
-  const targetId = reportId ?? history?.items?.[0]?.reportId ?? null;
-
-  const forms = await unwrap(qualityService.getQualityReportForms({}), { items: [] });
-  // 보고서가 한 건도 없으면 상세를 부르지 않습니다 (없는 ID 로 부르면 404 입니다)
-  if (targetId == null) return { history, forms, report: null, autofill: null, masking: null, errors: {}, metas: {} };
-
-  const rest = await unwrapAll({
-    report: qualityService.getQualityReportsByReportId({ reportId: targetId }),
-    autofill: qualityService.getQualityReportsByReportIdAutofillStatus({ reportId: targetId }),
-    masking: qualityService.getQualityReportsByReportIdMasking({ reportId: targetId }),
-  });
-  return { ...rest, history, forms, reportId: targetId };
-}
-
-export const createReportDraft = (params) => command(qualityService.postQualityReportsDraft(params));
-
-/**
- * 임시 저장 — 서버(ReportCorrectionRequest)는 sections[{section, fields[{fieldCode, fieldNm, value, origin}]}] 를 받습니다.
- * 화면이 들고 있는 섹션 구조를 그 모양으로 바꿔 보냅니다.
- */
-export const saveQualityReport = (reportId, sections) =>
-  command(qualityService.putQualityReportsByReportId({
-    reportId,
-    sections: (sections || []).map((sec) => ({
-      section: sec.section,
-      fields: (sec.fields || []).map((f) => ({ fieldCode: f.fieldCode, fieldNm: f.field, value: f.value ?? '', origin: f.origin })),
-    })),
-  }));
-export const confirmQualityReport = (reportId) => command(qualityService.postQualityReportsByReportIdConfirm({ reportId }));
-export const rejectQualityReport = (reportId, reason) => command(qualityService.postQualityReportsByReportIdReject({ reportId, reason }));
-export const regenerateQualityReport = (reportId) => command(qualityService.postQualityReportsByReportIdRegenerate({ reportId }));
-export const exportQualityReport = (reportId, format) => command(qualityService.postQualityReportsByReportIdExport({ reportId, format }));
-export const requestUnmask = (reportId, fields, reason) =>
-  command(qualityService.postQualityReportsByReportIdUnmaskRequest({ reportId, fields, reason }));
-// 서버는 criteria 만 받습니다 (limit 는 화면에서 매수 제한으로만 씁니다)
-export const fetchEvidenceImages = (reportId, criteria) =>
-  unwrap(qualityService.getQualityReportsByReportIdEvidenceImages({ reportId, criteria }), { images: [] });
-// imageIds 는 문자열 목록(List<String>)입니다
-export const attachEvidenceImages = (reportId, imageIds) =>
-  command(qualityService.postQualityReportsByReportIdEvidenceImages({ reportId, imageIds: (imageIds || []).map(String) }));
-
-/* ───────── QC-04 보고서 양식 관리 ───────── */
-
-export const loadReportForms = () => unwrap(qualityService.getQualityReportForms({}), { items: [] });
-export const loadFormFields = (formId) => unwrap(qualityService.getQualityReportFormsByFormIdFields({ formId }), { fields: [] });
-export const createReportForm = (values) => command(qualityService.postQualityReportForms(values));
-export const updateReportForm = (formId, values) => command(qualityService.putQualityReportFormsByFormId({ formId, ...values }));

@@ -82,8 +82,6 @@ export const MENU = [
  */
 export const EXTRA_PAGES = [
   { id: 'daily-history', name: '이전 보고서', path: '/production/daily-report/history', group: '생산관리', parent: 'prod-daily' },
-  { id: 'qc-report', name: '품질 보고서', path: '/quality/report', group: '품질관리', parent: 'qc-defect' },
-  { id: 'report-forms', name: '보고서 양식 관리', path: '/quality/report-forms', group: '품질관리', parent: 'qc-report' },
   { id: 'rpt-scrap-new', name: '폐기 보고서 작성', path: '/report/scrap/new', group: '보고서', parent: 'rpt-scrap' },
 ];
 
