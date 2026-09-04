@@ -83,7 +83,15 @@ export async function loadAiDashboard(param) {
     ],
     note: '진한 칸일수록 가동률이 낮은 구간입니다. PR-03·PR-05의 10~12시 구간이 금일 최저치입니다.',
   };
-  const heatmap = (data.heatmap?.rows?.length && data.heatmap?.data?.length) ? data.heatmap : fallbackHeatmap;
+  const rawHeatmap = (data.heatmap?.rows?.length && data.heatmap?.data?.length) ? data.heatmap : fallbackHeatmap;
+  const formattedRows = (rawHeatmap.rows || []).map((code, idx) => {
+    const num = parseInt(String(code).replace(/[^0-9]/g, ''), 10) || (idx + 1);
+    return String(code).includes('(') ? code : `프레스 ${num} (${code})`;
+  });
+  const heatmap = {
+    ...rawHeatmap,
+    rows: formattedRows,
+  };
 
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {

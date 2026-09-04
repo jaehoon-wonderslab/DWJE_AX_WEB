@@ -58,7 +58,7 @@ export default function HeatMap({
         <View style={{ flex: 1, minWidth: 500 }}>
           {/* 열 헤더 (06, 08, 10 ...) */}
           <View style={{ flexDirection: 'row', marginBottom: 6, alignItems: 'center' }}>
-            <View style={{ width: 62, paddingRight: 8 }} />
+            <View style={{ width: 120, paddingRight: 8 }} />
             <View style={{ flex: 1, flexDirection: 'row', gap: 4 }}>
               {cols.map((c) => (
                 <View key={c} style={{ flex: 1, minWidth: 42, alignItems: 'center' }}>
@@ -70,12 +70,12 @@ export default function HeatMap({
             </View>
           </View>
 
-          {/* 행 (PR-01 ~ PR-10) */}
+          {/* 행 (프레스 1 (PR-01) ~ 프레스 10 (PR-10)) */}
           {rows.map((r, ri) => (
             <View key={r} style={{ flexDirection: 'row', marginBottom: 4, alignItems: 'center' }}>
               {/* 좌측 설비명 라벨 */}
-              <View style={{ width: 62, paddingRight: 10, justifyContent: 'center' }}>
-                <Text style={[s.textXs, { fontSize: 11, fontWeight: '600', textAlign: 'right', color: theme.color.foreground }]}>
+              <View style={{ width: 120, paddingRight: 12, justifyContent: 'center' }}>
+                <Text style={[s.textXs, { fontSize: 11.5, fontWeight: '600', textAlign: 'right', color: theme.color.foreground }]}>
                   {r}
                 </Text>
               </View>
