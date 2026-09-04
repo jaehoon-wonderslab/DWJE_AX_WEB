@@ -1,10 +1,11 @@
 /**
- * [Component] 일자 × 시간대 불량률 피벗 매트릭스 그리드 (Hourly Defect Pivot Matrix)
+ * [Component] 일자 × 시간대 불량률 매트릭스 (Hourly Defect Matrix)
  *
  * 검색한 전체 기간의 일자(Row)와 2시간 단위 시간대(Column)를 격자(Grid)로 교차 배치하여,
  * 1) 히트맵 그라데이션 셀로 특정 일자/시간대의 불량률을 직관적으로 비교하고
- * 2) 호버 시 플로팅 툴팁으로 상세 수량을 즉시 확인하며
+ * 2) 0ms 즉시 반응하는 고시인성 커스텀 플로팅 툴팁으로 상세 정보를 확인하며
  * 3) 셀 클릭 시 대형 상세 분석 모달을 호출합니다.
+ * 4) '일일 평균' 열은 히트맵 컬러와 구별되는 뉴트럴 강조 스타일로 표시됩니다.
  */
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -18,7 +19,7 @@ export default function HourlyDefectPivotMatrix({
   target = 3.0,
 }) {
   const theme = useTheme();
-  const [hoveredCell, setHoveredCell] = useState(null);
+  const [hoverTooltip, setHoverTooltip] = useState(null);
 
   if (!pivotMatrix?.rows?.length) return null;
 
@@ -60,11 +61,12 @@ export default function HourlyDefectPivotMatrix({
 
   return (
     <View style={styles.container}>
+      {/* 상단 정보 및 히트맵 범례 */}
       <View style={styles.topInfoRow}>
         <View style={styles.titleInfo}>
           <Icon name="grid" size={15} color={theme.color.primary} />
           <Text style={[styles.matrixTitle, { color: theme.color.text, fontWeight: '700' }]}>
-            일자 × 시간대별 불량률 매트릭스 (Pivot Grid)
+            일자 × 시간대별 불량률 매트릭스
           </Text>
           <Text style={[styles.matrixSub, { color: theme.color.textDim }]}>
             총 {rows.length}일간 · 2시간 간격 ({rows.length * 12}개 구간)
@@ -92,7 +94,7 @@ export default function HourlyDefectPivotMatrix({
         </View>
       </View>
 
-      {/* 가로 스크롤 매트릭스 테이블 */}
+      {/* 가로 너비를 넓게 활용하는 매트릭스 테이블 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.scrollContainer}>
         <View style={[styles.tableWrapper, { borderColor: theme.color.border }]}>
           {/* 헤더 행 */}
@@ -105,14 +107,26 @@ export default function HourlyDefectPivotMatrix({
                 <Text style={[styles.thText, { color: theme.color.textDim, fontWeight: '600' }]}>{sLabel}</Text>
               </View>
             ))}
-            <View style={[styles.thCell, styles.summaryCol]}>
-              <Text style={[styles.thText, { color: theme.color.primary, fontWeight: '700' }]}>일일 평균</Text>
+            {/* 일일 평균 열 헤더 (히트맵 컬러가 아닌 뉴트럴 분리 색상) */}
+            <View
+              style={[
+                styles.thCell,
+                styles.summaryCol,
+                {
+                  backgroundColor: theme.mode === 'dark' ? '#0f172a' : '#e2e8f0',
+                  borderLeftWidth: 2,
+                  borderLeftColor: theme.color.border,
+                },
+              ]}
+            >
+              <Text style={[styles.thText, { color: theme.mode === 'dark' ? '#93c5fd' : '#1e3a8a', fontWeight: '800' }]}>
+                일일 평균
+              </Text>
             </View>
           </View>
 
           {/* 데이터 행 목록 */}
           {rows.map((row, rIdx) => {
-            const rowColors = getCellColors(row.avgDefectRate);
             return (
               <View
                 key={rIdx}
@@ -136,16 +150,11 @@ export default function HourlyDefectPivotMatrix({
                 {/* 12개 시간대 셀 */}
                 {row.cells.map((cell, cIdx) => {
                   const colors = getCellColors(cell.defectRate);
-                  const tooltipText = `[${cell.date} ${cell.slotLabel}~${cell.nextSlot}]\n• 불량률: ${fixed(cell.defectRate)}%\n• 투입량: ${comma(cell.inputQty)} EA\n• 양품: ${comma(cell.okQty)} EA\n• 불량: ${comma(cell.ngQty)} EA\n• 수율: ${fixed(cell.yield)}%\n• 주 불량: ${cell.primaryDefect}\n(클릭 시 상세 모달 표시)`;
 
                   return (
                     <Pressable
                       key={cIdx}
-                      ref={(el) => {
-                        if (el && el.setAttribute) {
-                          el.setAttribute('title', tooltipText);
-                        }
-                      }}
+                      dataSet={{ cellSlot: cell.slot, date: cell.date }}
                       style={[
                         styles.tdCell,
                         styles.slotCol,
@@ -155,9 +164,30 @@ export default function HourlyDefectPivotMatrix({
                           borderColor: colors.border,
                         },
                       ]}
-                      accessibilityLabel={tooltipText}
-                      onHoverIn={() => setHoveredCell(cell)}
-                      onHoverOut={() => setHoveredCell((prev) => (prev === cell ? null : prev))}
+                      onMouseEnter={(e) => {
+                        const targetEl = e?.currentTarget || e?.target;
+                        if (targetEl && targetEl.getBoundingClientRect) {
+                          const rect = targetEl.getBoundingClientRect();
+                          setHoverTooltip({
+                            cell,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top,
+                          });
+                        }
+                      }}
+                      onMouseLeave={() => setHoverTooltip(null)}
+                      onHoverIn={(e) => {
+                        const targetEl = e?.currentTarget || e?.nativeEvent?.target;
+                        if (targetEl && targetEl.getBoundingClientRect) {
+                          const rect = targetEl.getBoundingClientRect();
+                          setHoverTooltip({
+                            cell,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top,
+                          });
+                        }
+                      }}
+                      onHoverOut={() => setHoverTooltip(null)}
                       onPress={() => onCellClick && onCellClick(cell)}
                     >
                       <Text
@@ -175,25 +205,22 @@ export default function HourlyDefectPivotMatrix({
                   );
                 })}
 
-                {/* 일일 평균 열 */}
+                {/* 일일 평균 열 (히트맵 컬러가 아닌 뉴트럴 구분 스타일) */}
                 <View
                   style={[
                     styles.tdCell,
                     styles.summaryCol,
                     {
-                      backgroundColor: rowColors.bg,
+                      backgroundColor: theme.mode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : '#f1f5f9',
+                      borderLeftWidth: 2,
+                      borderLeftColor: theme.color.border,
                     },
                   ]}
-                  ref={(el) => {
-                    if (el && el.setAttribute) {
-                      el.setAttribute('title', `[${row.date} 일일 종합]\n• 평균 불량률: ${fixed(row.avgDefectRate)}%\n• 총 투입량: ${comma(row.totalInputQty)} EA\n• 총 불량: ${comma(row.totalNgQty)} EA\n• 평균 수율: ${fixed(row.avgYield)}%`);
-                    }
-                  }}
                 >
                   <Text
                     style={[
                       styles.summaryRateText,
-                      { color: rowColors.text, fontWeight: '700' },
+                      { color: theme.mode === 'dark' ? '#f1f5f9' : '#0f172a', fontWeight: '800' },
                     ]}
                   >
                     {fixed(row.avgDefectRate)}%
@@ -205,42 +232,65 @@ export default function HourlyDefectPivotMatrix({
         </View>
       </ScrollView>
 
-      {/* 실시간 호버 요약 바 또는 기본 가이드 안내 문구 */}
-      {hoveredCell ? (
-        <View
-          style={[
-            styles.hoverInfoBar,
-            {
-              backgroundColor: theme.mode === 'dark' ? '#1e293b' : '#f8fafc',
-              borderColor: Number(hoveredCell.defectRate) > target ? 'rgba(239, 68, 68, 0.4)' : theme.color.primary,
-            },
-          ]}
+      {/* 하단 기본 가이드 안내 문구 (툴팁 정보가 덮어씌워지지 않고 고정 유지) */}
+      <View style={styles.bottomHelp}>
+        <Icon name="info" size={13} color={theme.color.textDim} />
+        <Text style={[styles.helpText, { color: theme.color.textDim }]}>
+          각 셀에 마우스를 올리면 실시간 상세 툴팁이 표시되며, 셀 클릭 시 AI 정밀 진단 리포트 모달이 열립니다.
+        </Text>
+      </View>
+
+      {/* 0ms 즉각 반응하는 고시인성 커스텀 플로팅 툴팁 */}
+      {hoverTooltip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: hoverTooltip.x,
+            top: hoverTooltip.y - 10,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 99999,
+            pointerEvents: 'none',
+            backgroundColor: theme.mode === 'dark' ? 'rgba(15, 23, 42, 0.96)' : 'rgba(15, 23, 42, 0.94)',
+            color: '#ffffff',
+            padding: '10px 14px',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            fontSize: 12,
+            lineHeight: 1.5,
+            minWidth: 220,
+            backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            transition: 'opacity 0.08s ease',
+          }}
         >
-          <View style={styles.hoverInfoLeft}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: Number(hoveredCell.defectRate) > target ? '#ef4444' : '#16a34a' },
-              ]}
-            />
-            <Text style={[styles.hoverTitleText, { color: theme.color.text, fontWeight: '700' }]}>
-              {hoveredCell.date} [{hoveredCell.slotLabel} ~ {hoveredCell.nextSlot}]
-            </Text>
-            <Text style={[styles.hoverMetricsText, { color: theme.color.textMuted }]}>
-              투입 {comma(hoveredCell.inputQty)} EA · 양품 {comma(hoveredCell.okQty)} EA · 불량 {comma(hoveredCell.ngQty)} EA · 불량률 <Text style={{ color: Number(hoveredCell.defectRate) > target ? '#ef4444' : '#16a34a', fontWeight: '700' }}>{fixed(hoveredCell.defectRate)}%</Text> · 수율 {fixed(hoveredCell.yield)}% · 주 원인: {hoveredCell.primaryDefect}
-            </Text>
-          </View>
-          <Text style={[styles.hoverClickHint, { color: theme.color.primary, fontWeight: '600' }]}>
-            클릭하여 AI 종합 분석 모달 열기 &gt;
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.bottomHelp}>
-          <Icon name="info" size={13} color={theme.color.textDim} />
-          <Text style={[styles.helpText, { color: theme.color.textDim }]}>
-            각 셀에 마우스를 올리면 실시간 요약이 표시되며, 클릭 시 상세 분석 보고서 모달이 열립니다.
-          </Text>
-        </View>
+          <div style={{ fontWeight: 700, marginBottom: 5, color: '#60a5fa', borderBottom: '1px solid rgba(255,255,255,0.12)', paddingBottom: 4 }}>
+            {hoverTooltip.cell.date} [{hoverTooltip.cell.slotLabel} ~ {hoverTooltip.cell.nextSlot}]
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
+            <span style={{ color: '#94a3b8' }}>불량률:</span>
+            <span style={{ fontWeight: 700, color: hoverTooltip.cell.defectRate > target ? '#f87171' : '#4ade80' }}>
+              {fixed(hoverTooltip.cell.defectRate)}% ({hoverTooltip.cell.status})
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
+            <span style={{ color: '#94a3b8' }}>투입 수량:</span>
+            <span style={{ fontWeight: 500 }}>{comma(hoverTooltip.cell.inputQty)} EA</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
+            <span style={{ color: '#94a3b8' }}>양품 / 불량:</span>
+            <span>{comma(hoverTooltip.cell.okQty)} / <span style={{ color: hoverTooltip.cell.ngQty > 0 ? '#f87171' : 'inherit' }}>{comma(hoverTooltip.cell.ngQty)}</span> EA</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 3 }}>
+            <span style={{ color: '#94a3b8' }}>공정 수율:</span>
+            <span style={{ fontWeight: 600 }}>{fixed(hoverTooltip.cell.yield)}%</span>
+          </div>
+          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: '#e2e8f0' }}>
+            주 결함: <span style={{ color: '#fde047', fontWeight: 600 }}>{hoverTooltip.cell.primaryDefect}</span>
+          </div>
+          <div style={{ marginTop: 3, fontSize: 10, color: '#93c5fd' }}>
+            클릭 시 AI 상세 진단 모달 열기 &gt;
+          </div>
+        </div>
       )}
     </View>
   );
@@ -248,7 +298,7 @@ export default function HourlyDefectPivotMatrix({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 16,
+    marginTop: 10,
     gap: 10,
   },
   topInfoRow: {
@@ -257,6 +307,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 12,
+    paddingHorizontal: 2,
   },
   titleInfo: {
     flexDirection: 'row',
@@ -296,7 +347,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     overflow: 'hidden',
-    minWidth: 840,
+    width: '100%',
+    minWidth: 980,
   },
   headerRow: {
     flexDirection: 'row',
@@ -325,7 +377,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   dateCol: {
-    width: 105,
+    width: 110,
     paddingLeft: 12,
     alignItems: 'flex-start',
   },
@@ -333,10 +385,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   slotCol: {
-    width: 58,
+    flex: 1,
+    minWidth: 62,
   },
   summaryCol: {
-    width: 74,
+    width: 86,
   },
   heatCell: {
     borderRightWidth: 1,
@@ -354,39 +407,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingTop: 4,
+    paddingHorizontal: 2,
   },
   helpText: {
-    fontSize: 11,
-  },
-  hoverInfoBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  hoverInfoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  hoverTitleText: {
-    fontSize: 12,
-  },
-  hoverMetricsText: {
-    fontSize: 11,
-  },
-  hoverClickHint: {
     fontSize: 11,
   },
 });

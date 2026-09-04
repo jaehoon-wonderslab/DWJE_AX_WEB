@@ -31,6 +31,7 @@ import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
+import ProcessYieldView from './components/ProcessYieldView';
 
 export default function AiDashboardView({
   loading,
@@ -233,10 +234,10 @@ export default function AiDashboardView({
             loading={causeLoading}
           />
 
-          {/* 1. 시간대별 불량률 추이 (시계열 & 피벗 매트릭스) */}
+          {/* 1. 시간대별 불량률 추이 */}
           <Card
-            title="시간대별 불량률 추이 (시계열 & 피벗 매트릭스)"
-            sub={`${from} ~ ${to} · 2시간 간격 연속 시계열 차트 (가로 스크롤) 및 일자×시간대 피벗 매트릭스`}
+            title="시간대별 불량률 추이"
+            sub={`${from} ~ ${to} · 2시간 간격 연속 시계열 차트 (가로 스크롤) 및 일자×시간대 매트릭스`}
             nativeID="chart-card-hourly-trend"
             right={
               <Button
@@ -247,7 +248,7 @@ export default function AiDashboardView({
                 onPress={() =>
                   saveChartAsPng({
                     containerId: 'chart-card-hourly-trend',
-                    fileName: '시간대별_불량률_추이_시계열_피벗',
+                    fileName: '시간대별_불량률_추이',
                     title: '시간대별 불량률 추이',
                     sub: `${from} ~ ${to}`,
                     isDark: theme.isDark,
@@ -268,7 +269,10 @@ export default function AiDashboardView({
               </View>
             </ScrollView>
 
-            {/* 일자 × 시간대 피벗 매트릭스 그리드 */}
+            {/* 차트와 매트릭스 간 구분을 위한 여백 및 구분선 */}
+            <View style={{ marginVertical: 24, borderTopWidth: 1, borderTopColor: theme.color.border, opacity: 0.6 }} />
+
+            {/* 일자 × 시간대별 불량률 매트릭스 */}
             <HourlyDefectPivotMatrix
               pivotMatrix={defectTrendData?.pivotMatrix}
               onCellClick={showHourlyDetailModal}
@@ -277,96 +281,22 @@ export default function AiDashboardView({
             <SourceNote>목표 불량률 3.0% 기준 · 검색 기간 내 전체 일자 및 2시간 단위 시간대별 생산 투입 및 품질 분석 내역입니다.</SourceNote>
           </Card>
 
-          {/* 2. 2열 묶음: 유형별 불량 수량 추이 (분리된 카드) ↔ 생산 계획 대비 실적 */}
-          <Grid cols={2}>
-            {/* 1번 아래쪽의 꺾은선 그래프 분리 카드 */}
-            <Card
-              title="유형별 불량 수량 추이"
-              sub={`${from} ~ ${to} · 2시간 간격 · 주요 유형별 불량 수량 (EA)`}
-              nativeID="chart-card-hourly-ng-count"
-              right={
-                <Button
-                  label="차트 이미지 저장"
-                  size="sm"
-                  variant="outline"
-                  icon="download"
-                  onPress={() =>
-                    saveChartAsPng({
-                      containerId: 'chart-card-hourly-ng-count',
-                      fileName: '유형별_불량_수량_추이',
-                      title: '유형별 불량 수량 추이',
-                      sub: `${from} ~ ${to}`,
-                      isDark: theme.isDark,
-                    })
-                  }
-                />
-              }
-            >
-              <LineChart
-                labels={trend?.labels}
-                series={trend?.countSeries || []}
-                unit="EA"
-                height={180}
-              />
-            </Card>
-
-            {/* 생산 계획 대비 실적 */}
-            <Card
-              title="생산 계획 대비 실적"
-              sub="프레스 10대 · 2시간 구간 계획 vs 실적 (EA)"
-              nativeID="chart-card-plan-actual"
-              right={
-                <Button
-                  label="차트 이미지 저장"
-                  size="sm"
-                  variant="outline"
-                  icon="download"
-                  onPress={() =>
-                    saveChartAsPng({
-                      containerId: 'chart-card-plan-actual',
-                      fileName: '생산_계획_대비_실적',
-                      title: '생산 계획 대비 실적',
-                      sub: '2시간 구간',
-                      isDark: theme.isDark,
-                    })
-                  }
-                />
-              }
-            >
-              <BarChart data={(planActual?.items || []).map((x) => ({ l: x.slot, v: x.plan, v2: x.actual }))} height={180} />
-              <View style={[s.legend, { marginTop: 6 }]}>
-                <View style={s.rowGap6}>
-                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(0) }} />
-                  <Text style={s.legendText}>계획 (EA)</Text>
-                </View>
-                <View style={s.rowGap6}>
-                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(1) }} />
-                  <Text style={s.legendText}>실적 (EA)</Text>
-                </View>
-              </View>
-              <SourceNote>
-                {`누계 계획 ${comma(planActual?.cumPlan)}EA 대비 실적 ${comma(planActual?.cumActual)}EA · 달성률 ${fixed(planActual?.rate)}%`}
-              </SourceNote>
-            </Card>
-          </Grid>
-
-          {/* 3. 라인별 생산량과 불량률 (하나의 표로 구성하고 하나의 행으로 레이아웃 구성) */}
+          {/* 2. 유형별 불량 수량 추이 (1행 전체, 가로 스크롤 연속 시계열) */}
           <Card
-            title="라인별 생산량 및 불량률"
-            sub={`프레스 10대 및 주요 설비 · ${from} ~ ${to} · 설비별 생산 실적 및 품질 현황`}
-            nativeID="chart-card-line-table"
-            tight
+            title="유형별 불량 수량 추이"
+            sub={`${from} ~ ${to} · 2시간 간격 · 검색 기간 내 전체 일자 및 시간대별 주요 불량 유형 발생 수량 (EA)`}
+            nativeID="chart-card-hourly-ng-count"
             right={
               <Button
-                label="표 이미지 저장"
+                label="차트 이미지 저장"
                 size="sm"
                 variant="outline"
                 icon="download"
                 onPress={() =>
                   saveChartAsPng({
-                    containerId: 'chart-card-line-table',
-                    fileName: '라인별_생산량_및_불량률',
-                    title: '라인별 생산량 및 불량률',
+                    containerId: 'chart-card-hourly-ng-count',
+                    fileName: '유형별_불량_수량_추이',
+                    title: '유형별 불량 수량 추이',
                     sub: `${from} ~ ${to}`,
                     isDark: theme.isDark,
                   })
@@ -374,84 +304,54 @@ export default function AiDashboardView({
               />
             }
           >
-            <Table
-              minWidth={680}
-              onRowPress={(row) => showEquipment(row.eqptCd)}
-              keyExtractor={(row) => `${row.eqptCd}·${row.processId ?? ''}`}
-              columns={[
-                {
-                  key: 'eqptCd',
-                  title: '설비 (코드/명칭)',
-                  width: 160,
-                  mono: true,
-                  render: (r) => (
-                    <View>
-                      <Text style={[s.td, s.mono, { fontWeight: '600' }]}>{r.eqptCd}</Text>
-                      {r.eqptNm ? <Text style={[s.textXs, { color: theme.color.muted }]}>{r.eqptNm}</Text> : null}
-                    </View>
-                  ),
-                },
-                { key: 'model', title: '모델', width: 120, render: (r) => <Text style={s.td}>{r.model || '—'}</Text> },
-                {
-                  key: 'qty',
-                  title: '생산량 (EA)',
-                  width: 120,
-                  align: 'right',
-                  render: (r) => <BlindValue field="qty" value={comma(r.qty)} textStyle={[s.td, s.num, { fontWeight: '600' }]} />,
-                },
-                {
-                  key: 'okQty',
-                  title: '양품 수량 (EA)',
-                  width: 120,
-                  align: 'right',
-                  render: (r) => <Text style={[s.td, s.num]}>{comma(r.okQty ?? Math.max(0, (r.qty || 0) - (r.ngQty || 0)))}</Text>,
-                },
-                {
-                  key: 'ngQty',
-                  title: '불량 수량 (EA)',
-                  width: 110,
-                  align: 'right',
-                  render: (r) => (
-                    <Text style={[s.td, s.num, { color: (r.ngQty || 0) > 0 ? '#ef4444' : undefined }]}>
-                      {comma(r.ngQty || 0)}
-                    </Text>
-                  ),
-                },
-                {
-                  key: 'defectRate',
-                  title: '불량률 (%)',
-                  width: 100,
-                  align: 'right',
-                  render: (r) => (
-                    <BlindValue
-                      field="yield"
-                      value={`${fixed(r.defectRate)}%`}
-                      textStyle={[s.td, s.num, { fontWeight: '700', color: Number(r.defectRate) > 3.0 ? '#ef4444' : '#16a34a' }]}
-                    />
-                  ),
-                },
-                {
-                  key: 'uptimeRate',
-                  title: '가동률',
-                  width: 110,
-                  render: (r) => (
-                    r.uptimeRate != null ? (
-                      <View style={{ width: '100%' }}>
-                        <ProgressBar percent={r.uptimeRate} tone={r.uptimeRate > 85 ? 'ok' : r.uptimeRate > 75 ? 'warn' : 'bad'} />
-                        <Text style={[s.textXs, s.num, { marginTop: 3 }]}>{r.uptimeRate}%</Text>
-                      </View>
-                    ) : <Text style={[s.td, { color: theme.color.muted }]}>—</Text>
-                  ),
-                },
-                { key: 'state', title: '상태', width: 80, render: (r) => <StateBadge state={r.state || (Number(r.defectRate) > 3.0 ? 'WARNING' : 'RUNNING')} /> },
-              ]}
-              rows={displayLines}
+            <LineChart
+              labels={trend?.continuousLabels || trend?.labels}
+              series={trend?.continuousCountSeries || trend?.countSeries || []}
+              unit="EA"
+              height={200}
             />
-            {linesMeta ? <Pagination meta={linesMeta} {...(paging?.bind || {})} /> : null}
-            <SourceNote>목표 불량률 3.0% 이하 관리 · 설비 행 클릭 시 상세 모니터링 모달이 열립니다.</SourceNote>
           </Card>
 
-          {/* 4. 불량유형 구성 (하나의 행으로 구성) */}
+          {/* 3. 생산 계획 대비 실적 (1행 전체) */}
+          <Card
+            title="생산 계획 대비 실적"
+            sub="프레스 10대 · 2시간 구간 계획 vs 실적 (EA)"
+            nativeID="chart-card-plan-actual"
+            right={
+              <Button
+                label="차트 이미지 저장"
+                size="sm"
+                variant="outline"
+                icon="download"
+                onPress={() =>
+                  saveChartAsPng({
+                    containerId: 'chart-card-plan-actual',
+                    fileName: '생산_계획_대비_실적',
+                    title: '생산 계획 대비 실적',
+                    sub: '2시간 구간',
+                    isDark: theme.isDark,
+                  })
+                }
+              />
+            }
+          >
+            <BarChart data={(planActual?.items || []).map((x) => ({ l: x.slot, v: x.plan, v2: x.actual }))} height={180} />
+            <View style={[s.legend, { marginTop: 6 }]}>
+              <View style={s.rowGap6}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(0) }} />
+                <Text style={s.legendText}>계획 (EA)</Text>
+              </View>
+              <View style={s.rowGap6}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(1) }} />
+                <Text style={s.legendText}>실적 (EA)</Text>
+              </View>
+            </View>
+            <SourceNote>
+              {`누계 계획 ${comma(planActual?.cumPlan)}EA 대비 실적 ${comma(planActual?.cumActual)}EA · 달성률 ${fixed(planActual?.rate)}%`}
+            </SourceNote>
+          </Card>
+
+          {/* 4. 불량 유형 구성 (1행 전체) */}
           <Card
             title="불량 유형 구성"
             sub={`총 ${comma(composition?.total)}EA · 상위 원인 집중 관리 (80/20 법칙)`}
@@ -478,10 +378,10 @@ export default function AiDashboardView({
             <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
-          {/* 5. 공정별 수율 (1개의 행으로 구성) */}
+          {/* 5. 공정별 수율 (고시인성 수율 게이지 및 목표 마커 뷰) */}
           <Card
             title="공정별 수율"
-            sub={`목표 ${processYield?.target ?? 97}% · 목표 대비 편차 (총 ${(processYield?.items || []).length}개 공정)`}
+            sub={`목표 ${processYield?.target ?? 97}% · 목표 대비 편차 및 공정별 수율 정밀 분석`}
             nativeID="chart-card-process-yield"
             right={
               <Button
@@ -501,19 +401,7 @@ export default function AiDashboardView({
               />
             }
           >
-            <View style={{ maxHeight: 240, overflowY: 'auto' }}>
-              <DotPlot
-                unit="%"
-                min={88}
-                max={100}
-                target={processYield?.target ?? 97}
-                data={(processYield?.items || []).map((x) => ({
-                  l: x.process || x.l,
-                  v: x.v ?? x.yieldRate,
-                  cls: x.cls || x.level,
-                }))}
-              />
-            </View>
+            <ProcessYieldView processYield={processYield} />
             <SourceNote>{processYield?.note || '양품 수량 ÷ (양품 + 불량) 기준. 재작업 투입분은 제외합니다.'}</SourceNote>
           </Card>
 

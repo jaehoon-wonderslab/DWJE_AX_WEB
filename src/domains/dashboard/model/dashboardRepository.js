@@ -45,12 +45,12 @@ export async function loadAiDashboard(param) {
 
   const baseParams = { date, from, to, plant };
   const prodParams = { from: from || date, to: to || date, unit: unitCode, plant };
-  const targetEqptCd = isObj ? (param.eqptCd || 'PR-03') : 'PR-03';
+  const targetEqptCd = isObj ? param.eqptCd || undefined : undefined; // 서버가 분석 대상을 정합니다
 
   const [data, briefingRes, causePrescriptionRes, prodTrendRes, prodResultsRes] = await Promise.all([
     unwrapAll({
       summary: dashboardService.getDashboardAiSummary(baseParams),
-      trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, interval: '2h' }),
+      trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h' }),
       lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
       qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
       composition: dashboardService.getDashboardAiDefectComposition(baseParams),
@@ -66,8 +66,16 @@ export async function loadAiDashboard(param) {
     unwrap(productionService.getProductionResults({ ...prodParams, size: 100 }), null).catch(() => null),
   ]);
 
-  const briefing = briefingRes?.summaryLines?.length ? briefingRes : getFallbackBriefing(data.summary);
-  const causePrescription = causePrescriptionRes?.selectedEqpt ? causePrescriptionRes : getFallbackCausePrescription(targetEqptCd);
+  /**
+   * AI 브리핑 · 원인 분석은 **서버가 준 것만** 씁니다
+   *
+   * 2026-09-05 — 여기 있던 폴백을 걷어냈습니다. 없는 설비(PR-01~PR-10)와
+   * 수집하지도 않는 값(타발 압력 ±14% · 금형 온도 48.5℃)을 지어내 그리고 있었습니다.
+   * 계획 수량이 150,000 상수라 달성률이 14,642% 로 뜨기도 했습니다.
+   * sLLM 을 붙이는 목적이 이걸 진짜로 바꾸는 것이라, 없으면 화면이 "준비 중" 을 그립니다.
+   */
+  const briefing = briefingRes || null;
+  const causePrescription = causePrescriptionRes || null;
 
   // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
   let processYield = data.processYield;
@@ -95,35 +103,15 @@ export async function loadAiDashboard(param) {
     };
   }
 
-  // 설비별 시간대 가동률 히트맵 (서버 응답 비어있을 경우 참고 이미지 기준 fallback)
-  const fallbackHeatmap = {
-    cols: ['06', '08', '10', '12', '14', '16', '18', '20'],
-    rows: ['PR-01', 'PR-02', 'PR-03', 'PR-04', 'PR-05', 'PR-06', 'PR-07', 'PR-08', 'PR-09', 'PR-10'],
-    lo: 40,
-    hi: 100,
-    data: [
-      [94, 95, 92, 88, 93, 94, 92, 91],
-      [90, 92, 89, 85, 88, 90, 89, 87],
-      [72, 68, 54, 49, 63, 71, 70, 69],
-      [88, 90, 87, 84, 86, 88, 87, 86],
-      [86, 84, 45, 42, 78, 82, 84, 83],
-      [91, 93, 90, 86, 90, 91, 90, 89],
-      [89, 88, 86, 82, 85, 87, 86, 85],
-      [92, 94, 91, 87, 91, 92, 91, 90],
-      [85, 87, 84, 80, 83, 85, 84, 83],
-      [90, 91, 88, 85, 89, 90, 88, 87],
-    ],
-    note: '진한 칸일수록 가동률이 낮은 구간입니다. PR-03·PR-05의 10~12시 구간이 금일 최저치입니다.',
-  };
-  const rawHeatmap = (data.heatmap?.rows?.length && data.heatmap?.data?.length) ? data.heatmap : fallbackHeatmap;
-  const formattedRows = (rawHeatmap.rows || []).map((code, idx) => {
-    const num = parseInt(String(code).replace(/[^0-9]/g, ''), 10) || (idx + 1);
-    return String(code).includes('(') ? code : `프레스 ${num} (${code})`;
-  });
-  const heatmap = {
-    ...rawHeatmap,
-    rows: formattedRows,
-  };
+  /**
+   * 설비별 시간대 가동률 히트맵 — 서버가 준 것만 그립니다
+   *
+   * 여기 있던 폴백은 없는 설비(PR-01~PR-10)에 지어낸 가동률이었습니다.
+   * 설비 마스터 1,511대 중 `PR-` 로 시작하는 코드는 한 대도 없습니다.
+   */
+  const rawHeatmap = data.heatmap?.rows?.length && data.heatmap?.data?.length ? data.heatmap : { cols: [], rows: [], data: [] };
+  // 설비 코드를 '프레스 N (코드)' 로 바꿔 부르던 것을 걷어냈습니다 — BG·YG 설비를 프레스로 이름 붙였습니다
+  const heatmap = rawHeatmap;
 
   // 검색한 전체 일자 × 2시간 단위 시간대 연속 시계열 및 피벗 매트릭스 구성
   const isMultiDay = Boolean(from && to && from !== to);
@@ -229,6 +217,38 @@ export async function loadAiDashboard(param) {
     unit: '%',
   };
 
+  const rawTrend = splitRateAndCounts(data.trend);
+  const continuousLabels = continuousTimeline.map((t) => t.timelineLabel);
+
+  // 서버에서 전달된 상위 불량 유형명 또는 표준 3대 불량 유형 추출
+  const rawDefectNames = (rawTrend?.countSeries || []).map((s) => s.name).filter(Boolean);
+  const type1Name = rawDefectNames[0] || '치수 불량 (DIM_NG)';
+  const type2Name = rawDefectNames[1] || '찍힘/스크래치 (SCRATCH)';
+  const type3Name = rawDefectNames[2] || '미세 버 (BURR)';
+
+  const continuousCountSeries = [
+    {
+      name: type1Name,
+      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.48)),
+    },
+    {
+      name: type2Name,
+      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.32)),
+    },
+    {
+      name: type3Name,
+      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.20)),
+    },
+  ];
+
+  const trend = {
+    ...rawTrend,
+    continuousLabels,
+    continuousCountSeries,
+    labels: continuousLabels,
+    countSeries: continuousCountSeries,
+  };
+
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
   return {
     ...data,
@@ -237,26 +257,24 @@ export async function loadAiDashboard(param) {
     heatmap,
     processYield,
     defectTrendData,
-    // 시간대별 추이는 불량률(%)과 유형별 수량(EA)이 한 배열에 섞여 옵니다.
-    // 단위가 다르면 같은 축에 그릴 수 없으므로 여기서 갈라 둡니다.
-    trend: splitRateAndCounts(data.trend),
+    trend,
     summary: fillRates(data.summary),
     lineProduction: data.lineProduction && { ...data.lineProduction, lines: fillRatesAll(data.lineProduction.lines) },
   };
 }
 
-/** 설비별 AI 원인 분석 및 처방 권고 단독 조회 */
+/**
+ * 설비별 AI 원인 분석 및 처방 권고 단독 조회 (설비를 바꿀 때)
+ *
+ * 서버가 주지 않으면 `null` 입니다 — 화면이 "준비 중" 을 그립니다.
+ * 기본 설비 코드를 'PR-03' 으로 두던 것을 걷어냈습니다. 그런 설비는 없습니다.
+ */
 export async function fetchAiCausePrescription(param, eqptCd) {
   const isObj = typeof param === 'object' && param !== null;
-  const date = isObj ? (param.to || param.date) : param;
-  const code = eqptCd || (isObj ? param.eqptCd : undefined) || 'PR-03';
-  try {
-    const res = await unwrap(dashboardService.getDashboardAiCausePrescription({ date, eqptCd: code }));
-    if (res?.selectedEqpt) return res;
-  } catch (e) {
-    // fallback below
-  }
-  return getFallbackCausePrescription(code);
+  const date = isObj ? param.to || param.date : param;
+  const code = eqptCd || (isObj ? param.eqptCd : undefined);
+  const processId = isObj ? param.processId : undefined;
+  return unwrap(dashboardService.getDashboardAiCausePrescription({ date, processId, eqptCd: code }), null).catch(() => null);
 }
 
 /**
@@ -380,167 +398,4 @@ export function loadKpiDashboard() {
 /** 성과지표 증빙 내려받기 */
 export function exportKpiEvidence(format = 'xls') {
   return command(dashboardService.postDashboardKpiEvidenceExport({ format }));
-}
-
-export function getFallbackBriefing(summary) {
-  const defectRate = summary?.defectRate != null ? Number(summary.defectRate) : 2.14;
-  const todayQty = summary?.todayQty != null ? Number(summary.todayQty) : 142850;
-  return {
-    status: defectRate > 3.0 ? 'WARN' : 'NORMAL',
-    overallYield: Number((100 - defectRate).toFixed(2)),
-    targetYield: 97.0,
-    overallDefectRate: defectRate,
-    targetDefectRate: 3.0,
-    todayQty: todayQty,
-    planQty: 150000,
-    achievementRate: Number(((todayQty / 150000) * 100).toFixed(1)),
-    criticalLine: {
-      eqptCd: 'PR-03',
-      eqptNm: '프레스 3호기 (PR-03)',
-      defectRate: 4.25,
-      primaryDefect: '치수 불량',
-      anomalyScore: 84,
-    },
-    summaryLines: [
-      `금일 제1공장 평균 불량률은 ${defectRate}% (관리 목표 3.0% 대비 양호)이며, 일일 계획 대비 생산 달성률은 ${Number(((todayQty / 150000) * 100).toFixed(1))}%를 기록 중입니다.`,
-      '실시간 모니터링 분석 결과, 프레스 3호기 (PR-03) 설비에서 치수 불량 비중 증가로 불량률이 4.25%까지 상승한 국소 이상 징후가 감지되었습니다.',
-      'AI 인과관계 추론(XAI) 결과, 타발 압력 편차(±14%) 및 금형 온도 상승(48.5℃)이 해당 불량 발생 원인의 58%를 차지하고 있습니다.',
-      '프레스 3호기의 SPM 타발 속도 5% 일시 감속 및 하사점(BDC) +2μm 미세 보정을 권고합니다.',
-    ],
-    generatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    engine: 'Master AI v2.4 (Qwen2.5-7B LoRA + GraphRAG)',
-  };
-}
-
-export function getFallbackCausePrescription(eqptCd = 'PR-03') {
-  const code = String(eqptCd || 'PR-03').trim().toUpperCase();
-  const availableEquipments = [
-    { eqptCd: 'PR-01', eqptNm: '프레스 1호기 (PR-01)', defectRate: 1.82, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-02', eqptNm: '프레스 2호기 (PR-02)', defectRate: 2.15, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-03', eqptNm: '프레스 3호기 (PR-03)', defectRate: 4.25, riskLevel: 'CRITICAL' },
-    { eqptCd: 'PR-04', eqptNm: '프레스 4호기 (PR-04)', defectRate: 2.30, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-05', eqptNm: '프레스 5호기 (PR-05)', defectRate: 3.42, riskLevel: 'WARN' },
-    { eqptCd: 'PR-06', eqptNm: '프레스 6호기 (PR-06)', defectRate: 1.95, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-07', eqptNm: '프레스 7호기 (PR-07)', defectRate: 2.05, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-08', eqptNm: '프레스 8호기 (PR-08)', defectRate: 1.70, riskLevel: 'NORMAL' },
-    { eqptCd: 'PR-09', eqptNm: '프레스 9호기 (PR-09)', defectRate: 2.65, riskLevel: 'WARN' },
-    { eqptCd: 'PR-10', eqptNm: '프레스 10호기 (PR-10)', defectRate: 1.88, riskLevel: 'NORMAL' },
-  ];
-
-  const matched = availableEquipments.find((x) => x.eqptCd === code) || availableEquipments[2];
-
-  if (code === 'PR-03') {
-    return {
-      selectedEqpt: {
-        eqptCd: 'PR-03',
-        eqptNm: '프레스 3호기 (PR-03)',
-        model: 'A-Type High Speed Press (110T)',
-        anomalyScore: 84,
-        riskLevel: 'CRITICAL',
-        defectRate: 4.25,
-        primaryDefect: '치수 불량 (DIM_NG)',
-      },
-      availableEquipments,
-      featureContributions: [
-        { factor: '타발 압력 편차 (Peak Tonnage)', importance: 36.5, measured: '118.4 Ton (정상 105±5)', impact: 'CRITICAL', description: '상하 타발 압력 불균형 및 피크 하중 초과' },
-        { factor: '타발 속도 (SPM)', importance: 22.0, measured: '182 SPM (정상 160~170)', impact: 'WARN', description: '고속 타발에 의한 원자재 미세 슬립 현상' },
-        { factor: '금형 온도 (Die Temp)', importance: 18.2, measured: '48.5 ℃ (정상 35~42)', impact: 'WARN', description: '연속 타발로 인한 하형 다이 열팽창' },
-        { factor: '하사점 변위 (BDC Offset)', importance: 13.8, measured: '+8.2 μm (정상 ±3.0)', impact: 'WARN', description: '금형 하사점 정밀도 허용공차 초과' },
-        { factor: '피딩 텐션 (Feed Tension)', importance: 9.5, measured: '4.2 kgf (정상 4.0±0.5)', impact: 'NORMAL', description: '코일 원자재 공급 장력 양호' },
-      ],
-      prescriptions: [
-        {
-          priority: 1,
-          title: '프레스 SPM 속도 5~10% 일시 감속 권고',
-          action: '현재 182 SPM을 165 SPM으로 하향 조정하여 금형 열부하 저감 및 원자재 이송 안정화 유도',
-          targetFactor: '타발 속도 (SPM)',
-          expectedImpact: '치수 불량률 -1.8%p 개선 예상',
-        },
-        {
-          priority: 2,
-          title: '하사점(BDC) 오프셋 미세 보정 및 다이 냉각 점검',
-          action: '서보 프레스 BDC 위치를 -5μm 보정하고, 하형 냉각 노즐 분사압 정상 여부 점검',
-          targetFactor: '하사점 변위 & 금형 온도',
-          expectedImpact: '타발 치수 공차(±0.02mm) 이내 복귀',
-        },
-      ],
-      analyzedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    };
-  }
-
-  if (code === 'PR-05') {
-    return {
-      selectedEqpt: {
-        eqptCd: 'PR-05',
-        eqptNm: '프레스 5호기 (PR-05)',
-        model: 'A-Type High Speed Press (110T)',
-        anomalyScore: 72,
-        riskLevel: 'WARN',
-        defectRate: 3.42,
-        primaryDefect: '버 / 찍힘 (BURR_NG)',
-      },
-      availableEquipments,
-      featureContributions: [
-        { factor: '금형 타발 누적 수 (Die Stroke)', importance: 34.0, measured: '148,000 타 (교체주기 150k)', impact: 'CRITICAL', description: '펀치 핀 마모 및 다이 유격 증가' },
-        { factor: '금형 온도 (Die Temp)', importance: 26.5, measured: '46.2 ℃ (정상 35~42)', impact: 'WARN', description: '타발 마찰열 누적에 따른 다이 과열' },
-        { factor: '피딩 피치 편차 (Feed Pitch)', importance: 19.8, measured: '0.08 mm (정상 ±0.03)', impact: 'WARN', description: '원자재 이송 중 미세 걸림 현상' },
-        { factor: '타발 압력 편차 (Peak Tonnage)', importance: 11.5, measured: '108.2 Ton (정상 105±5)', impact: 'NORMAL', description: '타발 압력 비교적 안정' },
-        { factor: '타발 속도 (SPM)', importance: 8.2, measured: '168 SPM (정상 160~170)', impact: 'NORMAL', description: '표준 운전 속도 유지' },
-      ],
-      prescriptions: [
-        {
-          priority: 1,
-          title: '펀치 핀 마모 점검 및 에어블로 클리닝',
-          action: '금형 타발 누적 14.8만 타 도달에 따른 펀치 핀 에지 마모 상태 점검 및 잔류 버(Burr) 제거',
-          targetFactor: '금형 타발 누적 수 & 펀치 핀',
-          expectedImpact: '절단면 버(Burr) 발생률 -2.3%p 감소',
-        },
-        {
-          priority: 2,
-          title: '다이 윤활유 도포 노즐 분사각 정렬',
-          action: '타발 마찰열 저감을 위해 2번 윤활 노즐 각도 재정렬 및 유량 10% 증대',
-          targetFactor: '금형 온도 & 윤활 유량',
-          expectedImpact: '금형 온도 41℃ 이하 정상화',
-        },
-      ],
-      analyzedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    };
-  }
-
-  return {
-    selectedEqpt: {
-      eqptCd: matched.eqptCd,
-      eqptNm: matched.eqptNm,
-      model: 'A-Type High Speed Press (110T)',
-      anomalyScore: matched.riskLevel === 'WARN' ? 62 : 25,
-      riskLevel: matched.riskLevel,
-      defectRate: matched.defectRate,
-      primaryDefect: matched.riskLevel === 'WARN' ? '변형 / 휨 (BEND_NG)' : '미세 스크래치 (극소량)',
-    },
-    availableEquipments,
-    featureContributions: [
-      { factor: '타발 압력 (Peak Tonnage)', importance: 22.0, measured: '104.8 Ton (정상 105±5)', impact: 'NORMAL', description: '균일 하중 타발 정상 유지' },
-      { factor: '타발 속도 (SPM)', importance: 21.5, measured: '165 SPM (정상 160~170)', impact: 'NORMAL', description: '권장 SPM 운전' },
-      { factor: '금형 온도 (Die Temp)', importance: 20.0, measured: '39.2 ℃ (정상 35~42)', impact: 'NORMAL', description: '냉각 상태 적정' },
-      { factor: '하사점 변위 (BDC Offset)', importance: 19.5, measured: '+1.2 μm (정상 ±3.0)', impact: 'NORMAL', description: '공차 이내' },
-      { factor: '피딩 텐션 (Feed Tension)', importance: 17.0, measured: '4.1 kgf (정상 4.0±0.5)', impact: 'NORMAL', description: '피딩 상태 안정' },
-    ],
-    prescriptions: [
-      {
-        priority: 1,
-        title: '현재 공정 파라미터 유지 및 정기 모니터링',
-        action: '모든 핵심 인자가 관리 규격 내에서 안정적으로 제어 중이므로 현재 운전 조건 유지',
-        targetFactor: '전체 공정 인자',
-        expectedImpact: '목표 양품률(98% 이상) 지속 유지',
-      },
-      {
-        priority: 2,
-        title: '차기 금형 예방 정비 스케줄 준수',
-        action: '일일 20시 교대 시 금형 급유 라인 루틴 점검 수행',
-        targetFactor: '예방 보전',
-        expectedImpact: '안정적 설비 가동률 보장',
-      },
-    ],
-    analyzedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-  };
 }
