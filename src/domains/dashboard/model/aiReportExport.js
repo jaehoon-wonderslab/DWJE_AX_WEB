@@ -103,65 +103,52 @@ export function downloadBriefingReport({ lines = [], docs = [], droppedCnt = 0, 
 }
 
 /**
- * 원인 분석 리포트 — **대상별 표**
+ * 원인 분석 리포트 — **화면 표 그대로**
  *
- * 불량률 기준을 넘은 공정·설비가 여럿이므로 대상을 행으로 세워 견줄 수 있게 합니다.
+ * 화면에서 본 표와 열이 같아야 합니다. 받아 본 사람이 화면과 대조할 때
+ * 열이 다르면 같은 자료인지 확인하는 데 시간이 듭니다.
+ *
+ * html 태그가 섞인 셀은 글자만 뽑아 넣습니다 — 엑셀은 태그를 그대로 찍습니다.
  */
-export function downloadCauseReport({ targets = [], docs = [], droppedCnt = 0, omittedCnt = 0, analyzedAt, targetDate, threshold }) {
+export function downloadCauseReport({ rows = [], docs = [], droppedCnt = 0, omittedCnt = 0, analyzedAt, targetDate, threshold, targetCnt = 0 }) {
   const title = 'AI 공정 원인 분석 및 처방 권고';
-  const rows = [
+  const out = [
     ...head(title, targetDate, analyzedAt),
     ...(threshold
       ? [
           {
             cells: [
               omittedCnt
-                ? `불량률 ${fixed(threshold, 1)}% 초과 ${comma(targets.length + omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳 — 나머지 ${comma(omittedCnt)}곳은 분석하지 않았습니다`
-                : `불량률 ${fixed(threshold, 1)}% 초과 대상 ${comma(targets.length)}곳`,
+                ? `불량률 ${fixed(threshold, 1)}% 초과 ${comma(targetCnt + omittedCnt)}곳 중 나쁜 순 ${comma(targetCnt)}곳 — 나머지 ${comma(omittedCnt)}곳은 분석하지 않았습니다`
+                : `불량률 ${fixed(threshold, 1)}% 초과 대상 ${comma(targetCnt)}곳`,
             ],
             style: 'meta',
           },
           { cells: [] },
         ]
       : []),
-    { cells: ['공정', '설비', '불량률', '구분', '내용', '근거', '확인된 값'], style: 'head' },
+    { cells: ['공장', '설비', '제품', 'AI 불량 판단 기준', '원인', '조치 방안 제시', 'AI 불량 판단 근거'], style: 'head' },
+    ...rows.map((r) => ({
+      cells: [r.plant, r.eqpt, r.product, plain(r.standard), plain(r.cause), plain(r.action), plain(r.basis)],
+    })),
   ];
-
-  targets.forEach((t) => {
-    const rate = t.defectRate == null ? '' : `${fixed(t.defectRate, 2)}%${t.denominator ? ` (${comma(t.numerator)}/${comma(t.denominator)})` : ''}`;
-    let first = true;
-    const put = (kind, line) => {
-      const ev = line.evidence || [];
-      if (!ev.length) {
-        rows.push({ cells: [first ? t.processNm || t.processId || '' : '', first ? t.eqptNm || t.eqptCd || '' : '', first ? rate : '', kind, line.text, '', ''] });
-        first = false;
-        return;
-      }
-      ev.forEach((e, j) => {
-        const [tg, val] = evidenceCells(e);
-        rows.push({
-          cells: [
-            first ? t.processNm || t.processId || '' : '',
-            first ? t.eqptNm || t.eqptCd || '' : '',
-            first ? rate : '',
-            j === 0 ? kind : '',
-            j === 0 ? line.text : '',
-            `${KIND_LABEL[e.kind] || e.kind} · ${tg}`,
-            val,
-          ],
-        });
-        first = false;
-      });
-    };
-    (t.contributions || []).forEach((l) => put('원인', l));
-    (t.prescriptions || []).forEach((l) => put('처방', l));
-    rows.push({ cells: [] });
-  });
 
   downloadXlsx({
     name: `${title} ${targetDate || ''}`.trim(),
     sheetName: '원인분석',
-    columns: [{ width: 22 }, { width: 24 }, { width: 20 }, { width: 7 }, { width: 56 }, { width: 38 }, { width: 30 }],
-    rows: [...rows, ...docSection(docs), ...tail(droppedCnt)],
+    columns: [{ width: 16 }, { width: 22 }, { width: 18 }, { width: 22 }, { width: 60 }, { width: 60 }, { width: 52 }],
+    rows: [...out, ...docSection(docs), ...tail(droppedCnt)],
   });
+}
+
+/** html 을 엑셀에 넣을 글자로 — 줄바꿈은 살리고 태그는 뗍니다 */
+function plain(html) {
+  return String(html ?? '')
+    .replace(/<div[^>]*>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
 }

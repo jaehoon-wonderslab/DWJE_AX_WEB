@@ -23,21 +23,30 @@ import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModa
 import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
 
-/** 표 열 — 원인과 처방을 좌우로 놓고 각각 근거를 답니다 */
-const CAUSE_COLUMNS = [
+/**
+ * 표 열 — 사용자가 지정한 구분입니다
+ *
+ * 공장·설비·제품은 대상마다 하나이므로 **묶음 머리글에도 같은 순서로** 적습니다.
+ * 「AI 불량 판단 기준」은 그 대상이 왜 분석 대상이 됐는지(불량률과 기준값)이고,
+ * 「AI 불량 판단 근거」는 처방이 인용한 문서입니다.
+ */
+export const CAUSE_COLUMNS = [
+  { title: '공장', field: 'plant', width: 110 },
+  { title: '설비', field: 'eqpt', width: 150 },
+  { title: '제품', field: 'product', width: 120 },
+  { title: 'AI 불량 판단 기준', field: 'standard', width: 150, formatter: 'html' },
   { title: '원인', field: 'cause', widthGrow: 3, formatter: 'html' },
-  { title: '원인 근거', field: 'causeBasis', widthGrow: 2, formatter: 'html' },
-  { title: '처방', field: 'action', widthGrow: 3, formatter: 'html' },
-  { title: '처방 근거 (문서)', field: 'actionBasis', widthGrow: 3, formatter: 'html' },
+  { title: '조치 방안 제시', field: 'action', widthGrow: 3, formatter: 'html' },
+  { title: 'AI 불량 판단 근거', field: 'basis', widthGrow: 3, formatter: 'html' },
 ];
 
 /** html 삽입 전 이스케이프 — 문서 인용문에 <, & 가 들어옵니다 */
 const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** 근거 한 묶음 → 표 안 html */
-function basisHtml(line) {
+function basisHtml(line, inline) {
   const ev = (line && line.evidence) || [];
-  if (!ev.length) return '<span class="muted">—</span>';
+  if (!ev.length) return inline ? '' : '<span class="muted">—</span>';
   return ev
     .map((e) => {
       if (e.kind === 'doc') {
@@ -45,7 +54,7 @@ function basisHtml(line) {
         const q = e.quote ? `<div class="quote">"${esc(e.quote.length > 120 ? `${e.quote.slice(0, 120)}…` : e.quote)}"</div>` : '';
         return `<div>${esc(where)}</div>${q}`;
       }
-      return `<div>${esc(e.label || e.key)} <span class="strong num">${esc(evidenceValueText(e))}</span></div>`;
+      return `<div class="${inline ? 'muted' : ''}">${esc(e.label || e.key)} <span class="strong num">${esc(evidenceValueText(e))}</span></div>`;
     })
     .join('');
 }
@@ -55,22 +64,40 @@ function basisHtml(line) {
  *
  * 수가 다르면 짧은 쪽을 비웁니다. 억지로 채우면 없는 대응이 있는 것처럼 보입니다.
  */
-function pairRows(targets = []) {
+export function pairRows(targets = [], threshold) {
   return targets.flatMap((t) => {
-    const rate = t.defectRate == null
-      ? ''
-      : `${fixed(t.defectRate, 2)}%${t.denominator ? ` (${comma(t.numerator)}/${comma(t.denominator)})` : ''}`;
-    const group = `${t.processNm || t.processId || '—'}  ·  ${t.eqptNm || t.eqptCd || '—'}  ·  불량률 ${rate}`;
+    const plant = t.plantNm || t.plantCd || '—';
+    const eqpt = t.eqptNm || t.eqptCd || '—';
+    const product = t.productNm || t.product
+      ? `${t.productNm || t.product}${t.productEtcCnt ? ` 외 ${comma(t.productEtcCnt)}종` : ''}`
+      : '—';
+    const rate = t.defectRate == null ? '—' : `${fixed(t.defectRate, 2)}%`;
+    const frac = t.denominator ? `${comma(t.numerator)}/${comma(t.denominator)}` : '';
+    const standard = `<span class="strong num">${esc(rate)}</span>`
+      + (frac ? `<div class="muted num">${esc(frac)}</div>` : '')
+      + (threshold ? `<div class="muted">기준 ${esc(fixed(threshold, 1))}% 초과</div>` : '');
+
+    // 묶음 머리글 — 공장 · 설비 · 제품 · AI 불량 판단 기준 순서 (사용자 지정)
+    const group = [
+      `<span class="g"><span class="g-label">공장</span>${esc(plant)}</span>`,
+      `<span class="g"><span class="g-label">설비</span>${esc(eqpt)}</span>`,
+      `<span class="g"><span class="g-label">제품</span>${esc(product)}</span>`,
+      `<span class="g"><span class="g-label">AI 불량 판단 기준</span>${esc(rate)}${frac ? ` (${esc(frac)})` : ''}</span>`,
+    ].join('');
+
     const n = Math.max(t.contributions.length, t.prescriptions.length) || 1;
     return Array.from({ length: n }, (_, i) => {
       const cz = t.contributions[i];
       const ac = t.prescriptions[i];
       return {
         group,
-        cause: cz ? esc(cz.text) : '<span class="muted">—</span>',
-        causeBasis: cz ? basisHtml(cz) : '<span class="muted">—</span>',
+        plant,
+        eqpt,
+        product,
+        standard: i === 0 ? standard : '',
+        cause: cz ? esc(cz.text) + basisHtml(cz, true) : '<span class="muted">—</span>',
         action: ac ? esc(ac.text) : '<span class="muted">—</span>',
-        actionBasis: ac ? basisHtml(ac) : '<span class="muted">—</span>',
+        basis: ac ? basisHtml(ac) : '<span class="muted">—</span>',
       };
     });
   });
@@ -115,7 +142,6 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
   return (
     <Card
       title="AI 공정 원인 분석 및 처방 권고"
-      sub={ready ? cp.analyzedAt || '' : 'XAI & Prescription · 파인튜닝 sLLM'}
       right={
         ready ? (
           <>
@@ -132,8 +158,10 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
               label="엑셀 다운로드"
               size="sm"
               icon="download"
+              // 화면 표와 **같은 행**을 넘깁니다 — 열이 다르면 받아 본 사람이 대조할 수 없습니다
               onPress={() => downloadCauseReport({
-                targets,
+                rows: pairRows(targets, cp.threshold),
+                targetCnt: targets.length,
                 docs: collectDocs(SECTIONS(causes, actions)),
                 droppedCnt: cp.droppedCnt,
                 analyzedAt: cp.analyzedAt,
@@ -191,8 +219,9 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
           <TabulatorGrid
             groupBy="group"
             columns={CAUSE_COLUMNS}
-            rows={pairRows(targets)}
-            height={targets.length > 2 ? 460 : undefined}
+            rows={pairRows(targets, cp.threshold)}
+            groupStartOpen={false}
+            /* 높이를 박으면 접힌 상태에서 아래가 크게 빕니다 — 펼친 만큼만 자라게 둡니다 */
             emptyText="근거가 확인된 분석 결과가 없습니다."
           />
 

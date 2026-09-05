@@ -59,7 +59,6 @@ export default function AiBriefingCard({ briefing, loading }) {
   return (
     <Card
       title="AI 일일 품질·생산 종합 브리핑"
-      sub={ready ? briefing.generatedAt || '' : '파인튜닝 sLLM'}
       right={
         ready ? (
           <>

@@ -276,6 +276,21 @@ export async function fetchEquipmentMatrix({ date, from, to, plant }) {
 
   return {
     total: rows.length,
+    /** 표에 그대로 넣을 한 줄 — 공장 · 설비 · 제품 · 불량률 (사용자 지정 순서) */
+    items: rows
+      .map((r) => ({
+        // 공장은 서버가 null 로 줍니다 — 어느 표에도 없습니다(2026-09-06 확인). 지어내지 않고 비웁니다
+        plant: r.plantNm || r.plantCd || '',
+        processNm: r.processNm || nameOf[r.processId] || r.processId || '',
+        eqptCd: r.eqptCd,
+        eqptNm: r.eqptNm || r.eqptCd,
+        product: r.productNm || r.product || '',
+        productEtcCnt: r.productEtcCnt || 0,
+        qty: r.qty || 0,
+        ngQty: r.ngQty || 0,
+        defectRate: r.defectRate || 0,
+      }))
+      .sort((a, b) => b.defectRate - a.defectRate),
     /** 나쁜 공정이 위로 오게 — 평균 불량률 내림차순 */
     groups: Object.entries(byProc)
       .map(([processId, items]) => {

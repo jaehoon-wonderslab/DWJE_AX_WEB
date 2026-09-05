@@ -208,7 +208,6 @@ export default function AiDashboardView({
           {/* 1. 시간대별 불량률 추이 */}
           <Card
             title="시간대별 불량률 추이"
-            sub={`${from} ~ ${to} · 2시간 간격 연속 시계열 차트 (가로 스크롤) 및 일자×시간대 매트릭스`}
             nativeID="chart-card-hourly-trend"
             right={
               <Button
@@ -255,7 +254,6 @@ export default function AiDashboardView({
           {/* 2. 유형별 불량 수량 추이 (1행 전체, 가로 스크롤 연속 시계열) */}
           <Card
             title="유형별 불량 수량 추이"
-            sub={`${from} ~ ${to} · 2시간 간격 · 검색 기간 내 전체 일자 및 시간대별 주요 불량 유형 발생 수량 (EA)`}
             nativeID="chart-card-hourly-ng-count"
             right={
               <Button
@@ -286,7 +284,6 @@ export default function AiDashboardView({
           {/* 3. 생산 계획 대비 실적 (1행 전체) */}
           <Card
             title="생산 계획 대비 실적"
-            sub="프레스 10대 · 2시간 구간 계획 vs 실적 (EA)"
             nativeID="chart-card-plan-actual"
             right={
               <Button
@@ -325,7 +322,6 @@ export default function AiDashboardView({
           {/* 4. 불량 유형 구성 (1행 전체) */}
           <Card
             title="불량 유형 구성"
-            sub={`총 ${comma(composition?.total)}EA · 상위 원인 집중 관리 (80/20 법칙)`}
             nativeID="chart-card-defect-composition"
             right={
               <Button
@@ -360,7 +356,6 @@ export default function AiDashboardView({
           */}
           <Card
             title="설비별 불량률"
-            sub={`공정 × 설비 매트릭스 · 진할수록 불량률이 높습니다${equipmentMatrix?.total ? ` · 생산한 설비 ${comma(equipmentMatrix.total)}대` : ''}`}
           >
             <EquipmentMatrix data={equipmentMatrix} loading={matrixLoading} />
             <SourceNote>

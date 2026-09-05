@@ -95,7 +95,16 @@ export default function HourlyDefectPivotMatrix({
       </View>
 
       {/* 가로 너비를 넓게 활용하는 매트릭스 테이블 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.scrollContainer}>
+      {/*
+        가로 스크롤 안의 내용은 기본으로 제 너비만큼만 잡혀, 넓은 화면에서 오른쪽이 크게 빕니다.
+        contentContainer 를 늘려 두면 좁을 때만 스크롤이 생기고 넓을 때는 카드 폭을 다 씁니다.
+      */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        style={styles.scrollContainer}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
         <View style={[styles.tableWrapper, { borderColor: theme.color.border }]}>
           {/* 헤더 행 */}
           <View style={[styles.headerRow, { backgroundColor: theme.mode === 'dark' ? '#1f242d' : '#f1f5f9' }]}>
@@ -348,6 +357,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     width: '100%',
+    // 좁은 화면에서는 이만큼은 있어야 칸이 읽힙니다 — 그보다 넓으면 flex 로 늘어납니다
     minWidth: 980,
   },
   headerRow: {

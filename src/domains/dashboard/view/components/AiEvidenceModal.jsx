@@ -52,7 +52,6 @@ export function collectDocs(sections = []) {
 export function openEvidenceModal({ title, sections = [], droppedCnt = 0, analyzedAt }) {
   useUiStore.getState().openModal({
     title: `${title} — 판단 근거`,
-    sub: analyzedAt || '',
     wide: true,
     render: () => <EvidenceBody sections={sections} droppedCnt={droppedCnt} />,
   });

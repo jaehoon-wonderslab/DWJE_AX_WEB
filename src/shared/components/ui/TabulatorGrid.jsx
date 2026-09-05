@@ -16,6 +16,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
+import { FONT_FAMILY } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
 export default function TabulatorGrid({
@@ -24,6 +25,7 @@ export default function TabulatorGrid({
   height,
   groupBy,
   groupHeader,
+  groupStartOpen = true,
   emptyText = '표시할 내용이 없습니다.',
   style,
 }) {
@@ -60,7 +62,7 @@ export default function TabulatorGrid({
       ...(groupBy
         ? {
             groupBy,
-            groupStartOpen: true,
+            groupStartOpen,
             groupHeader: groupHeader || ((value, count) => `${value} <span style="color:${c.muted}">· ${count}건</span>`),
           }
         : null),
@@ -75,7 +77,7 @@ export default function TabulatorGrid({
       }
       instance.current = null;
     };
-  }, [columns, rows, height, groupBy, groupHeader, emptyText, isDark]);
+  }, [columns, rows, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark]);
 
   return (
     <View style={style} nativeID={`grid_${id}`}>
@@ -85,7 +87,6 @@ export default function TabulatorGrid({
           border: 1px solid ${c.border};
           border-radius: 6px;
           font-size: 12.5px;
-          font-family: inherit;
         }
         #grid_${id} .tabulator .tabulator-header {
           background: ${c.headBg};
@@ -119,8 +120,22 @@ export default function TabulatorGrid({
           background: ${c.groupBg};
           border-bottom: 1px solid ${c.border};
           font-weight: 700;
+          font-size: 12.5px;
           color: ${c.text};
-          padding: 8px 10px;
+          padding: 9px 10px;
+        }
+        /* 표 안 모든 글자를 화면 글꼴로 — Tabulator 기본 글꼴이 섞이면 표만 따로 놉니다 */
+        #grid_${id} .tabulator, #grid_${id} .tabulator * { font-family: ${FONT_FAMILY}; }
+        /* 묶음 머리글 안에서 항목을 칸처럼 벌려 놓습니다 — 공장·설비·제품·기준이 순서대로 읽힙니다 */
+        #grid_${id} .tabulator .tabulator-row.tabulator-group .g {
+          display: inline-block;
+          margin-right: 22px;
+        }
+        #grid_${id} .tabulator .tabulator-row.tabulator-group .g-label {
+          font-weight: 400;
+          font-size: 11px;
+          color: ${c.muted};
+          margin-right: 5px;
         }
         /* 숫자는 자릿수가 흔들리지 않게 */
         #grid_${id} .tabulator .num { font-variant-numeric: tabular-nums; }
