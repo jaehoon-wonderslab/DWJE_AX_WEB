@@ -14,7 +14,7 @@
  * 불량률 0% 로 두면 잘 돌아간 설비처럼 보입니다. 안 돌린 것과 잘 돌린 것은 다릅니다.
  */
 import React, { useMemo } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { TabulatorGrid } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma, fixed } from '@shared/utils/formatUtil';
@@ -56,5 +56,14 @@ export default function EquipmentMatrix({ data, loading }) {
   if (loading && !items.length) return <Text style={s.textXs}>설비 현황을 불러오는 중입니다.</Text>;
   if (!items.length) return <Text style={s.textXs}>이 기간에 생산한 설비가 없습니다.</Text>;
 
-  return <TabulatorGrid columns={columns} rows={rows} height={items.length > 12 ? 520 : undefined} />;
+  return (
+    <View style={{ gap: 8 }}>
+      {/*
+        몇 대를 보고 있는지는 적어 둡니다 — 표에 다 있어도 "이게 전부인가" 를 알 수 있어야 합니다.
+        생산이 없는 설비는 빠져 있으므로 그 사실도 함께 적습니다.
+      */}
+      <Text style={s.textXs}>{`생산한 설비 ${comma(items.length)}대 — 불량률이 높은 순입니다. 생산이 없는 설비는 뺐습니다.`}</Text>
+      <TabulatorGrid columns={columns} rows={rows} height={items.length > 12 ? 520 : undefined} />
+    </View>
+  );
 }
