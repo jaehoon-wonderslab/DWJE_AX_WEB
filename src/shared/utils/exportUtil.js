@@ -154,6 +154,79 @@ export function downloadXls({ name, head, rows, blindCount = 0 }) {
 }
 
 /**
+ * 표를 진짜 엑셀(.xlsx) 파일로 내려받습니다.
+ *
+ * `downloadXls` 는 HTML 표에 `.xls` 확장자를 붙이는 방식이라 엑셀이 열 때 경고를 냅니다.
+ * 사람이 받아 바로 쓰는 리포트는 이쪽을 씁니다.
+ *
+ * 행은 `{ cells, style }` 로 줍니다.
+ *   `title`   보고서 제목 줄
+ *   `meta`    기준일·모델 같은 머리 정보
+ *   `section` 절 제목
+ *   `head`    표 머리글
+ *   기본       본문
+ *
+ * @param {object} config { name, sheetName, columns[{header,width}], rows, blindCount }
+ */
+export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], rows = [], blindCount = 0 }) {
+  if (!isWeb) {
+    toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
+    return;
+  }
+  if (!rows?.length) {
+    toast('내려받을 내용이 없습니다');
+    return;
+  }
+
+  try {
+    const ExcelJS = await import('exceljs').then((m) => m.default || m);
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '덕우전자 AX 시스템';
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] });
+    if (columns.length) ws.columns = columns.map((c) => ({ width: c.width || 18 }));
+
+    rows.forEach((r) => {
+      const row = ws.addRow(r.cells || r);
+      const style = r.style;
+      row.alignment = { vertical: 'top', wrapText: true, horizontal: 'left' };
+
+      if (style === 'title') {
+        row.font = { bold: true, size: 15 };
+        row.height = 26;
+      } else if (style === 'meta') {
+        row.font = { size: 10, color: { argb: 'FF666666' } };
+      } else if (style === 'section') {
+        row.font = { bold: true, size: 12 };
+        row.height = 22;
+      } else if (style === 'head') {
+        row.font = { bold: true, size: 10.5 };
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF3F8' } };
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FFBBC4D0' } } };
+        });
+      } else if (style === 'quote') {
+        row.font = { size: 10, italic: true, color: { argb: 'FF555555' } };
+      } else {
+        row.font = { size: 10.5 };
+      }
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    saveBlob(
+      new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `${name}.xlsx`
+    );
+    logDownload({ reportName: name, format: '엑셀 (.xlsx)', rowCount: rows.length, blindCount });
+    toast(`${name}.xlsx 파일을 내려받았습니다${blindCount ? ` — 비공개 ${blindCount}건은 제외됨` : ''}`);
+  } catch (e) {
+    console.error('[엑셀 내려받기] 실패:', e);
+    toast('엑셀 파일을 만들지 못했습니다');
+  }
+}
+
+/**
  * 보고서 영역을 인쇄(또는 PDF 저장)합니다.
  *
  * React Native for Web 에서는 DOM 노드를 직접 다루지 않고,

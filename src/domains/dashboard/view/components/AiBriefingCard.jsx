@@ -14,7 +14,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Card, EmptyState, Icon } from '@shared/components/ui';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
-import { downloadAiReport } from '../../model/aiReportExport';
+import { downloadBriefingReport } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma, fixed } from '@shared/utils/formatUtil';
@@ -59,7 +59,7 @@ export default function AiBriefingCard({ briefing, loading }) {
   return (
     <Card
       title="AI 일일 품질·생산 종합 브리핑"
-      sub={ready ? `${briefing.modelVer} · ${briefing.generatedAt || ''}` : '파인튜닝 sLLM'}
+      sub={ready ? briefing.generatedAt || '' : '파인튜닝 sLLM'}
       right={
         ready ? (
           <>
@@ -69,21 +69,19 @@ export default function AiBriefingCard({ briefing, loading }) {
                 title: 'AI 일일 품질·생산 종합 브리핑',
                 sections: [{ heading: '브리핑 문장과 근거', lines }],
                 droppedCnt: dropped,
-                modelVer: briefing.modelVer,
                 analyzedAt: briefing.generatedAt,
               })}
             />
             <Button
-              label="엑셀"
+              label="엑셀 다운로드"
               size="sm"
               icon="download"
-              onPress={() => downloadAiReport({
-                title: 'AI 일일 품질·생산 종합 브리핑',
-                sections: [{ heading: '브리핑', lines }],
+              onPress={() => downloadBriefingReport({
+                lines,
                 docs: collectDocs([{ lines }]),
                 droppedCnt: dropped,
-                modelVer: briefing.modelVer,
                 analyzedAt: briefing.generatedAt,
+                targetDate: briefing.targetDate || briefing.date,
               })}
             />
           </>

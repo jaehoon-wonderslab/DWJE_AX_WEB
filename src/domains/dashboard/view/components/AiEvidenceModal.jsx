@@ -20,7 +20,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma } from '@shared/utils/formatUtil';
-import { formatEvidence } from './AiBriefingCard';
+import { evidenceValueText } from '../../model/aiReportExport';
 
 /** 근거 종류 → 사람이 읽는 이름 */
 const KIND_LABEL = {
@@ -44,81 +44,64 @@ export function collectDocs(sections = []) {
 
 /**
  * 근거 창을 엽니다.
- * @param {object} p title · sections[{ heading, lines }] · droppedCnt · modelVer · analyzedAt
+ * @param {object} p title · sections[{ heading, lines }] · droppedCnt · analyzedAt
  */
-export function openEvidenceModal({ title, sections = [], droppedCnt = 0, modelVer, analyzedAt }) {
+export function openEvidenceModal({ title, sections = [], droppedCnt = 0, analyzedAt }) {
   useUiStore.getState().openModal({
     title: `${title} — 판단 근거`,
-    sub: [modelVer, analyzedAt].filter(Boolean).join(' · '),
+    sub: analyzedAt || '',
     wide: true,
     render: () => <EvidenceBody sections={sections} droppedCnt={droppedCnt} />,
   });
 }
 
+/**
+ * 근거 창 본문 — **근거와 참고 문서만** 냅니다
+ *
+ * 원인·처방 문장은 카드에 이미 있습니다. 창에서 또 늘어놓으면 같은 글을 두 번 읽게 되고,
+ * 정작 보러 온 것(그 말이 어디서 났나)이 문장에 파묻힙니다.
+ * 그래서 여기서는 **무엇을 대조했는지**와 **어느 문서를 봤는지**만 표로 보여 줍니다.
+ */
 function EvidenceBody({ sections, droppedCnt }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const docs = collectDocs(sections);
+  const metrics = collectMetrics(sections);
 
   return (
-    <View style={{ gap: 20 }}>
+    <View style={{ gap: 18 }}>
       <View style={{ padding: 11, borderRadius: 6, backgroundColor: theme.alpha('info', 0.08) }}>
-        <Text style={[s.textXs, { lineHeight: 19 }]}>
+        <Text style={[s.textXs, { lineHeight: 20, fontSize: 12.5 }]}>
           <Text style={{ fontWeight: '700' }}>지표 근거</Text>는 서버가 값을 다시 구해 대조한 것이고,{' '}
-          <Text style={{ fontWeight: '700' }}>문서 근거</Text>는 과거 불량분석 문서의 원문입니다.
+          <Text style={{ fontWeight: '700' }}>참고 문서</Text>는 과거 불량분석 문서의 원문입니다.
           대조를 통과하지 못한 문장은 표시하지 않습니다.
         </Text>
       </View>
 
-      {sections.map((sec) => (
-        <View key={sec.heading} style={{ gap: 12 }}>
+      {metrics.length ? (
+        <View style={{ gap: 8 }}>
           <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>{sec.heading}</Text>
-            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${(sec.lines || []).length}건`}</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>지표 근거</Text>
+            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${metrics.length}건`}</Text>
           </View>
-          {(sec.lines || []).length ? (
-            sec.lines.map((line, i) => (
-              // 문장 한 덩이를 상자로 묶습니다 — 어느 근거가 어느 문장 것인지 눈으로 갈립니다
-              <View
-                key={i}
-                style={{
-                  gap: 9,
-                  padding: 12,
-                  borderRadius: 6,
-                  borderWidth: 1,
-                  borderColor: theme.color.border,
-                  backgroundColor: theme.color.card,
-                }}
-              >
-                <View style={{ flexDirection: 'row', gap: 9 }}>
-                  <View
-                    style={{
-                      width: 20, height: 20, borderRadius: 10, marginTop: 1,
-                      alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: theme.alpha('primary', 0.12),
-                    }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: theme.color.primary }}>{i + 1}</Text>
-                  </View>
-                  <Text style={[s.textSm, { flex: 1, lineHeight: 23, fontSize: 14 }]}>{line.text}</Text>
-                </View>
-                <View style={{ gap: 7, paddingTop: 9, borderTopWidth: 1, borderTopColor: theme.color.border }}>
-                  {(line.evidence || []).map((e, j) => (
-                    <EvidenceRow key={j} item={e} />
-                  ))}
-                </View>
-              </View>
-            ))
-          ) : (
-            <Text style={s.textXs}>근거가 확인된 문장이 없습니다.</Text>
-          )}
+          <View style={{ borderWidth: 1, borderColor: theme.color.border, borderRadius: 6, overflow: 'hidden' }}>
+            <MetricRow head />
+            {metrics.map((m, i) => (
+              <MetricRow key={i} item={m} last={i === metrics.length - 1} />
+            ))}
+          </View>
         </View>
-      ))}
+      ) : null}
 
       {docs.length ? (
-        <View style={{ gap: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: theme.color.border }}>
-          <Text style={[s.textSm, { fontWeight: '700' }]}>{`참고 문서 ${comma(docs.length)}건`}</Text>
-          <Text style={s.textXs}>처방 권고가 인용한 과거 불량분석 문서입니다. 원본을 열어 확인하실 수 있습니다.</Text>
+        <View style={{ gap: 8 }}>
+          <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>참고 문서</Text>
+            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${docs.length}건`}</Text>
+          </View>
+          <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+            처방 권고가 인용한 과거 불량분석 문서입니다. 아래 경로에서 원본을 열 수 있습니다.
+          </Text>
           {docs.map((d, i) => (
             <DocRow key={i} doc={d} />
           ))}
@@ -138,36 +121,55 @@ function EvidenceBody({ sections, droppedCnt }) {
   );
 }
 
-/** 근거 한 줄 — 종류 · 대조 대상 · 확인된 값 */
-function EvidenceRow({ item }) {
+/**
+ * 지표 근거를 중복 없이 모읍니다
+ *
+ * 같은 지표가 여러 문장에 붙습니다. 창에서는 "무엇을 대조했나" 가 궁금한 것이라 한 번만 보이면 됩니다.
+ */
+function collectMetrics(sections = []) {
+  const seen = new Map();
+  sections.forEach(({ lines }) => (lines || []).forEach((l) => (l.evidence || []).forEach((e) => {
+    if (e.kind === 'doc') return;
+    const id = `${e.kind}|${e.key}`;
+    if (!seen.has(id)) seen.set(id, e);
+  })));
+  return [...seen.values()];
+}
+
+/** 지표 근거 한 줄 — 종류 · 대상 · 값 (수치는 왼쪽에 붙입니다) */
+function MetricRow({ item, head, last }) {
   const s = useCommonStyles();
   const theme = useTheme();
-  const shown = formatEvidence(item.value, item.unit, item);
-
-  if (item.kind === 'doc') {
-    const where = [item.fileName, item.page ? `${item.page}쪽` : null].filter(Boolean).join(' · ');
-    return (
-      <View style={{ gap: 2 }}>
-        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`문서 · ${where || item.label || ''}`}</Text>
-        {item.quote ? (
-          <Text style={[s.textXs, { fontStyle: 'italic' }]}>{`"${item.quote}"`}</Text>
-        ) : null}
-      </View>
-    );
-  }
+  const cell = { paddingVertical: 8, paddingHorizontal: 10, justifyContent: 'center' };
+  const font = head
+    ? { fontSize: 12, fontWeight: '700', color: theme.color.foreground }
+    : { fontSize: 13, color: theme.color.foreground };
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
-      <View style={{ width: 84, paddingVertical: 1 }}>
-        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{KIND_LABEL[item.kind] || item.kind}</Text>
+    <View
+      style={{
+        flexDirection: 'row',
+        backgroundColor: head ? theme.alpha('muted', 0.5) : theme.color.card,
+        borderBottomWidth: head || !last ? 1 : 0,
+        borderBottomColor: theme.color.border,
+      }}
+    >
+      <View style={[cell, { width: 108 }]}>
+        <Text style={[font, !head && { color: theme.color.mutedForeground, fontSize: 12 }]}>
+          {head ? '종류' : KIND_LABEL[item.kind] || item.kind}
+        </Text>
       </View>
-      <Text style={[s.textXs, { flex: 1, minWidth: 150 }]}>
-        {item.label || item.key}
-        {item.key ? <Text style={{ color: theme.color.mutedForeground }}>{`  ${item.key}`}</Text> : null}
-      </Text>
-      {shown ? (
-        <Text style={{ fontSize: 13, fontWeight: '700', color: theme.color.foreground }}>{shown}</Text>
-      ) : null}
+      <View style={[cell, { flex: 1, minWidth: 160 }]}>
+        <Text style={font}>{head ? '대조 대상' : item.label || item.key}</Text>
+        {!head && item.key ? (
+          <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{item.key}</Text>
+        ) : null}
+      </View>
+      <View style={[cell, { width: 190 }]}>
+        <Text style={[font, !head && { fontWeight: '700' }]}>
+          {head ? '확인된 값' : evidenceValueText(item)}
+        </Text>
+      </View>
     </View>
   );
 }

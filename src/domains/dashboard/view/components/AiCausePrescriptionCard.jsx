@@ -14,13 +14,13 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Card, EmptyState, SelectField } from '@shared/components/ui';
+import { Card, EmptyState, SelectField, XlsTable } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
-import { fixed } from '@shared/utils/formatUtil';
+import { comma, fixed } from '@shared/utils/formatUtil';
 import { NotReady, VerifiedLines } from './AiBriefingCard';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
-import { downloadAiReport } from '../../model/aiReportExport';
+import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
 
 /** 근거 창·엑셀이 같은 묶음을 쓰도록 한 곳에서 만듭니다 */
@@ -34,14 +34,35 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
   const theme = useTheme();
 
   const cp = causePrescription;
-  const causes = (cp?.contributions || []).filter((c) => c?.text && c.verified !== false);
-  const actions = (cp?.prescriptions || []).filter((p) => p?.text && p.verified !== false);
-  const ready = !!cp?.modelVer && (causes.length || actions.length);
+  /**
+   * 대상을 **배열로 다룹니다**
+   *
+   * 서버가 대상 하나만 줄 때는 한 줄짜리 배열로 만들고, 여러 공정을 주면 그대로 씁니다
+   * (불량률 기준을 넘은 공정을 모두 보여 달라는 요청 — API 준비 중).
+   * 화면·엑셀이 같은 구조를 보므로 서버가 바뀌어도 손댈 곳이 적습니다.
+   */
+  const targets = cp?.targets?.length
+    ? cp.targets.map((t) => ({
+        ...t,
+        contributions: (t.contributions || []).filter((x) => x?.text && x.verified !== false),
+        prescriptions: (t.prescriptions || []).filter((x) => x?.text && x.verified !== false),
+      }))
+    : cp?.target
+      ? [{
+          ...cp.target,
+          contributions: (cp.contributions || []).filter((x) => x?.text && x.verified !== false),
+          prescriptions: (cp.prescriptions || []).filter((x) => x?.text && x.verified !== false),
+        }]
+      : [];
+
+  const causes = targets.flatMap((t) => t.contributions);
+  const actions = targets.flatMap((t) => t.prescriptions);
+  const ready = !!cp?.modelVer && targets.length > 0 && (causes.length || actions.length);
 
   return (
     <Card
       title="AI 공정 원인 분석 및 처방 권고"
-      sub={ready ? `${cp.modelVer}${cp.analyzedAt ? ` · ${cp.analyzedAt}` : ''}` : 'XAI & Prescription · 파인튜닝 sLLM'}
+      sub={ready ? cp.analyzedAt || '' : 'XAI & Prescription · 파인튜닝 sLLM'}
       right={
         ready ? (
           <>
@@ -51,21 +72,20 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
                 title: 'AI 공정 원인 분석 및 처방 권고',
                 sections: SECTIONS(causes, actions),
                 droppedCnt: cp.droppedCnt,
-                modelVer: cp.modelVer,
                 analyzedAt: cp.analyzedAt,
               })}
             />
             <Button
-              label="엑셀"
+              label="엑셀 다운로드"
               size="sm"
               icon="download"
-              onPress={() => downloadAiReport({
-                title: 'AI 공정 원인 분석 및 처방 권고',
-                sections: SECTIONS(causes, actions),
+              onPress={() => downloadCauseReport({
+                targets,
                 docs: collectDocs(SECTIONS(causes, actions)),
                 droppedCnt: cp.droppedCnt,
-                modelVer: cp.modelVer,
                 analyzedAt: cp.analyzedAt,
+                targetDate: cp.targetDate || cp.date,
+                threshold: cp.threshold,
               })}
             />
           </>
@@ -92,61 +112,105 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
       ) : !ready ? (
         <NotReady reason={cp?.reason} />
       ) : (
-        <View style={{ gap: 16 }}>
-          {/* 분석 대상을 한 줄로 — 무엇을 들여다본 결과인지가 먼저 보여야 합니다 */}
-          {cp.target ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                flexWrap: 'wrap',
-                padding: 12,
-                borderRadius: 6,
-                backgroundColor: theme.alpha('muted', 0.45),
-              }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>
-                {cp.target.eqptNm || cp.target.eqptCd || cp.target.processId}
-              </Text>
-              <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-                {[cp.target.eqptCd, cp.target.processId ? `공정 ${cp.target.processId}` : null].filter(Boolean).join(' · ')}
-              </Text>
-              {cp.target.defectRate != null ? (
-                <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
-                  <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>불량률</Text>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: theme.color.destructive }}>
-                    {`${fixed(cp.target.defectRate, 2)}%`}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+        <View style={{ gap: 12 }}>
+          {cp.threshold ? (
+            <Text style={s.textXs}>
+              {`불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length)}곳 — 나쁜 순입니다.`}
+            </Text>
           ) : null}
 
-          <Section title="원인 분석" desc="지표를 대조해 확인한 사실입니다.">
-            <VerifiedLines lines={causes} emptyText="근거가 확인된 원인이 없습니다." />
-          </Section>
+          {/*
+            대상이 여럿이라 표로 봅니다. 문장을 줄줄이 늘어놓으면 어느 공정 이야기인지 갈리지 않습니다.
+            공정·설비·불량률은 대상의 첫 줄에만 적어 같은 대상 묶음이 눈에 들어오게 합니다.
+          */}
+          <XlsTable
+            columns={[
+              { key: 'proc', title: '공정', width: 132, align: 'left' },
+              { key: 'eqpt', title: '설비', width: 150, align: 'left' },
+              { key: 'rate', title: '불량률', width: 130 },
+              { key: 'kind', title: '구분', width: 52 },
+              { key: 'text', title: '내용', width: 360, align: 'left' },
+              { key: 'basis', title: '근거', width: 250, align: 'left' },
+            ]}
+            rows={targets.flatMap((t) => {
+              const lines = [
+                ...t.contributions.map((l) => ({ kind: '원인', line: l })),
+                ...t.prescriptions.map((l) => ({ kind: '처방', line: l })),
+              ];
+              return lines.map(({ kind, line }, i) => ({
+                key: `${t.eqptCd || t.processId}-${kind}-${i}`,
+                cells: [
+                  { v: i === 0 ? t.processNm || t.processId || '—' : '', align: 'left', bold: true },
+                  { v: i === 0 ? t.eqptNm || t.eqptCd || '—' : '', align: 'left' },
+                  { node: i === 0 ? <RateCell target={t} /> : null, v: '' },
+                  { v: kind, tone: kind === '원인' ? '' : 'ok' },
+                  { v: line.text, align: 'left', wrap: true },
+                  { node: <BasisCell line={line} /> },
+                ],
+              }));
+            })}
+            maxHeight={520}
+          />
 
-          <Section title="처방 권고" desc="과거 불량분석 문서에서 실제로 시행한 대책을 찾아 인용합니다.">
-            <VerifiedLines lines={actions} dropped={cp.droppedCnt} emptyText="근거가 확인된 처방이 없습니다." />
-          </Section>
+          <Text style={s.textXs}>
+            문장 속 숫자는 모델이 쓴 표기입니다. <Text style={{ fontWeight: '700' }}>확인된 값은 「근거」 칸</Text>에 있습니다.
+            {cp.droppedCnt ? ` 근거가 확인되지 않아 뺀 문장 ${comma(cp.droppedCnt)}건.` : ''}
+          </Text>
         </View>
       )}
     </Card>
   );
 }
 
-/** 절 한 덩이 — 제목에 세로선을 둬 본문과 구분합니다 */
-function Section({ title, desc, children }) {
+/** 불량률 칸 — 분모를 함께 적습니다. 3.5% 를 넘어도 분모가 작으면 무게가 다릅니다 */
+function RateCell({ target }) {
   const s = useCommonStyles();
   const theme = useTheme();
+  if (target.defectRate == null) return <Text style={s.xlsCellText}>—</Text>;
   return (
-    <View style={{ gap: 9 }}>
-      <View style={{ borderLeftWidth: 3, borderLeftColor: theme.color.primary, paddingLeft: 9, gap: 2 }}>
-        <Text style={{ fontSize: 14, fontWeight: '700', color: theme.color.foreground }}>{title}</Text>
-        {desc ? <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{desc}</Text> : null}
-      </View>
-      {children}
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: theme.color.destructive }}>
+        {`${fixed(target.defectRate, 2)}%`}
+      </Text>
+      {target.denominator ? (
+        <Text style={[s.xlsCellText, { fontSize: 10, color: theme.color.mutedForeground }]}>
+          {`${comma(target.numerator)}/${comma(target.denominator)}`}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** 근거 칸 — 지표는 대상·값, 문서는 파일명·쪽과 인용문 */
+function BasisCell({ line }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const ev = line.evidence || [];
+  if (!ev.length) return <Text style={s.xlsCellText}>—</Text>;
+
+  return (
+    <View style={{ gap: 3 }}>
+      {ev.map((e, i) => (
+        <View key={i} style={{ gap: 1 }}>
+          {e.kind === 'doc' ? (
+            <>
+              <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10.5 }]}>
+                {[e.fileName, e.page ? `${e.page}쪽` : null].filter(Boolean).join(' · ')}
+              </Text>
+              {e.quote ? (
+                <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10, fontStyle: 'italic', color: theme.color.mutedForeground }]}>
+                  {`"${e.quote.length > 90 ? `${e.quote.slice(0, 90)}…` : e.quote}"`}
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10.5 }]}>
+              {e.label || e.key}
+              <Text style={{ fontWeight: '700' }}>{`  ${evidenceValueText(e)}`}</Text>
+            </Text>
+          )}
+        </View>
+      ))}
     </View>
   );
 }
