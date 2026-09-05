@@ -14,20 +14,20 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Badge, Card, EmptyState, SelectField } from '@shared/components/ui';
+import { Card, EmptyState, SelectField } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { fixed } from '@shared/utils/formatUtil';
 import { NotReady, VerifiedLines } from './AiBriefingCard';
-import { EvidenceButton, openEvidenceModal } from './AiEvidenceModal';
+import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
+import { downloadAiReport } from '../../model/aiReportExport';
+import { Button } from '@shared/components/ui';
 
-/** 불량률 → 신호등 (아침회의 자료와 같은 기준) */
-function riskOf(rate) {
-  if (rate === null || rate === undefined) return null;
-  if (rate >= 5) return { tone: 'red', label: '위험' };
-  if (rate >= 3) return { tone: 'amber', label: '주의' };
-  return { tone: 'green', label: '정상' };
-}
+/** 근거 창·엑셀이 같은 묶음을 쓰도록 한 곳에서 만듭니다 */
+const SECTIONS = (causes, actions) => [
+  { heading: '원인 분석', lines: causes },
+  { heading: '처방 권고', lines: actions },
+];
 
 export default function AiCausePrescriptionCard({ causePrescription, loading, waiting, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
   const s = useCommonStyles();
@@ -37,7 +37,6 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
   const causes = (cp?.contributions || []).filter((c) => c?.text && c.verified !== false);
   const actions = (cp?.prescriptions || []).filter((p) => p?.text && p.verified !== false);
   const ready = !!cp?.modelVer && (causes.length || actions.length);
-  const risk = riskOf(cp?.target?.defectRate);
 
   return (
     <Card
@@ -46,14 +45,24 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
       right={
         ready ? (
           <>
-            {risk ? <Badge tone={risk.tone}>{risk.label}</Badge> : null}
             <EvidenceButton
+              count={causes.length + actions.length}
               onPress={() => openEvidenceModal({
                 title: 'AI 공정 원인 분석 및 처방 권고',
-                sections: [
-                  { heading: '원인 분석', lines: causes },
-                  { heading: '처방 권고', lines: actions },
-                ],
+                sections: SECTIONS(causes, actions),
+                droppedCnt: cp.droppedCnt,
+                modelVer: cp.modelVer,
+                analyzedAt: cp.analyzedAt,
+              })}
+            />
+            <Button
+              label="엑셀"
+              size="sm"
+              icon="download"
+              onPress={() => downloadAiReport({
+                title: 'AI 공정 원인 분석 및 처방 권고',
+                sections: SECTIONS(causes, actions),
+                docs: collectDocs(SECTIONS(causes, actions)),
                 droppedCnt: cp.droppedCnt,
                 modelVer: cp.modelVer,
                 analyzedAt: cp.analyzedAt,
@@ -84,39 +93,60 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
         <NotReady reason={cp?.reason} />
       ) : (
         <View style={{ gap: 16 }}>
+          {/* 분석 대상을 한 줄로 — 무엇을 들여다본 결과인지가 먼저 보여야 합니다 */}
           {cp.target ? (
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 8,
+                gap: 10,
                 flexWrap: 'wrap',
-                paddingBottom: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.color.border,
+                padding: 12,
+                borderRadius: 6,
+                backgroundColor: theme.alpha('muted', 0.45),
               }}
             >
-              <Text style={[s.textSm, { fontWeight: '700' }]}>{cp.target.eqptNm || cp.target.eqptCd || cp.target.processId}</Text>
-              {cp.target.eqptCd ? <Text style={s.textXs}>{cp.target.eqptCd}</Text> : null}
-              {cp.target.processId ? <Text style={s.textXs}>{`공정 ${cp.target.processId}`}</Text> : null}
+              <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>
+                {cp.target.eqptNm || cp.target.eqptCd || cp.target.processId}
+              </Text>
+              <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+                {[cp.target.eqptCd, cp.target.processId ? `공정 ${cp.target.processId}` : null].filter(Boolean).join(' · ')}
+              </Text>
               {cp.target.defectRate != null ? (
-                <Text style={[s.textSm, { fontWeight: '700', marginLeft: 'auto' }]}>{`불량률 ${fixed(cp.target.defectRate, 2)}%`}</Text>
+                <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
+                  <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>불량률</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: theme.color.destructive }}>
+                    {`${fixed(cp.target.defectRate, 2)}%`}
+                  </Text>
+                </View>
               ) : null}
             </View>
           ) : null}
 
-          <View style={{ gap: 8 }}>
-            <Text style={[s.textSm, { fontWeight: '700' }]}>원인 분석</Text>
+          <Section title="원인 분석" desc="지표를 대조해 확인한 사실입니다.">
             <VerifiedLines lines={causes} emptyText="근거가 확인된 원인이 없습니다." />
-          </View>
+          </Section>
 
-          <View style={{ gap: 8 }}>
-            <Text style={[s.textSm, { fontWeight: '700' }]}>처방 권고</Text>
-            <Text style={s.textXs}>과거 불량분석 문서에서 실제로 시행한 대책을 찾아 인용합니다.</Text>
+          <Section title="처방 권고" desc="과거 불량분석 문서에서 실제로 시행한 대책을 찾아 인용합니다.">
             <VerifiedLines lines={actions} dropped={cp.droppedCnt} emptyText="근거가 확인된 처방이 없습니다." />
-          </View>
+          </Section>
         </View>
       )}
     </Card>
+  );
+}
+
+/** 절 한 덩이 — 제목에 세로선을 둬 본문과 구분합니다 */
+function Section({ title, desc, children }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 9 }}>
+      <View style={{ borderLeftWidth: 3, borderLeftColor: theme.color.primary, paddingLeft: 9, gap: 2 }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: theme.color.foreground }}>{title}</Text>
+        {desc ? <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{desc}</Text> : null}
+      </View>
+      {children}
+    </View>
   );
 }

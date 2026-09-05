@@ -14,8 +14,8 @@
  * 사람이 "모델이 그것밖에 말 안 했나" 로 잘못 읽습니다.
  */
 import React from 'react';
-import { Text, View } from 'react-native';
-import { Badge, Button } from '@shared/components/ui';
+import { Text, TouchableOpacity, View } from 'react-native';
+import { Badge, Icon } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -61,25 +61,52 @@ function EvidenceBody({ sections, droppedCnt }) {
   const docs = collectDocs(sections);
 
   return (
-    <View style={{ gap: 18 }}>
-      <Text style={s.textXs}>
-        지표 근거는 서버가 <Text style={{ fontWeight: '700' }}>값을 다시 구해 대조한 것</Text>이고,
-        문서 근거는 과거 불량분석 문서의 원문입니다. 대조를 통과하지 못한 문장은 표시하지 않습니다.
-      </Text>
+    <View style={{ gap: 20 }}>
+      <View style={{ padding: 11, borderRadius: 6, backgroundColor: theme.alpha('info', 0.08) }}>
+        <Text style={[s.textXs, { lineHeight: 19 }]}>
+          <Text style={{ fontWeight: '700' }}>지표 근거</Text>는 서버가 값을 다시 구해 대조한 것이고,{' '}
+          <Text style={{ fontWeight: '700' }}>문서 근거</Text>는 과거 불량분석 문서의 원문입니다.
+          대조를 통과하지 못한 문장은 표시하지 않습니다.
+        </Text>
+      </View>
 
       {sections.map((sec) => (
-        <View key={sec.heading} style={{ gap: 10 }}>
-          <Text style={[s.textSm, { fontWeight: '700' }]}>{sec.heading}</Text>
+        <View key={sec.heading} style={{ gap: 12 }}>
+          <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>{sec.heading}</Text>
+            <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${(sec.lines || []).length}건`}</Text>
+          </View>
           {(sec.lines || []).length ? (
             sec.lines.map((line, i) => (
+              // 문장 한 덩이를 상자로 묶습니다 — 어느 근거가 어느 문장 것인지 눈으로 갈립니다
               <View
                 key={i}
-                style={{ gap: 6, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: theme.color.border }}
+                style={{
+                  gap: 9,
+                  padding: 12,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: theme.color.border,
+                  backgroundColor: theme.color.card,
+                }}
               >
-                <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
-                {(line.evidence || []).map((e, j) => (
-                  <EvidenceRow key={j} item={e} />
-                ))}
+                <View style={{ flexDirection: 'row', gap: 9 }}>
+                  <View
+                    style={{
+                      width: 20, height: 20, borderRadius: 10, marginTop: 1,
+                      alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: theme.alpha('primary', 0.12),
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: theme.color.primary }}>{i + 1}</Text>
+                  </View>
+                  <Text style={[s.textSm, { flex: 1, lineHeight: 23, fontSize: 14 }]}>{line.text}</Text>
+                </View>
+                <View style={{ gap: 7, paddingTop: 9, borderTopWidth: 1, borderTopColor: theme.color.border }}>
+                  {(line.evidence || []).map((e, j) => (
+                    <EvidenceRow key={j} item={e} />
+                  ))}
+                </View>
               </View>
             ))
           ) : (
@@ -130,13 +157,17 @@ function EvidenceRow({ item }) {
   }
 
   return (
-    <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
-      <Text style={[s.textXs, { color: theme.color.mutedForeground, minWidth: 96 }]}>
-        {KIND_LABEL[item.kind] || item.kind}
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+      <View style={{ width: 84, paddingVertical: 1 }}>
+        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{KIND_LABEL[item.kind] || item.kind}</Text>
+      </View>
+      <Text style={[s.textXs, { flex: 1, minWidth: 150 }]}>
+        {item.label || item.key}
+        {item.key ? <Text style={{ color: theme.color.mutedForeground }}>{`  ${item.key}`}</Text> : null}
       </Text>
-      <Text style={s.textXs}>{item.label || item.key}</Text>
-      {shown ? <Text style={[s.textXs, { fontWeight: '700' }]}>{shown}</Text> : null}
-      {item.key ? <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`(${item.key})`}</Text> : null}
+      {shown ? (
+        <Text style={{ fontSize: 13, fontWeight: '700', color: theme.color.foreground }}>{shown}</Text>
+      ) : null}
     </View>
   );
 }
@@ -188,7 +219,42 @@ function DocRow({ doc }) {
   );
 }
 
-/** 카드 머리에 다는 근거 보기 버튼 */
-export function EvidenceButton({ onPress, disabled }) {
-  return <Button label="판단 근거" size="sm" icon="file" onPress={onPress} disabled={disabled} />;
+/**
+ * 카드 머리에 다는 근거 보기 버튼
+ *
+ * 이 화면에서 제일 중요한 동작이라 눈에 띄어야 합니다 — 사람이 "그 말 어디서 났나" 를
+ * 물을 수 있어야 AI 가 낸 문장을 믿고 쓸 수 있습니다. 테두리와 아이콘을 줘 다른 버튼과 구분합니다.
+ */
+export function EvidenceButton({ onPress, disabled, count }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 11,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: theme.alpha('primary', 0.45),
+        backgroundColor: theme.alpha('primary', 0.08),
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <Icon name="search" size={13} color={theme.color.primary} />
+      <Text style={[s.textXs, { fontWeight: '700', color: theme.color.primary }]}>판단 근거</Text>
+      {count ? (
+        <View style={{ paddingHorizontal: 5, borderRadius: 8, backgroundColor: theme.alpha('primary', 0.16) }}>
+          <Text style={{ fontSize: 10.5, fontWeight: '700', color: theme.color.primary }}>{count}</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
 }

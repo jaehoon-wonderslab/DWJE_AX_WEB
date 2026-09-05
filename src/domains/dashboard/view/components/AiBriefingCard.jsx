@@ -12,8 +12,10 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Badge, Card, EmptyState, Icon } from '@shared/components/ui';
-import { EvidenceButton, openEvidenceModal } from './AiEvidenceModal';
+import { Card, EmptyState, Icon } from '@shared/components/ui';
+import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
+import { downloadAiReport } from '../../model/aiReportExport';
+import { Button } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma, fixed } from '@shared/utils/formatUtil';
 import { useTheme } from '@shared/theme/useTheme';
@@ -40,10 +42,6 @@ import { useTheme } from '@shared/theme/useTheme';
  */
 const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', metric: 'chart', defect: 'alert', anomaly: 'activity' };
 
-/** 상태 → 배지 색 */
-const TONE = { NORMAL: 'green', WARN: 'amber', CRIT: 'red', CRITICAL: 'red' };
-const LABEL = { NORMAL: '정상', WARN: '주의', CRIT: '위험', CRITICAL: '위험' };
-
 export default function AiBriefingCard({ briefing, loading }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -65,11 +63,24 @@ export default function AiBriefingCard({ briefing, loading }) {
       right={
         ready ? (
           <>
-            {briefing.status ? <Badge tone={TONE[briefing.status] || ''}>{LABEL[briefing.status] || briefing.status}</Badge> : null}
             <EvidenceButton
+              count={lines.length}
               onPress={() => openEvidenceModal({
                 title: 'AI 일일 품질·생산 종합 브리핑',
                 sections: [{ heading: '브리핑 문장과 근거', lines }],
+                droppedCnt: dropped,
+                modelVer: briefing.modelVer,
+                analyzedAt: briefing.generatedAt,
+              })}
+            />
+            <Button
+              label="엑셀"
+              size="sm"
+              icon="download"
+              onPress={() => downloadAiReport({
+                title: 'AI 일일 품질·생산 종합 브리핑',
+                sections: [{ heading: '브리핑', lines }],
+                docs: collectDocs([{ lines }]),
                 droppedCnt: dropped,
                 modelVer: briefing.modelVer,
                 analyzedAt: briefing.generatedAt,
@@ -108,13 +119,26 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
   const hasRawNumber = lines.some((l) => /\d/.test(l.text || ''));
 
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 14 }}>
       {lines.map((line, i) => (
-        <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
-          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: theme.color.primary }} />
-          <View style={{ flex: 1, gap: 5 }}>
-            <Text style={[s.textSm, { lineHeight: 21 }]}>{line.text}</Text>
-            <View style={{ gap: 4 }}>
+        <View key={i} style={{ flexDirection: 'row', gap: 10 }}>
+          {/* 번호를 달아 몇 가지 이야기인지 한눈에 보이게 합니다 */}
+          <View
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 10,
+              marginTop: 2,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.alpha('primary', 0.12),
+            }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: theme.color.primary }}>{i + 1}</Text>
+          </View>
+          <View style={{ flex: 1, gap: 7 }}>
+            <Text style={[s.textSm, { lineHeight: 23, fontSize: 14 }]}>{line.text}</Text>
+            <View style={{ gap: 5 }}>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 {(line.evidence || []).map((e, j) => (
                   <Evidence key={j} item={e} />
@@ -194,8 +218,10 @@ function Evidence({ item }) {
       }}
     >
       <Icon name={icon} size={11} color={theme.color.mutedForeground} />
-      <Text style={s.textXs}>{item.label}</Text>
-      {shownValue !== null ? <Text style={[s.textXs, { fontWeight: '700' }]}>{shownValue}</Text> : null}
+      <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{item.label}</Text>
+      {shownValue !== null ? (
+        <Text style={[s.textXs, { fontWeight: '700', color: theme.color.foreground }]}>{shownValue}</Text>
+      ) : null}
     </View>
   );
 }
