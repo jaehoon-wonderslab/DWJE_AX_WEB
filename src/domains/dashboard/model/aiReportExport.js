@@ -107,11 +107,23 @@ export function downloadBriefingReport({ lines = [], docs = [], droppedCnt = 0, 
  *
  * 불량률 기준을 넘은 공정·설비가 여럿이므로 대상을 행으로 세워 견줄 수 있게 합니다.
  */
-export function downloadCauseReport({ targets = [], docs = [], droppedCnt = 0, analyzedAt, targetDate, threshold }) {
+export function downloadCauseReport({ targets = [], docs = [], droppedCnt = 0, omittedCnt = 0, analyzedAt, targetDate, threshold }) {
   const title = 'AI 공정 원인 분석 및 처방 권고';
   const rows = [
     ...head(title, targetDate, analyzedAt),
-    ...(threshold ? [{ cells: [`불량률 ${fixed(threshold, 1)}% 초과 대상 ${comma(targets.length)}곳`], style: 'meta' }, { cells: [] }] : []),
+    ...(threshold
+      ? [
+          {
+            cells: [
+              omittedCnt
+                ? `불량률 ${fixed(threshold, 1)}% 초과 ${comma(targets.length + omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳 — 나머지 ${comma(omittedCnt)}곳은 분석하지 않았습니다`
+                : `불량률 ${fixed(threshold, 1)}% 초과 대상 ${comma(targets.length)}곳`,
+            ],
+            style: 'meta',
+          },
+          { cells: [] },
+        ]
+      : []),
     { cells: ['공정', '설비', '불량률', '구분', '내용', '근거', '확인된 값'], style: 'head' },
   ];
 

@@ -86,6 +86,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
                 analyzedAt: cp.analyzedAt,
                 targetDate: cp.targetDate || cp.date,
                 threshold: cp.threshold,
+                omittedCnt: cp.omittedCnt,
               })}
             />
           </>
@@ -113,9 +114,19 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
         <NotReady reason={cp?.reason} />
       ) : (
         <View style={{ gap: 12 }}>
+          {/*
+            상한에 걸려 빠진 대상이 있으면 반드시 밝힙니다.
+            빠진 것을 안 적으면 "3.5% 초과 5곳" 이 사실과 달라집니다 — 실제로는 더 있는데
+            화면만 보고 다 봤다고 여기게 됩니다.
+          */}
           {cp.threshold ? (
             <Text style={s.textXs}>
-              {`불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length)}곳 — 나쁜 순입니다.`}
+              {cp.omittedCnt
+                ? `불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length + cp.omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳입니다. `
+                : `불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length)}곳 — 나쁜 순입니다.`}
+              {cp.omittedCnt ? (
+                <Text style={{ fontWeight: '700' }}>{`나머지 ${comma(cp.omittedCnt)}곳은 분석하지 않았습니다.`}</Text>
+              ) : null}
             </Text>
           ) : null}
 
