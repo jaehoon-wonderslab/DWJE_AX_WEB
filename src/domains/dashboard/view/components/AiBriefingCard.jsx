@@ -224,13 +224,19 @@ export function formatEvidence(value, unit, item) {
 /** 모델이 아직 붙지 않았을 때 — 지어낸 값 대신 상태를 밝힙니다 */
 export function NotReady({ reason }) {
   const s = useCommonStyles();
+  // 대기열에서 밀린 것과 모델이 아예 없는 것은 다릅니다 — 방금 결과를 본 뒤라면 '준비 중' 이 이상하게 읽힙니다
+  const busy = reason === 'MODEL_BUSY';
   return (
     <View style={{ gap: 6, paddingVertical: 10 }}>
-      <Text style={[s.textSm, { fontWeight: '600' }]}>모델 준비 중입니다.</Text>
+      <Text style={[s.textSm, { fontWeight: '600' }]}>
+        {busy ? '지금 다른 분석이 돌고 있습니다.' : '모델 준비 중입니다.'}
+      </Text>
       <Text style={s.textXs}>
-        {reason === 'MODEL_NOT_READY'
-          ? '파인튜닝한 sLLM 이 아직 연결되지 않았습니다. 붙는 대로 이 자리에 근거와 함께 표시됩니다.'
-          : '아직 근거를 갖춘 분석 결과가 없습니다. 근거 없는 문장은 표시하지 않습니다.'}
+        {busy
+          ? '모델이 한 번에 하나씩 처리합니다. 잠시 뒤 「새로고침」으로 다시 열어 주세요.'
+          : reason === 'MODEL_NOT_READY'
+            ? '파인튜닝한 sLLM 이 아직 연결되지 않았습니다. 붙는 대로 이 자리에 근거와 함께 표시됩니다.'
+            : '아직 근거를 갖춘 분석 결과가 없습니다. 근거 없는 문장은 표시하지 않습니다.'}
       </Text>
     </View>
   );

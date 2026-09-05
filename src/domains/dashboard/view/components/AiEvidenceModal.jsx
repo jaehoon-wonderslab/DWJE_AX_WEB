@@ -118,9 +118,10 @@ function EvidenceRow({ item }) {
   const shown = formatEvidence(item.value, item.unit, item);
 
   if (item.kind === 'doc') {
+    const where = [item.fileName, item.page ? `${item.page}쪽` : null].filter(Boolean).join(' · ');
     return (
       <View style={{ gap: 2 }}>
-        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`문서 · ${item.label || ''}`}</Text>
+        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`문서 · ${where || item.label || ''}`}</Text>
         {item.quote ? (
           <Text style={[s.textXs, { fontStyle: 'italic' }]}>{`"${item.quote}"`}</Text>
         ) : null}
@@ -140,12 +141,17 @@ function EvidenceRow({ item }) {
   );
 }
 
-/** 참고 문서 한 건 — 문서명 · 경로 · 쪽 · 인용문 */
+/**
+ * 참고 문서 한 건 — 파일명 · 위치 · 쪽 · 전체 경로 · 인용문
+ *
+ * 사용자가 원본을 찾아 열어 볼 수 있어야 합니다. 그래서 **파일명과 전체 경로를 그대로** 적습니다.
+ * 경로는 길어서 눈에 덜 띄게 두되 선택·복사는 되도록 합니다.
+ * 서버가 주지 않는 값은 적지 않습니다 — 경로를 지어내지 않습니다.
+ */
 function DocRow({ doc }) {
   const s = useCommonStyles();
   const theme = useTheme();
-  // 서버가 경로·쪽을 주면 함께 적습니다. 없으면 문서명만 — 지어내지 않습니다.
-  const where = [doc.path || doc.filePath, doc.fileName, doc.page ? `${doc.page}쪽` : null].filter(Boolean).join(' · ');
+  const where = [doc.location, doc.page ? `${doc.page}쪽` : null].filter(Boolean).join(' · ');
 
   return (
     <View
@@ -158,8 +164,23 @@ function DocRow({ doc }) {
         backgroundColor: theme.alpha('muted', 0.3),
       }}
     >
-      <Text style={[s.textXs, { fontWeight: '600' }]}>{doc.label || doc.ref || doc.key}</Text>
+      <Text style={[s.textXs, { fontWeight: '700' }]}>{doc.fileName || doc.label || doc.ref || doc.key}</Text>
       {where ? <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{where}</Text> : null}
+      {/*
+        경로는 **상대경로**를 보여 줍니다. 절대경로(`path`)는 적재한 PC 의 마운트 지점이 붙어 있어
+        다른 PC 에서는 열리지 않습니다. 상대경로 앞에 각자의 NAS 루트를 붙이면 됩니다.
+      */}
+      {doc.relativePath || doc.path ? (
+        <Text selectable style={[s.textXs, { color: theme.color.mutedForeground, fontSize: 10.5 }]}>
+          {doc.relativePath || doc.path}
+        </Text>
+      ) : null}
+      {/* 압축 안에서 뽑은 문서는 그 경로를 그대로 열 수 없습니다 — 압축 파일까지만 열고 안쪽은 안내로 둡니다 */}
+      {doc.innerPath ? (
+        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
+          {`압축 파일 안의 문서입니다 — 압축을 열고 「${doc.innerPath}」 를 찾으세요.`}
+        </Text>
+      ) : null}
       {(doc.quotes || []).map((q, i) => (
         <Text key={i} style={[s.textXs, { fontStyle: 'italic' }]}>{`"${q}"`}</Text>
       ))}
