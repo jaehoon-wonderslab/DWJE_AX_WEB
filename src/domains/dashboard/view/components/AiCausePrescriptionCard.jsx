@@ -15,6 +15,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Card, EmptyState, SelectField, TabulatorGrid } from '@shared/components/ui';
+import { ARROW_W } from '@shared/components/ui/TabulatorGrid';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
@@ -30,11 +31,18 @@ import { Button } from '@shared/components/ui';
  * 「AI 불량 판단 기준」은 그 대상이 왜 분석 대상이 됐는지(불량률과 기준값)이고,
  * 「AI 불량 판단 근거」는 처방이 인용한 문서입니다.
  */
+/**
+ * 앞 세 열의 폭 — 묶음 머리글이 같은 폭으로 늘어서야 열과 값이 맞습니다
+ *
+ * 공장 열은 걷어냈습니다. mes·ax 어디에도 공장 정보가 없고(작업장 마스터·실적·LOT 번호·제품
+ * 전부 확인, 2026-09-06) 설비·제품·날짜로 짚어도 알 수 없어, 빈 칸을 남기느니 없앴습니다.
+ */
+export const COLUMN_WIDTH = { eqpt: 180, product: 200, standard: 160 };
+
 export const CAUSE_COLUMNS = [
-  { title: '공장', field: 'plant', width: 110 },
-  { title: '설비', field: 'eqpt', width: 150 },
-  { title: '제품', field: 'product', width: 120 },
-  { title: 'AI 불량 판단 기준', field: 'standard', width: 150, formatter: 'html' },
+  { title: '설비', field: 'eqpt', width: COLUMN_WIDTH.eqpt },
+  { title: '제품', field: 'product', width: COLUMN_WIDTH.product },
+  { title: 'AI 불량 판단 기준', field: 'standard', width: COLUMN_WIDTH.standard, formatter: 'html' },
   { title: '원인', field: 'cause', widthGrow: 3, formatter: 'html' },
   { title: '조치 방안 제시', field: 'action', widthGrow: 3, formatter: 'html' },
   { title: 'AI 불량 판단 근거', field: 'basis', widthGrow: 3, formatter: 'html' },
@@ -66,7 +74,6 @@ function basisHtml(line, inline) {
  */
 export function pairRows(targets = [], threshold) {
   return targets.flatMap((t) => {
-    const plant = t.plantNm || t.plantCd || '—';
     const eqpt = t.eqptNm || t.eqptCd || '—';
     const product = t.productNm || t.product
       ? `${t.productNm || t.product}${t.productEtcCnt ? ` 외 ${comma(t.productEtcCnt)}종` : ''}`
@@ -77,12 +84,18 @@ export function pairRows(targets = [], threshold) {
       + (frac ? `<div class="muted num">${esc(frac)}</div>` : '')
       + (threshold ? `<div class="muted">기준 ${esc(fixed(threshold, 1))}% 초과</div>` : '');
 
-    // 묶음 머리글 — 공장 · 설비 · 제품 · AI 불량 판단 기준 순서 (사용자 지정)
+    /**
+     * 묶음 머리글 — **본 표의 열 폭 그대로** 공장 · 설비 · 제품 · AI 불량 판단 기준
+     *
+     * 값이 열 아래 같은 자리에 놓이므로 항목 이름을 따로 적지 않습니다 —
+     * 바로 위 열 이름이 곧 그 값의 이름입니다. 좁은 칸에 이름까지 넣으면 값이 잘립니다.
+     * 첫 칸은 펼침 화살표가 자리를 차지해 그만큼 줄입니다.
+     */
+    const w = COLUMN_WIDTH;
     const group = [
-      `<span class="g"><span class="g-label">공장</span>${esc(plant)}</span>`,
-      `<span class="g"><span class="g-label">설비</span>${esc(eqpt)}</span>`,
-      `<span class="g"><span class="g-label">제품</span>${esc(product)}</span>`,
-      `<span class="g"><span class="g-label">AI 불량 판단 기준</span>${esc(rate)}${frac ? ` (${esc(frac)})` : ''}</span>`,
+      `<span class="g" style="width:${w.eqpt - ARROW_W}px">${esc(eqpt)}</span>`,
+      `<span class="g" style="width:${w.product}px">${esc(product)}</span>`,
+      `<span class="g" style="width:${w.standard}px">${esc(rate)}${frac ? ` <span class="muted">(${esc(frac)})</span>` : ''}</span>`,
     ].join('');
 
     const n = Math.max(t.contributions.length, t.prescriptions.length) || 1;
@@ -91,7 +104,6 @@ export function pairRows(targets = [], threshold) {
       const ac = t.prescriptions[i];
       return {
         group,
-        plant,
         eqpt,
         product,
         standard: i === 0 ? standard : '',

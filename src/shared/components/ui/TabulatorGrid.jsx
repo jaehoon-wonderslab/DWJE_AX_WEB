@@ -17,6 +17,9 @@ import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import { FONT_FAMILY } from '@shared/theme/styles';
+
+/** 묶음 머리글의 펼침 화살표가 차지하는 폭 — 첫 칸에서 이만큼 뺍니다 */
+export const ARROW_W = 26;
 import { useTheme } from '@shared/theme/useTheme';
 
 export default function TabulatorGrid({
@@ -126,16 +129,37 @@ export default function TabulatorGrid({
         }
         /* 표 안 모든 글자를 화면 글꼴로 — Tabulator 기본 글꼴이 섞이면 표만 따로 놉니다 */
         #grid_${id} .tabulator, #grid_${id} .tabulator * { font-family: ${FONT_FAMILY}; }
-        /* 묶음 머리글 안에서 항목을 칸처럼 벌려 놓습니다 — 공장·설비·제품·기준이 순서대로 읽힙니다 */
-        #grid_${id} .tabulator .tabulator-row.tabulator-group .g {
-          display: inline-block;
-          margin-right: 22px;
+        /*
+          묶음 머리글을 **본 표의 열 폭에 맞춰** 늘어놓습니다.
+          자유롭게 흐르게 두면 값이 어느 열 것인지 눈으로 이어 붙여야 합니다 —
+          같은 자리에 놓여야 위 열 이름이 곧 그 값의 이름이 됩니다.
+        */
+        #grid_${id} .tabulator .tabulator-row.tabulator-group {
+          display: flex;
+          align-items: center;
+          /* Tabulator 기본 좌측 여백을 없애야 첫 칸이 본 표의 첫 열과 같은 x 에서 시작합니다 */
+          padding: 9px 0 !important;
         }
-        #grid_${id} .tabulator .tabulator-row.tabulator-group .g-label {
-          font-weight: 400;
-          font-size: 11px;
-          color: ${c.muted};
-          margin-right: 5px;
+        #grid_${id} .tabulator .tabulator-row.tabulator-group .g {
+          box-sizing: border-box;
+          flex: 0 0 auto;
+          /* Tabulator 가 묶음 머리글의 span 마다 좌측 여백 10px 을 줍니다 — 그만큼씩 밀립니다 */
+          margin: 0 !important;
+          padding: 0 10px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        /*
+          화살표는 .tabulator-group-toggle 로 감싸여 있고 그쪽이 flex 칸입니다.
+          여기에 폭을 고정해야 뒤 칸이 밀리지 않습니다 — 화살표에 주면 감싼 쪽 여백이 남습니다.
+        */
+        #grid_${id} .tabulator .tabulator-row.tabulator-group .tabulator-group-toggle {
+          box-sizing: border-box;
+          flex: 0 0 auto;
+          width: ${ARROW_W}px;
+          margin: 0 !important;
+          padding-left: 8px;
         }
         /* 숫자는 자릿수가 흔들리지 않게 */
         #grid_${id} .tabulator .num { font-variant-numeric: tabular-nums; }

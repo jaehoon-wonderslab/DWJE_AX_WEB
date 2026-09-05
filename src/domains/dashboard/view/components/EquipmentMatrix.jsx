@@ -5,7 +5,8 @@
  * **표(Tabulator)** 로 바꿨습니다. 정렬·열 폭 조절을 사람이 직접 다룰 수 있어야
  * "우리 공정 것만 골라 본다" 가 됩니다.
  *
- * 열 순서는 지정하신 대로 **공장 · 설비 · 제품 · 불량률** 입니다.
+ * 열 순서는 **설비 · 제품 · 불량률** 입니다. 공장 열은 걷어냈습니다 —
+ * mes·ax 어디에도 공장 정보가 없어(2026-09-06 전수 확인) 빈 칸만 남았습니다.
  *
  * ■ 가동률이 아니라 불량률입니다
  * 가동률 수집값이 이 시스템에 없습니다(`uptimeRate` 가 전 설비 null).
@@ -34,7 +35,6 @@ export default function EquipmentMatrix({ data, loading }) {
 
   const columns = useMemo(
     () => [
-      { title: '공장', field: 'plant', width: 130, formatter: 'html' },
       { title: '설비', field: 'eqpt', widthGrow: 2, formatter: 'html' },
       { title: '제품', field: 'product', widthGrow: 2, formatter: 'html' },
       { title: '불량률', field: 'rate', width: 150, formatter: 'html', sorter: 'number', sorterParams: { alignEmptyValues: 'bottom' } },
@@ -45,7 +45,6 @@ export default function EquipmentMatrix({ data, loading }) {
   const rows = useMemo(
     () =>
       items.map((e) => ({
-        plant: dash(e.plant),
         eqpt: `${e.eqptNm}<span class="muted"> ${e.eqptCd}</span><div class="muted">${e.processNm}</div>`,
         product: dash(e.product ? `${e.product}${e.productEtcCnt ? ` 외 ${comma(e.productEtcCnt)}종` : ''}` : ''),
         rate: `${rateHtml(e.defectRate)}<div class="muted num">${comma(e.ngQty)} / ${comma(e.qty)} EA</div>`,
