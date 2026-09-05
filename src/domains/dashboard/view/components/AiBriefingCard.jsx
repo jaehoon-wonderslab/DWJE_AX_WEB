@@ -13,6 +13,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Badge, Card, EmptyState, Icon } from '@shared/components/ui';
+import { EvidenceButton, openEvidenceModal } from './AiEvidenceModal';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma, fixed } from '@shared/utils/formatUtil';
 import { useTheme } from '@shared/theme/useTheme';
@@ -61,7 +62,22 @@ export default function AiBriefingCard({ briefing, loading }) {
     <Card
       title="AI 일일 품질·생산 종합 브리핑"
       sub={ready ? `${briefing.modelVer} · ${briefing.generatedAt || ''}` : '파인튜닝 sLLM'}
-      right={ready && briefing.status ? <Badge tone={TONE[briefing.status] || ''}>{LABEL[briefing.status] || briefing.status}</Badge> : null}
+      right={
+        ready ? (
+          <>
+            {briefing.status ? <Badge tone={TONE[briefing.status] || ''}>{LABEL[briefing.status] || briefing.status}</Badge> : null}
+            <EvidenceButton
+              onPress={() => openEvidenceModal({
+                title: 'AI 일일 품질·생산 종합 브리핑',
+                sections: [{ heading: '브리핑 문장과 근거', lines }],
+                droppedCnt: dropped,
+                modelVer: briefing.modelVer,
+                analyzedAt: briefing.generatedAt,
+              })}
+            />
+          </>
+        ) : null
+      }
     >
       {loading && !briefing ? (
         // 모델 추론이라 수십 초 걸립니다 — 멈춘 것처럼 보이지 않게 미리 알립니다
@@ -111,7 +127,8 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
               */}
               {dedupeQuotes(line.evidence).map((q, j) => (
                 <Text key={`q${j}`} style={[s.textXs, { color: theme.color.mutedForeground, fontStyle: 'italic' }]}>
-                  {`"${q}"`}
+                  {/* 카드에서는 줄여 보여 줍니다 — 표가 통째로 들어 있는 청크도 있습니다. 전문은 「판단 근거」에서 봅니다 */}
+                  {`"${q.length > 140 ? `${q.slice(0, 140)}…` : q}"`}
                 </Text>
               ))}
             </View>

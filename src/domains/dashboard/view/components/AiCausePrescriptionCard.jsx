@@ -19,6 +19,7 @@ import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { fixed } from '@shared/utils/formatUtil';
 import { NotReady, VerifiedLines } from './AiBriefingCard';
+import { EvidenceButton, openEvidenceModal } from './AiEvidenceModal';
 
 /** 불량률 → 신호등 (아침회의 자료와 같은 기준) */
 function riskOf(rate) {
@@ -42,7 +43,25 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
     <Card
       title="AI 공정 원인 분석 및 처방 권고"
       sub={ready ? `${cp.modelVer}${cp.analyzedAt ? ` · ${cp.analyzedAt}` : ''}` : 'XAI & Prescription · 파인튜닝 sLLM'}
-      right={ready && risk ? <Badge tone={risk.tone}>{risk.label}</Badge> : null}
+      right={
+        ready ? (
+          <>
+            {risk ? <Badge tone={risk.tone}>{risk.label}</Badge> : null}
+            <EvidenceButton
+              onPress={() => openEvidenceModal({
+                title: 'AI 공정 원인 분석 및 처방 권고',
+                sections: [
+                  { heading: '원인 분석', lines: causes },
+                  { heading: '처방 권고', lines: actions },
+                ],
+                droppedCnt: cp.droppedCnt,
+                modelVer: cp.modelVer,
+                analyzedAt: cp.analyzedAt,
+              })}
+            />
+          </>
+        ) : null
+      }
     >
       {/* 분석 결과가 있을 때만 대상 선택기를 냅니다 — 없는 설비를 고르게 두면 안 됩니다 */}
       {ready && eqptOptions.length ? (
