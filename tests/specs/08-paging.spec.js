@@ -195,31 +195,17 @@ suite('페이징 — 화면', () => {
     eq(r.last, Math.min(100, r.total), '한 쪽에 100건');
   });
 
-  test('AI 대시보드 라인별 현황이 전체 건수를 보여 준다', async () => {
-    const { body } = await api.get('/dashboard/ai/lines', { date: (await fixtures()).baseDate });
+  test('AI 대시보드 설비 매트릭스가 생산한 설비 수를 보여 준다', async () => {
+    // 라인별 현황 목록(1,331대 쪽 단위)을 공정 x 설비 매트릭스로 바꿨습니다(2026-09-05).
+    // 쪽을 넘겨 읽을 자료가 아니라 한 판으로 봐야 하는 자료라, 페이징 대신 전량을 그립니다.
+    const d = (await fixtures()).baseDate;
+    const { body } = await api.get('/dashboard/ai/lines', { date: d, size: 0 });
+    const want = (body.data?.lines || body.data?.items || []).filter((x) => (x.qty || 0) > 0).length;
+
     const r = await visit(ctx.page, '/dashboard/ai');
-    const shown = readRange(r.text);
-    if (!shown) {
-      // 한 쪽에 다 들어가면 '전체 N건' 만 나옵니다
-      const m = r.text.match(/전체 ([\d,]+)건/);
-      ok(m, '라인별 현황에 전체 건수 표시가 없습니다');
-      return;
-    }
-    eq(shown.total, body.meta?.total ?? shown.total, '전체 건수');
-    eq(shown.first, 1, '첫 쪽의 시작 번호');
-  });
-
-  test('AI 대시보드에서 다음 쪽으로 넘어간다', async () => {
-    const r1 = await visit(ctx.page, '/dashboard/ai');
-    const before = readRange(r1.text);
-    if (!before || before.total <= before.last) skip('한 쪽에 다 들어가는 목록입니다');
-
-    await ctx.page.getByRole('button', { name: '다음 쪽' }).first().click();
-    await ctx.page.waitForTimeout(2500);
-    const after = readRange(await ctx.page.evaluate(() => document.body.innerText));
-    ok(after, '쪽을 옮긴 뒤 범위 표시가 사라졌습니다');
-    eq(after.first, before.last + 1, '다음 쪽의 시작 번호');
-    eq(after.total, before.total, '전체 건수는 그대로여야 합니다');
+    const m = r.text.match(/생산한 설비 ([\d,]+)대/);
+    ok(m, '설비 매트릭스에 생산한 설비 수 표시가 없습니다');
+    eq(Number(m[1].replace(/,/g, '')), want, '생산한 설비 수');
   });
 
   test('제품별 수율에 전체 보기 선택지가 있다', async () => {
