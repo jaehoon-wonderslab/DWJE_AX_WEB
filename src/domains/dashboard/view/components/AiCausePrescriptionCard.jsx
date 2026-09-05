@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Card, EmptyState, SelectField, XlsTable } from '@shared/components/ui';
+import { Card, EmptyState, SelectField, TabulatorGrid } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
@@ -22,6 +22,59 @@ import { NotReady, VerifiedLines } from './AiBriefingCard';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
 import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
+
+/** 표 열 — 원인과 처방을 좌우로 놓고 각각 근거를 답니다 */
+const CAUSE_COLUMNS = [
+  { title: '원인', field: 'cause', widthGrow: 3, formatter: 'html' },
+  { title: '원인 근거', field: 'causeBasis', widthGrow: 2, formatter: 'html' },
+  { title: '처방', field: 'action', widthGrow: 3, formatter: 'html' },
+  { title: '처방 근거 (문서)', field: 'actionBasis', widthGrow: 3, formatter: 'html' },
+];
+
+/** html 삽입 전 이스케이프 — 문서 인용문에 <, & 가 들어옵니다 */
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** 근거 한 묶음 → 표 안 html */
+function basisHtml(line) {
+  const ev = (line && line.evidence) || [];
+  if (!ev.length) return '<span class="muted">—</span>';
+  return ev
+    .map((e) => {
+      if (e.kind === 'doc') {
+        const where = [e.fileName, e.page ? `${e.page}쪽` : null].filter(Boolean).join(' · ');
+        const q = e.quote ? `<div class="quote">"${esc(e.quote.length > 120 ? `${e.quote.slice(0, 120)}…` : e.quote)}"</div>` : '';
+        return `<div>${esc(where)}</div>${q}`;
+      }
+      return `<div>${esc(e.label || e.key)} <span class="strong num">${esc(evidenceValueText(e))}</span></div>`;
+    })
+    .join('');
+}
+
+/**
+ * 대상별로 원인·처방을 **한 줄에 짝지어** 폅니다
+ *
+ * 수가 다르면 짧은 쪽을 비웁니다. 억지로 채우면 없는 대응이 있는 것처럼 보입니다.
+ */
+function pairRows(targets = []) {
+  return targets.flatMap((t) => {
+    const rate = t.defectRate == null
+      ? ''
+      : `${fixed(t.defectRate, 2)}%${t.denominator ? ` (${comma(t.numerator)}/${comma(t.denominator)})` : ''}`;
+    const group = `${t.processNm || t.processId || '—'}  ·  ${t.eqptNm || t.eqptCd || '—'}  ·  불량률 ${rate}`;
+    const n = Math.max(t.contributions.length, t.prescriptions.length) || 1;
+    return Array.from({ length: n }, (_, i) => {
+      const cz = t.contributions[i];
+      const ac = t.prescriptions[i];
+      return {
+        group,
+        cause: cz ? esc(cz.text) : '<span class="muted">—</span>',
+        causeBasis: cz ? basisHtml(cz) : '<span class="muted">—</span>',
+        action: ac ? esc(ac.text) : '<span class="muted">—</span>',
+        actionBasis: ac ? basisHtml(ac) : '<span class="muted">—</span>',
+      };
+    });
+  });
+}
 
 /** 근거 창·엑셀이 같은 묶음을 쓰도록 한 곳에서 만듭니다 */
 const SECTIONS = (causes, actions) => [
@@ -131,36 +184,16 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
           ) : null}
 
           {/*
-            대상이 여럿이라 표로 봅니다. 문장을 줄줄이 늘어놓으면 어느 공정 이야기인지 갈리지 않습니다.
-            공정·설비·불량률은 대상의 첫 줄에만 적어 같은 대상 묶음이 눈에 들어오게 합니다.
+            대상별로 **원인과 처방을 한 줄에 나란히** 놓습니다.
+            따로 나열하면 "이 원인에 대한 처방이 무엇인가" 를 사람이 눈으로 이어 붙여야 합니다.
+            수가 다르면 짧은 쪽을 비워 둡니다 — 억지로 짝을 맞추면 없는 대응을 있는 것처럼 보입니다.
           */}
-          <XlsTable
-            columns={[
-              { key: 'proc', title: '공정', width: 132, align: 'left' },
-              { key: 'eqpt', title: '설비', width: 150, align: 'left' },
-              { key: 'rate', title: '불량률', width: 130 },
-              { key: 'kind', title: '구분', width: 52 },
-              { key: 'text', title: '내용', width: 360, align: 'left' },
-              { key: 'basis', title: '근거', width: 250, align: 'left' },
-            ]}
-            rows={targets.flatMap((t) => {
-              const lines = [
-                ...t.contributions.map((l) => ({ kind: '원인', line: l })),
-                ...t.prescriptions.map((l) => ({ kind: '처방', line: l })),
-              ];
-              return lines.map(({ kind, line }, i) => ({
-                key: `${t.eqptCd || t.processId}-${kind}-${i}`,
-                cells: [
-                  { v: i === 0 ? t.processNm || t.processId || '—' : '', align: 'left', bold: true },
-                  { v: i === 0 ? t.eqptNm || t.eqptCd || '—' : '', align: 'left' },
-                  { node: i === 0 ? <RateCell target={t} /> : null, v: '' },
-                  { v: kind, tone: kind === '원인' ? '' : 'ok' },
-                  { v: line.text, align: 'left', wrap: true },
-                  { node: <BasisCell line={line} /> },
-                ],
-              }));
-            })}
-            maxHeight={520}
+          <TabulatorGrid
+            groupBy="group"
+            columns={CAUSE_COLUMNS}
+            rows={pairRows(targets)}
+            height={targets.length > 2 ? 460 : undefined}
+            emptyText="근거가 확인된 분석 결과가 없습니다."
           />
 
           <Text style={s.textXs}>
@@ -173,55 +206,4 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
   );
 }
 
-/** 불량률 칸 — 분모를 함께 적습니다. 3.5% 를 넘어도 분모가 작으면 무게가 다릅니다 */
-function RateCell({ target }) {
-  const s = useCommonStyles();
-  const theme = useTheme();
-  if (target.defectRate == null) return <Text style={s.xlsCellText}>—</Text>;
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ fontSize: 14, fontWeight: '700', color: theme.color.destructive }}>
-        {`${fixed(target.defectRate, 2)}%`}
-      </Text>
-      {target.denominator ? (
-        <Text style={[s.xlsCellText, { fontSize: 10, color: theme.color.mutedForeground }]}>
-          {`${comma(target.numerator)}/${comma(target.denominator)}`}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
 
-/** 근거 칸 — 지표는 대상·값, 문서는 파일명·쪽과 인용문 */
-function BasisCell({ line }) {
-  const s = useCommonStyles();
-  const theme = useTheme();
-  const ev = line.evidence || [];
-  if (!ev.length) return <Text style={s.xlsCellText}>—</Text>;
-
-  return (
-    <View style={{ gap: 3 }}>
-      {ev.map((e, i) => (
-        <View key={i} style={{ gap: 1 }}>
-          {e.kind === 'doc' ? (
-            <>
-              <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10.5 }]}>
-                {[e.fileName, e.page ? `${e.page}쪽` : null].filter(Boolean).join(' · ')}
-              </Text>
-              {e.quote ? (
-                <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10, fontStyle: 'italic', color: theme.color.mutedForeground }]}>
-                  {`"${e.quote.length > 90 ? `${e.quote.slice(0, 90)}…` : e.quote}"`}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={[s.xlsCellText, s.xlsLeft, { fontSize: 10.5 }]}>
-              {e.label || e.key}
-              <Text style={{ fontWeight: '700' }}>{`  ${evidenceValueText(e)}`}</Text>
-            </Text>
-          )}
-        </View>
-      ))}
-    </View>
-  );
-}

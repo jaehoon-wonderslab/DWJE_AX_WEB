@@ -10,11 +10,10 @@
  */
 import { useCallback, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
-import { usePaging } from '@shared/hooks/usePaging';
 import { recentRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { today } from '@shared/utils/formatUtil';
-import { fetchAiBriefing, fetchAiCausePrescription, fetchAiLines, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
+import { fetchAiBriefing, fetchAiCausePrescription, fetchEquipmentDetail, fetchEquipmentMatrix, loadAiDashboard } from '../model/dashboardRepository';
 
 export const AGG_UNITS = [
   { value: '일별', label: '일별' },
@@ -148,15 +147,16 @@ export function useAiDashboardController() {
     { silent: true, skip: briefingLoading }
   );
 
-  // 라인별 현황 (페이징: 대시보드 화면에 적합하게 기본 10건 단위 표시)
-  const paging = usePaging({ size: 10, resetKey: `${applied.from}|${applied.to}|${applied.plant}` });
-  const { data: lineData, loading: linesLoading, reload: reloadLines } = useAsync(
-    () => fetchAiLines(applied, paging.params),
-    [applied.from, applied.to, applied.plant, paging.page, paging.size],
+  /**
+   * 설비 매트릭스 — 1,331대를 쪽 단위 목록 대신 한 판으로 봅니다
+   *
+   * 전에는 페이징으로 10대씩 불러오면서 화면에는 한 대도 그리지 않았습니다.
+   */
+  const { data: equipmentMatrix, loading: matrixLoading } = useAsync(
+    () => fetchEquipmentMatrix(applied),
+    [applied.from, applied.to, applied.plant],
     { silent: true }
   );
-
-  const lines = lineData?.lines || [];
 
   /** 단위 변경 시 날짜 자동 계산 */
   const changeUnit = useCallback((newUnit) => {
@@ -216,9 +216,8 @@ export function useAiDashboardController() {
 
   const refresh = useCallback(() => {
     reload();
-    reloadLines();
     toast('최신 데이터로 새로고침했습니다');
-  }, [reload, reloadLines, toast]);
+  }, [reload, toast]);
 
   return {
     loading,
@@ -246,10 +245,8 @@ export function useAiDashboardController() {
     processYield: data?.processYield,
     planActual: data?.planActual,
     heatmap: data?.heatmap,
-    lines,
-    linesLoading,
-    linesMeta: lineData?.meta,
-    paging,
+    equipmentMatrix,
+    matrixLoading,
     loadEquipmentDetail,
     refresh,
   };

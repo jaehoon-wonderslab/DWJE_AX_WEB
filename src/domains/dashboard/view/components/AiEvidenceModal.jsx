@@ -15,12 +15,15 @@
  */
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Badge, Icon } from '@shared/components/ui';
+import { Badge, Icon, TabulatorGrid } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma } from '@shared/utils/formatUtil';
 import { evidenceValueText } from '../../model/aiReportExport';
+
+/** html 삽입 전 이스케이프 — 문서 인용문에 <, & 가 들어옵니다 */
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** 근거 종류 → 사람이 읽는 이름 */
 const KIND_LABEL = {
@@ -84,12 +87,18 @@ function EvidenceBody({ sections, droppedCnt }) {
             <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>지표 근거</Text>
             <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${metrics.length}건`}</Text>
           </View>
-          <View style={{ borderWidth: 1, borderColor: theme.color.border, borderRadius: 6, overflow: 'hidden' }}>
-            <MetricRow head />
-            {metrics.map((m, i) => (
-              <MetricRow key={i} item={m} last={i === metrics.length - 1} />
-            ))}
-          </View>
+          <TabulatorGrid
+            columns={[
+              { title: '종류', field: 'kind', width: 118 },
+              { title: '대조 대상', field: 'target', widthGrow: 3, formatter: 'html' },
+              { title: '확인된 값', field: 'value', widthGrow: 2, formatter: 'html' },
+            ]}
+            rows={metrics.map((m) => ({
+              kind: KIND_LABEL[m.kind] || m.kind,
+              target: `${esc(m.label || m.key)}${m.key ? ` <span class="muted">${esc(m.key)}</span>` : ''}`,
+              value: `<span class="strong num">${esc(evidenceValueText(m))}</span>`,
+            }))}
+          />
         </View>
       ) : null}
 
@@ -102,9 +111,21 @@ function EvidenceBody({ sections, droppedCnt }) {
           <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
             처방 권고가 인용한 과거 불량분석 문서입니다. 아래 경로에서 원본을 열 수 있습니다.
           </Text>
-          {docs.map((d, i) => (
-            <DocRow key={i} doc={d} />
-          ))}
+          <TabulatorGrid
+            columns={[
+              { title: '파일명', field: 'file', widthGrow: 3, formatter: 'html' },
+              { title: '위치 · 쪽', field: 'where', widthGrow: 3, formatter: 'html' },
+              { title: '경로', field: 'path', widthGrow: 3, formatter: 'html' },
+              { title: '인용', field: 'quote', widthGrow: 4, formatter: 'html' },
+            ]}
+            rows={docs.map((d) => ({
+              file: `<span class="strong">${esc(d.fileName || d.label || '')}</span>`,
+              where: esc([d.location, d.page ? `${d.page}쪽` : null].filter(Boolean).join(' · ')),
+              path: `<span class="muted">${esc(d.relativePath || d.path || '')}</span>`
+                + (d.innerPath ? `<div class="muted">압축 안: ${esc(d.innerPath)}</div>` : ''),
+              quote: (d.quotes || []).map((q) => `<div class="quote">"${esc(q)}"</div>`).join('') || '<span class="muted">—</span>',
+            }))}
+          />
         </View>
       ) : null}
 
@@ -134,91 +155,6 @@ function collectMetrics(sections = []) {
     if (!seen.has(id)) seen.set(id, e);
   })));
   return [...seen.values()];
-}
-
-/** 지표 근거 한 줄 — 종류 · 대상 · 값 (수치는 왼쪽에 붙입니다) */
-function MetricRow({ item, head, last }) {
-  const s = useCommonStyles();
-  const theme = useTheme();
-  const cell = { paddingVertical: 8, paddingHorizontal: 10, justifyContent: 'center' };
-  const font = head
-    ? { fontSize: 12, fontWeight: '700', color: theme.color.foreground }
-    : { fontSize: 13, color: theme.color.foreground };
-
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        backgroundColor: head ? theme.alpha('muted', 0.5) : theme.color.card,
-        borderBottomWidth: head || !last ? 1 : 0,
-        borderBottomColor: theme.color.border,
-      }}
-    >
-      <View style={[cell, { width: 108 }]}>
-        <Text style={[font, !head && { color: theme.color.mutedForeground, fontSize: 12 }]}>
-          {head ? '종류' : KIND_LABEL[item.kind] || item.kind}
-        </Text>
-      </View>
-      <View style={[cell, { flex: 1, minWidth: 160 }]}>
-        <Text style={font}>{head ? '대조 대상' : item.label || item.key}</Text>
-        {!head && item.key ? (
-          <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{item.key}</Text>
-        ) : null}
-      </View>
-      <View style={[cell, { width: 190 }]}>
-        <Text style={[font, !head && { fontWeight: '700' }]}>
-          {head ? '확인된 값' : evidenceValueText(item)}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-/**
- * 참고 문서 한 건 — 파일명 · 위치 · 쪽 · 전체 경로 · 인용문
- *
- * 사용자가 원본을 찾아 열어 볼 수 있어야 합니다. 그래서 **파일명과 전체 경로를 그대로** 적습니다.
- * 경로는 길어서 눈에 덜 띄게 두되 선택·복사는 되도록 합니다.
- * 서버가 주지 않는 값은 적지 않습니다 — 경로를 지어내지 않습니다.
- */
-function DocRow({ doc }) {
-  const s = useCommonStyles();
-  const theme = useTheme();
-  const where = [doc.location, doc.page ? `${doc.page}쪽` : null].filter(Boolean).join(' · ');
-
-  return (
-    <View
-      style={{
-        gap: 3,
-        padding: 9,
-        borderRadius: 5,
-        borderWidth: 1,
-        borderColor: theme.color.border,
-        backgroundColor: theme.alpha('muted', 0.3),
-      }}
-    >
-      <Text style={[s.textXs, { fontWeight: '700' }]}>{doc.fileName || doc.label || doc.ref || doc.key}</Text>
-      {where ? <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{where}</Text> : null}
-      {/*
-        경로는 **상대경로**를 보여 줍니다. 절대경로(`path`)는 적재한 PC 의 마운트 지점이 붙어 있어
-        다른 PC 에서는 열리지 않습니다. 상대경로 앞에 각자의 NAS 루트를 붙이면 됩니다.
-      */}
-      {doc.relativePath || doc.path ? (
-        <Text selectable style={[s.textXs, { color: theme.color.mutedForeground, fontSize: 10.5 }]}>
-          {doc.relativePath || doc.path}
-        </Text>
-      ) : null}
-      {/* 압축 안에서 뽑은 문서는 그 경로를 그대로 열 수 없습니다 — 압축 파일까지만 열고 안쪽은 안내로 둡니다 */}
-      {doc.innerPath ? (
-        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-          {`압축 파일 안의 문서입니다 — 압축을 열고 「${doc.innerPath}」 를 찾으세요.`}
-        </Text>
-      ) : null}
-      {(doc.quotes || []).map((q, i) => (
-        <Text key={i} style={[s.textXs, { fontStyle: 'italic' }]}>{`"${q}"`}</Text>
-      ))}
-    </View>
-  );
 }
 
 /**

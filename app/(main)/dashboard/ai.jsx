@@ -14,7 +14,9 @@ import AiDashboardView from '@domains/dashboard/view/AiDashboardView';
 export default function AiDashboardPage() {
   const controller = useAiDashboardController();
   return (
-    <PageContainer>
+    // 차트·매트릭스가 많아 폭이 넓을수록 잘 보입니다.
+    // 기본 1,400px 상한을 두면 넓은 화면에서 오른쪽이 크게 비어 정보 밀도가 떨어집니다.
+    <PageContainer fluid>
       <AiDashboardView {...controller} />
     </PageContainer>
   );

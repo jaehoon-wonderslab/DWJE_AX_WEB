@@ -249,6 +249,52 @@ export async function loadAiDashboard(param) {
 }
 
 /**
+ * 설비 매트릭스 — 공정별로 설비를 늘어놓고 불량률로 칠합니다
+ *
+ * 라인별 현황이 1,331대라 목록으로는 못 봅니다. 쪽을 넘겨 가며 읽을 표가 아니고,
+ * "어느 공정의 어느 설비가 나쁜가" 를 한눈에 봐야 하는 자료입니다.
+ *
+ * **가동률이 아니라 불량률로 칠합니다.** 가동률 수집값이 이 시스템에 없습니다
+ * (`uptimeRate` 가 1,331대 전부 null). 없는 값으로 색을 칠할 수는 없습니다.
+ *
+ * 생산이 없는 설비는 뺍니다 — 불량률 0% 로 칠하면 잘 돌아간 것처럼 보입니다.
+ */
+export async function fetchEquipmentMatrix({ date, from, to, plant }) {
+  const [master, lines] = await Promise.all([
+    unwrap(commonService.getCommonMastersProcesses({}), { processes: [] }),
+    unwrap(dashboardService.getDashboardAiLines({ date: to || date, from, to, plant, size: 0 }), { lines: [] }),
+  ]);
+
+  const nameOf = Object.fromEntries((master?.processes || []).map((p) => [p.id, p.name]));
+  const rows = (lines?.lines || lines?.items || []).filter((r) => (r.qty || 0) > 0);
+
+  const byProc = {};
+  rows.forEach((r) => {
+    const id = r.processId || '기타';
+    (byProc[id] = byProc[id] || []).push(r);
+  });
+
+  return {
+    total: rows.length,
+    /** 나쁜 공정이 위로 오게 — 평균 불량률 내림차순 */
+    groups: Object.entries(byProc)
+      .map(([processId, items]) => {
+        const qty = items.reduce((n, x) => n + (x.qty || 0), 0);
+        const ng = items.reduce((n, x) => n + (x.ngQty || 0), 0);
+        return {
+          processId,
+          processNm: nameOf[processId] || processId,
+          qty,
+          ngQty: ng,
+          defectRate: qty ? Math.round((ng / qty) * 10000) / 100 : 0,
+          items: items.slice().sort((a, b) => (b.defectRate || 0) - (a.defectRate || 0)),
+        };
+      })
+      .sort((a, b) => b.defectRate - a.defectRate),
+  };
+}
+
+/**
  * AI 일일 품질·생산 종합 브리핑 — **따로 부릅니다**
  *
  * 모델 추론이라 느립니다(로컬 sLLM 실측 약 24초). 대시보드 묶음에 넣으면 나머지 12건이

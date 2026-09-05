@@ -30,6 +30,7 @@ import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController
 import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
+import EquipmentMatrix from './components/EquipmentMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 
 export default function AiDashboardView({
@@ -44,6 +45,8 @@ export default function AiDashboardView({
   setPlant,
   search,
   summary,
+  equipmentMatrix,
+  matrixLoading,
   briefing,
   briefingLoading,
   causePrescription,
@@ -56,11 +59,6 @@ export default function AiDashboardView({
   composition,
   processYield,
   planActual,
-  heatmap,
-  lines = [],
-  linesLoading,
-  linesMeta,
-  paging,
   loadEquipmentDetail,
   refresh,
 }) {
@@ -104,13 +102,6 @@ export default function AiDashboardView({
       ),
     });
   };
-
-  const displayLines = (lines?.length ? lines : (lineProduction?.lines || [])).map((l) => ({
-    ...l,
-    processId: l.processId || 'Press',
-    okQty: l.okQty ?? Math.max(0, (l.qty || 0) - (l.ngQty || 0)),
-    ngQty: l.ngQty ?? Math.round((l.qty || 0) * ((l.defectRate || 0) / 100)),
-  }));
 
   return (
     <View>
@@ -358,40 +349,24 @@ export default function AiDashboardView({
             <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
-          {/* 5. 설비별 시간대 가동률 (1개의 행으로 구성, 프레스 1~10 (PR-01~10) 명칭 적용) */}
+          {/*
+            5. 설비 매트릭스 — 공정 × 설비, 불량률로 칠하기
+
+            전에는 라인별 현황을 쪽 단위로 불러오면서 화면에는 한 대도 그리지 않았습니다.
+            1,331대는 목록으로 볼 자료가 아니라 "어느 공정의 어느 설비가 나쁜가" 를
+            한눈에 봐야 하는 자료입니다.
+
+            **가동률이 아니라 불량률로 칠합니다** — 가동률 수집값이 전 설비 null 입니다.
+          */}
           <Card
-            title="설비별 시간대 가동률"
-            sub="프레스 10대 × 2시간 구간 · 값이 낮을수록 진하게 표시"
-            nativeID="chart-card-equipment-heatmap"
-            right={
-              <Button
-                label="차트 이미지 저장"
-                size="sm"
-                variant="outline"
-                icon="download"
-                onPress={() =>
-                  saveChartAsPng({
-                    containerId: 'chart-card-equipment-heatmap',
-                    fileName: '설비별_시간대_가동률',
-                    title: '설비별 시간대 가동률',
-                    sub: '프레스 10대 × 2시간 구간',
-                    isDark: theme.isDark,
-                  })
-                }
-              />
-            }
+            title="설비별 불량률"
+            sub={`공정 × 설비 매트릭스 · 진할수록 불량률이 높습니다${equipmentMatrix?.total ? ` · 생산한 설비 ${comma(equipmentMatrix.total)}대` : ''}`}
           >
-            <HeatMap
-              rows={heatmap?.rows || []}
-              cols={heatmap?.cols || []}
-              data={heatmap?.data || []}
-              lo={heatmap?.lo ?? 40}
-              hi={heatmap?.hi ?? 100}
-              unit="%"
-              invert
-            />
-            {/* 어느 설비가 최저인지는 서버가 판단합니다 — 기본 문구에 설비 코드를 박아 두면 실제와 무관하게 그려집니다 */}
-            <SourceNote>{heatmap?.note || '진한 칸일수록 가동률이 낮은 구간입니다.'}</SourceNote>
+            <EquipmentMatrix data={equipmentMatrix} loading={matrixLoading} />
+            <SourceNote>
+              설비 가동률은 수집값이 없어(전 설비 미수집) 불량률로 칠했습니다. 생산이 없는 설비는 뺐습니다 —
+              불량률 0% 로 칠하면 잘 돌아간 설비처럼 보입니다.
+            </SourceNote>
           </Card>
         </View>
       )}
