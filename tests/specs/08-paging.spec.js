@@ -195,14 +195,15 @@ suite('페이징 — 화면', () => {
     eq(r.last, Math.min(100, r.total), '한 쪽에 100건');
   });
 
-  test('AI 대시보드 설비 매트릭스가 생산한 설비 수를 보여 준다', async () => {
-    // 라인별 현황 목록(1,331대 쪽 단위)을 공정 x 설비 매트릭스로 바꿨습니다(2026-09-05).
+  test('공정 대시보드 설비별 불량률이 생산한 설비 수를 보여 준다', async () => {
+    // 라인별 현황 목록(1,331대 쪽 단위)을 설비별 불량률 표로 바꾸고(2026-09-05),
+    // 설비·제품을 들여다보는 화면이라 공정 대시보드로 옮겼습니다(2026-09-06).
     // 쪽을 넘겨 읽을 자료가 아니라 한 판으로 봐야 하는 자료라, 페이징 대신 전량을 그립니다.
     const d = (await fixtures()).baseDate;
     const { body } = await api.get('/dashboard/ai/lines', { date: d, size: 0 });
     const want = (body.data?.lines || body.data?.items || []).filter((x) => (x.qty || 0) > 0).length;
 
-    const r = await visit(ctx.page, '/dashboard/ai');
+    const r = await visit(ctx.page, '/dashboard/process');
     const m = r.text.match(/생산한 설비 ([\d,]+)대/);
     ok(m, '설비 매트릭스에 생산한 설비 수 표시가 없습니다');
     eq(Number(m[1].replace(/,/g, '')), want, '생산한 설비 수');
