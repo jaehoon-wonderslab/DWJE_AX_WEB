@@ -201,7 +201,9 @@ suite('페이징 — 화면', () => {
     // 쪽을 넘겨 읽을 자료가 아니라 한 판으로 봐야 하는 자료라, 페이징 대신 전량을 그립니다.
     const d = (await fixtures()).baseDate;
     const { body } = await api.get('/dashboard/ai/lines', { date: d, size: 0 });
-    const want = (body.data?.lines || body.data?.items || []).filter((x) => (x.qty || 0) > 0).length;
+    // 줄 수가 아니라 서로 다른 설비 대수입니다 — 서버가 설비 × 제품으로 줄을 나눠도 이 수는 같습니다
+    const produced = (body.data?.lines || body.data?.items || []).filter((x) => (x.qty || 0) > 0);
+    const want = new Set(produced.map((x) => x.eqptCd).filter(Boolean)).size;
 
     const r = await visit(ctx.page, '/dashboard/process');
     const m = r.text.match(/생산한 설비 ([\d,]+)대/);

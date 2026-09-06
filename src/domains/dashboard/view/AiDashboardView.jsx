@@ -1,7 +1,10 @@
 /**
  * [View] DB-01 AI 통합 대시보드 (경로: /dashboard/ai)
  *
- * 제1공장 주력 라인(프레스 10대 · AOI 10대)의 성과지표와 실시간 생산·품질 현황을 한 화면에서 확인합니다.
+ * 생산·품질 현황과 AI 분석을 한 화면에서 봅니다.
+ *
+ * 설명 문구에 "제1공장 주력 라인(프레스 10대 · AOI 10대)" 이라 적혀 있던 것을 걷어냈습니다 —
+ * 설비 마스터 1,511대 중 그런 구성이 없고, PR- 로 시작하는 설비 코드도 없습니다.
  *
  * [레이아웃 구성]
  * 1. KPI 지표 3종 (3열)
@@ -107,7 +110,7 @@ export default function AiDashboardView({
     <View>
       <PageHead
         title="AI 통합 대시보드"
-        desc="제1공장 주력 라인(프레스 10대 · AOI 10대)의 성과지표와 실시간 생산·품질 현황을 한 화면에서 확인합니다."
+        desc="생산·품질 현황과 AI 분석을 한 화면에서 확인합니다."
         actions={
           <Button label="새로고침" size="sm" variant="primary" icon="refresh" onPress={refresh} />
         }

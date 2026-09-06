@@ -189,11 +189,16 @@ export default function Sidebar() {
         {edge.bottom || (contentH > viewH + 4 && !edge.top) ? <EdgeFade theme={theme} side="bottom" /> : null}
       </View>
 
-      {/* 하단 정보 */}
-      <View style={{ padding: 12, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: theme.color.border }}>
-        <Text style={[s.textXs, { lineHeight: 17 }]}>제1공장 주력 라인 · 프레스 10대 / AOI 10대</Text>
-        {servingModelVer ? <Text style={[s.textXs, { marginTop: 3 }]}>서비스 모델 {servingModelVer}</Text> : null}
-      </View>
+      {/*
+        하단 정보 — 적을 것이 있을 때만 칸을 냅니다.
+        "제1공장 주력 라인 · 프레스 10대 / AOI 10대" 를 걷어냈습니다(설비 마스터에 없는 구성입니다).
+        그것만 지우면 빈 줄에 윗선만 남습니다.
+      */}
+      {servingModelVer ? (
+        <View style={{ padding: 12, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: theme.color.border }}>
+          <Text style={[s.textXs, { lineHeight: 17 }]}>서비스 모델 {servingModelVer}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

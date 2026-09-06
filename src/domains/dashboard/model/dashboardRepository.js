@@ -238,6 +238,13 @@ export async function fetchEquipmentMatrix({ date, from, to, plant }) {
 
   return {
     total: rows.length,
+    /**
+     * 서로 다른 설비 대수 — 줄 수와 따로 셉니다
+     *
+     * 지금은 설비 한 대가 한 줄이라 둘이 같습니다. 다만 서버가 설비 × 제품으로 줄을 나누면
+     * 한 대가 여러 줄이 되어 줄 수를 "설비 N대" 라고 적는 순간 틀립니다.
+     */
+    eqptCnt: new Set(rows.map((r) => r.eqptCd).filter(Boolean)).size,
     /** 표에 그대로 넣을 한 줄 — 공장 · 설비 · 제품 · 불량률 (사용자 지정 순서) */
     items: rows
       .map((r) => ({

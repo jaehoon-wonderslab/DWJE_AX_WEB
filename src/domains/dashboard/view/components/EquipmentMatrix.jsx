@@ -32,6 +32,8 @@ const dash = (v) => (v === null || v === undefined || v === '' ? '<span class="m
 export default function EquipmentMatrix({ data, loading }) {
   const s = useCommonStyles();
   const items = data?.items || [];
+  // 줄 수가 아니라 **서로 다른 설비 대수**입니다 — 한 대가 여러 줄이 될 수 있습니다
+  const eqptCnt = data?.eqptCnt ?? items.length;
 
   const columns = useMemo(
     () => [
@@ -61,7 +63,7 @@ export default function EquipmentMatrix({ data, loading }) {
         몇 대를 보고 있는지는 적어 둡니다 — 표에 다 있어도 "이게 전부인가" 를 알 수 있어야 합니다.
         생산이 없는 설비는 빠져 있으므로 그 사실도 함께 적습니다.
       */}
-      <Text style={s.textXs}>{`생산한 설비 ${comma(items.length)}대 — 불량률이 높은 순입니다.`}</Text>
+      <Text style={s.textXs}>{`생산한 설비 ${comma(eqptCnt)}대 — 불량률이 높은 순입니다.`}</Text>
       <TabulatorGrid columns={columns} rows={rows} height={items.length > 12 ? 520 : undefined} />
     </View>
   );
