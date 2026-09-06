@@ -30,7 +30,6 @@ import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController
 import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
-import EquipmentMatrix from './components/EquipmentMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 
 export default function AiDashboardView({
@@ -45,8 +44,6 @@ export default function AiDashboardView({
   setPlant,
   search,
   summary,
-  equipmentMatrix,
-  matrixLoading,
   briefing,
   briefingLoading,
   causePrescription,
@@ -345,24 +342,7 @@ export default function AiDashboardView({
             <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
-          {/*
-            5. 설비 매트릭스 — 공정 × 설비, 불량률로 칠하기
 
-            전에는 라인별 현황을 쪽 단위로 불러오면서 화면에는 한 대도 그리지 않았습니다.
-            1,331대는 목록으로 볼 자료가 아니라 "어느 공정의 어느 설비가 나쁜가" 를
-            한눈에 봐야 하는 자료입니다.
-
-            **가동률이 아니라 불량률로 칠합니다** — 가동률 수집값이 전 설비 null 입니다.
-          */}
-          <Card
-            title="설비별 불량률"
-          >
-            <EquipmentMatrix data={equipmentMatrix} loading={matrixLoading} />
-            <SourceNote>
-              설비 가동률은 수집값이 없어(전 설비 미수집) 불량률로 칠했습니다. 생산이 없는 설비는 뺐습니다 —
-              불량률 0% 로 칠하면 잘 돌아간 설비처럼 보입니다.
-            </SourceNote>
-          </Card>
         </View>
       )}
     </View>

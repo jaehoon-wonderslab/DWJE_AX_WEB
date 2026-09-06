@@ -19,7 +19,7 @@ import { ARROW_W } from '@shared/components/ui/TabulatorGrid';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
-import { NotReady, VerifiedLines } from './AiBriefingCard';
+import { NotReady, periodText } from './AiBriefingCard';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
 import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
@@ -73,7 +73,7 @@ function basisHtml(line, inline) {
  * 수가 다르면 짧은 쪽을 비웁니다. 억지로 채우면 없는 대응이 있는 것처럼 보입니다.
  */
 export function pairRows(targets = [], threshold) {
-  return targets.flatMap((t) => {
+  return targets.map((t) => {
     const eqpt = t.eqptNm || t.eqptCd || '—';
     const product = t.productNm || t.product
       ? `${t.productNm || t.product}${t.productEtcCnt ? ` 외 ${comma(t.productEtcCnt)}종` : ''}`
@@ -85,11 +85,10 @@ export function pairRows(targets = [], threshold) {
       + (threshold ? `<div class="muted">기준 ${esc(fixed(threshold, 1))}% 초과</div>` : '');
 
     /**
-     * 묶음 머리글 — **본 표의 열 폭 그대로** 공장 · 설비 · 제품 · AI 불량 판단 기준
+     * 묶음 머리글 — **본 표의 열 폭 그대로** 설비 · 제품 · AI 불량 판단 기준
      *
      * 값이 열 아래 같은 자리에 놓이므로 항목 이름을 따로 적지 않습니다 —
-     * 바로 위 열 이름이 곧 그 값의 이름입니다. 좁은 칸에 이름까지 넣으면 값이 잘립니다.
-     * 첫 칸은 펼침 화살표가 자리를 차지해 그만큼 줄입니다.
+     * 바로 위 열 이름이 곧 그 값의 이름입니다.
      */
     const w = COLUMN_WIDTH;
     const group = [
@@ -98,21 +97,41 @@ export function pairRows(targets = [], threshold) {
       `<span class="g" style="width:${w.standard}px">${esc(rate)}${frac ? ` <span class="muted">(${esc(frac)})</span>` : ''}</span>`,
     ].join('');
 
-    const n = Math.max(t.contributions.length, t.prescriptions.length) || 1;
-    return Array.from({ length: n }, (_, i) => {
-      const cz = t.contributions[i];
-      const ac = t.prescriptions[i];
-      return {
-        group,
-        eqpt,
-        product,
-        standard: i === 0 ? standard : '',
-        cause: cz ? esc(cz.text) + basisHtml(cz, true) : '<span class="muted">—</span>',
-        action: ac ? esc(ac.text) : '<span class="muted">—</span>',
-        basis: ac ? basisHtml(ac) : '<span class="muted">—</span>',
-      };
-    });
+    return {
+      group,
+      eqpt,
+      product,
+      standard,
+      cause: listHtml(t.contributions),
+      action: listHtml(t.prescriptions),
+      basis: basisListHtml(t.prescriptions),
+    };
   });
+}
+
+/**
+ * 문장 여러 개를 한 칸에
+ *
+ * 예전에는 원인과 처방을 index 로 짝지어 줄을 나눴는데, 수가 다르면 같은 설비·제품이
+ * 여러 줄에 되풀이돼 **다른 건인 줄 착각하게** 됩니다. 한 대상은 한 줄로 두고
+ * 문장을 칸 안에서 나눕니다.
+ */
+function listHtml(lines = []) {
+  if (!lines.length) return '<span class="muted">—</span>';
+  return lines
+    .map((l, i) => {
+      const basis = basisHtml(l, true);
+      return `<div class="li">${lines.length > 1 ? `<span class="muted">${i + 1}. </span>` : ''}${esc(l.text)}${basis}</div>`;
+    })
+    .join('');
+}
+
+/** 처방마다 인용한 문서를 한 칸에 — 번호를 맞춰 어느 처방 근거인지 보이게 합니다 */
+function basisListHtml(lines = []) {
+  if (!lines.length) return '<span class="muted">—</span>';
+  return lines
+    .map((l, i) => `<div class="li">${lines.length > 1 ? `<span class="muted">${i + 1}. </span>` : ''}${basisHtml(l)}</div>`)
+    .join('');
 }
 
 /** 근거 창·엑셀이 같은 묶음을 쓰도록 한 곳에서 만듭니다 */
@@ -207,19 +226,17 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
         <NotReady reason={cp?.reason} />
       ) : (
         <View style={{ gap: 12 }}>
+          {/* 어느 구간을 본 것인지 — 기간을 골라도 지금은 종료일 하루만 분석됩니다 */}
+          <Text style={s.textXs}>{periodText(cp)}</Text>
           {/*
-            상한에 걸려 빠진 대상이 있으면 반드시 밝힙니다.
+            상한에 걸려 빠진 대상이 **있을 때만** 밝힙니다.
             빠진 것을 안 적으면 "3.5% 초과 5곳" 이 사실과 달라집니다 — 실제로는 더 있는데
-            화면만 보고 다 봤다고 여기게 됩니다.
+            화면만 보고 다 봤다고 여기게 됩니다. 빠진 것이 없으면 적을 것도 없습니다.
           */}
-          {cp.threshold ? (
+          {cp.omittedCnt ? (
             <Text style={s.textXs}>
-              {cp.omittedCnt
-                ? `불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length + cp.omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳입니다. `
-                : `불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length)}곳 — 나쁜 순입니다.`}
-              {cp.omittedCnt ? (
-                <Text style={{ fontWeight: '700' }}>{`나머지 ${comma(cp.omittedCnt)}곳은 분석하지 않았습니다.`}</Text>
-              ) : null}
+              {`불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length + cp.omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳입니다. `}
+              <Text style={{ fontWeight: '700' }}>{`나머지 ${comma(cp.omittedCnt)}곳은 분석하지 않았습니다.`}</Text>
             </Text>
           ) : null}
 
@@ -237,10 +254,10 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
             emptyText="근거가 확인된 분석 결과가 없습니다."
           />
 
-          <Text style={s.textXs}>
-            문장 속 숫자는 모델이 쓴 표기입니다. <Text style={{ fontWeight: '700' }}>확인된 값은 「근거」 칸</Text>에 있습니다.
-            {cp.droppedCnt ? ` 근거가 확인되지 않아 뺀 문장 ${comma(cp.droppedCnt)}건.` : ''}
-          </Text>
+          {/* 근거가 확인되지 않아 뺀 문장이 있을 때만 알립니다 — 조용히 버리면 안 됩니다 */}
+          {cp.droppedCnt ? (
+            <Text style={s.textXs}>{`근거가 확인되지 않아 뺀 문장 ${comma(cp.droppedCnt)}건.`}</Text>
+          ) : null}
         </View>
       )}
     </Card>

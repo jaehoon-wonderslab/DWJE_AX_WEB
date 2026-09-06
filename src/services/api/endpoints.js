@@ -420,7 +420,7 @@ export const ENDPOINTS = {
   getDashboardAiBriefing: {
     no: 321, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
     name: 'AI 일일 종합 브리핑', method: 'GET', path: '/api/v1/dashboard/ai/briefing',
-    params: 'date',
+    params: 'date, from, to',
     response: 'status, overallYield, overallDefectRate, todayQty, criticalLine, summaryLines, generatedAt',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
@@ -429,7 +429,7 @@ export const ENDPOINTS = {
   getDashboardAiCausePrescription: {
     no: 322, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
     name: 'AI 공정 원인 분석 및 처방 권고', method: 'GET', path: '/api/v1/dashboard/ai/cause-prescription',
-    params: 'date, eqptCd',
+    params: 'date, from, to, processId, eqptCd, threshold',
     response: 'selectedEqpt, availableEquipments, featureContributions, prescriptions, analyzedAt',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',

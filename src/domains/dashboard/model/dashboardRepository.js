@@ -317,7 +317,8 @@ export async function fetchEquipmentMatrix({ date, from, to, plant }) {
  * 서버가 주지 않으면 `null` 이고 화면은 "준비 중" 을 그립니다.
  */
 export const fetchAiBriefing = ({ date, from, to, plant }) =>
-  unwrap(dashboardService.getDashboardAiBriefing({ date: to || date, from, to, plant }), null).catch(() => null);
+  // 구간을 그대로 넘깁니다 — 종료일만 보내면 한 달을 골라도 그 하루만 분석됩니다
+  unwrap(dashboardService.getDashboardAiBriefing(from && to ? { from, to, plant } : { date: to || date, plant }), null).catch(() => null);
 
 /**
  * 설비별 AI 원인 분석 및 처방 권고 단독 조회 (설비를 바꿀 때)
@@ -327,10 +328,13 @@ export const fetchAiBriefing = ({ date, from, to, plant }) =>
  */
 export async function fetchAiCausePrescription(param, eqptCd) {
   const isObj = typeof param === 'object' && param !== null;
-  const date = isObj ? param.to || param.date : param;
+  const from = isObj ? param.from : undefined;
+  const to = isObj ? param.to : undefined;
   const code = eqptCd || (isObj ? param.eqptCd : undefined);
   const processId = isObj ? param.processId : undefined;
-  return unwrap(dashboardService.getDashboardAiCausePrescription({ date, processId, eqptCd: code }), null).catch(() => null);
+  // 구간을 그대로 넘깁니다 — 종료일만 보내면 한 달을 골라도 그 하루만 분석됩니다
+  const range = from && to ? { from, to } : { date: to || (isObj ? param.date : param) };
+  return unwrap(dashboardService.getDashboardAiCausePrescription({ ...range, processId, eqptCd: code }), null).catch(() => null);
 }
 
 /**

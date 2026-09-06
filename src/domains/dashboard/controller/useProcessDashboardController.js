@@ -11,7 +11,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import { DEFAULT_PLANT_CD, fetchDataRange } from '@domains/common/model/dataRangeRepository';
 import { firstError } from '@services/api/request';
-import { loadProcessDashboard, loadProcessMasters } from '../model/dashboardRepository';
+import { fetchEquipmentMatrix, loadProcessDashboard, loadProcessMasters } from '../model/dashboardRepository';
 
 export function useProcessDashboardController() {
   const baseDate = useAppStore((state) => state.baseDate);
@@ -167,10 +167,23 @@ export function useProcessDashboardController() {
   }, [rows]);
 
   // 실적이 없는 공정으로 바꾼 직후에는 이전 공정 수치가 남아 있으면 안 됩니다.
+  /**
+   * 설비별 불량률 — AI 통합 대시보드에서 이 화면으로 옮겨 왔습니다(2026-09-06)
+   *
+   * 설비·제품을 들여다보는 화면이라 여기가 제자리입니다.
+   */
+  const { data: equipmentMatrix, loading: matrixLoading } = useAsync(
+    () => fetchEquipmentMatrix({ date: baseDate }),
+    [baseDate],
+    { silent: true }
+  );
+
   // 안내는 안내대로 띄우고 카드는 비웁니다.
   const view = noProduction ? {} : data || {};
 
   return {
+    equipmentMatrix,
+    matrixLoading,
     loading: (loading || !models.length) && !noProduction,
     loadError,
     noProduction,

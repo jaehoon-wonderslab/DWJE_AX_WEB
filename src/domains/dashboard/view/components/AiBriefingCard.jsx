@@ -17,7 +17,7 @@ import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModa
 import { downloadBriefingReport } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
-import { comma, fixed } from '@shared/utils/formatUtil';
+import { comma, fixed, shiftDate } from '@shared/utils/formatUtil';
 import { useTheme } from '@shared/theme/useTheme';
 
 /**
@@ -93,7 +93,15 @@ export default function AiBriefingCard({ briefing, loading }) {
       ) : !ready ? (
         <NotReady reason={briefing?.reason} />
       ) : (
-        <VerifiedLines lines={lines} dropped={dropped} />
+        <View style={{ gap: 10 }}>
+          {/*
+            어느 구간을 본 것인지 밝힙니다.
+            집계 단위를 월로 바꿔도 지금은 종료일 하루만 분석되므로, 적어 두지 않으면
+            한 달치를 보고 있다고 오해합니다. 서버가 구간을 주면 그대로 적습니다.
+          */}
+          <Text style={s.textXs}>{periodText(briefing)}</Text>
+          <VerifiedLines lines={lines} dropped={dropped} />
+        </View>
       )}
     </Card>
   );
@@ -112,8 +120,6 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
 
   if (!lines.length) return emptyText ? <Text style={s.textXs}>{emptyText}</Text> : null;
 
-  /** 문장 안에 숫자가 있는가 — 그 숫자는 검사를 받지 않은 모델 표기입니다 */
-  const hasRawNumber = lines.some((l) => /\d/.test(l.text || ''));
 
   return (
     <View style={{ gap: 14 }}>
@@ -159,11 +165,6 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
       {dropped ? (
         <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
           {`모델이 낸 문장 중 ${dropped}건은 근거가 확인되지 않아 뺐습니다.`}
-        </Text>
-      ) : null}
-      {hasRawNumber ? (
-        <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-          문장 속 숫자는 모델이 쓴 표기입니다. <Text style={{ fontWeight: '700' }}>확인된 값은 근거 칩</Text>에 있습니다.
         </Text>
       ) : null}
     </View>
@@ -263,4 +264,19 @@ export function NotReady({ reason }) {
       </Text>
     </View>
   );
+}
+
+/**
+ * 분석 구간 표기
+ *
+ * 서버가 `periodFrom`·`periodTo` 를 주면 구간으로, `targetDate` 만 주면 그 하루로 적습니다.
+ * 화면이 날짜를 지어내지 않습니다 — 서버가 실제로 본 구간만 적습니다.
+ */
+export function periodText(data) {
+  if (!data?.periodFrom || !data?.periodTo) return '';
+  // 서버는 "2026-08-01 00:00:00" 처럼 시각까지 줍니다. 끝은 다음 날 0시라 하루를 빼서 적습니다
+  const from = String(data.periodFrom).slice(0, 10);
+  const to = String(data.periodTo).slice(0, 10);
+  const last = to > from ? shiftDate(to, -1) : to;
+  return from === last ? `${from} 분석` : `${from} ~ ${last} 분석`;
 }

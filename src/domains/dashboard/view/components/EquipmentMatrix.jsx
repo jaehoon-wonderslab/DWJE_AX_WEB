@@ -61,7 +61,7 @@ export default function EquipmentMatrix({ data, loading }) {
         몇 대를 보고 있는지는 적어 둡니다 — 표에 다 있어도 "이게 전부인가" 를 알 수 있어야 합니다.
         생산이 없는 설비는 빠져 있으므로 그 사실도 함께 적습니다.
       */}
-      <Text style={s.textXs}>{`생산한 설비 ${comma(items.length)}대 — 불량률이 높은 순입니다. 생산이 없는 설비는 뺐습니다.`}</Text>
+      <Text style={s.textXs}>{`생산한 설비 ${comma(items.length)}대 — 불량률이 높은 순입니다.`}</Text>
       <TabulatorGrid columns={columns} rows={rows} height={items.length > 12 ? 520 : undefined} />
     </View>
   );

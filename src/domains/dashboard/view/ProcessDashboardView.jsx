@@ -19,11 +19,13 @@ import { comma, fixed, rate } from '@shared/utils/formatUtil';
 import { LEVEL_LABEL, TOP_N_OPTIONS, yieldLevel, targetDefectRate, uptimeLevel } from '../model/dashboardModel';
 import { openProductPicker } from './ProductPicker';
 import ProcessYieldView from './components/ProcessYieldView';
+import EquipmentMatrix from './components/EquipmentMatrix';
 
 export default function ProcessDashboardView({
   loading, processes, products, proc, processId, models, topN, recentModels, target, summary,
   loadError, noProduction, baseDate, rows, trend, production, composition, productYield, productUptime, processCompare, heatmap, processYield,
   changeProcess, pickTopN, removeModel, applyModels, addModel, resetSelection, exportExcel,
+  equipmentMatrix, matrixLoading,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -340,6 +342,18 @@ export default function ProcessDashboardView({
             },
           ]}
         />
+      </Card>
+
+      {/*
+        설비별 불량률 — AI 통합 대시보드에서 옮겨 왔습니다(2026-09-06).
+        설비·제품을 들여다보는 화면이라 여기가 제자리입니다.
+
+        **가동률이 아니라 불량률입니다** — 가동률 수집값이 전 설비 null 이라
+        없는 값으로는 그릴 수 없습니다.
+      */}
+      <Card title="설비별 불량률">
+        <EquipmentMatrix data={equipmentMatrix} loading={matrixLoading} />
+        <SourceNote>설비 가동률은 수집값이 없어 불량률로 그렸습니다. 생산이 없는 설비는 뺐습니다.</SourceNote>
       </Card>
     </View>
   );

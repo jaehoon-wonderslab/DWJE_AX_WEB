@@ -166,6 +166,8 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .muted { color: ${c.muted}; }
         #grid_${id} .tabulator .quote { color: ${c.muted}; font-style: italic; }
         #grid_${id} .tabulator .strong { font-weight: 700; }
+        /* 한 칸에 문장이 여럿일 때 — 줄 사이를 벌려 어디서 끊기는지 보이게 합니다 */
+        #grid_${id} .tabulator .li + .li { margin-top: 7px; padding-top: 7px; border-top: 1px dashed ${c.rowBorder}; }
       `}</style>
       <div ref={ref} />
     </View>
