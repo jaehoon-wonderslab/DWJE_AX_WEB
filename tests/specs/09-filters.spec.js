@@ -67,7 +67,8 @@ async function pickUnit(page, label) {
   const isLeaf = (t) => `[...document.querySelectorAll('div,span')].find((e) => e.textContent.trim() === ${JSON.stringify(t)} && e.children.length === 0)`;
 
   // 1) 라벨이 그려질 때까지
-  await page.waitForFunction(`!!${isLeaf('조회 기간')}`, { timeout: 60000 });
+  // waitForFunction 의 두 번째 인자는 옵션이 아니라 함수에 넘길 값입니다 — 옵션은 세 번째입니다
+  await page.waitForFunction(`!!${isLeaf('조회 기간')}`, null, { timeout: 60000 });
 
   // 2) 목록이 열릴 때까지 — 한 번 눌러 안 열리면 다시 누릅니다
   for (let i = 0; i < 5; i += 1) {

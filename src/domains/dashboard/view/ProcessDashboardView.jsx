@@ -153,7 +153,9 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
               <SelectChip label="전체 제품" small on={detailFilter === 'all'} onPress={() => setDetailFilter('all')} />
               {showQty && <><SelectChip label={`불량 발생 ${insights.byDefects.length}종`} small on={detailFilter === 'defect'} onPress={() => setDetailFilter('defect')} />
                 <SelectChip label={`집계 확인 ${missingCount}종`} small on={detailFilter === 'missing'} onPress={() => setDetailFilter('missing')} /></>}
-              <TextField label="제품 찾기" value={query} onChange={setQuery} placeholder="제품 코드 또는 제품명" />
+              {/* TextField 는 onChangeText 로 글자를 줍니다. onChange 로 받으면 이벤트 객체가 들어와
+                  아래 query.trim() 에서 화면이 통째로 죽습니다 — 한 글자만 쳐도 터집니다 */}
+              <TextField label="제품 찾기" value={query} onChangeText={setQuery} placeholder="제품 코드 또는 제품명" />
               {(query || detailFilter !== 'all') && <Button label="상세 필터 해제" size="sm" onPress={() => { setQuery(''); setDetailFilter('all'); }} />}
             </View>
             <TabulatorGrid columns={columns} rows={detailRows} height={440} emptyText="현재 조건에 해당하는 제품이 없습니다. 상세 필터를 해제하거나 조회 대상을 바꿔 주세요." />
