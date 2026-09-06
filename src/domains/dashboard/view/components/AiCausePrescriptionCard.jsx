@@ -32,14 +32,19 @@ import { Button } from '@shared/components/ui';
  * 「AI 불량 판단 근거」는 처방이 인용한 문서입니다.
  */
 /**
- * 앞 세 열의 폭 — 묶음 머리글이 같은 폭으로 늘어서야 열과 값이 맞습니다
+ * 앞 네 열의 폭 — 묶음 머리글이 같은 폭으로 늘어서야 열과 값이 맞습니다
  *
- * 공장 열은 걷어냈습니다. mes·ax 어디에도 공장 정보가 없고(작업장 마스터·실적·LOT 번호·제품
- * 전부 확인, 2026-09-06) 설비·제품·날짜로 짚어도 알 수 없어, 빈 칸을 남기느니 없앴습니다.
+ * 공장은 **서버가 준 `plantNm` 만** 씁니다. 설비명·LOT 번호에서 유추하지 않습니다.
+ * 공장 마스터도, 설비·제품·일자로 공장을 짚는 경로도 DB 에 없습니다(2026-09-06 전수 확인).
+ * 다만 작업장 이름 일부에 공장이 글자로 적혀 있어("C1-FQC(M-3공장)") 서버가 그것만
+ * 옮겨 담습니다 — 37개 중 9개. 나머지 28개는 `plantNm: null` 이고 **빈 칸으로 둡니다**.
+ * `plantSource: 'wc_nm'` 이 이름에서 읽은 값이라는 표시입니다.
+ * 빈 칸을 채우려 들지 마세요. 작업장 코드 앞글자(A→M-1)로 맞춰 보면 37개 중 3개만 맞습니다.
  */
-export const COLUMN_WIDTH = { eqpt: 180, product: 200, standard: 160 };
+export const COLUMN_WIDTH = { plant: 140, eqpt: 180, product: 200, standard: 160 };
 
 export const CAUSE_COLUMNS = [
+  { title: '공장', field: 'plant', width: COLUMN_WIDTH.plant },
   { title: '설비', field: 'eqpt', width: COLUMN_WIDTH.eqpt },
   { title: '제품', field: 'product', width: COLUMN_WIDTH.product },
   { title: 'AI 불량 판단 기준', field: 'standard', width: COLUMN_WIDTH.standard, formatter: 'html' },
@@ -74,6 +79,8 @@ function basisHtml(line, inline) {
  */
 export function pairRows(targets = [], threshold) {
   return targets.map((t) => {
+    /** 공장 — 서버가 못 주면 빈 칸. '—' 조차 적지 않습니다(모르는 것이지 없는 것이 아닙니다) */
+    const plant = t.plantNm || '';
     const eqpt = t.eqptNm || t.eqptCd || '—';
     const product = t.productNm || t.product
       ? `${t.productNm || t.product}${t.productEtcCnt ? ` 외 ${comma(t.productEtcCnt)}종` : ''}`
@@ -85,20 +92,22 @@ export function pairRows(targets = [], threshold) {
       + (threshold ? `<div class="muted">기준 ${esc(fixed(threshold, 1))}% 초과</div>` : '');
 
     /**
-     * 묶음 머리글 — **본 표의 열 폭 그대로** 설비 · 제품 · AI 불량 판단 기준
+     * 묶음 머리글 — **본 표의 열 폭 그대로** 공장 · 설비 · 제품 · AI 불량 판단 기준
      *
      * 값이 열 아래 같은 자리에 놓이므로 항목 이름을 따로 적지 않습니다 —
      * 바로 위 열 이름이 곧 그 값의 이름입니다.
      */
     const w = COLUMN_WIDTH;
     const group = [
-      `<span class="g" style="width:${w.eqpt - ARROW_W}px">${esc(eqpt)}</span>`,
+      `<span class="g" style="width:${w.plant - ARROW_W}px">${esc(plant)}</span>`,
+      `<span class="g" style="width:${w.eqpt}px">${esc(eqpt)}</span>`,
       `<span class="g" style="width:${w.product}px">${esc(product)}</span>`,
       `<span class="g" style="width:${w.standard}px">${esc(rate)}${frac ? ` <span class="muted">(${esc(frac)})</span>` : ''}</span>`,
     ].join('');
 
     return {
       group,
+      plant,
       eqpt,
       product,
       standard,

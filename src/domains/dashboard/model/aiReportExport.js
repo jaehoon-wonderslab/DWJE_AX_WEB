@@ -127,16 +127,17 @@ export function downloadCauseReport({ rows = [], docs = [], droppedCnt = 0, omit
           { cells: [] },
         ]
       : []),
-    { cells: ['설비', '제품', 'AI 불량 판단 기준', '원인', '조치 방안 제시', 'AI 불량 판단 근거'], style: 'head' },
+    { cells: ['공장', '설비', '제품', 'AI 불량 판단 기준', '원인', '조치 방안 제시', 'AI 불량 판단 근거'], style: 'head' },
+    // 화면 표와 같은 열·같은 값입니다. 공장을 서버가 못 주면 화면과 똑같이 빈 칸으로 나갑니다.
     ...rows.map((r) => ({
-      cells: [r.eqpt, r.product, plain(r.standard), plain(r.cause), plain(r.action), plain(r.basis)],
+      cells: [r.plant || '', r.eqpt, r.product, plain(r.standard), plain(r.cause), plain(r.action), plain(r.basis)],
     })),
   ];
 
   downloadXlsx({
     name: `${title} ${targetDate || ''}`.trim(),
     sheetName: '원인분석',
-    columns: [{ width: 24 }, { width: 22 }, { width: 22 }, { width: 60 }, { width: 60 }, { width: 52 }],
+    columns: [{ width: 16 }, { width: 24 }, { width: 22 }, { width: 22 }, { width: 60 }, { width: 60 }, { width: 52 }],
     rows: [...out, ...docSection(docs), ...tail(droppedCnt)],
   });
 }
