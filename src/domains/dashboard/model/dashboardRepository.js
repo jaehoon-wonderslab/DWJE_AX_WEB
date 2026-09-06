@@ -6,10 +6,9 @@
  */
 import * as commonService from '@services/api/commonService';
 import * as dashboardService from '@services/api/dashboardService';
-import * as productionService from '@services/api/productionService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
 import { fillRates, fillRatesAll } from '@domains/common/model/metricModel';
-import { periodUnit } from '@domains/common/model/paramModel';
+import { hourlySlot } from './aiDashboardFilterModel';
 
 /* ───────── DB-01 AI 통합 대시보드 (API 12건) ───────── */
 
@@ -50,8 +49,9 @@ function buildHourly(trend) {
   const cells = slots.map((x) => {
     const raw = String(x.slot || '');
     const sp = raw.indexOf(' ');
-    const day = sp > 0 ? raw.slice(0, sp) : raw;
-    const label = sp > 0 ? raw.slice(sp + 1) : null;
+    const parsed = hourly ? hourlySlot(raw, trend?.period) : null;
+    const day = parsed?.date || (sp > 0 ? raw.slice(0, sp) : raw);
+    const label = parsed?.label || null;
     const input = x.inputQty == null ? null : Number(x.inputQty);
     const ok = x.okQty == null ? null : Number(x.okQty);
     return {
@@ -123,29 +123,21 @@ export async function loadAiDashboard(param) {
   const from = isObj ? param.from : undefined;
   const to = isObj ? param.to : undefined;
   const plant = isObj ? param.plant : undefined;
-  const unit = isObj ? param.unit : undefined;
-  const unitCode = periodUnit(unit) || 'day';
 
   const baseParams = { date, from, to, plant };
-  const prodParams = { from: from || date, to: to || date, unit: unitCode, plant };
-  const targetEqptCd = isObj ? param.eqptCd || undefined : undefined; // 서버가 분석 대상을 정합니다
 
-  const [data, prodTrendRes, prodResultsRes] = await Promise.all([
-    unwrapAll({
-      summary: dashboardService.getDashboardAiSummary(baseParams),
-      trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h' }),
-      lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
-      qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
-      composition: dashboardService.getDashboardAiDefectComposition(baseParams),
-      processYield: dashboardService.getDashboardAiProcessYield(baseParams),
-      planActual: dashboardService.getDashboardAiPlanVsActual({ ...baseParams, interval: '2h' }),
-      heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ ...baseParams, interval: '2h' }),
-      alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
-      agents: dashboardService.getDashboardAiAgents({}),
-    }),
-    unwrap(productionService.getProductionResultsTrend(prodParams), null).catch(() => null),
-    unwrap(productionService.getProductionResults({ ...prodParams, size: 100 }), null).catch(() => null),
-  ]);
+  const data = await unwrapAll({
+    summary: dashboardService.getDashboardAiSummary(baseParams),
+    trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h' }),
+    lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
+    qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
+    composition: dashboardService.getDashboardAiDefectComposition(baseParams),
+    processYield: dashboardService.getDashboardAiProcessYield(baseParams),
+    planActual: dashboardService.getDashboardAiPlanVsActual({ ...baseParams, interval: '2h' }),
+    heatmap: dashboardService.getDashboardAiEquipmentUptimeHeatmap({ ...baseParams, interval: '2h' }),
+    alerts: dashboardService.getDashboardAiAlerts({ hours: 24 }),
+    agents: dashboardService.getDashboardAiAgents({}),
+  });
 
   // 공정별 수율 계산 정규화 (서버 yield 필드 및 okQty/qty 기반 실시간 산출)
   let processYield = data.processYield;

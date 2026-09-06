@@ -21,7 +21,7 @@ import { BarChart, DotPlot, HeatMap, LineChart, ParetoChart } from '@shared/comp
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  BlindValue, Button, Card, DateField, Filters, Loading, Pagination, ProgressBar, SelectField,
+  BlindValue, Button, Card, DateField, Filters, Loading, EmptyState, FormAlert, Pagination, ProgressBar, SelectField,
   SourceNote, StateBadge, StatCard, Table, openFormModal,
 } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
@@ -30,6 +30,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { saveChartAsPng } from '@shared/utils/exportUtil';
 import { comma, fixed, rate } from '@shared/utils/formatUtil';
 import { AGG_UNITS, PLANT_OPTIONS } from '../controller/useAiDashboardController';
+import { bucketLabel } from '../model/aiDashboardFilterModel';
 import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
@@ -38,6 +39,7 @@ import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 export default function AiDashboardView({
   loading,
   period,
+  pendingChanges, validationError, loadError, partialErrors = {}, requestAI, aiRequested,
   from,
   setFrom,
   to,
@@ -73,6 +75,10 @@ export default function AiDashboardView({
    * 서버는 계획이 없어도 `plan: 0` 으로 칸을 채워 보냅니다. 합이 0 이면 등록된 계획이
    * 없는 것이므로 계획 막대를 내지 않습니다 — 0 을 그리면 "계획을 0 으로 세웠다" 로 읽힙니다.
    */
+  const intervalLabel = bucketLabel(defectTrendData?.bucket);
+  const trendTitle = `${intervalLabel} 단위 불량률 추이`;
+  const partialLabels = { summary: '생산 요약', trend: '불량 추이', lineProduction: '라인 실적', qualityIndex: '품질 지표', composition: '불량 구성', processYield: '공정 수율', planActual: '생산 계획·실적', heatmap: '설비 현황' };
+  const failedPanels = Object.keys(partialErrors).filter((key) => partialLabels[key]).map((key) => partialLabels[key]);
   const hasPlan = (planActual?.items || []).some((x) => Number(x.plan) > 0);
 
   const showEquipment = async (eqptCd) => {
@@ -126,7 +132,7 @@ export default function AiDashboardView({
 
       <Filters>
         <SelectField
-          label="집계 단위"
+          label="조회 기간"
           value={unit}
           options={AGG_UNITS}
           onChange={changeUnit}
@@ -146,7 +152,7 @@ export default function AiDashboardView({
           variant="primary"
           icon="search"
           onPress={search}
-          loading={loading}
+          disabled={loading}
         />
 
         {/* 1~3공장 선택 select box (기본 제1공장, 미래 사용 목적으로 숨김 처리) */}
@@ -159,13 +165,19 @@ export default function AiDashboardView({
           />
         </View>
       </Filters>
-      <Gap y={16} />
+      {validationError ? <FormAlert tone="error">{validationError}</FormAlert> : null}
+      {pendingChanges ? <FormAlert tone="info">기간이 변경되었습니다. 조회 버튼을 눌러 적용해 주세요.</FormAlert> : null}
+      <SourceNote>{`조회된 기간: ${period?.from} ~ ${period?.to} · 차트 간격은 조회 기간에 맞춰 자동 조정됩니다.`}</SourceNote>
+      <Gap size={16} />
 
       {/* 2. 로딩 / 콘텐츠 영역 */}
       {loading ? (
-        <Loading message="AI 통합 대시보드 데이터를 불러오는 중..." />
+        <Loading text="생산·품질 실적을 불러오고 있습니다…" />
+      ) : loadError ? (
+        <FormAlert tone="error">실적을 불러오지 못했습니다. 조회 버튼으로 다시 시도해 주세요.</FormAlert>
       ) : (
         <View style={{ gap: 20 }}>
+          {failedPanels.length ? <FormAlert tone="error">{failedPanels.join(', ')} 자료를 불러오지 못했습니다. 나머지 실적은 확인할 수 있으며, 새로고침으로 다시 조회할 수 있습니다.</FormAlert> : null}
           {/*
             KPI 지표 3종
             StatCard 는 label · value · unit · sub · tone · right 를 받습니다.
@@ -203,6 +215,10 @@ export default function AiDashboardView({
             />
           </Grid>
 
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <Text style={s.textSm}>AI 분석은 필요할 때 요청할 수 있습니다. 분석 서비스가 꺼져 있어도 생산·품질 조회는 이용할 수 있습니다.</Text>
+            <Button label={aiRequested ? 'AI 분석 다시 요청' : 'AI 분석 요청'} size="sm" onPress={requestAI} disabled={briefingLoading || causeLoading} />
+          </View>
           {/* AI 종합 브리핑 카드 */}
           <AiBriefingCard briefing={briefing} loading={briefingLoading} period={period} />
 
@@ -219,7 +235,7 @@ export default function AiDashboardView({
 
           {/* 1. 시간대별 불량률 추이 */}
           <Card
-            title="시간대별 불량률 추이"
+            title={trendTitle}
             nativeID="chart-card-hourly-trend"
             right={
               <Button
@@ -231,8 +247,8 @@ export default function AiDashboardView({
                   saveChartAsPng({
                     containerId: 'chart-card-hourly-trend',
                     fileName: '시간대별_불량률_추이',
-                    title: '시간대별 불량률 추이',
-                    sub: `${from} ~ ${to}`,
+                    title: trendTitle,
+                    sub: `${period?.from} ~ ${period?.to}`,
                     isDark: theme.isDark,
                   })
                 }
@@ -267,7 +283,9 @@ export default function AiDashboardView({
                 target={defectTrendData?.target || 3.0}
               />
             ) : (
-              <EmptyState text={`선택 구간이 길어 ${defectTrendData?.bucket?.note || '일 단위로 접혔습니다'}. 시간대별 매트릭스는 7일 이하 구간에서 나옵니다.`} />
+              <EmptyState text={defectTrendData?.bucket && defectTrendData.bucket.unit !== 'HOUR'
+                ? `긴 기간은 ${intervalLabel} 단위로 묶어 표시합니다. 시간대별 상세는 7일 이하 기간을 조회하면 볼 수 있습니다.`
+                : '이 기간에는 시간대별로 표시할 실적이 없습니다.'} />
             )}
             {/*
               색을 나누는 3.0%는 **등록된 목표가 아닙니다.** ax.tb_met_metric_std 에는
@@ -275,14 +293,14 @@ export default function AiDashboardView({
               (2026-09-06 확인). 서버가 target 을 주기 시작하면 그 값을 씁니다.
             */}
             <SourceNote>
-              2시간 단위 실측입니다. 실적이 없는 시간대는 빈 칸입니다.
+              {`${intervalLabel} 단위 실측입니다. 실적이 없는 구간은 빈 칸입니다. `}
               색 기준 3.0%는 등록된 목표가 아니라 화면이 정한 값입니다.
             </SourceNote>
           </Card>
 
           {/* 2. 유형별 불량 수량 추이 (1행 전체, 가로 스크롤 연속 시계열) */}
           <Card
-            title="유형별 불량 수량 추이"
+            title="유형별 불량 수량 추이" sub={`${intervalLabel} 단위 실측`}
             nativeID="chart-card-hourly-ng-count"
             right={
               <Button
@@ -295,7 +313,7 @@ export default function AiDashboardView({
                     containerId: 'chart-card-hourly-ng-count',
                     fileName: '유형별_불량_수량_추이',
                     title: '유형별 불량 수량 추이',
-                    sub: `${from} ~ ${to}`,
+                    sub: `${period?.from} ~ ${period?.to}`,
                     isDark: theme.isDark,
                   })
                 }
@@ -320,7 +338,7 @@ export default function AiDashboardView({
 
           {/* 3. 생산 계획 대비 실적 (1행 전체) */}
           <Card
-            title="생산 계획 대비 실적"
+            title="생산 계획 대비 실적" sub={`${bucketLabel(planActual?.bucket)} 단위 · 조회 기간 누계`}
             nativeID="chart-card-plan-actual"
             right={
               <Button
@@ -333,7 +351,7 @@ export default function AiDashboardView({
                     containerId: 'chart-card-plan-actual',
                     fileName: '생산_계획_대비_실적',
                     title: '생산 계획 대비 실적',
-                    sub: '2시간 구간',
+                    sub: `${bucketLabel(planActual?.bucket)} 단위 · ${period?.from} ~ ${period?.to}`,
                     isDark: theme.isDark,
                   })
                 }

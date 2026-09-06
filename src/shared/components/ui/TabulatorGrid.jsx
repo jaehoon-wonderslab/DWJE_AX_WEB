@@ -89,7 +89,29 @@ export default function TabulatorGrid({
       ? [
           {
             formatter: 'rowSelection',
-            titleFormatter: 'rowSelection',
+            /**
+             * 머리글 칸은 **직접 그립니다**
+             *
+             * Tabulator 가 주는 `titleFormatter: 'rowSelection'` 은 자기 안에 켜짐/꺼짐을
+             * 따로 들고 있는데, 코드로 행을 골라 두면(팝업을 열 때 이미 고른 제품을
+             * 되살립니다) 그 값이 어긋납니다. 그러면 **첫 클릭이 고르는 대신 지웁니다** —
+             * 실제로 5종이 골라진 상태에서 눌렀더니 0종이 됐습니다.
+             * 지금 상태를 보고 정하도록 손으로 답니다.
+             */
+            titleFormatter: () => {
+              const el = document.createElement('input');
+              el.type = 'checkbox';
+              el.setAttribute('aria-label', '검색된 행 모두 선택');
+              el.style.cursor = 'pointer';
+              return el;
+            },
+            headerClick: (e, col) => {
+              const t = col.getTable();
+              const all = t.getRows();
+              if (!all.length) return;
+              if (t.getSelectedRows().length >= all.length) t.deselectRow();
+              else t.selectRow(all);
+            },
             headerSort: false,
             resizable: false,
             width: 42,
@@ -125,10 +147,21 @@ export default function TabulatorGrid({
     });
 
     if (selectable) {
+      /** 머리글 네모를 지금 상태에 맞춥니다 — 일부만 골랐으면 중간 표시 */
+      const syncHead = () => {
+        const box = ref.current?.querySelector('.tabulator-header input[type="checkbox"]');
+        if (!box) return;
+        const total = table.getRows().length;
+        const on = table.getSelectedRows().length;
+        box.checked = total > 0 && on >= total;
+        box.indeterminate = on > 0 && on < total;
+      };
       table.on('rowSelectionChanged', (data) => {
+        syncHead();
         if (restoring.current) return;
         onSelectedRef.current?.(data.map((r) => (rowKey ? r[rowKey] : r)));
       });
+      table.on('dataProcessed', syncHead);
     }
 
     instance.current = table;
@@ -156,19 +189,23 @@ export default function TabulatorGrid({
     const table = instance.current;
     if (!table) return;
     const apply = () => {
+      /**
+       * 갈아 끼우는 **동안 내내** 부모에게 알리지 않습니다
+       *
+       * `replaceData` 는 먼저 선택을 전부 풀고(빈 목록으로 한 번 알림) 그다음 새 행을 놓습니다.
+       * 되살리는 순간만 막으면 그 "전부 풀림" 이 부모에게 그대로 전해져, 검색으로 걸러진
+       * 행의 선택이 지워집니다 — 205종을 고른 뒤 검색하면 191종으로 줄었습니다.
+       */
+      restoring.current = true;
       table.replaceData(rows).then(() => {
         if (!selectable || !rowKey) return;
         const keep = new Set(selectedRef.current || []);
         if (!keep.size) return;
-        restoring.current = true;
-        try {
-          table.getRows().forEach((r) => {
-            if (keep.has(r.getData()[rowKey])) r.select();
-          });
-        } finally {
-          restoring.current = false;
-        }
-      }).catch(() => { /* 표가 이미 정리된 경우 */ });
+        table.getRows().forEach((r) => {
+          if (keep.has(r.getData()[rowKey])) r.select();
+        });
+      }).catch(() => { /* 표가 이미 정리된 경우 */ })
+        .finally(() => { restoring.current = false; });
     };
     if (table.initialized) apply();
     else table.on('tableBuilt', apply);
@@ -264,6 +301,11 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tabulator-row.tabulator-selected,
         #grid_${id} .tabulator .tabulator-row.tabulator-selected:hover { background: ${c.selected}; }
         #grid_${id} .tabulator input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: ${c.accent}; }
+        /*
+          열 너비 손잡이는 머리글에만 둡니다.
+          행에도 붙어 나오는데, 선택 칸처럼 좁고 가운데 정렬된 칸에서는 점 하나가 찍힌 것처럼 보입니다.
+        */
+        #grid_${id} .tabulator .tabulator-row .tabulator-col-resize-handle { display: none; }
       `}</style>
       <div ref={ref} />
     </View>

@@ -255,19 +255,16 @@ export function formatEvidence(value, unit, item) {
 /** 모델이 아직 붙지 않았을 때 — 지어낸 값 대신 상태를 밝힙니다 */
 export function NotReady({ reason }) {
   const s = useCommonStyles();
-  // 대기열에서 밀린 것과 모델이 아예 없는 것은 다릅니다 — 방금 결과를 본 뒤라면 '준비 중' 이 이상하게 읽힙니다
+  const idle = reason === 'NOT_REQUESTED';
   const busy = reason === 'MODEL_BUSY';
   return (
     <View style={{ gap: 6, paddingVertical: 10 }}>
       <Text style={[s.textSm, { fontWeight: '600' }]}>
-        {busy ? '지금 다른 분석이 돌고 있습니다.' : '모델 준비 중입니다.'}
+        {idle ? 'AI 분석을 요청하지 않았습니다.' : busy ? '다른 AI 분석이 진행 중입니다.' : '현재 AI 분석 결과가 없습니다.'}
       </Text>
       <Text style={s.textXs}>
-        {busy
-          ? '모델이 한 번에 하나씩 처리합니다. 잠시 뒤 「새로고침」으로 다시 열어 주세요.'
-          : reason === 'MODEL_NOT_READY'
-            ? '파인튜닝한 sLLM 이 아직 연결되지 않았습니다. 붙는 대로 이 자리에 근거와 함께 표시됩니다.'
-            : '아직 근거를 갖춘 분석 결과가 없습니다. 근거 없는 문장은 표시하지 않습니다.'}
+        {idle ? '필요할 때 「AI 분석 요청」을 눌러 조회된 기간을 분석할 수 있습니다.'
+          : 'AI 분석 서비스가 꺼져 있거나 결과가 준비되지 않은 상태일 수 있습니다. 생산·품질 실적은 계속 확인할 수 있으며, 서비스가 준비되면 「AI 분석 다시 요청」을 눌러 주세요.'}
       </Text>
     </View>
   );

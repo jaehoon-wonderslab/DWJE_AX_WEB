@@ -331,6 +331,109 @@ suite('화면 값 ↔ API 값', () => {
     eq([...new Set(bad)], [], '화면에 있는 설비가 서버 실적에는 없습니다');
   });
 
+  /**
+   * 제품 선택 팝업 — 표가 할 일을 표가 하는가
+   *
+   * 예전에는 손으로 만든 표에 '정렬' 셀렉트와 '검색 결과 N종 모두 선택' · '검색 결과 해제' ·
+   * '선택한 것만' 버튼이 붙어 있었습니다. 정렬은 한 열만 됐고, 검색어를 바꾸면 정렬이 풀렸고,
+   * 어느 행이 골라졌는지 표에서 보이지 않았습니다. 고객사는 205종 전부 null 이라 빈 열이었습니다.
+   */
+  test('제품 선택 팝업 — 선택·정렬을 표가 맡는다', async () => {
+    await visit(ctx.page, '/dashboard/process', { settle: 9000 });
+    /**
+     * 버튼 하나만 누릅니다
+     *
+     * 글자를 찾아 조상까지 차례로 누르면, 뒤쪽 클릭이 팝업 바깥(닫힘 영역)에 떨어져
+     * 열자마자 닫힙니다. 버튼 요소를 찾아 한 번만 누릅니다.
+     * 이름은 화면 개편에 따라 '제품 선택' · '제품 검색·선택' 으로 바뀝니다.
+     */
+    /**
+     * 팝업이 열리고 표가 그려질 때까지 — 안 열리면 다시 누릅니다
+     *
+     * 전체 검사를 함께 돌리면 앞선 화면이 아직 정리되는 중이라 첫 클릭이 삼켜질 때가 있습니다.
+     * 한 번 누르고 기다리기만 하면 그때만 시간 초과로 끝나 원인을 알 수 없습니다.
+     */
+    let opened = false;
+    for (let i = 0; i < 4 && !opened; i += 1) {
+      await ctx.page.getByRole('button', { name: /제품\s*(검색·)?선택/ }).first().click().catch(() => {});
+      opened = await ctx.page.waitForFunction(
+        () => document.body.innerText.includes('제품 검색 · 선택')
+          && document.querySelectorAll('.tabulator .tabulator-row').length > 0,
+        { timeout: 12000 }
+      ).then(() => true).catch(() => false);
+    }
+    ok(opened, '제품 선택 팝업이 열리지 않았습니다');
+    await ctx.page.waitForTimeout(800);
+
+    const grid = () => ctx.page.evaluate(() => {
+      const gs = [...document.querySelectorAll('.tabulator')];
+      const g = gs[gs.length - 1];
+      // 표를 못 찾으면 왜 못 찾았는지 함께 돌려줍니다 — TypeError 만 나면 원인을 알 수 없습니다
+      if (!g) return { missing: `표 ${gs.length}개 · 팝업 ${document.body.innerText.includes('제품 검색 · 선택')} · 경로 ${location.pathname}` };
+      return {
+        heads: [...g.querySelectorAll('.tabulator-col-title')].map((e) => e.innerText.trim()),
+        checkboxes: g.querySelectorAll('.tabulator-row input[type="checkbox"]').length,
+        sorted: [...g.querySelectorAll('.tabulator-col[aria-sort]')]
+          .map((h) => `${(h.querySelector('.tabulator-col-title') || {}).innerText}:${h.getAttribute('aria-sort')}`)
+          .filter((x) => !/:none$/.test(x)),
+      };
+    });
+
+    const before = await grid();
+    ok(!before.missing, `팝업 표를 찾지 못했습니다 (${before.missing})`);
+    const want = ['순위', '제품 코드', '제품명', '제품군', '프로젝트', '등록일', '수정일'];
+    eq(before.heads.filter((h) => h), want, '팝업 표의 열');
+    ok(before.checkboxes > 0, '행마다 선택 칸이 있어야 표에서 고를 수 있습니다');
+
+    // 팝업 안만 봅니다 — 뒤에 깔린 화면에도 같은 낱말이 있을 수 있습니다
+    const inModal = await ctx.page.evaluate(() => {
+      const box = [...document.querySelectorAll('div')]
+        .filter((e) => (e.innerText || '').includes('제품 검색 · 선택'))
+        .sort((a, b) => a.innerText.length - b.innerText.length)[0];
+      return box ? box.innerText : '';
+    });
+    ok(inModal, '팝업 내용을 읽지 못했습니다');
+    eq(
+      ['고객사', '검색 결과 해제', '선택한 것만'].filter((w) => inModal.includes(w)),
+      [],
+      '걷어내기로 한 항목이 아직 팝업에 있습니다'
+    );
+
+    // 두 열로 정렬한 뒤 검색어를 바꿔도 조건이 남는가
+    await ctx.page.evaluate(() => {
+      const gs = [...document.querySelectorAll('.tabulator')];
+      const heads = [...gs[gs.length - 1].querySelectorAll('.tabulator-col')];
+      const by = (t) => heads.find((h) => (h.querySelector('.tabulator-col-title') || {}).innerText === t);
+      by('제품 코드').click();
+    });
+    await ctx.page.waitForTimeout(600);
+    await ctx.page.evaluate(() => {
+      const gs = [...document.querySelectorAll('.tabulator')];
+      const heads = [...gs[gs.length - 1].querySelectorAll('.tabulator-col')];
+      const h = heads.find((x) => (x.querySelector('.tabulator-col-title') || {}).innerText === '제품군');
+      h.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+    });
+    await ctx.page.waitForTimeout(800);
+    const twoCols = (await grid()).sorted;
+    eq(twoCols.length, 2, `두 열로 정렬해야 합니다 (지금 ${JSON.stringify(twoCols)})`);
+
+    await ctx.page.evaluate(() => {
+      const inp = [...document.querySelectorAll('input')].find((i) => i.placeholder && i.placeholder.includes('제품 코드'));
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(inp, 'D5');
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // 걸러진 결과가 그려질 때까지 — 표가 잠시 비는 순간에 재면 헛것을 잽니다
+    await ctx.page.waitForFunction(
+      () => document.querySelectorAll('.tabulator .tabulator-row').length > 0,
+      { timeout: 20000 }
+    );
+    await ctx.page.waitForTimeout(800);
+    const after = await grid();
+    ok(!after.missing, `검색 뒤 표를 찾지 못했습니다 (${after.missing})`);
+    eq(after.sorted, twoCols, '검색어를 바꾸면 정렬 조건이 풀립니다');
+  });
+
   test('제품군 순위 관리 — 순위 이동 셀렉트와 제품 순서 버튼이 겹치지 않는다', async () => {
     await visit(ctx.page, '/system/product-rank');
     const select = await ctx.page.locator('div[tabindex="0"], [role="button"]').filter({ hasText: /^1$/ }).first().boundingBox();
