@@ -73,7 +73,8 @@ export function ModalHost() {
                   s.card,
                   {
                     width: '100%',
-                    maxWidth: m.wide ? 900 : 620,
+                    // 내용에 따라 더 넓게 열 수 있게 — 표가 든 창은 900 으로는 열이 눌립니다
+                    maxWidth: m.maxWidth || (m.wide ? 900 : 620),
                     maxHeight: height * 0.85,
                     borderRadius: theme.metrics.radius + 2,
                     ...theme.shadow,

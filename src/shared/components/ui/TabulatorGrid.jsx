@@ -11,6 +11,15 @@
  * ■ 행 묶음
  * `groupBy` 를 주면 같은 값끼리 묶어 머리글을 답니다 — 한 대상에 여러 줄이 붙는 표에서
  * 어느 줄이 어느 대상 것인지 눈으로 갈립니다.
+ *
+ * ■ 행 선택
+ * `selectable` 을 주면 왼쪽에 선택 칸이 붙습니다. 머리글 칸을 누르면 **지금 보이는 행 전체**가
+ * 선택됩니다 — 검색으로 좁혀 놓고 한 번에 고르는 방식입니다. 어떤 행이 선택됐는지는
+ * `rowKey` 로 가려내고 `onSelectedChange` 로 알려 줍니다.
+ *
+ * ■ 정렬은 표가 스스로 합니다
+ * 머리글을 누르면 정렬되고, shift 를 누른 채 다른 머리글을 누르면 **조건이 쌓입니다**.
+ * 자료가 바뀔 때 표를 새로 만들지 않고 `replaceData` 로 갈아 끼우므로 그 조건이 유지됩니다.
  */
 import React, { useEffect, useId, useRef } from 'react';
 import { View } from 'react-native';
@@ -31,9 +40,23 @@ export default function TabulatorGrid({
   groupStartOpen = true,
   emptyText = '표시할 내용이 없습니다.',
   style,
+  selectable = false,
+  /** 행을 가려내는 필드 — 선택 목록에 이 값이 담깁니다 */
+  rowKey,
+  selected,
+  onSelectedChange,
+  /** 첫 정렬 — 이후에는 사용자가 머리글로 바꿉니다 */
+  initialSort,
 }) {
   const ref = useRef(null);
   const instance = useRef(null);
+  /** 최신 값을 콜백 안에서 읽기 위한 통로 — 이것 때문에 표를 새로 만들지는 않습니다 */
+  const selectedRef = useRef(selected);
+  const onSelectedRef = useRef(onSelectedChange);
+  /** 우리가 코드로 선택을 되돌리는 중인지 — 그때 나는 이벤트를 부모에게 되돌려주면 무한히 돕니다 */
+  const restoring = useRef(false);
+  selectedRef.current = selected;
+  onSelectedRef.current = onSelectedChange;
   const theme = useTheme();
   const id = useId().replace(/:/g, '_');
   const isDark = theme.isDark;
@@ -48,20 +71,50 @@ export default function TabulatorGrid({
     hover: isDark ? '#1e293b' : '#f8fafc',
     groupBg: isDark ? '#111c33' : '#eef2f7',
     card: isDark ? '#0f172a' : '#ffffff',
+    selected: isDark ? '#1e3a5f' : '#e0f2fe',
+    accent: isDark ? '#60a5fa' : '#2563eb',
   };
 
   useEffect(() => {
     if (!ref.current) return undefined;
 
+    /**
+     * 선택 칸을 **첫 열로** 붙입니다
+     *
+     * Tabulator 6 의 `rowHeader` 옵션으로도 되게 돼 있는데 이 구성에서는 칸이 안 그려집니다
+     * (행에 `tabulator-selectable` 은 붙는데 `.tabulator-row-header` 가 없습니다).
+     * 열로 넣으면 확실합니다 — 머리글 칸은 지금 보이는 행 전체를 한 번에 고릅니다.
+     */
+    const cols = selectable
+      ? [
+          {
+            formatter: 'rowSelection',
+            titleFormatter: 'rowSelection',
+            headerSort: false,
+            resizable: false,
+            width: 42,
+            minWidth: 42,
+            hozAlign: 'center',
+            headerHozAlign: 'center',
+            cellClick: (e, cell) => cell.getRow().toggleSelect(),
+          },
+          ...columns,
+        ]
+      : columns;
+
     const table = new Tabulator(ref.current, {
       data: rows,
-      columns,
+      columns: cols,
       layout: 'fitColumns',
       responsiveLayout: false,
       placeholder: emptyText,
       height: height || undefined,
       // 셀 안에서 줄이 바뀌므로 행 높이를 내용에 맞춥니다
       variableHeight: true,
+      // shift 를 누른 채 머리글을 누르면 정렬 조건이 쌓입니다
+      columnHeaderSortMulti: true,
+      ...(initialSort ? { initialSort } : null),
+      ...(selectable ? { selectableRows: true } : null),
       ...(groupBy
         ? {
             groupBy,
@@ -70,6 +123,13 @@ export default function TabulatorGrid({
           }
         : null),
     });
+
+    if (selectable) {
+      table.on('rowSelectionChanged', (data) => {
+        if (restoring.current) return;
+        onSelectedRef.current?.(data.map((r) => (rowKey ? r[rowKey] : r)));
+      });
+    }
 
     instance.current = table;
     return () => {
@@ -80,7 +140,39 @@ export default function TabulatorGrid({
       }
       instance.current = null;
     };
-  }, [columns, rows, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark]);
+    // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort]);
+
+  /**
+   * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
+   *
+   * 예전에는 `rows` 가 바뀔 때마다 표를 부수고 새로 만들어, 검색어를 한 글자 칠 때마다
+   * 사용자가 잡아 둔 정렬이 풀렸습니다. 갈아 끼우면 선택이 풀리므로, 부모가 들고 있는
+   * 선택 목록으로 되돌려 놓습니다. 되돌리는 동안 나는 이벤트는 부모에게 알리지 않습니다
+   * (그대로 두면 서로를 계속 부릅니다).
+   */
+  useEffect(() => {
+    const table = instance.current;
+    if (!table) return;
+    const apply = () => {
+      table.replaceData(rows).then(() => {
+        if (!selectable || !rowKey) return;
+        const keep = new Set(selectedRef.current || []);
+        if (!keep.size) return;
+        restoring.current = true;
+        try {
+          table.getRows().forEach((r) => {
+            if (keep.has(r.getData()[rowKey])) r.select();
+          });
+        } finally {
+          restoring.current = false;
+        }
+      }).catch(() => { /* 표가 이미 정리된 경우 */ });
+    };
+    if (table.initialized) apply();
+    else table.on('tableBuilt', apply);
+  }, [rows, selectable, rowKey]);
 
   return (
     <View style={style} nativeID={`grid_${id}`}>
@@ -168,6 +260,10 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .strong { font-weight: 700; }
         /* 한 칸에 문장이 여럿일 때 — 줄 사이를 벌려 어디서 끊기는지 보이게 합니다 */
         #grid_${id} .tabulator .li + .li { margin-top: 7px; padding-top: 7px; border-top: 1px dashed ${c.rowBorder}; }
+        /* 고른 행 — 어두운 화면에서도 갈리게 */
+        #grid_${id} .tabulator .tabulator-row.tabulator-selected,
+        #grid_${id} .tabulator .tabulator-row.tabulator-selected:hover { background: ${c.selected}; }
+        #grid_${id} .tabulator input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: ${c.accent}; }
       `}</style>
       <div ref={ref} />
     </View>
