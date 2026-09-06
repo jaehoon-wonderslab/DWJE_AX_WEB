@@ -4,15 +4,18 @@
  * 화면 상태와 데이터 로딩, 도메인 동작만 담당합니다. (JSX 없음)
  * 모달·토스트 같은 화면 표현은 View 가 처리합니다.
  *
- * [개선 사항]
- * 1. 실적 집계 조회와 100% 동일한 기간 선택 (일별, 주별, 월별, 기간선택)
- * 2. 1~3공장 선택 select box 지원 (기본 제1공장, 뷰에서 숨김 처리)
+ * ■ 집계 단위 (일별 · 주별 · 월별 · 기간선택)
+ * 단위를 고르면 **그 단위로 칸이 여러 개 나오는 구간**을 잡고 그 자리에서 조회합니다.
+ * 한 주만·한 달만 잡으면 추이 막대가 하나라 단위를 바꾼 티가 나지 않습니다 —
+ * 구간을 정하는 규칙은 `unitRange()` 한 곳에 있습니다.
+ *
+ * 1~3공장 선택은 뷰에서 숨겨 둔 상태입니다.
  */
 import { useCallback, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
-import { recentRange } from '@shared/stores/useAppStore';
+import { UNIT_SPAN, unitRange } from '@shared/stores/useAppStore';
+import { shiftDate } from '@shared/utils/formatUtil';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { today } from '@shared/utils/formatUtil';
 import { fetchAiBriefing, fetchAiCausePrescription, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 
 export const AGG_UNITS = [
@@ -22,53 +25,28 @@ export const AGG_UNITS = [
   { value: '기간선택', label: '기간선택' },
 ];
 
+/**
+ * 단위마다 몇 칸이 나오는지 — 토스트에 그대로 적습니다
+ *
+ * 고른 단위로 **칸이 여러 개** 나와야 추이가 보입니다. 한 주만, 한 달만 잡으면
+ * 막대가 하나뿐이라 단위를 바꾼 티가 안 납니다.
+ */
+const SPAN_TEXT = {
+  일별: `최근 ${UNIT_SPAN.일별}일`,
+  주별: `최근 ${UNIT_SPAN.주별}주`,
+  월별: `최근 ${UNIT_SPAN.월별}개월`,
+};
+
 export const PLANT_OPTIONS = [
   { value: '1공장', label: '제1공장' },
   { value: '2공장', label: '제2공장' },
   { value: '3공장', label: '제3공장' },
 ];
 
-function pad(n) {
-  return String(n).padStart(2, '0');
-}
-
-function formatDate(d) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** 주의 시작: 월요일 ~ 일요일 */
-export function getWeekBounds(baseDateStr) {
-  const d = new Date(baseDateStr || Date.now());
-  const day = d.getDay(); // 0: 일, 1: 월, ..., 6: 토
-  const diffToMon = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diffToMon);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return { from: formatDate(mon), to: formatDate(sun) };
-}
-
-/** 월의 시작: 1일 ~ 말일 */
-export function getMonthBounds(baseDateStr) {
-  const d = new Date(baseDateStr || Date.now());
-  const y = d.getFullYear();
-  const m = d.getMonth();
-  const first = new Date(y, m, 1);
-  const last = new Date(y, m + 1, 0);
-  return { from: formatDate(first), to: formatDate(last) };
-}
-
 /** 3개월(최대 92일) 제한 검증 및 클램프 */
 export function clampThreeMonths(fromStr, toStr) {
-  const fromD = new Date(fromStr);
-  const toD = new Date(toStr);
-  const diffMs = toD.getTime() - fromD.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays > 92) {
-    const clampedTo = new Date(fromD);
-    clampedTo.setDate(fromD.getDate() + 92);
-    return { clamped: true, from: fromStr, to: formatDate(clampedTo) };
-  }
+  const diffDays = Math.round((new Date(`${toStr}T00:00:00`) - new Date(`${fromStr}T00:00:00`)) / 86400000);
+  if (diffDays > 92) return { clamped: true, from: fromStr, to: shiftDate(fromStr, 92) };
   return { clamped: false, from: fromStr, to: toStr };
 }
 
@@ -76,7 +54,7 @@ export function useAiDashboardController() {
   const toast = useUiStore((state) => state.toast);
 
   // 1. 기간 선택 상태 (실적 집계 조회와 완벽 동일)
-  const initialRange = recentRange(7);
+  const initialRange = unitRange('일별');
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
   const [unit, setUnit] = useState('일별');
@@ -147,43 +125,35 @@ export function useAiDashboardController() {
     { silent: true, skip: briefingLoading }
   );
 
-  /** 단위 변경 시 날짜 자동 계산 */
+  /**
+   * 단위를 바꾸면 **구간을 다시 잡고 그 자리에서 조회합니다**
+   *
+   * 예전에는 날짜만 바꾸고 `applied` 는 그대로 뒀습니다. 조회 버튼을 따로 눌러야 했는데
+   * 토스트는 "설정되었습니다" 라고 해서, 단위를 골라도 아무 일도 안 일어나는 것처럼
+   * 보였습니다(2026-09-06 실측: 주별·월별·일별 어느 것을 골라도 API 호출 0건).
+   * 실적 집계 조회 화면은 이미 이 자리에서 조회까지 합니다 — 같게 맞췄습니다.
+   */
   const changeUnit = useCallback((newUnit) => {
     setUnit(newUnit);
-    const refDate = to || today();
-    let nextFrom = from;
-    let nextTo = to;
 
-    if (newUnit === '주별') {
-      const bounds = getWeekBounds(refDate);
-      nextFrom = bounds.from;
-      nextTo = bounds.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`주별 집계: 월요일(${bounds.from}) ~ 일요일(${bounds.to})로 설정되었습니다`);
-    } else if (newUnit === '월별') {
-      const bounds = getMonthBounds(refDate);
-      nextFrom = bounds.from;
-      nextTo = bounds.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`월별 집계: 1일(${bounds.from}) ~ 말일(${bounds.to})로 설정되었습니다`);
-    } else if (newUnit === '일별') {
-      const range = recentRange(7);
-      nextFrom = range.from;
-      nextTo = range.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`일별 집계: 최근 7일(${nextFrom} ~ ${nextTo})로 설정되었습니다`);
-    } else {
+    if (newUnit === '기간선택') {
+      // 기간선택은 사용자가 고른 날짜를 그대로 씁니다 — 3개월 제한만 겁니다
       const { clamped, to: clampedTo } = clampThreeMonths(from, to);
+      const nextTo = clamped ? clampedTo : to;
       if (clamped) {
-        nextTo = clampedTo;
         setTo(clampedTo);
-        toast(`조회 기간은 최대 3개월(92일)로 제한됩니다`);
+        toast('조회 기간은 최대 3개월(92일)로 제한됩니다');
       }
+      setApplied({ from, to: nextTo, unit: newUnit, plant });
+      return;
     }
-  }, [from, to, toast]);
+
+    const range = unitRange(newUnit, to);
+    setFrom(range.from);
+    setTo(range.to);
+    setApplied({ from: range.from, to: range.to, unit: newUnit, plant });
+    toast(`${newUnit} 집계: ${SPAN_TEXT[newUnit]}(${range.from} ~ ${range.to})로 조회합니다`);
+  }, [from, to, plant, toast]);
 
   /** 조회 버튼 클릭 시 조건 확정 */
   const search = useCallback(() => {
@@ -210,6 +180,13 @@ export function useAiDashboardController() {
 
   return {
     loading,
+    /**
+     * 지금 조회 중인 구간 — 카드가 "무엇을 분석하는 중인지" 적는 데 씁니다
+     *
+     * 편집 중인 `from`/`to` 가 아니라 확정된 `applied` 입니다. 사용자가 날짜만 만지고
+     * 아직 조회하지 않았는데 "그 기간을 분석 중" 이라고 적으면 거짓말이 됩니다.
+     */
+    period: { from: applied.from, to: applied.to },
     from,
     setFrom,
     to,

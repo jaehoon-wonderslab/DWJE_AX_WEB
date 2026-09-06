@@ -83,6 +83,45 @@ export function recentRange(days) {
   return { from: from < firstDataDate() ? firstDataDate() : from, to };
 }
 
+/**
+ * 집계 단위별 조회 구간 — **단위마다 칸이 여러 개 나오도록** 잡습니다
+ *
+ * 예전에는 주별이 "이번 주 월~일", 월별이 "이번 달 1일~말일" 이었습니다. 그러면 추이가
+ * 주별 1칸 · 월별 1칸이라(2026-09-06 실측: 일별 7칸 · 주별 1칸 · 월별 1칸) 단위를 바꿔도
+ * 그림이 달라지지 않아, 골라도 반영이 안 된 것처럼 보였습니다.
+ *
+ * 끝은 늘 **마지막 실적일 이하**입니다. 이번 주·이번 달의 남은 날까지 넣으면 빈 날이 붙어
+ * 마지막 칸이 실제보다 낮게 보입니다 (2026-09-06 에 주별을 고르면 종료일이 09-06 인데
+ * 실적은 09-04 까지라 이틀이 빕니다).
+ *
+ * @param {string} unit '일별' | '주별' | '월별'
+ * @param {string} [refDate] 기준 종료일 — 마지막 실적일보다 뒤면 마지막 실적일로 당깁니다
+ * @returns {{ from: string, to: string }}
+ */
+export const UNIT_SPAN = { 일별: 7, 주별: 4, 월별: 3 };
+
+export function unitRange(unit, refDate) {
+  const last = lastDataDate();
+  const to = refDate && refDate < last ? refDate : last;
+  let from;
+  if (unit === '주별') from = shiftDate(weekStart(to), -7 * (UNIT_SPAN.주별 - 1));
+  else if (unit === '월별') from = monthStart(to, -(UNIT_SPAN.월별 - 1));
+  else from = shiftDate(to, -(UNIT_SPAN.일별 - 1));
+  return { from: from < firstDataDate() ? firstDataDate() : from, to };
+}
+
+/** 그 날짜가 속한 주의 월요일 (주 시작은 월요일) */
+export function weekStart(dateStr) {
+  const day = new Date(`${dateStr}T00:00:00`).getDay(); // 0=일
+  return shiftDate(dateStr, day === 0 ? -6 : 1 - day);
+}
+
+/** `back` 달 앞선 달의 1일 (back 은 음수) */
+function monthStart(dateStr, back) {
+  const d = new Date(Number(dateStr.slice(0, 4)), Number(dateStr.slice(5, 7)) - 1 + back, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 /** 마지막 실적일이 속한 달의 1일 ~ 마지막 실적일 */
 export function currentMonthRange() {
   const to = lastDataDate();

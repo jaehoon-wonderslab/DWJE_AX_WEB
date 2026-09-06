@@ -21,7 +21,8 @@ const path = require('path');
 const { run } = require('./lib/runner');
 
 /** 브라우저가 필요한 스펙 — NO_BROWSER=1 이면 건너뜁니다 */
-const BROWSER_SPECS = ['06-', '07-'];
+// 08(페이징 표시)·09(집계 단위)도 화면을 열어 확인합니다 — 빠뜨리면 NO_BROWSER=1 에서 터집니다
+const BROWSER_SPECS = ['06-', '07-', '08-', '09-'];
 
 const only = process.env.SPEC;
 const noBrowser = process.env.NO_BROWSER === '1';

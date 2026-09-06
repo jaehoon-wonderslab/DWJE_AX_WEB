@@ -13,6 +13,25 @@
 const { suite, test, beforeAll, eq, ok, skip } = require('../lib/runner');
 const api = require('../lib/api');
 const { fixtures } = require('../lib/fixtures');
+const { open } = require('../lib/browser');
+
+/**
+ * 집계 단위 — 고른 단위로 **칸이 여러 개** 나와야 합니다
+ *
+ * 2026-09-06 이전에는 AI 통합 대시보드에서 단위를 바꿔도 API 호출이 한 건도 나가지
+ * 않았습니다(날짜만 바뀌고 조회는 조회 버튼을 눌러야 했는데, 토스트는 "설정되었습니다"
+ * 라고 했습니다). 게다가 주별은 이번 주 한 주, 월별은 이번 달 한 달이라
+ * 추이 막대가 하나뿐이었습니다 — 단위를 바꿔도 그림이 그대로였습니다.
+ *
+ * [단위, 서버에 가는 unit, 나와야 하는 칸 수]
+ * 화면이 일별로 떠 있으므로 **일별을 마지막에** 둡니다. 같은 단위를 다시 고르면 구간이
+ * 그대로라 조회가 안 나가는 것이 맞습니다 — 그걸 실패로 잡으면 안 됩니다.
+ */
+const UNIT_CASES = [
+  ['주별', 'week', 4],
+  ['월별', 'month', 3],
+  ['일별', 'day', 7],
+];
 
 /**
  * 비교할 값을 꺼냅니다 — 응답 모양이 제각각입니다.
@@ -47,6 +66,22 @@ const CASES = (f) => [
   ['질의 이력 · 부서', '/ai/chat/history', { size: 100 }, 'userGroup', 'items', f.deptNames.slice(0, 1), 'dept'],
   ['감사 로그 · 부서', '/audit-logs', { size: 200 }, 'userGroup', 'items', f.deptNames.slice(0, 2), 'dept'],
 ];
+
+/** 집계 단위 드롭다운에서 하나를 고릅니다 (네이티브 select 가 아니라 직접 그린 목록입니다) */
+async function pickUnit(page, label) {
+  await page.evaluate(() => {
+    const lab = [...document.querySelectorAll('div,span')]
+      .find((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0);
+    lab.parentElement.children[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await page.waitForTimeout(400);
+  await page.evaluate((t) => {
+    const opt = [...document.querySelectorAll('div,span')].reverse()
+      .find((e) => e.textContent.trim() === t && e.children.length === 0);
+    opt.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }, label);
+  await page.waitForTimeout(2500);
+}
 
 suite('필터', () => {
   const ctx = {};
@@ -116,6 +151,41 @@ suite('필터', () => {
       }
     }
     eq(bad, [], '서로 다른 값에 같은 결과가 오면 필터가 걸리지 않은 것입니다');
+  });
+
+  test('집계 단위를 바꾸면 그 단위로 다시 조회한다', async () => {
+    const b = await open('admin');
+    const seen = [];
+    b.page.on('request', (r) => {
+      const u = r.url();
+      if (u.includes('/production/results/trend')) seen.push(u);
+    });
+    try {
+      await b.page.goto('http://localhost:8081/dashboard/ai', { waitUntil: 'load', timeout: 60000 });
+      await b.page.waitForTimeout(6000);
+
+      const bad = [];
+      for (const [label, wantUnit, wantBuckets] of UNIT_CASES) {
+        seen.length = 0;
+        await pickUnit(b.page, label);
+        if (!seen.length) {
+          bad.push(`${label}: 단위를 골랐는데 조회가 나가지 않습니다`);
+          continue;
+        }
+        const q = new URL(seen[seen.length - 1]).searchParams;
+        if (q.get('unit') !== wantUnit) bad.push(`${label}: 서버에 unit=${q.get('unit')} 이 갔습니다 (${wantUnit} 이어야 합니다)`);
+
+        // 실제로 그 단위로 칸이 나뉘는지 — 한 칸뿐이면 단위를 바꾼 티가 나지 않습니다
+        const trend = await api.data('/production/results/trend', {
+          from: q.get('from'), to: q.get('to'), unit: q.get('unit'),
+        });
+        const n = (trend?.items || trend?.labels || []).length;
+        if (n !== wantBuckets) bad.push(`${label}: ${q.get('from')}~${q.get('to')} 가 ${n}칸입니다 (${wantBuckets}칸이어야 합니다)`);
+      }
+      eq(bad, [], '집계 단위를 골라도 결과가 그대로면 고른 티가 나지 않습니다');
+    } finally {
+      await b.browser.close();
+    }
   });
 
   test('알림 목록 필터가 동작한다 (상태·설비)', async () => {

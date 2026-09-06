@@ -34,6 +34,7 @@ import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 
 export default function AiDashboardView({
   loading,
+  period,
   from,
   setFrom,
   to,
@@ -190,7 +191,7 @@ export default function AiDashboardView({
           </Grid>
 
           {/* AI 종합 브리핑 카드 */}
-          <AiBriefingCard briefing={briefing} loading={briefingLoading} />
+          <AiBriefingCard briefing={briefing} loading={briefingLoading} period={period} />
 
           {/* 설비별 AI 원인 분석 및 처방 권고 카드 (설비 선택기 포함) */}
           <AiCausePrescriptionCard
@@ -200,6 +201,7 @@ export default function AiDashboardView({
             onSelectEqpt={changeSelectedEqpt}
             loading={causeLoading}
             waiting={briefingLoading}
+            period={period}
           />
 
           {/* 1. 시간대별 불량률 추이 */}

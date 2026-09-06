@@ -42,7 +42,7 @@ import { useTheme } from '@shared/theme/useTheme';
  */
 const KIND_ICON = { doc: 'file', qty: 'chart', defect_rate: 'chart', yield: 'chart', metric: 'chart', defect: 'alert', anomaly: 'activity' };
 
-export default function AiBriefingCard({ briefing, loading }) {
+export default function AiBriefingCard({ briefing, loading, period }) {
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -87,17 +87,24 @@ export default function AiBriefingCard({ briefing, loading }) {
         ) : null
       }
     >
-      {loading && !briefing ? (
-        // 모델 추론이라 수십 초 걸립니다 — 멈춘 것처럼 보이지 않게 미리 알립니다
-        <EmptyState text="모델이 분석 중입니다. 수십 초 걸릴 수 있습니다." />
+      {loading ? (
+        /*
+          다시 분석하는 동안에는 **앞선 결과를 지웁니다**.
+          예전에는 `loading && !briefing` 이라 새 구간을 부르는 90초 동안 앞 구간의
+          브리핑이 그대로 남았습니다. 위 필터는 7월~9월인데 카드는 "8월 29일 ~ 9월 4일 분석"
+          이라 적혀 있어, 집계 단위를 바꿔도 안 바뀌는 것처럼 보였습니다.
+          모델 추론이라 수십 초 걸리므로 무엇을 보고 있는지 함께 적습니다.
+        */
+        <EmptyState text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
       ) : !ready ? (
         <NotReady reason={briefing?.reason} />
       ) : (
         <View style={{ gap: 10 }}>
           {/*
-            어느 구간을 본 것인지 밝힙니다.
-            집계 단위를 월로 바꿔도 지금은 종료일 하루만 분석되므로, 적어 두지 않으면
-            한 달치를 보고 있다고 오해합니다. 서버가 구간을 주면 그대로 적습니다.
+            어느 구간을 본 것인지 밝힙니다 — 서버가 준 구간을 그대로 적습니다.
+            2026-09-05 이전에는 집계 단위를 월로 바꿔도 종료일 하루만 분석됐습니다.
+            지금은 구간 전체를 봅니다(일별 7일 · 주별 4주 · 월별 3개월).
+            적어 두지 않으면 며칠치를 보고 있는지 화면만으로는 알 수 없습니다.
           */}
           <Text style={s.textXs}>{periodText(briefing)}</Text>
           <VerifiedLines lines={lines} dropped={dropped} />
@@ -264,6 +271,17 @@ export function NotReady({ reason }) {
       </Text>
     </View>
   );
+}
+
+/**
+ * 조회 중인 구간을 사람이 읽는 말로 — "분석하고 있습니다" 앞에 붙습니다
+ *
+ * 구간을 못 받았으면 빈 문자열이 아니라 '이 기간' 이라고 적습니다.
+ * 문장이 "을 분석하고 있습니다" 로 시작하면 무엇을 분석하는지 알 수 없습니다.
+ */
+export function rangeText(period) {
+  if (!period?.from || !period?.to) return '이 기간';
+  return period.from === period.to ? period.from : `${period.from} ~ ${period.to}`;
 }
 
 /**

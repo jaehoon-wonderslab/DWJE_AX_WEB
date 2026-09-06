@@ -19,7 +19,7 @@ import { ARROW_W } from '@shared/components/ui/TabulatorGrid';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
-import { NotReady, periodText } from './AiBriefingCard';
+import { NotReady, periodText, rangeText } from './AiBriefingCard';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
 import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
@@ -149,7 +149,7 @@ const SECTIONS = (causes, actions) => [
   { heading: '처방 권고', lines: actions },
 ];
 
-export default function AiCausePrescriptionCard({ causePrescription, loading, waiting, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
+export default function AiCausePrescriptionCard({ causePrescription, loading, waiting, period, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -158,7 +158,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
    * 대상을 **배열로 다룹니다**
    *
    * 서버가 대상 하나만 줄 때는 한 줄짜리 배열로 만들고, 여러 공정을 주면 그대로 씁니다
-   * (불량률 기준을 넘은 공정을 모두 보여 달라는 요청 — API 준비 중).
+   * (불량률 기준을 넘은 공정을 모두 보여 달라는 요청).
    * 화면·엑셀이 같은 구조를 보므로 서버가 바뀌어도 손댈 곳이 적습니다.
    */
   const targets = cp?.targets?.length
@@ -225,17 +225,20 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
         />
       ) : null}
 
-      {waiting && !cp ? (
+      {waiting ? (
         // 브리핑이 같은 모델을 쓰는 중이라 아직 시작도 못 했습니다 — 준비 중과 구분해 알립니다
         <EmptyState text="브리핑 분석이 끝나면 이어서 분석합니다." />
-      ) : loading && !cp ? (
-        // 모델 추론이라 수십 초 걸립니다 — 멈춘 것처럼 보이지 않게 미리 알립니다
-        <EmptyState text="모델이 분석 중입니다. 수십 초 걸릴 수 있습니다." />
+      ) : loading ? (
+        /*
+          다시 분석하는 동안에는 앞선 결과를 지웁니다 — 브리핑 카드와 같은 이유입니다.
+          앞 구간의 표를 남겨 두면 필터와 표의 기간이 어긋난 채로 몇 분이 흐릅니다.
+        */
+        <EmptyState text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
       ) : !ready ? (
         <NotReady reason={cp?.reason} />
       ) : (
         <View style={{ gap: 12 }}>
-          {/* 어느 구간을 본 것인지 — 기간을 골라도 지금은 종료일 하루만 분석됩니다 */}
+          {/* 어느 구간을 본 것인지 — 서버가 준 구간을 그대로 적습니다 */}
           <Text style={s.textXs}>{periodText(cp)}</Text>
           {/*
             상한에 걸려 빠진 대상이 **있을 때만** 밝힙니다.
