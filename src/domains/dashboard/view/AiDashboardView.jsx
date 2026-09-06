@@ -67,6 +67,14 @@ export default function AiDashboardView({
   const theme = useTheme();
   const toast = useUiStore((state) => state.toast);
 
+  /**
+   * 계획이 실제로 등록돼 있는가
+   *
+   * 서버는 계획이 없어도 `plan: 0` 으로 칸을 채워 보냅니다. 합이 0 이면 등록된 계획이
+   * 없는 것이므로 계획 막대를 내지 않습니다 — 0 을 그리면 "계획을 0 으로 세웠다" 로 읽힙니다.
+   */
+  const hasPlan = (planActual?.items || []).some((x) => Number(x.plan) > 0);
+
   const showEquipment = async (eqptCd) => {
     try {
       if (loadEquipmentDetail) {
@@ -332,19 +340,34 @@ export default function AiDashboardView({
               />
             }
           >
-            <BarChart data={(planActual?.items || []).map((x) => ({ l: x.slot, v: x.plan, v2: x.actual }))} height={180} />
+            {/*
+              등록된 생산 계획이 없으면 **계획 막대를 내지 않습니다**
+              `tb_pop_stock_hist` 의 hist_type=PLAN 이 한 행도 없어 계획이 전부 0 으로 옵니다
+              (2026-09-06 API 확인). 그걸 그대로 그리면 "계획 0EA" 가 되어, 계획을 안 세운 것이
+              아니라 계획이 0 이었던 것처럼 읽힙니다. 실적만 그리고 왜 없는지 적습니다.
+            */}
+            <BarChart
+              data={(planActual?.items || []).map((x) => (hasPlan
+                ? { l: x.slot, v: x.plan, v2: x.actual }
+                : { l: x.slot, v: x.actual }))}
+              height={180}
+            />
             <View style={[s.legend, { marginTop: 6 }]}>
+              {hasPlan ? (
+                <View style={s.rowGap6}>
+                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(0) }} />
+                  <Text style={s.legendText}>계획 (EA)</Text>
+                </View>
+              ) : null}
               <View style={s.rowGap6}>
-                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(0) }} />
-                <Text style={s.legendText}>계획 (EA)</Text>
-              </View>
-              <View style={s.rowGap6}>
-                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(1) }} />
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.seriesAt(hasPlan ? 1 : 0) }} />
                 <Text style={s.legendText}>실적 (EA)</Text>
               </View>
             </View>
             <SourceNote>
-              {`누계 계획 ${comma(planActual?.cumPlan)}EA 대비 실적 ${comma(planActual?.cumActual)}EA · 달성률 ${fixed(planActual?.rate)}%`}
+              {hasPlan
+                ? `누계 계획 ${comma(planActual.cumPlan)}EA 대비 실적 ${comma(planActual.cumActual)}EA · 달성률 ${fixed(planActual.rate)}%`
+                : `실적 누계 ${comma(planActual?.cumActual ?? 0)}EA. 등록된 생산 계획이 없어 달성률은 내지 못합니다.`}
             </SourceNote>
           </Card>
 
