@@ -8,10 +8,15 @@
  * 4) '일일 평균' 열은 히트맵 컬러와 구별되는 뉴트럴 강조 스타일로 표시됩니다.
  */
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@shared/components/ui';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
+
+/** 툴팁 최소 너비 · 대략적인 높이 — 화면 밖으로 나가지 않게 자리를 잡는 데만 씁니다 */
+const TIP_MIN_W = 220;
+const TIP_EST_H = 180;
 
 export default function HourlyDefectPivotMatrix({
   pivotMatrix,
@@ -20,6 +25,27 @@ export default function HourlyDefectPivotMatrix({
 }) {
   const theme = useTheme();
   const [hoverTooltip, setHoverTooltip] = useState(null);
+
+  /**
+   * 툴팁을 띄울 자리를 잽니다 — 칸 위쪽 가운데
+   *
+   * 위쪽에 자리가 없으면(표 첫 줄) 아래로 뒤집고, 좌우로도 화면을 벗어나지 않게 당깁니다.
+   * 좌표는 화면(viewport) 기준이며, 툴팁은 body 로 내보내 그리므로 그대로 맞습니다.
+   */
+  const showTip = (cell, el) => {
+    if (!el || !el.getBoundingClientRect) return;
+    const r = el.getBoundingClientRect();
+    const half = TIP_MIN_W / 2;
+    const vw = typeof window === 'undefined' ? 1280 : window.innerWidth;
+    setHoverTooltip({
+      cell,
+      x: Math.min(Math.max(r.left + r.width / 2, half + 8), vw - half - 8),
+      y: r.top,
+      bottom: r.bottom,
+      // 위로 띄우면 화면 밖으로 나가는 자리에서는 아래로 뒤집습니다
+      flip: r.top < TIP_EST_H + 16,
+    });
+  };
 
   if (!pivotMatrix?.rows?.length) return null;
 
@@ -196,29 +222,9 @@ export default function HourlyDefectPivotMatrix({
                           borderColor: colors.border,
                         },
                       ]}
-                      onMouseEnter={(e) => {
-                        const targetEl = e?.currentTarget || e?.target;
-                        if (targetEl && targetEl.getBoundingClientRect) {
-                          const rect = targetEl.getBoundingClientRect();
-                          setHoverTooltip({
-                            cell,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top,
-                          });
-                        }
-                      }}
+                      onMouseEnter={(e) => showTip(cell, e?.currentTarget || e?.target)}
                       onMouseLeave={() => setHoverTooltip(null)}
-                      onHoverIn={(e) => {
-                        const targetEl = e?.currentTarget || e?.nativeEvent?.target;
-                        if (targetEl && targetEl.getBoundingClientRect) {
-                          const rect = targetEl.getBoundingClientRect();
-                          setHoverTooltip({
-                            cell,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top,
-                          });
-                        }
-                      }}
+                      onHoverIn={(e) => showTip(cell, e?.currentTarget || e?.nativeEvent?.target)}
                       onHoverOut={() => setHoverTooltip(null)}
                       onPress={() => onCellClick && onCellClick(cell)}
                     >
@@ -272,14 +278,24 @@ export default function HourlyDefectPivotMatrix({
         </Text>
       </View>
 
-      {/* 0ms 즉각 반응하는 고시인성 커스텀 플로팅 툴팁 */}
-      {hoverTooltip && (
+      {/*
+        툴팁 — **본문(body) 바로 아래에 그립니다**
+
+        `position: fixed` 는 화면 기준이지만, 조상 중 하나라도 `transform` 이 있으면 그 조상이
+        기준이 됩니다. react-native-web 은 스크롤 영역에 `transform: matrix(1,0,0,1,0,0)` 를
+        붙입니다 — 아무것도 안 움직이는 항등 행렬이라 눈에는 안 보이지만 기준은 바꿉니다.
+        그래서 화면 좌표로 잰 셀 위치를 그대로 쓰면 **스크롤한 만큼 어긋났습니다**
+        (2026-09-07 실측: 스크롤 0 에서 47px, 400 에서 -353px, 900 에서 -853px — 화면 밖).
+
+        포털로 body 에 내보내면 조상이 없으니 `fixed` 가 다시 화면 기준이 됩니다.
+      */}
+      {hoverTooltip && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
             left: hoverTooltip.x,
-            top: hoverTooltip.y - 10,
-            transform: 'translate(-50%, -100%)',
+            top: hoverTooltip.flip ? hoverTooltip.bottom + 10 : hoverTooltip.y - 10,
+            transform: hoverTooltip.flip ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
             zIndex: 99999,
             pointerEvents: 'none',
             backgroundColor: theme.mode === 'dark' ? 'rgba(15, 23, 42, 0.96)' : 'rgba(15, 23, 42, 0.94)',
@@ -322,7 +338,8 @@ export default function HourlyDefectPivotMatrix({
           <div style={{ marginTop: 3, fontSize: 10, color: '#93c5fd' }}>
             눌러서 자세히 보기 &gt;
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </View>
   );

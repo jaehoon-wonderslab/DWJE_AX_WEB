@@ -100,6 +100,66 @@ suite('화면 값 ↔ API 값', () => {
     eq(bad, [], '매트릭스 칸이 서버 실측과 다르면 화면이 값을 만들어 낸 것입니다');
   });
 
+  /**
+   * 매트릭스 툴팁이 마우스 옆에 뜨는가
+   *
+   * `position: fixed` 는 화면 기준이지만 조상 중 하나라도 `transform` 이 있으면 그 조상이
+   * 기준이 됩니다. react-native-web 이 스크롤 영역에 붙이는 `matrix(1,0,0,1,0,0)` 는
+   * 아무것도 안 움직이는 항등 행렬이라 눈에 안 띄는데 기준은 바꿉니다. 그래서 화면 좌표로
+   * 잰 셀 위치를 그대로 쓰면 **스크롤한 만큼 툴팁이 위로 밀렸습니다**
+   * (2026-09-07 실측: 스크롤 400 에서 -353px, 900 에서 -853px — 화면 밖).
+   * 스크롤을 내린 상태에서 재야 잡힙니다. 맨 위에서는 47px 라 눈에 안 띕니다.
+   */
+  test('AI 통합 대시보드 — 매트릭스 툴팁이 그 칸 옆에 뜬다', async () => {
+    await visit(ctx.page, '/dashboard/ai', { settle: 8000 });
+    await ctx.page.waitForFunction(
+      () => document.body.innerText.includes('일자 × 시간대별 불량률 매트릭스'),
+      { timeout: 90000 }
+    );
+
+    const measure = async (scrollBy) => ctx.page.evaluate((by) => {
+      const cellOf = () => {
+        const hits = [...document.querySelectorAll('div')]
+          .filter((e) => /^\d+\.\d\d%$/.test(e.textContent.trim()) && e.children.length === 0);
+        return hits.length ? hits[Math.floor(hits.length / 2)].parentElement : null;
+      };
+      const scroller = [...document.querySelectorAll('div')]
+        .find((e) => e.scrollHeight > e.clientHeight + 200 && getComputedStyle(e).overflowY !== 'visible')
+        || document.scrollingElement;
+      scroller.scrollTop = by;
+
+      const cell = cellOf();
+      if (!cell) return null;
+      cell.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      cell.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      return { top: Math.round(cell.getBoundingClientRect().top), bottom: Math.round(cell.getBoundingClientRect().bottom) };
+    }, scrollBy);
+
+    const readTip = async () => ctx.page.evaluate(() => {
+      const t = [...document.querySelectorAll('div')]
+        .find((e) => /불량률:/.test(e.innerText || '') && (e.innerText || '').length < 400);
+      if (!t) return null;
+      const r = t.getBoundingClientRect();
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom) };
+    });
+
+    const bad = [];
+    for (const by of [0, 400, 900]) {
+      const cell = await measure(by);
+      if (!cell) { bad.push(`스크롤 ${by}: 매트릭스 칸을 찾지 못했습니다`); continue; }
+      await ctx.page.waitForTimeout(400);
+      const tip = await readTip();
+      if (!tip) { bad.push(`스크롤 ${by}: 툴팁이 뜨지 않았습니다`); continue; }
+
+      // 칸 위로 띄우거나(아래쪽 끝이 칸 위) 아래로 뒤집거나(위쪽 끝이 칸 아래) 둘 중 하나여야 합니다
+      const above = Math.abs(tip.bottom - cell.top);
+      const below = Math.abs(tip.top - cell.bottom);
+      const gap = Math.min(above, below);
+      if (gap > 24) bad.push(`스크롤 ${by}: 칸(${cell.top}~${cell.bottom})과 툴팁(${tip.top}~${tip.bottom})이 ${gap}px 떨어져 있습니다`);
+    }
+    eq(bad, [], '툴팁이 칸에서 멀어지면 어느 칸을 보고 있는지 알 수 없습니다');
+  });
+
   test('공정 대시보드 — 선택 조합의 수치가 API 와 같다', async () => {
     const r = await visit(ctx.page, '/dashboard/process');
 
