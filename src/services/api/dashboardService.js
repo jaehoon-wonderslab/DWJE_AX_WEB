@@ -477,3 +477,7 @@ export function postDashboardKpiEvidenceExport(params) {
   return request('postDashboardKpiEvidenceExport', params);
 }
 
+/** 기간·제품·공정별 실제 수량 합계 및 일/주/월 추이 (DB-02). */
+export function getDashboardProcessPeriod(params) {
+  return request('getDashboardProcessPeriod', params);
+}

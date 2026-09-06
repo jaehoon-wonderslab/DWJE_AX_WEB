@@ -444,6 +444,21 @@ export const ENDPOINTS = {
     tables: 'mes.tb_pop_label_hist, mes.tb_pop_defect_hist',
     timeoutMs: 300000, // sLLM 추론 + FACA 문서 검색 — 브리핑보다 깁니다
   },
+  /**
+   * 공정 대시보드 기간 집계 — 서버에 구현돼 있어 카탈로그에 적어 둡니다
+   *
+   * 공정 대시보드 개편을 맡은 다른 세션이 쓰려고 만든 것입니다. 그쪽 작업이 되돌려져
+   * 지금 화면은 쓰지 않지만, 카탈로그는 서버가 가진 것을 그대로 비춰야 합니다 —
+   * 빠뜨리면 「서버 구현 중 카탈로그에 빠진 것이 없다」 검사가 잡습니다.
+   */
+  getDashboardProcessPeriod: {
+    no: 32.1, domain: '대시보드', comp: 'DB-02', screen: '공정 및 제품 대시보드', funcId: 'DB-02-F01',
+    name: '공정·제품 기간 집계', method: 'GET', path: '/api/v1/dashboard/process/period',
+    params: 'from, to, unit, processId, productCodes[]',
+    response: 'summary, periods[], products[], processes[]',
+    roles: '전 부서', blind: ['qty', 'yield'], priority: 1,
+    tables: 'mes.tb_pop_label_hist, ax.tb_prod_product',
+  },
   getDashboardProcessSummary: {
     no: 33, domain: '대시보드', comp: 'DB-02', screen: '공정 및 제품 대시보드', funcId: 'DB-02-F10',
     name: '공정·제품 요약 지표', method: 'GET', path: '/api/v1/dashboard/process/summary',

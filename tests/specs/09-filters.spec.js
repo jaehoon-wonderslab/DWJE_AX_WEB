@@ -69,6 +69,11 @@ const CASES = (f) => [
 
 /** 집계 단위 드롭다운에서 하나를 고릅니다 (네이티브 select 가 아니라 직접 그린 목록입니다) */
 async function pickUnit(page, label) {
+  // 고정 시간 대기 대신 라벨이 그려질 때까지 기다립니다 — 집계가 무거워지면 6초로는 못 미칩니다
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('div,span')].some((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0),
+    { timeout: 60000 }
+  );
   await page.evaluate(() => {
     const lab = [...document.querySelectorAll('div,span')]
       .find((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0);
@@ -162,7 +167,6 @@ suite('필터', () => {
     });
     try {
       await b.page.goto('http://localhost:8081/dashboard/ai', { waitUntil: 'load', timeout: 60000 });
-      await b.page.waitForTimeout(6000);
 
       const bad = [];
       for (const [label, wantUnit, wantBuckets] of UNIT_CASES) {
