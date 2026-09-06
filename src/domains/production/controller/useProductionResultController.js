@@ -4,10 +4,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
-import { recentRange } from '@shared/stores/useAppStore';
+import { UNIT_SPAN, clampThreeMonths, unitRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadFromServer, downloadXls, downloadXlsxTree } from '@shared/utils/exportUtil';
-import { minutesText, today } from '@shared/utils/formatUtil';
+import { minutesText } from '@shared/utils/formatUtil';
 import { periodUnit } from '@domains/common/model/paramModel';
 import { loadModelOptions, loadResults, trendSeriesOf } from '../model/productionRepository';
 
@@ -18,55 +18,25 @@ export const AGG_UNITS = [
   { value: '기간선택', label: '기간선택' },
 ];
 
-function pad(n) {
-  return String(n).padStart(2, '0');
-}
-
-function formatDate(d) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** 주의 시작: 월요일 ~ 일요일 */
-export function getWeekBounds(baseDateStr) {
-  const d = new Date(baseDateStr || Date.now());
-  const day = d.getDay(); // 0: 일, 1: 월, ..., 6: 토
-  const diffToMon = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diffToMon);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return { from: formatDate(mon), to: formatDate(sun) };
-}
-
-/** 월의 시작: 1일 ~ 말일 */
-export function getMonthBounds(baseDateStr) {
-  const d = new Date(baseDateStr || Date.now());
-  const y = d.getFullYear();
-  const m = d.getMonth();
-  const first = new Date(y, m, 1);
-  const last = new Date(y, m + 1, 0);
-  return { from: formatDate(first), to: formatDate(last) };
-}
-
-/** 3개월(최대 92일) 제한 검증 및 클램프 */
-export function clampThreeMonths(fromStr, toStr) {
-  const fromD = new Date(fromStr);
-  const toD = new Date(toStr);
-  const diffMs = toD.getTime() - fromD.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays > 92) {
-    const clampedTo = new Date(fromD);
-    clampedTo.setDate(fromD.getDate() + 92);
-    return { clamped: true, from: fromStr, to: formatDate(clampedTo) };
-  }
-  return { clamped: false, from: fromStr, to: toStr };
-}
+/**
+ * 단위마다 몇 칸이 나오는지 — 토스트에 그대로 적습니다
+ *
+ * 2026-09-06 이전에는 주별이 이번 주 한 주, 월별이 이번 달 한 달이라 추이 막대가
+ * 하나뿐이었습니다. 단위를 바꿔도 그림이 그대로여서 고른 티가 나지 않았습니다.
+ * AI 통합 대시보드와 같은 규칙(`unitRange`)을 씁니다.
+ */
+const SPAN_TEXT = {
+  일별: `최근 ${UNIT_SPAN.일별}일`,
+  주별: `최근 ${UNIT_SPAN.주별}주`,
+  월별: `최근 ${UNIT_SPAN.월별}개월`,
+};
 
 export function useProductionResultController() {
   const toast = useUiStore((state) => state.toast);
 
-  const [from, setFrom] = useState(recentRange(7).from);
-  const [to, setTo] = useState(recentRange(7).to);
+  const initialRange = unitRange('일별');
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [unit, setUnit] = useState('일별');
   // 복수 제품 선택 지원: ['전체'] 또는 제품 코드 배열 (예: ['D62', 'D65S'])
   const [models, setModels] = useState(['전체']);
@@ -87,8 +57,8 @@ export function useProductionResultController() {
 
   // 적용된 검색 조건 — 사용자가 '조회' 버튼을 눌렀을 때만 확정되어 API를 호출합니다
   const [applied, setApplied] = useState({
-    from: recentRange(7).from,
-    to: recentRange(7).to,
+    from: initialRange.from,
+    to: initialRange.to,
     unit: '일별',
     modelCd: '전체',
   });
@@ -103,90 +73,57 @@ export function useProductionResultController() {
   const items = data?.results?.items || [];
   const itemsMeta = data?.resultsMeta;
 
-  /** 집계 단위 변경 시 날짜 자동 계산 및 즉시 적용 */
+  /** 집계 단위를 바꾸면 구간을 다시 잡고 그 자리에서 조회합니다 */
   const changeUnit = useCallback((newUnit) => {
     setUnit(newUnit);
-    // 기준일: 현재 보고 있는 종료일(to) 또는 오늘(today, 9월). 지금 시점을 우선 반영합니다.
-    const refDate = to || today();
-    let nextFrom = from;
-    let nextTo = to;
 
-    if (newUnit === '주별') {
-      const bounds = getWeekBounds(refDate);
-      nextFrom = bounds.from;
-      nextTo = bounds.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`주별 집계: 월요일(${bounds.from}) ~ 일요일(${bounds.to})로 조회합니다`);
-    } else if (newUnit === '월별') {
-      // 지금 9월이면 현재 월(9월 1일 ~ 9월 말일)로 정확하게 세팅
-      const bounds = getMonthBounds(refDate);
-      nextFrom = bounds.from;
-      nextTo = bounds.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`월별 집계: 1일(${bounds.from}) ~ 말일(${bounds.to})로 조회합니다`);
-    } else if (newUnit === '일별') {
-      const range = recentRange(7);
-      nextFrom = range.from;
-      nextTo = range.to;
-      setFrom(nextFrom);
-      setTo(nextTo);
-      toast(`일별 집계: 최근 7일(${nextFrom} ~ ${nextTo})로 조회합니다`);
-    } else {
-      // 기간선택: 3개월 초과 시 제한
+    if (newUnit === '기간선택') {
+      // 기간선택은 사용자가 고른 날짜를 그대로 씁니다 — 92일 상한만 겁니다
       const { clamped, to: clampedTo } = clampThreeMonths(from, to);
+      const nextTo = clamped ? clampedTo : to;
       if (clamped) {
-        nextTo = clampedTo;
         setTo(clampedTo);
-        toast(`조회 기간은 최대 3개월(92일)로 제한됩니다`);
+        toast('조회 기간은 최대 3개월(92일)로 제한됩니다');
       }
+      setApplied({ from, to: nextTo, unit: newUnit, modelCd: modelCdParam });
+      paging.setPage(1);
+      return;
     }
 
-    // 단위 변경 시 즉시 검색 실행 (재클릭 없이 바로 9월 데이터 표시)
-    setApplied({ from: nextFrom, to: nextTo, unit: newUnit, modelCd: modelCdParam });
+    const range = unitRange(newUnit, to);
+    setFrom(range.from);
+    setTo(range.to);
+    setApplied({ from: range.from, to: range.to, unit: newUnit, modelCd: modelCdParam });
     paging.setPage(1);
+    toast(`${newUnit} 집계: ${SPAN_TEXT[newUnit]}(${range.from} ~ ${range.to})로 조회합니다`);
   }, [from, to, modelCdParam, paging, toast]);
 
-  /** 시작일 변경 */
+  /**
+   * 시작일 — 자유롭게 늘리거나 줄입니다 (92일 상한)
+   *
+   * 예전에는 주별·월별이면 고른 날짜가 속한 한 주·한 달로 스냅했습니다. 지금은 단위가
+   * 여러 칸을 잡으므로 스냅하면 도로 한 칸이 됩니다.
+   */
   const changeFrom = useCallback((newFrom) => {
-    if (unit === '주별') {
-      const bounds = getWeekBounds(newFrom);
-      setFrom(bounds.from);
-      setTo(bounds.to);
-    } else if (unit === '월별') {
-      const bounds = getMonthBounds(newFrom);
-      setFrom(bounds.from);
-      setTo(bounds.to);
-    } else {
-      setFrom(newFrom);
-      const { clamped, to: clampedTo } = clampThreeMonths(newFrom, to);
-      if (clamped) {
-        setTo(clampedTo);
-        toast(`조회 기간은 최대 3개월(92일)까지 선택 가능합니다`);
-      }
+    const { clamped, to: clampedTo } = clampThreeMonths(newFrom, to);
+    setFrom(newFrom);
+    if (clamped) {
+      setTo(clampedTo);
+      toast('조회 기간은 최대 3개월(92일)까지 선택 가능합니다');
     }
-  }, [unit, to, toast]);
+  }, [to, toast]);
 
-  /** 종료일 변경 */
+  /** 종료일 — 그 날짜를 끝으로 같은 길이만큼 다시 잡습니다 */
   const changeTo = useCallback((newTo) => {
-    if (unit === '주별') {
-      const bounds = getWeekBounds(newTo);
-      setFrom(bounds.from);
-      setTo(bounds.to);
-    } else if (unit === '월별') {
-      const bounds = getMonthBounds(newTo);
-      setFrom(bounds.from);
-      setTo(bounds.to);
-    } else {
+    if (unit === '기간선택') {
       const { clamped, to: clampedTo } = clampThreeMonths(from, newTo);
-      if (clamped) {
-        setTo(clampedTo);
-        toast(`조회 기간은 최대 3개월(92일)까지 선택 가능합니다`);
-      } else {
-        setTo(newTo);
-      }
+      setTo(clamped ? clampedTo : newTo);
+      if (clamped) toast('조회 기간은 최대 3개월(92일)까지 선택 가능합니다');
+      return;
     }
+    const range = unitRange(unit, newTo);
+    setFrom(range.from);
+    setTo(range.to);
   }, [unit, from, toast]);
 
   /** 제품 다중 선택 적용 */

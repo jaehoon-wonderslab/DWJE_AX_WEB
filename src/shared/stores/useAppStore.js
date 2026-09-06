@@ -110,6 +110,18 @@ export function unitRange(unit, refDate) {
   return { from: from < firstDataDate() ? firstDataDate() : from, to };
 }
 
+/**
+ * 조회 기간 상한 92일 — 넘으면 시작일 기준으로 잘라 냅니다
+ *
+ * DB 부하 때문에 둔 상한입니다. 집계 단위(일별 7일 · 주별 4주 · 월별 3개월)는 모두
+ * 이 안에 들어오므로, 실제로 걸리는 건 사용자가 직접 고르는 '기간선택' 뿐입니다.
+ */
+export function clampThreeMonths(fromStr, toStr) {
+  const days = Math.round((new Date(`${toStr}T00:00:00`) - new Date(`${fromStr}T00:00:00`)) / 86400000);
+  if (days > 92) return { clamped: true, from: fromStr, to: shiftDate(fromStr, 92) };
+  return { clamped: false, from: fromStr, to: toStr };
+}
+
 /** 그 날짜가 속한 주의 월요일 (주 시작은 월요일) */
 export function weekStart(dateStr) {
   const day = new Date(`${dateStr}T00:00:00`).getDay(); // 0=일

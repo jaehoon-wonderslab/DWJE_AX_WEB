@@ -23,11 +23,25 @@ export default function HourlyDefectPivotMatrix({
 
   if (!pivotMatrix?.rows?.length) return null;
 
-  const { slots = [], rows = [] } = pivotMatrix;
+  const { slots = [], rows = [], filledSlots = 0 } = pivotMatrix;
+
+  /** 값이 없으면 '—' — 0 으로 채우면 안 만든 시간대가 잘 만든 시간대처럼 보입니다 */
+  const num = (v, suffix = '') => (v === null || v === undefined ? '—' : `${comma(v)}${suffix}`);
+  /**
+   * 서버가 주는 자리수(소수 둘째)를 그대로 적습니다
+   *
+   * 한 자리로 줄이면 3.46% 가 3.5% 로 보입니다. 색은 3.46 으로 칠하고 글자는 3.5 로 적히니
+   * 4.0% 부근에서 "3.96% 인데 위험색이 아닌" 것처럼 어긋납니다.
+   */
+  const rate = (v) => (v === null || v === undefined ? '—' : `${fixed(v, 2)}%`);
 
   // 불량률에 따른 히트맵 배경색 및 글자색 산출
-  const getCellColors = (rate) => {
-    if (rate >= 4.0) {
+  const getCellColors = (r) => {
+    // 실적이 없는 시간대 — 색으로 판단할 것이 없습니다
+    if (r === null || r === undefined) {
+      return { bg: 'transparent', border: theme.color.border, text: theme.color.textDim, bold: false };
+    }
+    if (r >= 4.0) {
       return {
         bg: theme.mode === 'dark' ? 'rgba(239, 68, 68, 0.32)' : 'rgba(239, 68, 68, 0.22)',
         border: 'rgba(239, 68, 68, 0.4)',
@@ -35,7 +49,7 @@ export default function HourlyDefectPivotMatrix({
         bold: true,
       };
     }
-    if (rate >= target) {
+    if (r >= target) {
       return {
         bg: theme.mode === 'dark' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.10)',
         border: 'rgba(239, 68, 68, 0.25)',
@@ -43,7 +57,7 @@ export default function HourlyDefectPivotMatrix({
         bold: true,
       };
     }
-    if (rate >= 2.0) {
+    if (r >= 2.0) {
       return {
         bg: theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.10)' : 'rgba(59, 130, 246, 0.05)',
         border: 'rgba(59, 130, 246, 0.15)',
@@ -69,7 +83,8 @@ export default function HourlyDefectPivotMatrix({
             일자 × 시간대별 불량률 매트릭스
           </Text>
           <Text style={[styles.matrixSub, { color: theme.color.textDim }]}>
-            총 {rows.length}일간 · 2시간 간격 ({rows.length * 12}개 구간)
+            {/* 12칸을 곱해 적던 것을 걷어냈습니다 — 실적이 없는 시간대는 서버가 주지 않아 빈 칸입니다 */}
+            실적이 있는 {rows.length}일 · 2시간 간격 {comma(filledSlots)}칸
           </Text>
         </View>
 
@@ -159,6 +174,14 @@ export default function HourlyDefectPivotMatrix({
                 {/* 12개 시간대 셀 */}
                 {row.cells.map((cell, cIdx) => {
                   const colors = getCellColors(cell.defectRate);
+                  // 실적이 없는 시간대는 눌러도 볼 것이 없습니다 — 툴팁·모달을 달지 않습니다
+                  if (cell.empty) {
+                    return (
+                      <View key={cIdx} style={[styles.tdCell, styles.slotCol, styles.heatCell, { borderColor: colors.border }]}>
+                        <Text style={[styles.cellRateText, { color: theme.color.textDim, fontWeight: '400' }]}>—</Text>
+                      </View>
+                    );
+                  }
 
                   return (
                     <Pressable
@@ -208,7 +231,7 @@ export default function HourlyDefectPivotMatrix({
                           },
                         ]}
                       >
-                        {fixed(cell.defectRate)}%
+                        {rate(cell.defectRate)}
                       </Text>
                     </Pressable>
                   );
@@ -232,7 +255,7 @@ export default function HourlyDefectPivotMatrix({
                       { color: theme.mode === 'dark' ? '#f1f5f9' : '#0f172a', fontWeight: '800' },
                     ]}
                   >
-                    {fixed(row.avgDefectRate)}%
+                    {rate(row.avgDefectRate)}
                   </Text>
                 </View>
               </View>
@@ -245,7 +268,7 @@ export default function HourlyDefectPivotMatrix({
       <View style={styles.bottomHelp}>
         <Icon name="info" size={13} color={theme.color.textDim} />
         <Text style={[styles.helpText, { color: theme.color.textDim }]}>
-          각 셀에 마우스를 올리면 실시간 상세 툴팁이 표시되며, 셀 클릭 시 AI 정밀 진단 리포트 모달이 열립니다.
+          칸에 마우스를 올리면 그 2시간 구간의 수량과 불량률이 보이고, 누르면 자세히 볼 수 있습니다.
         </Text>
       </View>
 
@@ -278,26 +301,26 @@ export default function HourlyDefectPivotMatrix({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
             <span style={{ color: '#94a3b8' }}>불량률:</span>
             <span style={{ fontWeight: 700, color: hoverTooltip.cell.defectRate > target ? '#f87171' : '#4ade80' }}>
-              {fixed(hoverTooltip.cell.defectRate)}% ({hoverTooltip.cell.status})
+              {rate(hoverTooltip.cell.defectRate)}
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
             <span style={{ color: '#94a3b8' }}>투입 수량:</span>
-            <span style={{ fontWeight: 500 }}>{comma(hoverTooltip.cell.inputQty)} EA</span>
+            <span style={{ fontWeight: 500 }}>{num(hoverTooltip.cell.inputQty, ' EA')}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
             <span style={{ color: '#94a3b8' }}>양품 / 불량:</span>
-            <span>{comma(hoverTooltip.cell.okQty)} / <span style={{ color: hoverTooltip.cell.ngQty > 0 ? '#f87171' : 'inherit' }}>{comma(hoverTooltip.cell.ngQty)}</span> EA</span>
+            <span>{num(hoverTooltip.cell.okQty)} / <span style={{ color: hoverTooltip.cell.ngQty > 0 ? '#f87171' : 'inherit' }}>{num(hoverTooltip.cell.ngQty)}</span> EA</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 3 }}>
             <span style={{ color: '#94a3b8' }}>공정 수율:</span>
-            <span style={{ fontWeight: 600 }}>{fixed(hoverTooltip.cell.yield)}%</span>
+            <span style={{ fontWeight: 600 }}>{rate(hoverTooltip.cell.yield)}</span>
           </div>
           <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: '#e2e8f0' }}>
-            주 결함: <span style={{ color: '#fde047', fontWeight: 600 }}>{hoverTooltip.cell.primaryDefect}</span>
+            주 결함: <span style={{ color: '#fde047', fontWeight: 600 }}>{hoverTooltip.cell.primaryDefect || '—'}</span>
           </div>
           <div style={{ marginTop: 3, fontSize: 10, color: '#93c5fd' }}>
-            클릭 시 AI 상세 진단 모달 열기 &gt;
+            눌러서 자세히 보기 &gt;
           </div>
         </div>
       )}

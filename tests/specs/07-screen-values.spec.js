@@ -44,6 +44,51 @@ suite('화면 값 ↔ API 값', () => {
     eq(shown(r.text, '평균 불량률'), want.defectRate, '불량률');
   });
 
+  /**
+   * 시간대별 불량률 — 화면이 지어낸 값을 그리지 않는가
+   *
+   * 2026-09-06 이전에는 서버가 준 2시간 단위 실측을 버리고, 일 단위 불량률에
+   * 시간대 가감치(14시 +1.4 · 10시 +0.8 …)를 얹어 만든 값을 매트릭스에 그렸습니다.
+   * 그러면 화면은 아무 오류 없이 그럴듯한 숫자를 보여 주므로 눈으로는 알 수 없습니다.
+   * 84칸 전부를 서버 값과 맞춰 봅니다 — 서버가 안 준 시간대는 '—' 여야 합니다.
+   */
+  test('AI 통합 대시보드 — 시간대별 불량률 매트릭스가 API 실측과 같다', async () => {
+    const r = await visit(ctx.page, '/dashboard/ai');
+    const from = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').first().inputValue();
+    const to = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').last().inputValue();
+    const want = await api.data('/dashboard/ai/defect-trend', { from, to, interval: '2h' });
+
+    const slots = want.slots || [];
+    ok(slots.length > 0, '서버가 시간대별 실측(slots)을 주지 않습니다');
+
+    const byKey = new Map(slots.map((x) => [x.slot, x]));
+    const SLOT_LABELS = ['00시', '02시', '04시', '06시', '08시', '10시', '12시', '14시', '16시', '18시', '20시', '22시'];
+
+    // 매트릭스 영역의 글자를 일자 행 단위로 끊어 12칸씩 읽습니다
+    const area = r.text.slice(r.text.indexOf('일자 × 시간대별 불량률 매트릭스'));
+    const lines = area.split('\n').map((x) => x.trim()).filter(Boolean);
+    const rows = [];
+    lines.forEach((line, i) => {
+      if (/^\d{2}-\d{2}$/.test(line)) rows.push({ date: line, cells: lines.slice(i + 1, i + 13) });
+    });
+    ok(rows.length > 0, '매트릭스에서 일자 행을 찾지 못했습니다');
+
+    const bad = [];
+    rows.forEach((row) => {
+      row.cells.forEach((text, i) => {
+        const key = `${row.date} ${SLOT_LABELS[i]}`;
+        const w = byKey.get(key);
+        if (!w) {
+          if (text !== '—') bad.push(`${key}: 서버가 주지 않은 시간대인데 화면은 ${text} 입니다`);
+          return;
+        }
+        const want1 = `${Number(w.defectRate).toFixed(2)}%`;
+        if (text !== want1) bad.push(`${key}: 화면 ${text} · 서버 ${want1}`);
+      });
+    });
+    eq(bad, [], '매트릭스 칸이 서버 실측과 다르면 화면이 값을 만들어 낸 것입니다');
+  });
+
   test('공정 대시보드 — 선택 조합의 수치가 API 와 같다', async () => {
     const r = await visit(ctx.page, '/dashboard/process');
 

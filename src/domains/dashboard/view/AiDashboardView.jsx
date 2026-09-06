@@ -89,8 +89,10 @@ export default function AiDashboardView({
   const showHourlyDetailModal = (cell) => {
     if (!cell) return;
     useUiStore.getState().openModal({
-      title: `${cell.date} [${cell.slotLabel} ~ ${cell.nextSlot}] 생산·품질 AI 정밀 진단 리포트`,
-      sub: '제1공장 주력 라인(프레스 10대 · AOI 10대) 2시간 구간 종합 분석',
+      // 'AI 정밀 진단' 이라 부르던 것을 걷어냈습니다 — 여기서 보여 주는 건 그 구간의 실측입니다.
+      // sub 에 있던 '프레스 10대 · AOI 10대' 도 없앴습니다. 설비 마스터에 PR- 로 시작하는 코드가 없습니다.
+      title: `${cell.date} [${cell.slotLabel} ~ ${cell.nextSlot}] 생산·품질 실적`,
+      sub: '2시간 구간 실측입니다.',
       wide: true,
       render: () => (
         <HourlyDetailModalContent cell={cell} target={defectTrendData?.target || 3.0} />
@@ -247,7 +249,15 @@ export default function AiDashboardView({
               onCellClick={showHourlyDetailModal}
               target={defectTrendData?.target || 3.0}
             />
-            <SourceNote>목표 불량률 3.0% 기준 · 검색 기간 내 전체 일자 및 2시간 단위 시간대별 생산 투입 및 품질 분석 내역입니다.</SourceNote>
+            {/*
+              색을 나누는 3.0%는 **등록된 목표가 아닙니다.** ax.tb_met_metric_std 에는
+              설비 가동률 85% · 생산 달성률 100% · 일 목표 수량뿐이고 불량률 기준은 없습니다
+              (2026-09-06 확인). 서버가 target 을 주기 시작하면 그 값을 씁니다.
+            */}
+            <SourceNote>
+              2시간 단위 실측입니다. 실적이 없는 시간대는 빈 칸입니다.
+              색 기준 3.0%는 등록된 목표가 아니라 화면이 정한 값입니다.
+            </SourceNote>
           </Card>
 
           {/* 2. 유형별 불량 수량 추이 (1행 전체, 가로 스크롤 연속 시계열) */}
@@ -273,11 +283,19 @@ export default function AiDashboardView({
             }
           >
             <LineChart
-              labels={trend?.continuousLabels || trend?.labels}
-              series={trend?.continuousCountSeries || trend?.countSeries || []}
+              labels={trend?.labels || []}
+              series={trend?.countSeries || []}
               unit="EA"
               height={200}
             />
+            {/*
+              몇 종을 그린 것인지 밝힙니다. 서버가 주는 계열은 구간 합계 **상위 N종**이라
+              합이 총 불량이 아닙니다. 적어 두지 않으면 이 그림을 불량 전량으로 읽습니다.
+              (예전에는 총 불량수에 0.48·0.32·0.20 을 곱해 세 유형으로 나눠 그렸습니다.)
+            */}
+            {trend?.seriesScope?.topN ? (
+              <SourceNote>{`불량 유형 상위 ${trend.seriesScope.topN}종입니다. 이 계열들의 합은 총 불량 수량이 아닙니다.`}</SourceNote>
+            ) : null}
           </Card>
 
           {/* 3. 생산 계획 대비 실적 (1행 전체) */}

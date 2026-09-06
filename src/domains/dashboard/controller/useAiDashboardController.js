@@ -13,8 +13,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
-import { UNIT_SPAN, unitRange } from '@shared/stores/useAppStore';
-import { shiftDate } from '@shared/utils/formatUtil';
+import { UNIT_SPAN, clampThreeMonths, unitRange } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { fetchAiBriefing, fetchAiCausePrescription, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 
@@ -42,13 +41,6 @@ export const PLANT_OPTIONS = [
   { value: '2공장', label: '제2공장' },
   { value: '3공장', label: '제3공장' },
 ];
-
-/** 3개월(최대 92일) 제한 검증 및 클램프 */
-export function clampThreeMonths(fromStr, toStr) {
-  const diffDays = Math.round((new Date(`${toStr}T00:00:00`) - new Date(`${fromStr}T00:00:00`)) / 86400000);
-  if (diffDays > 92) return { clamped: true, from: fromStr, to: shiftDate(fromStr, 92) };
-  return { clamped: false, from: fromStr, to: toStr };
-}
 
 export function useAiDashboardController() {
   const toast = useUiStore((state) => state.toast);
@@ -155,6 +147,34 @@ export function useAiDashboardController() {
     toast(`${newUnit} 집계: ${SPAN_TEXT[newUnit]}(${range.from} ~ ${range.to})로 조회합니다`);
   }, [from, to, plant, toast]);
 
+  /**
+   * 시작일 · 종료일 — 단위를 고른 상태에서도 날짜를 만질 수 있게 둡니다
+   *
+   * 종료일을 옮기면 **그 날짜를 끝으로 같은 길이만큼** 다시 잡습니다. 주별인데 종료일만
+   * 바뀌어 구간이 하루로 줄면, 단위는 주별인데 칸이 하나가 되어 또 같은 문제가 생깁니다.
+   * 시작일은 자유롭게 둡니다 — 더 넓게 보고 싶을 때 늘리는 쪽입니다(92일 상한).
+   */
+  const changeFrom = useCallback((newFrom) => {
+    const { clamped, to: clampedTo } = clampThreeMonths(newFrom, to);
+    setFrom(newFrom);
+    if (clamped) {
+      setTo(clampedTo);
+      toast('조회 기간은 최대 3개월(92일)로 제한됩니다');
+    }
+  }, [to, toast]);
+
+  const changeTo = useCallback((newTo) => {
+    if (unit === '기간선택') {
+      const { clamped, to: clampedTo } = clampThreeMonths(from, newTo);
+      setTo(clamped ? clampedTo : newTo);
+      if (clamped) toast('조회 기간은 최대 3개월(92일)로 제한됩니다');
+      return;
+    }
+    const range = unitRange(unit, newTo);
+    setFrom(range.from);
+    setTo(range.to);
+  }, [unit, from, toast]);
+
   /** 조회 버튼 클릭 시 조건 확정 */
   const search = useCallback(() => {
     let finalTo = to;
@@ -188,9 +208,9 @@ export function useAiDashboardController() {
      */
     period: { from: applied.from, to: applied.to },
     from,
-    setFrom,
+    setFrom: changeFrom,
     to,
-    setTo,
+    setTo: changeTo,
     unit,
     changeUnit,
     plant,

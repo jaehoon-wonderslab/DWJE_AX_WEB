@@ -13,21 +13,89 @@ import { periodUnit } from '@domains/common/model/paramModel';
 
 /* ───────── DB-01 AI 통합 대시보드 (API 12건) ───────── */
 
-/** 시작일과 종료일 사이의 날짜 목록을 생성합니다 (최대 31일) */
-function getDatesInRange(startStr, endStr) {
-  if (!startStr) return [endStr || new Date().toISOString().substring(0, 10)];
-  if (!endStr || startStr === endStr) return [startStr];
-  const list = [];
-  const curr = new Date(startStr);
-  const end = new Date(endStr);
-  while (curr <= end && list.length < 31) {
-    const y = curr.getFullYear();
-    const m = String(curr.getMonth() + 1).padStart(2, '0');
-    const d = String(curr.getDate()).padStart(2, '0');
-    list.push(`${y}-${m}-${d}`);
-    curr.setDate(curr.getDate() + 1);
-  }
-  return list.length ? list : [startStr];
+/** 매트릭스 가로축 — 2시간 간격 12칸 */
+const SLOT_LABELS = ['00시', '02시', '04시', '06시', '08시', '10시', '12시', '14시', '16시', '18시', '20시', '22시'];
+
+/** '00시' → '02시' (마지막은 '24시') */
+const nextSlotOf = (label) => {
+  const h = Number(String(label).replace('시', ''));
+  return `${String(h + 2).padStart(2, '0')}시`;
+};
+
+/**
+ * 시간대별 실측을 화면이 쓰는 모양으로 — **서버가 준 것만** 담습니다
+ *
+ * 서버 응답: `labels[]` 와 같은 순서·개수의
+ * `slots[] = { slot: '08-29 00시', inputQty, okQty, ngQty, defectRate, topDefectNm }`.
+ * 실적이 없는 시간대는 아예 오지 않습니다. 그 칸은 비워 둡니다.
+ *
+ * 수량은 `qty` 권한이 없으면 null 로 옵니다(불량률은 `yield` 권한). 그때는 수량 칸을
+ * 비우고 불량률만 그립니다 — 0 으로 채우면 안 만든 것처럼 보입니다.
+ *
+ * @param {object} trend defect-trend 응답
+ * @returns {{ barData, pivotMatrix, target, unit }}
+ */
+function buildHourly(trend) {
+  const slots = Array.isArray(trend?.slots) ? trend.slots : [];
+
+  const cells = slots.map((x) => {
+    const [day, label] = String(x.slot || '').split(' ');
+    const input = x.inputQty == null ? null : Number(x.inputQty);
+    const ok = x.okQty == null ? null : Number(x.okQty);
+    const rate = x.defectRate == null ? null : Number(x.defectRate);
+    return {
+      date: day,
+      slotLabel: label,
+      nextSlot: nextSlotOf(label),
+      timelineLabel: x.slot,
+      defectRate: rate,
+      inputQty: input,
+      okQty: ok,
+      ngQty: x.ngQty == null ? null : Number(x.ngQty),
+      // 수율은 서버가 주지 않아 양품/투입으로 냅니다 — 둘 중 하나라도 없으면 비웁니다
+      yield: input && ok != null ? Number(((ok / input) * 100).toFixed(2)) : null,
+      primaryDefect: x.topDefectNm || null,
+    };
+  });
+
+  // 실적이 있는 날만 줄로 세웁니다 — 서버가 안 준 날은 그날 생산이 없었다는 뜻입니다
+  const byDate = new Map();
+  cells.forEach((c) => {
+    if (!byDate.has(c.date)) byDate.set(c.date, new Map());
+    byDate.get(c.date).set(c.slotLabel, c);
+  });
+
+  const rows = [...byDate.entries()].map(([day, slotMap]) => {
+    const got = [...slotMap.values()];
+    const totalInput = got.reduce((a, c) => a + (c.inputQty || 0), 0);
+    const totalNg = got.reduce((a, c) => a + (c.ngQty || 0), 0);
+    /**
+     * 일일 평균 — 수량이 있으면 **가중 평균**(그날의 실제 불량률)입니다.
+     * 칸별 불량률을 단순 평균하면 조금 만든 시간대가 많이 만든 시간대와 같은 무게가 됩니다.
+     * 수량 권한이 없을 때만 측정된 불량률의 단순 평균으로 냅니다.
+     */
+    const rated = got.filter((c) => c.defectRate != null);
+    const avg = totalInput > 0
+      ? Number(((totalNg / totalInput) * 100).toFixed(2))
+      : (rated.length ? Number((rated.reduce((a, c) => a + c.defectRate, 0) / rated.length).toFixed(2)) : null);
+
+    return {
+      date: day,
+      cells: SLOT_LABELS.map((label) => slotMap.get(label) || { date: day, slotLabel: label, nextSlot: nextSlotOf(label), empty: true }),
+      totalInputQty: totalInput || null,
+      totalNgQty: totalNg || null,
+      avgDefectRate: avg,
+      weighted: totalInput > 0,
+    };
+  });
+
+  return {
+    barData: cells.filter((c) => c.defectRate != null).map((c) => ({ l: c.timelineLabel, v: c.defectRate })),
+    pivotMatrix: { slots: SLOT_LABELS, rows, dateCount: rows.length, filledSlots: cells.length },
+    // 서버에 등록된 불량률 목표가 없습니다. 화면이 색을 나누는 기준은 화면이 정한 값입니다.
+    target: trend?.target ?? null,
+    unit: '%',
+  };
 }
 
 /**
@@ -100,140 +168,33 @@ export async function loadAiDashboard(param) {
   // 설비 코드를 '프레스 N (코드)' 로 바꿔 부르던 것을 걷어냈습니다 — BG·YG 설비를 프레스로 이름 붙였습니다
   const heatmap = rawHeatmap;
 
-  // 검색한 전체 일자 × 2시간 단위 시간대 연속 시계열 및 피벗 매트릭스 구성
-  const isMultiDay = Boolean(from && to && from !== to);
-  const dateList = isMultiDay ? getDatesInRange(from, to) : [date || to || today()];
-  const timeSlotDefs = [
-    { slot: '00:00', label: '00시', next: '02:00', mod: -0.3 },
-    { slot: '02:00', label: '02시', next: '04:00', mod: -0.4 },
-    { slot: '04:00', label: '04시', next: '06:00', mod: -0.2 },
-    { slot: '06:00', label: '06시', next: '08:00', mod: 0.1 },
-    { slot: '08:00', label: '08시', next: '10:00', mod: 0.4 },
-    { slot: '10:00', label: '10시', next: '12:00', mod: 0.8 },
-    { slot: '12:00', label: '12시', next: '14:00', mod: 0.2 },
-    { slot: '14:00', label: '14시', next: '16:00', mod: 1.4 },
-    { slot: '16:00', label: '16시', next: '18:00', mod: 0.9 },
-    { slot: '18:00', label: '18시', next: '20:00', mod: 0.3 },
-    { slot: '20:00', label: '20시', next: '22:00', mod: -0.1 },
-    { slot: '22:00', label: '22시', next: '24:00', mod: -0.3 },
-  ];
+  /**
+   * 시간대별 실측 — **서버가 준 slots[] 를 그대로** 씁니다
+   *
+   * 2026-09-06 이전에는 여기서 시간대별 불량률을 지어냈습니다. 일 단위 불량률에
+   * 시간대 가감치(14시 +1.4 · 10시 +0.8 …)를 얹고, 실적이 없는 날은 `2.0 + (dIdx % 3) * 0.45`,
+   * 투입 수량은 150,000 으로 채웠습니다. 서버가 2시간 단위 실측을 이미 주고 있었는데
+   * 받아 놓고 버린 채 만든 값을 그렸습니다.
+   *
+   * 실적이 없는 시간대는 서버가 아예 주지 않으므로 **빈 칸으로 둡니다** — 12칸을 억지로
+   * 채우면 쉰 시간대가 잘 돌아간 시간대처럼 보입니다.
+   */
+  const defectTrendData = buildHourly(data.trend);
 
-  // 일자별 원천 실적 맵
-  const dailyResultsMap = new Map();
-  (prodResultsRes?.items || []).forEach((item) => {
-    if (item.period) dailyResultsMap.set(item.period, item);
-  });
-
-  const continuousTimeline = [];
-  const matrixRows = [];
-
-  dateList.forEach((curDate, dIdx) => {
-    const dailyItem = dailyResultsMap.get(curDate);
-    const baseDailyRate = dailyItem?.defectRate != null
-      ? Number(dailyItem.defectRate)
-      : (2.0 + ((dIdx % 3) * 0.45));
-    const baseDailyQty = dailyItem?.inputQty != null
-      ? Number(dailyItem.inputQty)
-      : (dailyItem?.totalQty != null ? Number(dailyItem.totalQty) : 150000);
-
-    const shortDate = curDate.length >= 10 ? curDate.substring(5) : curDate; // MM-DD
-    const rowCells = [];
-    let rowTotalInput = 0;
-    let rowTotalNg = 0;
-
-    timeSlotDefs.forEach((tsDef, sIdx) => {
-      // 시간대별 불량률 변동치 (14시 피크, 변동 편차 반영)
-      const slotDefectRate = Number(Math.max(0.4, baseDailyRate + tsDef.mod + ((sIdx + dIdx) % 2 === 0 ? 0.2 : -0.15)).toFixed(2));
-      const slotInputQty = Math.round(baseDailyQty / 12 + ((sIdx % 3) - 1) * 600);
-      const slotNgQty = Math.round((slotInputQty * slotDefectRate) / 100);
-      const slotOkQty = Math.max(0, slotInputQty - slotNgQty);
-      const slotYield = Number((100 - slotDefectRate).toFixed(2));
-      const status = slotDefectRate > 3.0 ? '주의' : '양호';
-
-      rowTotalInput += slotInputQty;
-      rowTotalNg += slotNgQty;
-
-      const cellData = {
-        date: curDate,
-        shortDate,
-        slot: tsDef.slot,
-        slotLabel: tsDef.label,
-        nextSlot: tsDef.next,
-        timelineLabel: `${shortDate} ${tsDef.label}`,
-        fullLabel: `${curDate} ${tsDef.slot}~${tsDef.next}`,
-        defectRate: slotDefectRate,
-        inputQty: slotInputQty,
-        okQty: slotOkQty,
-        ngQty: slotNgQty,
-        yield: slotYield,
-        status,
-        primaryDefect: slotDefectRate > 3.5 ? '치수 불량 (DIM_NG)' : slotDefectRate > 3.0 ? '찍힘/스크래치' : '미세 버(Burr)',
-      };
-
-      rowCells.push(cellData);
-      continuousTimeline.push(cellData);
-    });
-
-    const rowAvgRate = rowTotalInput > 0 ? Number(((rowTotalNg / rowTotalInput) * 100).toFixed(2)) : baseDailyRate;
-    const rowAvgYield = Number((100 - rowAvgRate).toFixed(2));
-
-    matrixRows.push({
-      date: curDate,
-      shortDate,
-      cells: rowCells,
-      totalInputQty: rowTotalInput,
-      totalNgQty: rowTotalNg,
-      avgDefectRate: rowAvgRate,
-      avgYield: rowAvgYield,
-      status: rowAvgRate > 3.0 ? '주의' : '양호',
-    });
-  });
-
-  const defectTrendData = {
-    continuousTimeline,
-    barData: continuousTimeline.map((t) => ({ l: t.timelineLabel, v: t.defectRate })),
-    pivotMatrix: {
-      slots: timeSlotDefs.map((t) => t.label),
-      slotDefs: timeSlotDefs,
-      rows: matrixRows,
-      dateCount: dateList.length,
-      totalSlots: continuousTimeline.length,
-    },
-    isMultiDay,
-    target: 3.0,
-    unit: '%',
-  };
-
+  /**
+   * 유형별 불량 수량 추이 — 서버 계열을 **그대로** 그립니다
+   *
+   * 예전에는 총 불량수에 0.48 · 0.32 · 0.20 을 곱해 세 유형으로 나눴습니다. 유형 이름만
+   * 서버 것이고 수량은 지어낸 비율이었습니다. 서버가 유형별 실측 계열을 줍니다.
+   *
+   * 다만 이 계열은 **구간 합계 상위 2종**입니다(`seriesScope`). 합이 총 불량이 아니므로
+   * 합계로 쓰지 않습니다 — 총 불량은 `slots[].ngQty` 쪽입니다.
+   */
   const rawTrend = splitRateAndCounts(data.trend);
-  const continuousLabels = continuousTimeline.map((t) => t.timelineLabel);
-
-  // 서버에서 전달된 상위 불량 유형명 또는 표준 3대 불량 유형 추출
-  const rawDefectNames = (rawTrend?.countSeries || []).map((s) => s.name).filter(Boolean);
-  const type1Name = rawDefectNames[0] || '치수 불량 (DIM_NG)';
-  const type2Name = rawDefectNames[1] || '찍힘/스크래치 (SCRATCH)';
-  const type3Name = rawDefectNames[2] || '미세 버 (BURR)';
-
-  const continuousCountSeries = [
-    {
-      name: type1Name,
-      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.48)),
-    },
-    {
-      name: type2Name,
-      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.32)),
-    },
-    {
-      name: type3Name,
-      data: continuousTimeline.map((t) => Math.round(t.ngQty * 0.20)),
-    },
-  ];
-
   const trend = {
     ...rawTrend,
-    continuousLabels,
-    continuousCountSeries,
-    labels: continuousLabels,
-    countSeries: continuousCountSeries,
+    labels: data.trend?.labels || rawTrend?.labels || [],
+    seriesScope: data.trend?.seriesScope || null,
   };
 
   // 불량률·수율·가동률은 계산값입니다. 서버가 비워 보내면 원천 수량으로 채웁니다.
