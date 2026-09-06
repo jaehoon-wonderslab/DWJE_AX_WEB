@@ -67,25 +67,51 @@ const CASES = (f) => [
   ['감사 로그 · 부서', '/audit-logs', { size: 200 }, 'userGroup', 'items', f.deptNames.slice(0, 2), 'dept'],
 ];
 
-/** 집계 단위 드롭다운에서 하나를 고릅니다 (네이티브 select 가 아니라 직접 그린 목록입니다) */
+/**
+ * 집계 단위 드롭다운에서 하나를 고릅니다 (네이티브 select 가 아니라 직접 그린 목록입니다)
+ *
+ * 고정 시간 대기를 쓰지 않습니다. 전체 검사를 함께 돌리면 브라우저가 여러 개 떠 있어
+ * 렌더와 응답이 모두 늦어지는데, 2~6초로 박아 두면 그때만 실패해 원인을 찾기 어렵습니다.
+ * 각 단계마다 "그 다음이 가능해질 때까지" 기다립니다.
+ */
 async function pickUnit(page, label) {
-  // 고정 시간 대기 대신 라벨이 그려질 때까지 기다립니다 — 집계가 무거워지면 6초로는 못 미칩니다
-  await page.waitForFunction(
-    () => [...document.querySelectorAll('div,span')].some((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0),
-    { timeout: 60000 }
-  );
-  await page.evaluate(() => {
-    const lab = [...document.querySelectorAll('div,span')]
-      .find((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0);
-    lab.parentElement.children[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-  await page.waitForTimeout(400);
+  const isLeaf = (t) => `[...document.querySelectorAll('div,span')].find((e) => e.textContent.trim() === ${JSON.stringify(t)} && e.children.length === 0)`;
+
+  // 1) 라벨이 그려질 때까지
+  await page.waitForFunction(`!!${isLeaf('집계 단위')}`, { timeout: 60000 });
+
+  // 2) 목록이 열릴 때까지 — 한 번 눌러 안 열리면 다시 누릅니다
+  for (let i = 0; i < 5; i += 1) {
+    const open = await page.evaluate((t) => {
+      const els = [...document.querySelectorAll('div,span')];
+      // 목록이 열리면 고르지 않은 단위가 화면에 나타납니다
+      return els.some((e) => e.textContent.trim() === t && e.children.length === 0);
+    }, label);
+    if (open) break;
+    await page.evaluate(() => {
+      const lab = [...document.querySelectorAll('div,span')]
+        .find((e) => e.textContent.trim() === '집계 단위' && e.children.length === 0);
+      lab.parentElement.children[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await page.waitForTimeout(500);
+  }
+
+  // 3) 고릅니다 — 목록 항목이 뒤에 붙으므로 마지막 것을 씁니다
   await page.evaluate((t) => {
     const opt = [...document.querySelectorAll('div,span')].reverse()
       .find((e) => e.textContent.trim() === t && e.children.length === 0);
-    opt.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    if (opt) opt.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   }, label);
-  await page.waitForTimeout(2500);
+}
+
+/** 조건이 참이 될 때까지 기다립니다 (조회가 실제로 나가는 데 걸리는 시간이 들쭉날쭉합니다) */
+async function waitFor(page, check, ms = 40000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (check()) return true;
+    await page.waitForTimeout(500);
+  }
+  return false;
 }
 
 suite('필터', () => {
@@ -172,7 +198,8 @@ suite('필터', () => {
       for (const [label, wantUnit, wantBuckets] of UNIT_CASES) {
         seen.length = 0;
         await pickUnit(b.page, label);
-        if (!seen.length) {
+        // 조회가 나갈 때까지 기다립니다 — 안 나가면 그것이 잡으려는 결함입니다
+        if (!(await waitFor(b.page, () => seen.length > 0))) {
           bad.push(`${label}: 단위를 골랐는데 조회가 나가지 않습니다`);
           continue;
         }
