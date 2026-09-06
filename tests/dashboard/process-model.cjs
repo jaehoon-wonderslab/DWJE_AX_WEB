@@ -1,0 +1,20 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+(async () => {
+  const source = fs.readFileSync('src/domains/dashboard/model/processPeriodModel.js', 'utf8');
+  const { metricText, validatePeriod, processInsights } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  assert.equal(metricText({ qty: null }, 'qty'), '수량 미집계');
+  assert.equal(metricText({ qty: 0, defectRate: null }, 'defectRate'), '생산 실적 없음');
+  assert.equal(metricText({ qty: null, defectRate: null }, 'defectRate'), '산출 자료 부족');
+  assert.equal(metricText({ qty: 500 }, 'qty', false), '조회 권한 없음');
+  assert.equal(metricText({ qty: 0 }, 'qty'), '0');
+  assert.throws(() => validatePeriod('2026-02-30', '2026-03-01'));
+  assert.throws(() => validatePeriod('2026-09-05', '2026-09-04'));
+  assert.throws(() => validatePeriod('2026-01-01', '2026-04-04'));
+  validatePeriod('2026-01-01', '2026-04-03');
+  const issues = processInsights({ products: [{ code: 'A', qty: 100, okQty: 90, ngQty: 10 }, { code: 'B', qty: null, okQty: 500, ngQty: null }, { code: 'C', qty: 500, okQty: 480, ngQty: 20 }], processes: [{ process: '미집계', qty: null, defectRate: null }, { process: '생산 없음', qty: 0, defectRate: 0 }, { process: '프레스', qty: 200, defectRate: 3 }] });
+  assert.deepEqual(issues.byDefects.map((p) => p.code), ['C', 'A']);
+  assert.deepEqual(issues.incompleteProducts.map((p) => p.code), ['B']);
+  assert.deepEqual(issues.byRate.map((p) => p.process), ['프레스']);
+  console.log('PASS: missing values, permissions, zero production, date boundaries and evidence-based issue ranking');
+})().catch((e) => { console.error(e); process.exit(1); });
