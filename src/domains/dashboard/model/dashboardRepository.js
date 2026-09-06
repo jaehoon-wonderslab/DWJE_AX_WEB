@@ -139,7 +139,8 @@ export async function loadAiDashboard(param) {
     const items = processYield.items.map((x) => {
       const qty = Number(x.qty) || (Number(x.okQty || 0) + Number(x.ngQty || 0));
       const ok = Number(x.okQty) || Math.max(0, qty - Number(x.ngQty || 0));
-      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : 98.0);
+      // 수량이 0 이면 수율은 낼 수 없습니다 — 98.0 을 넣던 것을 걷어냈습니다(만들어 낸 값입니다)
+      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : null);
       const level = yieldRate < target - 1.5 ? 'bad' : yieldRate < target ? 'warn' : 'ok';
       return {
         ...x,
@@ -396,7 +397,8 @@ export async function loadProcessDashboard({ date, processId, productCodes }) {
     const items = processYield.items.map((x) => {
       const qty = Number(x.qty) || (Number(x.okQty || 0) + Number(x.ngQty || 0));
       const ok = Number(x.okQty) || Math.max(0, qty - Number(x.ngQty || 0));
-      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : 98.0);
+      // 수량이 0 이면 수율은 낼 수 없습니다 — 98.0 을 넣던 것을 걷어냈습니다(만들어 낸 값입니다)
+      const yieldRate = x.yield != null ? Number(x.yield) : (qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : null);
       const level = yieldRate < target - 1.5 ? 'bad' : yieldRate < target ? 'warn' : 'ok';
       return {
         ...x,

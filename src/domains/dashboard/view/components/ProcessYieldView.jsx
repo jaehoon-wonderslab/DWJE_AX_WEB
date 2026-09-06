@@ -17,27 +17,34 @@ export default function ProcessYieldView({ processYield }) {
   const theme = useTheme();
 
   const target = Number(processYield?.target) || 97.0;
-  const rawItems = processYield?.items || [];
+  /**
+   * 서버가 준 공정만 그립니다
+   *
+   * 2026-09-06 이전에는 서버 행이 3개 미만이면 지어낸 공정 다섯 개로 갈아 끼웠습니다 —
+   * 프레스 97.8% / 350,000 EA · 열처리 98.5% · 표면처리 98.2% · AOI 96.9% · 조립 99.4%.
+   * 있지도 않은 공정과 수량이었고, 서버 행이 있으면 그 위에 지어낸 수량을 덮어썼습니다.
+   *
+   * 공정 수는 날마다 다릅니다 — 2026-09-03 은 22개인데 2026-08-30(비가동일)은 2개뿐입니다.
+   * 즉 조용히 넘어가는 예외가 아니라 **비가동일마다 가짜 다섯 줄이 뜨던** 자리입니다.
+   */
+  const items = processYield?.items || [];
 
-  // 기본 공정 목록 보강 (프레스, 열처리, 표면처리, AOI 자동검사, 조립)
-  const defaultProcesses = [
-    { process: '프레스 (Press)', yieldRate: 97.8, qty: 350000, okQty: 342300, ngQty: 7700 },
-    { process: '열처리 (Heat Treatment)', yieldRate: 98.5, qty: 342300, okQty: 337165, ngQty: 5135 },
-    { process: '표면처리 (Surface)', yieldRate: 98.2, qty: 337165, okQty: 331096, ngQty: 6069 },
-    { process: '자동검사 (AOI Inspection)', yieldRate: 96.9, qty: 331096, okQty: 320832, ngQty: 10264 },
-    { process: '최종 조립 (Assembly)', yieldRate: 99.4, qty: 320832, okQty: 318907, ngQty: 1925 },
-  ];
-
-  const items = rawItems.length >= 3 ? rawItems : defaultProcesses.map((dp) => {
-    const found = rawItems.find((r) => (r.process || r.l || '').includes(dp.process.split(' ')[0]));
-    return found ? { ...dp, ...found, yieldRate: found.yieldRate || found.v || dp.yieldRate } : dp;
-  });
-
-  // 평균 수율 계산
-  const avgYield = items.length > 0
-    ? Number((items.reduce((acc, cur) => acc + (Number(cur.yieldRate ?? cur.v) || 0), 0) / items.length).toFixed(2))
-    : 98.1;
-  const avgDiff = Number((avgYield - target).toFixed(2));
+  /**
+   * 공정 평균 수율 — 수량이 있으면 **가중 평균**입니다
+   *
+   * 공정마다 만든 양이 다른데 단순 평균을 내면 조금 만든 공정이 많이 만든 공정과 같은 무게가
+   * 됩니다. 수율을 못 받은 공정은 아예 빼고 셉니다 — 예전에는 `|| 0` 이라 0% 로 세어
+   * 평균을 끌어내렸습니다. 셀 것이 없으면 98.1 을 적던 것도 걷어냈습니다.
+   */
+  const rated = items.filter((x) => (x.yieldRate ?? x.v) !== null && (x.yieldRate ?? x.v) !== undefined);
+  const sumQty = rated.reduce((a, x) => a + (Number(x.qty) || 0), 0);
+  const sumOk = rated.reduce((a, x) => a + (Number(x.okQty) || 0), 0);
+  const avgYield = sumQty > 0
+    ? Number(((sumOk / sumQty) * 100).toFixed(2))
+    : (rated.length
+        ? Number((rated.reduce((a, x) => a + Number(x.yieldRate ?? x.v), 0) / rated.length).toFixed(2))
+        : null);
+  const avgDiff = avgYield === null ? null : Number((avgYield - target).toFixed(2));
 
   return (
     <View style={styles.container}>
@@ -54,22 +61,24 @@ export default function ProcessYieldView({ processYield }) {
         <View style={styles.summaryItem}>
           <Text style={[styles.summaryLabel, { color: theme.color.textDim }]}>공정 평균 수율</Text>
           <View style={styles.summaryValRow}>
-            <Text style={[styles.summaryVal, { color: avgYield >= target ? theme.color.success : theme.color.danger }]}>
-              {fixed(avgYield)}%
+            <Text style={[styles.summaryVal, { color: avgYield === null ? theme.color.textDim : avgYield >= target ? theme.color.success : theme.color.danger }]}>
+              {avgYield === null ? '—' : `${fixed(avgYield)}%`}
             </Text>
-            <View
-              style={[
-                styles.diffBadge,
-                {
-                  backgroundColor: avgDiff >= 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  borderColor: avgDiff >= 0 ? '#16a34a' : '#ef4444',
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 11, fontWeight: '700', color: avgDiff >= 0 ? '#16a34a' : '#ef4444' }}>
-                {avgDiff >= 0 ? `+${avgDiff}%p` : `${avgDiff}%p`}
-              </Text>
-            </View>
+            {avgDiff === null ? null : (
+              <View
+                style={[
+                  styles.diffBadge,
+                  {
+                    backgroundColor: avgDiff >= 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    borderColor: avgDiff >= 0 ? '#16a34a' : '#ef4444',
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: avgDiff >= 0 ? '#16a34a' : '#ef4444' }}>
+                  {avgDiff >= 0 ? `+${avgDiff}%p` : `${avgDiff}%p`}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -95,18 +104,24 @@ export default function ProcessYieldView({ processYield }) {
       {/* 공정별 고시인성 게이지 및 상세 카드 목록 */}
       <View style={styles.processList}>
         {items.map((item, idx) => {
-          const yVal = Number(item.yieldRate ?? item.v ?? 98.0);
-          const diff = Number((yVal - target).toFixed(2));
-          const isOk = yVal >= target;
-          const isWarn = yVal >= target - 1.0 && yVal < target;
-          const barColor = isOk ? '#10b981' : isWarn ? '#f59e0b' : '#ef4444';
+          /**
+           * 수율이 없으면 **없는 대로 둡니다** — 98.0 을 넣던 것을 걷어냈습니다.
+           * 서버가 수율을 못 주는 공정에 98% 를 적으면 목표(97%)를 넘긴 우등 공정으로 보입니다.
+           */
+          const raw = item.yieldRate ?? item.v;
+          const hasYield = raw !== null && raw !== undefined && raw !== '';
+          const yVal = hasYield ? Number(raw) : null;
+          const diff = hasYield ? Number((yVal - target).toFixed(2)) : null;
+          const isOk = hasYield && yVal >= target;
+          const isWarn = hasYield && yVal >= target - 1.0 && yVal < target;
+          const barColor = !hasYield ? theme.color.border : isOk ? '#10b981' : isWarn ? '#f59e0b' : '#ef4444';
           const pName = item.process || item.l || `공정 ${idx + 1}`;
           const qty = Number(item.qty) || 0;
-          const okQty = Number(item.okQty) || Math.round(qty * (yVal / 100));
-          const ngQty = Number(item.ngQty) || (qty - okQty);
+          const okQty = item.okQty != null ? Number(item.okQty) : (hasYield ? Math.round(qty * (yVal / 100)) : null);
+          const ngQty = item.ngQty != null ? Number(item.ngQty) : (okQty == null ? null : qty - okQty);
 
           // 게이지 비율 계산 (최소 85% ~ 최대 100% 구간 매핑으로 변별력 극대화)
-          const gaugePercent = Math.min(100, Math.max(0, ((yVal - 85) / 15) * 100));
+          const gaugePercent = hasYield ? Math.min(100, Math.max(0, ((yVal - 85) / 15) * 100)) : 0;
           const targetPercent = Math.min(100, Math.max(0, ((target - 85) / 15) * 100));
 
           return (
@@ -116,7 +131,7 @@ export default function ProcessYieldView({ processYield }) {
                 styles.processRow,
                 {
                   backgroundColor: theme.mode === 'dark' ? '#18202f' : '#ffffff',
-                  borderColor: isOk ? theme.color.border : 'rgba(239, 68, 68, 0.35)',
+                  borderColor: !hasYield || isOk ? theme.color.border : 'rgba(239, 68, 68, 0.35)',
                 },
               ]}
             >
@@ -132,7 +147,7 @@ export default function ProcessYieldView({ processYield }) {
                 </View>
                 {qty > 0 && (
                   <Text style={[styles.qtySub, { color: theme.color.textDim }]}>
-                    투입 {comma(qty)} · 양품 {comma(okQty)} · 불량 <Text style={{ color: ngQty > 0 ? '#ef4444' : undefined, fontWeight: '600' }}>{comma(ngQty)} EA</Text>
+                    투입 {comma(qty)} · 양품 {okQty == null ? '—' : comma(okQty)} · 불량 <Text style={{ color: ngQty > 0 ? '#ef4444' : undefined, fontWeight: '600' }}>{ngQty == null ? '—' : `${comma(ngQty)} EA`}</Text>
                   </Text>
                 )}
               </View>
@@ -172,26 +187,31 @@ export default function ProcessYieldView({ processYield }) {
               {/* 수율 수치 및 목표 편차 배지 */}
               <View style={styles.rowRight}>
                 <View style={styles.rateValueRow}>
-                  <Text style={[styles.yieldText, { color: barColor, fontWeight: '800' }]}>
-                    {fixed(yVal)}%
+                  <Text style={[styles.yieldText, { color: hasYield ? barColor : theme.color.textDim, fontWeight: '800' }]}>
+                    {hasYield ? `${fixed(yVal)}%` : '—'}
                   </Text>
-                  <View
-                    style={[
-                      styles.diffPill,
-                      {
-                        backgroundColor: diff >= 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                        borderColor: diff >= 0 ? '#10b981' : '#ef4444',
-                      },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: diff >= 0 ? '#10b981' : '#ef4444' }}>
-                      {diff >= 0 ? `+${diff}%p` : `${diff}%p`}
-                    </Text>
+                  {/* 수율을 모르면 목표와의 차이도 없습니다 — 0%p 로 적으면 목표에 딱 맞은 것처럼 보입니다 */}
+                  {diff === null ? null : (
+                    <View
+                      style={[
+                        styles.diffPill,
+                        {
+                          backgroundColor: diff >= 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                          borderColor: diff >= 0 ? '#10b981' : '#ef4444',
+                        },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: diff >= 0 ? '#10b981' : '#ef4444' }}>
+                        {diff >= 0 ? `+${diff}%p` : `${diff}%p`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {hasYield ? (
+                  <View style={{ alignSelf: 'flex-end', marginTop: 2 }}>
+                    <StateBadge state={isOk ? '정상' : isWarn ? '주의' : '위험'} label={isOk ? '목표 달성' : '집중 관리'} />
                   </View>
-                </View>
-                <View style={{ alignSelf: 'flex-end', marginTop: 2 }}>
-                  <StateBadge state={isOk ? '정상' : isWarn ? '주의' : '위험'} label={isOk ? '목표 달성' : '집중 관리'} />
-                </View>
+                ) : null}
               </View>
             </View>
           );

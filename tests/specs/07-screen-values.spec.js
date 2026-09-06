@@ -115,6 +115,27 @@ suite('화면 값 ↔ API 값', () => {
     eq(shown(r.text, '공정 불량률'), want.defectRate, '불량률');
   });
 
+  /**
+   * 공정별 수율 — 서버가 준 공정만 나오는가
+   *
+   * 2026-09-06 이전에는 서버 행이 3개 미만이면 지어낸 공정 다섯 개(프레스 97.8% ·
+   * 열처리 98.5% · 표면처리 98.2% · AOI 96.9% · 조립 99.4%)로 갈아 끼웠습니다.
+   * 공정 수는 날마다 다릅니다 — 2026-09-03 은 22개인데 2026-08-30(비가동일)은 2개뿐이라,
+   * 조용히 넘어가는 예외가 아니라 비가동일마다 가짜 다섯 줄이 뜨던 자리였습니다.
+   */
+  test('공정 대시보드 — 공정별 수율이 서버가 준 공정만 보여 준다', async () => {
+    const r = await visit(ctx.page, '/dashboard/process');
+    const m = r.text.match(/총 (\d+)개 공정/);
+    ok(m, '공정별 수율에 공정 수 표시가 없습니다');
+
+    const want = await api.data('/dashboard/ai/process-yield', { date: ctx.f.baseDate });
+    eq(Number(m[1]), (want.items || []).length, '화면 공정 수');
+
+    const FAKE = ['프레스 (Press)', '열처리 (Heat', '표면처리 (Surface)', '자동검사 (AOI', '최종 조립'];
+    const found = FAKE.filter((x) => r.text.includes(x));
+    eq(found, [], '기준정보에 없는 공정이 화면에 있습니다 — 화면이 만들어 낸 행입니다');
+  });
+
   test('불량 현황 조회 — 유형 표가 API 와 같다', async () => {
     const f = ctx.f;
     const [sum, byType] = await Promise.all([
