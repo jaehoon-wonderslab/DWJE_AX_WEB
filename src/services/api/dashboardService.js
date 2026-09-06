@@ -128,6 +128,17 @@ export function getDashboardAiLines(params) {
 }
 
 /**
+ * `GET /api/v1/dashboard/ai/line-products`
+ *
+ * 설비 × 공정 × 제품 한 줄. `getDashboardAiLines` 는 설비 한 줄에 대표 제품 하나라
+ * 제품별로 나눌 수 없어 따로 받습니다 (실적 집계 조회 3단계용).
+ * @returns {Promise<object>} lines[{eqptCd,eqptNm,processId,processNm,product,productNm,qty,okQty,ngQty,defectRate,plantNm,plantSource}]
+ */
+export function getDashboardAiLineProducts(params) {
+  return request('getDashboardAiLineProducts', params);
+}
+
+/**
  * 설비 상세 조회
  *
  * `GET /api/v1/production/equipments/{eqptCd}`
@@ -465,3 +476,4 @@ export function getDashboardKpiBasis(params) {
 export function postDashboardKpiEvidenceExport(params) {
   return request('postDashboardKpiEvidenceExport', params);
 }
+

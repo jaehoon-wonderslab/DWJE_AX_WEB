@@ -426,9 +426,10 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
               const row3 = ws.addRow({
                 period: r1.period,
                 product: r2.period,
-                plant: r3.plantNm || '제1공장',
-                process: r3.processNm || '공정',
-                equipment: r3.period, // 예: MT-004 (프레스 04호기)
+                // 없으면 빈 칸 — '제1공장' 으로 채우던 자리입니다. 공장은 DB 에 축이 없습니다
+                plant: r3.plantNm || '',
+                process: r3.processNm || '',
+                equipment: r3.equipNm || r3.period,
                 inputQty: numFmt(r3.inputQty),
                 okQty: numFmt(r3.okQty),
                 ngQty: numFmt(r3.ngQty),

@@ -35,10 +35,21 @@ suite('화면 값 ↔ API 값', () => {
   test('AI 통합 대시보드 — 생산량·불량률이 API 와 같다', async () => {
     const r = await visit(ctx.page, '/dashboard/ai');
 
-    // 화면이 스스로 고른 종료일을 그대로 읽어 같은 날짜로 API 를 부릅니다
-    // (기간 선택이 붙어 화면 기본 날짜가 고정 기준일과 다릅니다)
-    const d = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').last().inputValue();
-    const want = await api.data('/dashboard/ai/summary', { date: d });
+    /**
+     * 화면이 고른 **구간 전체**로 부릅니다
+     *
+     * 2026-09-06 이전에는 서버가 from·to 를 무시하고 종료일 하루만 돌려줬습니다.
+     * 그래서 집계 단위를 월로 바꿔도 총 생산 수량이 하루치(15,899,217 EA)에 머물렀고,
+     * 같은 화면의 AI 브리핑은 석 달치(1,219,124,241 EA)를 읽어 한 화면에 두 기간이
+     * 섞여 나왔습니다. 종료일 하나로 검사하면 그 되돌림을 못 잡습니다.
+     */
+    const from = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').first().inputValue();
+    const to = await ctx.page.locator('input[placeholder="YYYY-MM-DD"]').last().inputValue();
+    ok(from < to, `기간이 하루뿐이라 구간 반영을 확인할 수 없습니다 (${from} ~ ${to})`);
+
+    const want = await api.data('/dashboard/ai/summary', { from, to, date: to });
+    const oneDay = await api.data('/dashboard/ai/summary', { date: to });
+    ok(want.todayQty !== oneDay.todayQty, '구간으로 불러도 종료일 하루치와 같습니다 — 서버가 from·to 를 무시합니다');
 
     eq(shown(r.text, '총 생산 수량'), want.todayQty, '생산량');
     eq(shown(r.text, '평균 불량률'), want.defectRate, '불량률');
@@ -210,6 +221,54 @@ suite('화면 값 ↔ API 값', () => {
     const r = await visit(ctx.page, '/production/result');
     ok(r.text.includes(first.period), `첫 행 기간 ${first.period} 이 화면에 있어야 합니다`);
     ok(r.text.includes(first.inputQty.toLocaleString()), `첫 행 투입수량 ${first.inputQty} 가 화면에 있어야 합니다`);
+  });
+
+  /**
+   * 실적 집계 3단계 — 설비가 실제로 만든 것인가
+   *
+   * 2026-09-06 이전에는 이 자리가 통째로 지어낸 값이었습니다. 제품명 해시로 설비 코드를
+   * 만들고(MT-0{hash%15+1}), 수량을 55/35/10, 불량을 60/28/12 로 쪼개고, 공장은 프레스
+   * 번호가 10 이하면 제1공장이라 적었습니다. 균등 분배라 세 줄이 비슷한 불량률로 나오는데
+   * 실제는 한 대가 65% 로 터지고 나머지가 0.0~0.9% 인 그림이라, 설비별로 보는 이유였던
+   * 편차를 정확히 지우고 있었습니다. 엑셀에도 그대로 나갔습니다.
+   */
+  test('실적 집계 조회 — 3단계 설비가 서버 실적에 있는 설비다', async () => {
+    await visit(ctx.page, '/production/result', { settle: 12000 });
+
+    // 첫 일자 행과 그 아래 첫 제품 행을 펼칩니다
+    const expand = async (n) => ctx.page.evaluate((k) => {
+      const els = [...document.querySelectorAll('.tabulator-data-tree-control')];
+      if (els[k]) els[k].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }, n);
+    await expand(0);
+    await ctx.page.waitForTimeout(5000);
+    await expand(1);
+    await ctx.page.waitForTimeout(3000);
+
+    const shown = await ctx.page.evaluate(() =>
+      [...document.querySelectorAll('[data-depth="3"]')].map((e) => e.innerText.trim()));
+    ok(shown.length > 0, '3단계 행이 없습니다 (펼치기 실패)');
+
+    // 지어낼 때 쓰던 이름 규칙이 남아 있으면 되돌아간 것입니다
+    const fake = shown.filter((t) => /MT-0\d|AOI-0\d/.test(t));
+    eq(fake, [], '설비 마스터에 없는 이름 규칙이 보입니다 — 화면이 설비를 만들어 낸 것입니다');
+
+    // 화면에 뜬 설비 코드가 **그 일자** 서버 실적에 실제로 있는가
+    // 필터의 시작일이 아니라 펼친 행의 일자를 읽어야 합니다 — 다른 날로 맞추면 헛돕니다
+    const first = await ctx.page.evaluate(() => {
+      const row = document.querySelector('.tabulator-row');
+      const m = row && row.innerText.match(/\d{4}-\d{2}-\d{2}/);
+      return m ? m[0] : null;
+    });
+    ok(first, '펼친 행의 일자를 읽지 못했습니다');
+    const want = await api.data('/dashboard/ai/line-products', { date: first, size: 0 });
+    const codes = new Set((want.lines || want.items || []).map((x) => x.eqptCd));
+    ok(codes.size > 0, `서버가 ${first} 설비별 실적을 주지 않습니다`);
+
+    const bad = shown
+      .map((t) => (t.match(/\b([A-Z]{2}-\d{3})\b/) || [])[1])
+      .filter((c) => c && !codes.has(c));
+    eq([...new Set(bad)], [], '화면에 있는 설비가 서버 실적에는 없습니다');
   });
 
   test('제품군 순위 관리 — 순위 이동 셀렉트와 제품 순서 버튼이 겹치지 않는다', async () => {

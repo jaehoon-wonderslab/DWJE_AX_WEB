@@ -246,12 +246,21 @@ export default function AiDashboardView({
             {/* 차트와 매트릭스 간 구분을 위한 여백 및 구분선 */}
             <View style={{ marginVertical: 24, borderTopWidth: 1, borderTopColor: theme.color.border, opacity: 0.6 }} />
 
-            {/* 일자 × 시간대별 불량률 매트릭스 */}
-            <HourlyDefectPivotMatrix
-              pivotMatrix={defectTrendData?.pivotMatrix}
-              onCellClick={showHourlyDetailModal}
-              target={defectTrendData?.target || 3.0}
-            />
+            {/*
+              일자 × 시간대별 불량률 매트릭스 — **시간 단위로 올 때만** 그립니다
+              서버가 구간 길이에 따라 칸을 접습니다(7일 이하 2시간 · 8~120일 일 · 그 위 주).
+              접힌 값을 12칸에 늘어놓으면 없는 시간대 구분을 만들어 내게 되므로, 그때는
+              매트릭스 대신 왜 없는지 적습니다. 위 막대 그래프는 접힌 단위 그대로 나옵니다.
+            */}
+            {defectTrendData?.pivotMatrix ? (
+              <HourlyDefectPivotMatrix
+                pivotMatrix={defectTrendData.pivotMatrix}
+                onCellClick={showHourlyDetailModal}
+                target={defectTrendData?.target || 3.0}
+              />
+            ) : (
+              <EmptyState text={`선택 구간이 길어 ${defectTrendData?.bucket?.note || '일 단위로 접혔습니다'}. 시간대별 매트릭스는 7일 이하 구간에서 나옵니다.`} />
+            )}
             {/*
               색을 나누는 3.0%는 **등록된 목표가 아닙니다.** ax.tb_met_metric_std 에는
               설비 가동률 85% · 생산 달성률 100% · 일 목표 수량뿐이고 불량률 기준은 없습니다

@@ -383,6 +383,15 @@ export const ENDPOINTS = {
     tables: 'mes.tb_md_eqpt, ax.tb_met_metric_value',
     note: '낮을수록 진하게(invert)',
   },
+  getDashboardAiLineProducts: {
+    no: 29.1, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
+    name: '설비 × 제품 실적', method: 'GET', path: '/api/v1/dashboard/ai/line-products',
+    params: 'date, from, to, processId, page, size',
+    response: 'lines[{eqptCd,eqptNm,processId,processNm,product,productNm,qty,okQty,ngQty,defectRate,plantNm,plantSource}]',
+    roles: '전 부서', blind: ['qty', 'yield'], priority: 1,
+    tables: 'mes.tb_pop_label_hist, mes.tb_md_eqpt',
+    note: '실적 집계 조회 3단계(설비별) — 설비 × 공정 × 제품 한 줄. 실적 없는 설비는 빠집니다',
+  },
   getDashboardAiLines: {
     no: 29, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
     name: '라인별 현황 목록', method: 'GET', path: '/api/v1/dashboard/ai/lines',

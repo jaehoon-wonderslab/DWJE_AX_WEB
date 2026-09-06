@@ -37,18 +37,29 @@ const nextSlotOf = (label) => {
  */
 function buildHourly(trend) {
   const slots = Array.isArray(trend?.slots) ? trend.slots : [];
+  const bucket = trend?.bucket || null;
+  /**
+   * 시간대 매트릭스는 **시간 단위로 올 때만** 그립니다
+   *
+   * 서버가 구간 길이에 따라 칸을 접습니다 — 7일 이하는 2시간, 8~120일은 일, 그 위는 주.
+   * 일 단위로 접힌 값을 12칸에 억지로 늘어놓으면 없는 시간대 구분을 만들어 내게 됩니다.
+   * 접혔을 때는 매트릭스를 내지 않고 왜 없는지 화면이 밝힙니다(`bucket.note`).
+   */
+  const hourly = bucket ? bucket.unit === 'HOUR' : slots.some((x) => String(x.slot || '').includes('시'));
 
   const cells = slots.map((x) => {
-    const [day, label] = String(x.slot || '').split(' ');
+    const raw = String(x.slot || '');
+    const sp = raw.indexOf(' ');
+    const day = sp > 0 ? raw.slice(0, sp) : raw;
+    const label = sp > 0 ? raw.slice(sp + 1) : null;
     const input = x.inputQty == null ? null : Number(x.inputQty);
     const ok = x.okQty == null ? null : Number(x.okQty);
-    const rate = x.defectRate == null ? null : Number(x.defectRate);
     return {
       date: day,
       slotLabel: label,
-      nextSlot: nextSlotOf(label),
-      timelineLabel: x.slot,
-      defectRate: rate,
+      nextSlot: label ? nextSlotOf(label) : null,
+      timelineLabel: raw,
+      defectRate: x.defectRate == null ? null : Number(x.defectRate),
       inputQty: input,
       okQty: ok,
       ngQty: x.ngQty == null ? null : Number(x.ngQty),
@@ -60,10 +71,12 @@ function buildHourly(trend) {
 
   // 실적이 있는 날만 줄로 세웁니다 — 서버가 안 준 날은 그날 생산이 없었다는 뜻입니다
   const byDate = new Map();
-  cells.forEach((c) => {
-    if (!byDate.has(c.date)) byDate.set(c.date, new Map());
-    byDate.get(c.date).set(c.slotLabel, c);
-  });
+  if (hourly) {
+    cells.forEach((c) => {
+      if (!byDate.has(c.date)) byDate.set(c.date, new Map());
+      byDate.get(c.date).set(c.slotLabel, c);
+    });
+  }
 
   const rows = [...byDate.entries()].map(([day, slotMap]) => {
     const got = [...slotMap.values()];
@@ -91,7 +104,9 @@ function buildHourly(trend) {
 
   return {
     barData: cells.filter((c) => c.defectRate != null).map((c) => ({ l: c.timelineLabel, v: c.defectRate })),
-    pivotMatrix: { slots: SLOT_LABELS, rows, dateCount: rows.length, filledSlots: cells.length },
+    pivotMatrix: hourly ? { slots: SLOT_LABELS, rows, dateCount: rows.length, filledSlots: cells.length } : null,
+    bucket,
+    period: trend?.period || null,
     // 서버에 등록된 불량률 목표가 없습니다. 화면이 색을 나누는 기준은 화면이 정한 값입니다.
     target: trend?.target ?? null,
     unit: '%',

@@ -63,94 +63,48 @@ export async function loadModelOptions() {
 }
 
 /**
- * 각 제품의 공정 및 프레스 기기별 3depth 불량 상세 내역을 생성합니다.
+ * 3단계(설비별) 행 — **서버 실측만** 씁니다
+ *
+ * 2026-09-06 이전에는 `makeProcessChildren` 이 이 자리를 통째로 지어냈습니다.
+ * 제품명 해시로 설비 코드를 만들고(`MT-0{hash % 15 + 1}`), 수량을 55/35/10,
+ * 불량을 60/28/12 로 쪼개고, 공장은 프레스 번호가 10 이하면 제1공장이라 적었습니다.
+ *
+ * 균등 분배라 세 줄이 비슷한 불량률로 나오는데, 실제는 정반대입니다 —
+ * 2026-09-03 D53BM(C)-F 는 설비 9대 중 MN-077 만 65.25% 이고 나머지는 0.0~0.9% 입니다.
+ * 설비별로 보는 이유가 그 편차를 찾으려는 것인데 지어낸 값이 그걸 지우고 있었고,
+ * 엑셀에도 그대로 나갔습니다.
+ *
+ * 공장은 서버가 준 `plantNm` 만 씁니다. 620행 중 126행만 채워지고(작업장 이름에
+ * 공장이 적힌 곳) 나머지는 빈 칸입니다 — 설비 번호로 가르지 않습니다.
+ *
+ * @param {Array} rows `/dashboard/ai/line-products` 의 lines[] 중 그 제품 것만
+ * @param {string} date 일자
  */
-function makeProcessChildren(productName, totalQty, ngQty, date) {
-  const pName = String(productName || '기타');
-  let hash = 0;
-  for (let i = 0; i < pName.length; i++) hash = (hash * 31 + pName.charCodeAt(i)) >>> 0;
-
-  const pressNum1 = String((hash % 15) + 1).padStart(2, '0');
-  const pressNum2 = String(((hash + 5) % 15) + 1).padStart(2, '0');
-  const aoiNum = String((hash % 8) + 1).padStart(2, '0');
-
-  // 프레스 주력 기기: 55%, 프레스 보조 기기: 35%, AOI 검사 공정: 10%
-  const q1 = Math.round(totalQty * 0.55);
-  const q2 = Math.round(totalQty * 0.35);
-  const q3 = Math.max(0, totalQty - q1 - q2);
-
-  // 불량 수량 분배: 프레스 주력 60%, 프레스 보조 28%, AOI 12%
-  const ng1 = Math.round(ngQty * 0.60);
-  const ng2 = Math.round(ngQty * 0.28);
-  const ng3 = Math.max(0, ngQty - ng1 - ng2);
-
-  const r1 = q1 > 0 ? (ng1 / q1) * 100 : 0;
-  const r2 = q2 > 0 ? (ng2 / q2) * 100 : 0;
-  const r3 = q3 > 0 ? (ng3 / q3) * 100 : 0;
-
-  const plant1 = Number(pressNum1) <= 10 ? '제1공장' : '제2공장';
-  const plant2 = Number(pressNum2) <= 10 ? '제1공장' : '제3공장';
-  const plant3 = '제1공장';
-
-  return [
-    {
+function equipmentRows(rows, date) {
+  return rows.map((x) => {
+    const eqpt = x.eqptNm ? `${x.eqptCd} (${x.eqptNm})` : x.eqptCd;
+    const proc = x.processNm || x.processId || '';
+    return {
       date: date || '',
-      period: `MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
-      productNm: pName,
-      parentProductNm: pName,
-      plantNm: plant1,
-      processNm: '프레스 공정',
-      equipNm: `MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
-      facility: `${plant1} · 프레스 공정 · MT-0${pressNum1} (프레스 ${pressNum1}호기)`,
+      period: eqpt,
+      productNm: x.productNm || x.product || '',
+      parentProductNm: x.product || '',
+      plantNm: x.plantNm || '',
+      processNm: proc,
+      equipNm: eqpt,
+      facility: [x.plantNm, proc, eqpt].filter(Boolean).join(' · '),
       isGrandChild: true,
       depth: 3,
-      inputQty: q1,
-      okQty: Math.max(0, q1 - ng1),
-      ngQty: ng1,
-      defectRate: Number(r1.toFixed(2)),
+      inputQty: x.qty ?? null,
+      okQty: x.okQty ?? null,
+      ngQty: x.ngQty ?? null,
+      defectRate: x.defectRate ?? null,
+      // 이 응답은 설비 가동률·비가동 시간을 주지 않습니다 — 0 으로 채우지 않습니다
       uptimeRate: null,
       downtimeMin: null,
       _children: [],
-    },
-    {
-      date: date || '',
-      period: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
-      productNm: pName,
-      parentProductNm: pName,
-      plantNm: plant2,
-      processNm: '프레스 공정',
-      equipNm: `MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
-      facility: `${plant2} · 프레스 공정 · MT-0${pressNum2} (프레스 ${pressNum2}호기)`,
-      isGrandChild: true,
-      depth: 3,
-      inputQty: q2,
-      okQty: Math.max(0, q2 - ng2),
-      ngQty: ng2,
-      defectRate: Number(r2.toFixed(2)),
-      uptimeRate: null,
-      downtimeMin: null,
-      _children: [],
-    },
-    {
-      date: date || '',
-      period: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
-      productNm: pName,
-      parentProductNm: pName,
-      plantNm: plant3,
-      processNm: 'AOI 검사',
-      equipNm: `AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
-      facility: `${plant3} · AOI 검사 · AOI-0${aoiNum} (AOI ${aoiNum}호기)`,
-      isGrandChild: true,
-      depth: 3,
-      inputQty: q3,
-      okQty: Math.max(0, q3 - ng3),
-      ngQty: ng3,
-      defectRate: Number(r3.toFixed(2)),
-      uptimeRate: null,
-      downtimeMin: null,
-      _children: [],
-    },
-  ];
+    };
+  }).sort((a, b) => (b.defectRate || 0) - (a.defectRate || 0));
 }
 
 /**
@@ -186,27 +140,38 @@ export async function loadResults({ from, to, unit, modelCd, page, size }) {
         };
         try {
           if (row.period && /^\d{4}-\d{2}-\d{2}$/.test(row.period)) {
-            const prodRes = await unwrap(
-              dashboardService.getDashboardProcessProductProduction({ date: row.period }),
-              { items: [] }
-            );
+            /**
+             * 일자마다 **두 번만** 부릅니다 — 제품 소계와 설비별 실적
+             *
+             * 3단계를 (일자 × 제품)마다 부르면 한 쪽에 수백 번이 됩니다. 설비별 실적을
+             * 일자 단위로 한 번 받아 제품으로 묶습니다(2026-09-03 기준 620행).
+             */
+            const [prodRes, lineRes] = await Promise.all([
+              unwrap(dashboardService.getDashboardProcessProductProduction({ date: row.period }), { items: [] }),
+              unwrap(dashboardService.getDashboardAiLineProducts({ date: row.period, size: 0 }), { lines: [] }),
+            ]);
             const prodList = prodRes?.items || [];
             if (Array.isArray(prodList) && prodList.length > 0) {
-              const children = prodList.map((p) => {
-                const totalQty = p.qty || 0;
-                const defRate = p.defectRate != null ? Number(p.defectRate) : 0;
-                const ng = Math.round(totalQty * (defRate / 100));
-                const ok = Math.max(0, totalQty - ng);
-                const prodName = p.product || p.productName || '기타';
+              // 제품 코드로 묶습니다 — 두 응답이 같은 식(coalesce(model_cd, item_cd))을 씁니다
+              const byProduct = new Map();
+              (lineRes?.lines || lineRes?.items || []).forEach((x) => {
+                const key = x.product || '';
+                if (!byProduct.has(key)) byProduct.set(key, []);
+                byProduct.get(key).push(x);
+              });
 
-                // 3depth: 각 제품이 어떤 프레스 기기 또는 공정에서 불량인지 상세 분배
-                const grandChildren = makeProcessChildren(prodName, totalQty, ng, row.period);
+              const children = prodList.map((p) => {
+                const code = p.product || p.productName || '기타';
+                // okQty·ngQty 를 서버가 직접 줍니다 — qty × 불량률로 되짚던 것을 걷어냈습니다
+                const totalQty = p.qty ?? null;
+                const ng = p.ngQty ?? null;
+                const ok = p.okQty ?? null;
 
                 return {
                   date: row.period,
-                  period: prodName,
-                  productNm: prodName,
-                  parentProductNm: prodName,
+                  period: code,
+                  productNm: code,
+                  parentProductNm: code,
                   plantNm: '',
                   processNm: '',
                   equipNm: '',
@@ -216,10 +181,10 @@ export async function loadResults({ from, to, unit, modelCd, page, size }) {
                   inputQty: totalQty,
                   okQty: ok,
                   ngQty: ng,
-                  defectRate: defRate,
+                  defectRate: p.defectRate ?? null,
                   uptimeRate: null,
                   downtimeMin: null,
-                  _children: grandChildren,
+                  _children: equipmentRows(byProduct.get(code) || [], row.period),
                 };
               });
               return { ...baseRow, _children: children };
