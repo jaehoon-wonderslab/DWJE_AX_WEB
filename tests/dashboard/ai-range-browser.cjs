@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { open } = require('../lib/browser');
+const { open, WEB } = require('../lib/browser');
 (async () => {
   const { browser, page } = await open();
   const errors = [], summaries = [], aiRequests = [];
@@ -20,7 +20,7 @@ const { open } = require('../lib/browser');
     return (await response.json()).data;
   }
   try {
-    await page.goto('http://localhost:8081/dashboard/ai'); await ready();
+    await page.goto(`${WEB}/dashboard/ai`); await ready();
     assert.equal(aiRequests.length, 0, 'normal page load must not invoke the model');
     for (const [previous, next] of [['최근 7일', '최근 4주'], ['최근 4주', '최근 3개월'], ['최근 3개월', '직접 선택']]) {
       const count = summaries.length;
@@ -33,6 +33,18 @@ const { open } = require('../lib/browser');
       assert.ok((await page.locator('body').innerText()).includes('긴 기간은 일 단위로 묶어 표시합니다.'));
     }
     const dates = page.getByPlaceholder('YYYY-MM-DD');
+    for (const [from, to, message] of [
+      ['', '2026-09-04', '시작일과 종료일을 올바른 날짜로 입력해 주세요.'],
+      ['2026-02-30', '2026-03-01', '시작일과 종료일을 올바른 날짜로 입력해 주세요.'],
+      ['2026-01-01', '2026-04-04', '조회 기간은 시작일과 종료일 사이 최대 92일까지 가능합니다.'],
+    ]) {
+      await dates.nth(0).fill(from);
+      await dates.nth(1).fill(to);
+      const before = summaries.length;
+      await page.getByText('조회', { exact: true }).click();
+      await page.getByText(message, { exact: true }).waitFor();
+      assert.equal(summaries.length, before, 'invalid dates must not reach the API');
+    }
     await dates.nth(0).fill('2026-09-05');
     await dates.nth(1).fill('2026-09-04');
     const count = summaries.length;
@@ -52,6 +64,11 @@ const { open } = require('../lib/browser');
     await query();
     assert.equal(aiRequests.length, 1, 'regular requery must not restart AI');
     await page.getByText('AI 분석을 요청하지 않았습니다.', { exact: true }).first().waitFor();
+    await page.getByText('직접 선택', { exact: true }).click();
+    await page.getByText('최근 7일', { exact: true }).click();
+    await query();
+    await page.getByText('일자 × 시간대별 불량률 매트릭스', { exact: true }).waitFor();
+    assert.equal(aiRequests.length, 1, 'returning to daily range must not restart AI');
     await page.screenshot({ path: '/tmp/dwje-ai-range-fixed.png' });
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ passed: true, presets: ['4 weeks', '3 months', 'custom'], dayQty: day.todayQty, modelOfflineAllowed: true, errors }));
