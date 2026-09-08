@@ -53,6 +53,14 @@ export const useUiStore = create((set, get) => ({
   openDrawer: (config) => set({ drawer: config }),
   closeDrawer: () => set({ drawer: null }),
 
+  // ── 전역 AI 채팅 패널 ──────────────────────────────────
+  aiChatOpen: false,
+  aiChatSize: 'compact', // compact | medium | full
+  toggleAiChat: () => set((state) => ({ aiChatOpen: !state.aiChatOpen })),
+  openAiChat: () => set({ aiChatOpen: true }),
+  closeAiChat: () => set({ aiChatOpen: false }),
+  setAiChatSize: (aiChatSize) => set({ aiChatSize }),
+
   // ── 전역 API 로딩 스피너 ────────────────────────────────
   apiLoadingCount: 0,
   startApiLoading: () => set((state) => ({ apiLoadingCount: state.apiLoadingCount + 1 })),
