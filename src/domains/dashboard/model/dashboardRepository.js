@@ -128,7 +128,9 @@ export async function loadAiDashboard(param) {
 
   const data = await unwrapAll({
     summary: dashboardService.getDashboardAiSummary(baseParams),
-    trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h' }),
+    // 구성 카드와 같은 범위의 모든 불량 유형을 계열로 받습니다. 기본값(상위 2종)을
+    // 쓰면 구성 카드에는 있지만 추이 범례에는 없는 유형이 생깁니다.
+    trend: dashboardService.getDashboardAiDefectTrend({ ...baseParams, from, to, interval: '2h', topN: 'all' }),
     lineProduction: dashboardService.getDashboardAiLineProduction(baseParams),
     qualityIndex: dashboardService.getDashboardAiQualityIndex(baseParams),
     composition: dashboardService.getDashboardAiDefectComposition(baseParams),
@@ -195,8 +197,9 @@ export async function loadAiDashboard(param) {
    * 예전에는 총 불량수에 0.48 · 0.32 · 0.20 을 곱해 세 유형으로 나눴습니다. 유형 이름만
    * 서버 것이고 수량은 지어낸 비율이었습니다. 서버가 유형별 실측 계열을 줍니다.
    *
-   * 다만 이 계열은 **구간 합계 상위 2종**입니다(`seriesScope`). 합이 총 불량이 아니므로
-   * 합계로 쓰지 않습니다 — 총 불량은 `slots[].ngQty` 쪽입니다.
+   * 유형별 계열을 전량(`topN=all`) 요청합니다. 합계가 총 불량과 정확히 일치하는지는
+   * 유형 미상·경계 판정 등의 집계 범위에 따라 다를 수 있으므로 총 불량은
+   * `slots[].ngQty`를 기준으로 봅니다.
    */
   const rawTrend = splitRateAndCounts(data.trend);
   const trend = {
@@ -215,6 +218,18 @@ export async function loadAiDashboard(param) {
     summary: fillRates(data.summary),
     lineProduction: data.lineProduction && { ...data.lineProduction, lines: fillRatesAll(data.lineProduction.lines) },
   };
+}
+
+/** 매트릭스의 선택 구간에 발생한 불량 유형 전량을 가져옵니다. */
+export function fetchAiDefectTrendSlotDetails({ cell, from, to, plant, interval = '2h' }) {
+  return unwrap(dashboardService.getDashboardAiDefectTrendSlotDetails({
+    slot: cell?.timelineLabel,
+    date: cell?.date,
+    from,
+    to,
+    plant,
+    interval,
+  }), { items: [] });
 }
 
 /**

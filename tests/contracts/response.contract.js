@@ -29,8 +29,12 @@ module.exports = (f) => ({
     fields: ['todayQty', 'okQty', 'ngQty', 'defectRate'],
   },
   '/dashboard/ai/defect-trend': {
-    params: { date: f.baseDate, interval: '2h' },
+    params: { date: f.baseDate, interval: '2h', topN: 'all' },
     fields: ['labels', 'series[].name', 'series[].data'],
+  },
+  '/dashboard/ai/defect-trend/slot-details': {
+    params: { date: f.baseDate, slot: '08:00', interval: '2h' },
+    fields: ['slot', 'totalNgQty', 'items[].rank', 'items[].defectType', 'items[].ngQty', 'items[].ratio', 'items[].recordCount', 'items[].itemCds', 'items[].processIds', 'items[].firstAt', 'items[].lastAt'],
   },
   '/dashboard/ai/defect-composition': {
     params: { date: f.baseDate },

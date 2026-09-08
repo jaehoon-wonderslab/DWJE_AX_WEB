@@ -11,6 +11,7 @@ import { toast } from '@shared/stores/useUiStore';
 import { API_BASE_URL } from '@services/api/client';
 import * as systemService from '@services/api/systemService';
 import { useAuthStore } from '@shared/stores/useAuthStore';
+import { HOME_PATH, HOME_SCREEN_ID, screenIdOf } from '@shared/navigation/routes';
 
 const isWeb = Platform.OS === 'web' && typeof document !== 'undefined';
 
@@ -37,20 +38,37 @@ function saveBlob(blob, filename) {
 }
 
 /**
+ * 지금 보고 있는 화면의 ID — 내려받기 기록의 `reportId` 로 보냅니다.
+ *
+ * 화면 코드가 화면 ID 를 일일이 넘기지 않아도 되도록 URL 에서 알아냅니다.
+ * `screenIdOf` 는 모르는 경로를 홈(dash-ai)으로 돌려주므로, 홈 경로가 아닌데 홈이 나오면
+ * "모름" 으로 봅니다 — 엉뚱한 화면에 기록을 붙이는 것보다 비워 두는 편이 낫습니다.
+ */
+function currentScreenId() {
+  if (!isWeb) return undefined;
+  const path = window.location?.pathname || '';
+  const id = screenIdOf(path);
+  if (id === HOME_SCREEN_ID && !path.startsWith(HOME_PATH)) return undefined;
+  return id;
+}
+
+/**
  * 다운로드 이력을 서버에 기록합니다. (SY-14)
  *
- * 서버가 받는 키는 `reportNm` · `rowCnt` · `blindCnt` 입니다.
+ * 서버가 받는 키는 `reportId` · `reportNm` · `rowCnt` · `blindCnt` 입니다.
  * 예전에는 `reportName` · `rowCount` · `blindCount` 로 보내서 **이름과 건수가 버려진 채**
  * 기록되고 있었습니다. 실패를 `.catch(() => {})` 로 삼키고 있어 아무도 몰랐습니다.
+ * 화면 ID 도 `menuId` 라는 이름으로 보내 서버가 버렸습니다 — 그래서 이력의 「화면」 칸이 늘 비었습니다.
  * 호출부 시그니처는 그대로 두고 여기서만 서버 이름으로 바꿉니다.
  *
- * @param {object} log { reportName, format, rowCount, blindCount, menuId }
+ * @param {object} log { reportName, format, rowCount, blindCount, menuId } — menuId 를 안 주면 현재 URL 의 화면으로
  */
 function logDownload({ reportName, format, rowCount, blindCount, menuId }) {
   // 이력 기록은 부가 동작이라 사용자 흐름을 막지 않습니다.
   // 다만 조용히 삼키지는 않습니다 — 그래서 이 버그를 오래 못 봤습니다.
+  const reportId = menuId || currentScreenId();
   systemService
-    .postDownloadLogs({ reportNm: reportName, format, rowCnt: rowCount, blindCnt: blindCount, menuId })
+    .postDownloadLogs({ reportId, reportNm: reportName, format, rowCnt: rowCount, blindCnt: blindCount })
     .then((res) => {
       if (!res?.success) console.warn('[내려받기 이력] 기록 실패:', res?.message, res?.error?.field || '');
     })

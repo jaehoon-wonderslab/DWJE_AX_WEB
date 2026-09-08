@@ -2,28 +2,42 @@
  * [View] SY-15 데이터 연동 이력 (경로: /system/sync-history)
  *
  * 사내 MES(MSSQL) → AX 플랫폼(PostgreSQL) 이관 작업의 실행 이력입니다.
- * 사용 API 8건 — /api/v1/sync/*
+ * 사용 API — /api/v1/sync/*
+ *
+ * ■ 표는 모두 Tabulator 입니다
+ * 이관 작업·드리프트는 어느 테이블에서 실패가 몰리는지 정렬해 보는 표라, 머리글 정렬·열 폭 조절이
+ * 되는 `TabulatorGrid` 로 그립니다. 행 자료는 서버 응답을 그대로 두고(정렬은 원본 값으로 해야
+ * 맞습니다) 보이는 모양만 formatter 에서 만듭니다. 열 정의는 한 번만 만들고 동작(재실행·상세)은
+ * ref 로 읽습니다 — 열이 바뀌면 표가 통째로 다시 만들어져 사용자가 잡아 둔 정렬이 풀립니다.
  */
-import React from 'react';
-import { Text, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, Filters, KeyValue, Loading, Pagination, SelectField, SourceNote, StatCard, Table, openConfirmModal, openFormModal } from '@shared/components/ui';
+import { Badge, Button, Card, Filters, KeyValue, Loading, Pagination, SelectField, SourceNote, StatCard, TabulatorGrid, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { comma } from '@shared/utils/formatUtil';
+import { jobStateTone, runStateTone, secText } from '../controller/useSyncHistoryController';
 
-/** 엔진 정기 배치 시각 (엔진 설정과 맞춰 둡니다) */
-const BATCH_HOUR = 8;
+/**
+ * 스키마 드리프트 · 연동 매핑 카드는 숨김 (2026-09-08 요청)
+ *
+ * 지우지 않고 끈 것입니다 — 드리프트 상세·해소 처리와 매핑 표는 그대로 있어 true 로 바꾸면 돌아옵니다.
+ * 연동 매핑 자료(maps)는 숨긴 카드를 되살릴 때 그대로 쓰도록 프롭으로 계속 받습니다.
+ */
+const SHOW_DRIFT_CARD = false;
+const SHOW_MAP_CARD = false;
 
 export default function SyncHistoryView({
-  loading, items, hasRunning, summary, maps, policy, filters, setState, setKind, reload,
-  exportExcel, loadJob, retryJob, runManual, testConnection, runs = [],
+  loading, items, hasRunning, summary, maps, filters, setState, reload,
+  exportExcel, loadJob, retryJob, runs = [],
   driftSummary, drifts, driftSide, setDriftSide, showResolvedDrift, setShowResolvedDrift, resolveDrift, paging, itemsMeta,
+  /** 상태 코드(DONE…) → 표시명(완료…). 공통코드가 아직 안 왔으면 코드를 그대로 돌려줍니다 */
+  stateLabel = (v) => v,
 }) {
   const s = useCommonStyles();
   const openModal = useUiStore((state) => state.openModal);
-  const toast = useUiStore((state) => state.toast);
 
   /** 실패 건 재실행 확인 */
   const retry = (row) =>
@@ -70,7 +84,7 @@ export default function SyncHistoryView({
               ],
               ['실행 경로', m.triggeredBy === 'MANUAL' ? '수동 예약' : '정기 배치'],
               ['재시도', m.retryCnt ? `${m.retryCnt} 회` : '—'],
-              ['상태', m.state],
+              ['상태', stateLabel(m.state)],
             ]}
           />
           {/* 실패 사유가 없으면 사용자는 왜 FAIL 인지 알 수 없습니다 */}
@@ -84,78 +98,6 @@ export default function SyncHistoryView({
           {m.ngRows ? <Button label="재실행" variant="primary" onPress={() => { close(); retry(m); }} /> : null}
         </>
       ),
-    });
-  };
-
-  /**
-   * 수동 이관 예약
-   *
-   * 서버가 받는 것은 `srcTables`(배열) · `kind`(full|incremental) · `scheduledAt` 입니다.
-   * 예전에는 폼 키(table · runAt)와 표시명(증분 · 지금 실행)이 그대로 나가 400 이 났습니다.
-   *
-   * 증분은 기준 컬럼(cdcColumn)이 있는 테이블만 됩니다. 13개 중 4개뿐이라
-   * 없는 테이블은 선택지에서 빼 두어야 사용자가 400 을 만나지 않습니다.
-   */
-  const openManualForm = () =>
-    openFormModal({
-      title: '수동 이관 예약',
-      sub: '정기 배치 외에 지금 또는 다음 배치에 이관을 실행합니다',
-      initial: { srcTable: maps[0]?.srcTable, kind: 'full', now: true },
-      fields: [
-        {
-          key: 'srcTable',
-          label: '대상 테이블',
-          type: 'select',
-          required: true,
-          full: true,
-          // 증분은 기준 컬럼이 있는 표만 됩니다 (13개 중 3개). 선택지에 미리 밝혀 둡니다
-          options: maps.map((x) => ({
-            value: x.srcTable,
-            label: `${x.srcTable} · ${x.cdcColumn ? '증분·전체' : '전체만'}`,
-          })),
-        },
-        { key: 'kind', label: '이관 방식', type: 'select', options: [{ value: 'full', label: '전체' }, { value: 'incremental', label: '증분' }] },
-        { key: 'now', label: '실행 시점', type: 'radio', full: true, options: [{ value: true, label: '지금 실행' }, { value: false, label: `다음 배치 (${BATCH_HOUR}:00)` }] },
-      ],
-      note: `증분은 기준 컬럼이 있는 표(${maps.filter((x) => x.cdcColumn).map((x) => x.srcTable).join(' · ') || '없음'})에서만 됩니다. 전체 이관은 대상 테이블을 비우고 다시 채우므로 조회가 잠시 느려질 수 있습니다.`,
-      submitLabel: '실행',
-      onSubmit: async (v) => {
-        const picked = maps.find((x) => x.srcTable === v.srcTable);
-        if (v.kind === 'incremental' && !picked?.cdcColumn) {
-          toast(`${v.srcTable} 은(는) 증분 기준 컬럼이 없어 전체 이관만 됩니다`);
-          return false;
-        }
-        const res = await runManual({
-          srcTables: [v.srcTable],
-          kind: v.kind,
-          // '지금 실행' 이면 시각을 보내지 않습니다 (서버가 현재 시각으로 처리합니다)
-          ...(v.now ? {} : { scheduledAt: nextBatchAt() }),
-        });
-        return res.ok;
-      },
-    });
-
-  /** 연동 테스트 */
-  const runConnectionTest = async () => {
-    const res = await testConnection();
-    openModal({
-      title: '연동 테스트',
-      sub: 'MES · AX · 사업관리시스템 연결 점검',
-      render: () => (
-        <View>
-          {(res.data?.results || []).map((r) => (
-            <View key={r.target} style={s.kvRow}>
-              <Text style={[s.kvKey, { width: 220 }]}>{r.target}</Text>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                <Badge tone={r.result === '성공' ? 'green' : 'red'}>{r.result}</Badge>
-                <Text style={s.textXs}>{`${r.elapsedMs} ms`}</Text>
-              </View>
-            </View>
-          ))}
-          <SourceNote>{res.message}</SourceNote>
-        </View>
-      ),
-      footer: (close) => <Button label="닫기" onPress={close} />,
     });
   };
 
@@ -203,149 +145,164 @@ export default function SyncHistoryView({
       onSubmit: async (v) => (await resolveDrift(row.driftId, v.note)).ok,
     });
 
+  /**
+   * 표 안 버튼이 부르는 동작 — 열 정의는 한 번만 만들므로(아래 useMemo) 최신 함수를 ref 로 읽습니다.
+   * 열 정의를 렌더마다 새로 만들면 Tabulator 가 표를 다시 짓고, 사용자가 잡아 둔 정렬이 풀립니다.
+   */
+  const act = useRef({});
+  // stateLabel 은 공통코드가 도착하면 바뀌므로 함께 ref 로 읽습니다 (열 정의는 그대로)
+  act.current = { retry, showDetail, resolveDriftRow, stateLabel };
+
+  /**
+   * 엔진 실행 이력 — 이관 작업 이력과 단위가 다릅니다.
+   * 작업 이력은 '표 1건의 이관', 이 표는 '엔진 1회 실행' 입니다.
+   * 원본에 접속하지 못해 표 작업까지 가지 못한 실행은 작업 이력에 한 건도 안 남아,
+   * 이 표가 없으면 "돌린 적 없는" 것처럼 보입니다.
+   */
+  const runColumns = useMemo(() => [
+    { title: '실행 ID', field: 'runId', minWidth: 180, formatter: monoFmt },
+    {
+      // 모의 실행은 상태가 '완료' 라도 아무것도 옮기지 않았습니다.
+      // 상태로는 구분되지 않으므로(모의인데 점검 실패인 경우도 있습니다) 따로 표시합니다.
+      title: '방식',
+      field: 'modeNm',
+      width: 110,
+      formatter: (cell) => `${esc(dash(cell.getValue()))}${cell.getData().dryRun ? ` ${tag('모의', 'amber')}` : ''}`,
+    },
+    { title: '시작', field: 'startedAt', minWidth: 150, formatter: monoFmt },
+    { title: '소요', field: 'durationSec', width: 76, hozAlign: 'right', sorter: 'number', formatter: (cell) => num(cell.getValue() == null ? '—' : `${cell.getValue()}초`) },
+    { title: '대상 테이블', field: 'tableCnt', width: 96, hozAlign: 'right', sorter: 'number', formatter: numFmt },
+    { title: '성공', field: 'successCnt', width: 70, hozAlign: 'right', sorter: 'number', formatter: numFmt },
+    { title: '실패', field: 'failCnt', width: 70, hozAlign: 'right', sorter: 'number', formatter: (cell) => (cell.getValue() ? tag(comma(cell.getValue()), 'red') : '—') },
+    {
+      // 모의 실행(dry-run)은 '성공 13' 인데 옮긴 행이 0 입니다. 실제 행수를 그대로 보여 줍니다.
+      title: '이관 행수',
+      field: 'okRows',
+      width: 100,
+      hozAlign: 'right',
+      sorter: 'number',
+      formatter: (cell) => num(comma(cell.getValue() ?? 0), !cell.getValue()),
+    },
+    {
+      title: '상태',
+      field: 'stateNm',
+      width: 96,
+      // 색은 서버 코드(DONE·PARTIAL·FAIL·PREFLIGHT_FAIL…)로 정합니다 — 표시명(stateNm)은 그대로 보여 줍니다
+      formatter: (cell) => { const r = cell.getData(); return tag(r.stateNm || r.state, runStateTone(r.state)); },
+    },
+    { title: '메모', field: 'message', minWidth: 220, widthGrow: 2 },
+  ], []);
+
+  const jobColumns = useMemo(() => [
+    { title: '작업 ID', field: 'jobId', minWidth: 150, formatter: monoFmt },
+    { title: '원본 (MSSQL)', field: 'srcTable', minWidth: 190, widthGrow: 2, formatter: monoFmt },
+    { title: '대상 (PostgreSQL)', field: 'dstTable', minWidth: 150, formatter: monoFmt },
+    { title: '방식', field: 'kind', width: 64, hozAlign: 'center' },
+    {
+      title: '시작',
+      // 서버 필드는 startedAt 입니다 (모의 자료는 startAt). 예전에는 startAt 만 읽어 실서버에서 이 열이 늘 비어 있었습니다
+      field: 'startedAt',
+      minWidth: 150,
+      // 예약 대기 작업은 아직 시작하지 않았으므로 예약 시각을 보여줍니다
+      formatter: (cell) => { const r = cell.getData(); return mono(r.startedAt || r.startAt || (r.scheduledAt ? `예약 ${r.scheduledAt}` : '—')); },
+    },
+    // 소요는 초 단위 숫자로 옵니다 — 엑셀 다운로드와 같은 표기(secText)로 맞춥니다
+    { title: '소요', field: 'duration', width: 84, hozAlign: 'right', sorter: 'number', formatter: (cell) => num(secText(cell.getValue())) },
+    { title: '대상 건수', field: 'rows', width: 100, hozAlign: 'right', sorter: 'number', formatter: numFmt },
+    { title: '성공', field: 'okRows', width: 100, hozAlign: 'right', sorter: 'number', formatter: numFmt },
+    { title: '실패', field: 'ngRows', width: 84, hozAlign: 'right', sorter: 'number', formatter: (cell) => (cell.getValue() ? tag(comma(cell.getValue()), 'red') : '—') },
+    {
+      title: '상태',
+      field: 'state',
+      width: 106,
+      // 글자는 공통코드 표시명(DONE → 완료), 색은 코드·표시명 둘 다 받는 jobStateTone 으로 — 예약 대기는 진행 중과 구분해 주황
+      formatter: (cell) => tag(act.current.stateLabel(cell.getValue()), jobStateTone(cell.getValue())),
+    },
+    {
+      title: '관리',
+      field: 'action',
+      width: 92,
+      headerSort: false,
+      formatter: (cell) => (cell.getData().ngRows ? btn('재실행', true) : btn('상세')),
+      // 버튼을 눌렀을 때만 — 칸의 빈 자리를 누른 것은 행 클릭(상세)이 받습니다
+      cellClick: (e, cell) => { if (!e.target?.closest?.('button')) return; const r = cell.getData(); if (r.ngRows) act.current.retry(r); else act.current.showDetail(r); },
+    },
+  ], []);
+
+  const driftColumns = useMemo(() => [
+    { title: '발견 위치', field: 'side', width: 130, formatter: (cell) => esc(driftSideLabel(cell.getValue())) },
+    { title: '구분', field: 'kind', width: 84, formatter: (cell) => tag(driftKindLabel(cell.getValue()), cell.getValue() === 'NEW' ? 'blue' : 'red') },
+    { title: '테이블', field: 'objectName', minWidth: 260, widthGrow: 2, formatter: monoFmt },
+    { title: '이관 정의', field: 'mapId', width: 96, hozAlign: 'center', formatter: (cell) => (cell.getValue() ? `map ${esc(cell.getValue())}` : '없음') },
+    { title: '최초 발견', field: 'firstSeenAt', minWidth: 150, formatter: monoFmt },
+    { title: '최종 발견', field: 'lastSeenAt', minWidth: 150, formatter: monoFmt },
+    {
+      title: '발견',
+      field: 'detectCnt',
+      width: 78,
+      hozAlign: 'right',
+      sorter: 'number',
+      // 발견 횟수가 많을수록 오래 방치된 건이므로 눈에 띄게 표시합니다
+      formatter: (cell) => (cell.getValue() >= 3 ? tag(`${comma(cell.getValue())}회`, 'red') : num(`${comma(cell.getValue())}회`)),
+    },
+    {
+      title: '관리',
+      field: 'action',
+      width: 104,
+      headerSort: false,
+      formatter: (cell) => (cell.getData().resolved ? tag('해소', 'green') : btn('해소 처리')),
+      cellClick: (e, cell) => { const r = cell.getData(); if (!r.resolved && e.target?.closest?.('button')) act.current.resolveDriftRow(r); },
+    },
+  ], []);
+
+  const mapColumns = useMemo(() => [
+    { title: '원본 (MSSQL)', field: 'srcTable', minWidth: 200, widthGrow: 2, formatter: monoFmt },
+    { title: '대상 (PostgreSQL)', field: 'dstTable', minWidth: 160, formatter: monoFmt },
+    { title: '방식', field: 'kind', width: 70, hozAlign: 'center' },
+    { title: '기준 컬럼', field: 'keyColumns', minWidth: 130, formatter: monoFmt },
+    { title: '주기', field: 'schedule', minWidth: 140 },
+  ], []);
+
   if (loading) return <Loading />;
 
-  // 미해소 드리프트 건수 — KPI 카드와 안내 문구가 함께 씁니다
+  // 미해소 드리프트 건수 — (숨긴) 드리프트 카드의 부제가 씁니다
   const openDriftCnt = driftSummary?.openCnt ?? 0;
 
   return (
     <View>
+      {/* 연동 테스트 · 수동 이관 버튼은 2026-09-08 요청으로 뺐습니다 — API(connection-test · jobs/manual)는 컨트롤러에 남아 있습니다 */}
       <PageHead
         title="데이터 연동 이력"
-        desc="사내 MES(MSSQL) 에서 AX 플랫폼(PostgreSQL) 으로 옮기는 이관 작업의 실행 이력입니다. 실패 건은 원인 확인 후 재실행할 수 있습니다."
-        actions={
-          <>
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />
-            <Button label="연동 테스트" size="sm" icon="link" onPress={runConnectionTest} />
-            <Button label="수동 이관" size="sm" variant="primary" icon="play" onPress={openManualForm} />
-          </>
-        }
+        desc="사내 MES(MSSQL) 에서 AX 플랫폼(PostgreSQL) 으로 옮기는 이관 작업의 실행 이력입니다."
+        actions={<Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />}
       />
 
-      <Grid cols={5}>
-        <StatCard label="금일 이관 건수" value={comma(summary?.todayRows ?? 0)} unit="건" sub="성공 기준" />
+      {/* 요약 카드는 2종만 둡니다 — 평균 소요·진행 중·스키마 드리프트 카드는 2026-09-08 요청으로 뺐습니다 */}
+      <Grid cols={2}>
+        <StatCard label="금일 이관 건수" value={comma(summary?.todayRows ?? 0)} unit="건" sub={hasRunning ? '성공 기준 · 진행 중 작업이 있어 30초마다 새로고침' : '성공 기준'} />
         <StatCard label="실패 건수" value={comma(summary?.failRows ?? 0)} unit="건" sub={summary?.failCnt ? `실패 작업 ${summary.failCnt}건` : '전체 정상'} tone={summary?.failRows ? 'down' : 'up'} />
-        <StatCard label="평균 소요" value={summary?.avgDurationMin ?? 0} unit="분" sub="완료 작업 기준" />
-        <StatCard label="진행 중" value={summary?.runningCnt ?? 0} unit="건" sub={hasRunning ? '30초마다 자동 새로고침' : '진행 중 작업 없음'} />
-        <StatCard
-          label="스키마 드리프트"
-          value={comma(openDriftCnt)}
-          unit="건"
-          sub={openDriftCnt ? `최다 발견 ${comma(driftSummary?.maxDetectCnt ?? 0)}회` : '이관 정의와 일치'}
-          tone={openDriftCnt ? 'down' : 'up'}
-        />
       </Grid>
       <Gap />
 
+      {/* 방식(증분/전체) 선택은 뺐습니다 — 컨트롤러의 kind 는 '전체' 로 고정돼 나갑니다 */}
       <Filters>
         <SelectField label="상태" value={filters.state} options={['전체', '예약 대기', '완료', '진행 중', '실패', '재시도 완료']} onChange={setState} />
-        <SelectField label="방식" value={filters.kind} options={['전체', '증분', '전체']} onChange={setKind} />
         <Button label="조회" variant="primary" onPress={reload} />
       </Filters>
 
-      {/*
-        엔진 실행 이력 — 이관 작업 이력과 단위가 다릅니다.
-        작업 이력은 '표 1건의 이관', 이 표는 '엔진 1회 실행' 입니다.
-        원본에 접속하지 못해 표 작업까지 가지 못한 실행은 작업 이력에 한 건도 안 남아,
-        이 표가 없으면 "돌린 적 없는" 것처럼 보입니다.
-      */}
-      <Card title="엔진 실행 이력" sub="정기 배치·즉시 실행 단위 · 「모의」는 실제로 옮기지 않은 실행입니다" tight>
-        <Table
-          minWidth={980}
-          keyExtractor={(r) => r.runId}
-          emptyText="엔진 실행 기록이 없습니다."
-          columns={[
-            { key: 'runId', title: '실행 ID', width: 190, mono: true },
-            {
-              // 모의 실행은 상태가 '완료' 라도 아무것도 옮기지 않았습니다.
-              // 상태로는 구분되지 않으므로(모의인데 점검 실패인 경우도 있습니다) 따로 표시합니다.
-              key: 'dryRun',
-              title: '방식',
-              width: 110,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                  <Text style={s.td}>{r.modeNm}</Text>
-                  {r.dryRun ? <Badge tone="amber">모의</Badge> : null}
-                </View>
-              ),
-            },
-            { key: 'startedAt', title: '시작', width: 150, mono: true },
-            { key: 'durationSec', title: '소요', width: 70, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.durationSec == null ? '—' : `${r.durationSec}초`}</Text> },
-            { key: 'tableCnt', title: '대상 테이블', width: 90, align: 'right', num: true },
-            { key: 'successCnt', title: '성공', width: 64, align: 'right', num: true },
-            { key: 'failCnt', title: '실패', width: 64, align: 'right', render: (r) => (r.failCnt ? <Badge tone="red">{r.failCnt}</Badge> : <Text style={[s.td, { textAlign: 'right' }]}>—</Text>) },
-            {
-              // 모의 실행(dry-run)은 '성공 13' 인데 옮긴 행이 0 입니다.
-              // 지금은 응답에 dry-run 표시가 없어 추측하지 않고, 실제 행수를 그대로 보여 줍니다.
-              key: 'okRows',
-              title: '이관 행수',
-              width: 100,
-              align: 'right',
-              render: (r) => (
-                <Text style={[r.okRows ? s.td : s.textXs, s.num, { textAlign: 'right' }]}>{comma(r.okRows ?? 0)}</Text>
-              ),
-            },
-            {
-              key: 'stateNm',
-              title: '상태',
-              width: 96,
-              render: (r) => <Badge tone={r.state === 'SUCCESS' ? 'green' : r.state === 'PARTIAL' ? 'amber' : 'red'}>{r.stateNm}</Badge>,
-            },
-            { key: 'message', title: '메모', flex: 1, minWidth: 220, wrap: true },
-          ]}
-          rows={runs}
-        />
+      <Card title="엔진 실행 이력" sub="정기 배치·즉시 실행 단위 · 「모의」는 실제로 옮기지 않은 실행입니다 · 열 제목으로 정렬할 수 있습니다">
+        <TabulatorGrid columns={runColumns} rows={runs} emptyText="엔진 실행 기록이 없습니다." />
       </Card>
       <Gap />
 
-      <Card title="이관 작업 이력" sub={`${items.length}건 · 행을 누르면 상세를 봅니다`} tight>
-        <Table
-          minWidth={1280}
-          keyExtractor={(r) => r.jobId}
-          onRowPress={showDetail}
-          columns={[
-            { key: 'jobId', title: '작업 ID', width: 160, mono: true },
-            { key: 'srcTable', title: '원본 (MSSQL)', width: 210, mono: true },
-            { key: 'dstTable', title: '대상 (PostgreSQL)', width: 160, mono: true },
-            { key: 'kind', title: '방식', width: 70, align: 'center' },
-            {
-              key: 'startAt',
-              title: '시작',
-              width: 150,
-              mono: true,
-              // 예약 대기 작업은 아직 시작하지 않았으므로 예약 시각을 보여줍니다
-              render: (r) => <Text style={[s.td, s.num]}>{r.startAt || (r.scheduledAt ? `예약 ${r.scheduledAt}` : '—')}</Text>,
-            },
-            { key: 'duration', title: '소요', width: 78, render: (r) => <Text style={s.td}>{r.duration || '—'}</Text> },
-            { key: 'rows', title: '대상 건수', width: 110, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{comma(r.rows)}</Text> },
-            { key: 'okRows', title: '성공', width: 110, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{comma(r.okRows)}</Text> },
-            {
-              key: 'ngRows',
-              title: '실패',
-              width: 90,
-              align: 'right',
-              render: (r) => (r.ngRows ? <Badge tone="red">{comma(r.ngRows)}</Badge> : <Text style={[s.td, { textAlign: 'right' }]}>—</Text>),
-            },
-            {
-              key: 'state',
-              title: '상태',
-              width: 106,
-              // 예약 대기는 아직 엔진이 집어가지 않은 상태 — 진행 중과 구분해 주황으로 둡니다
-              render: (r) => <Badge tone={r.state === '완료' || r.state === '재시도 완료' ? 'green' : r.state === '실패' ? 'red' : r.state === '예약 대기' ? 'amber' : 'blue'}>{r.state}</Badge>,
-            },
-            {
-              key: 'action',
-              title: '관리',
-              width: 96,
-              render: (r) => (r.ngRows ? <Button label="재실행" size="sm" variant="primary" onPress={() => retry(r)} /> : <Button label="상세" size="sm" onPress={() => showDetail(r)} />),
-            },
-          ]}
-          rows={items}
-        />
+      <Card title="이관 작업 이력" sub={`${items.length}건 · 행을 누르면 상세를 봅니다 · 열 제목으로 정렬할 수 있습니다`}>
+        <TabulatorGrid columns={jobColumns} rows={items} onRowClick={showDetail} emptyText="이관 작업 이력이 없습니다." />
         <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
       </Card>
-      <Gap />
 
+      {SHOW_DRIFT_CARD ? (
+      <>
+      <Gap />
       <Card
         title="스키마 드리프트"
         sub={
@@ -353,7 +310,6 @@ export default function SyncHistoryView({
             ? `미해소 ${openDriftCnt}건 · 원본 신규 ${driftSummary?.sourceNewCnt ?? 0} / 원본 유실 ${driftSummary?.sourceMissingCnt ?? 0} / 대상 신규 ${driftSummary?.targetNewCnt ?? 0} / 대상 유실 ${driftSummary?.targetMissingCnt ?? 0}`
             : '이관 정의와 원본·대상 테이블 구성이 일치합니다'
         }
-        tight
         right={
           <>
             <Button
@@ -369,96 +325,54 @@ export default function SyncHistoryView({
           </>
         }
       >
-        {drifts.length ? (
-          <Table
-            minWidth={1180}
-            keyExtractor={(r) => String(r.driftId)}
-            onRowPress={showDriftDetail}
-            columns={[
-              {
-                key: 'side',
-                title: '발견 위치',
-                width: 150,
-                render: (r) => <Text style={s.td}>{driftSideLabel(r.side)}</Text>,
-              },
-              {
-                key: 'kind',
-                title: '구분',
-                width: 96,
-                render: (r) => <Badge tone={r.kind === 'NEW' ? 'blue' : 'red'}>{driftKindLabel(r.kind)}</Badge>,
-              },
-              { key: 'objectName', title: '테이블', flex: 1, minWidth: 280, mono: true },
-              {
-                key: 'mapId',
-                title: '이관 정의',
-                width: 100,
-                align: 'center',
-                render: (r) => <Text style={s.td}>{r.mapId ? `map ${r.mapId}` : '없음'}</Text>,
-              },
-              { key: 'firstSeenAt', title: '최초 발견', width: 150, mono: true },
-              { key: 'lastSeenAt', title: '최종 발견', width: 150, mono: true },
-              {
-                key: 'detectCnt',
-                title: '발견',
-                width: 78,
-                align: 'right',
-                // 발견 횟수가 많을수록 오래 방치된 건이므로 눈에 띄게 표시합니다
-                render: (r) => (r.detectCnt >= 3 ? <Badge tone="red">{`${comma(r.detectCnt)}회`}</Badge> : <Text style={[s.td, { textAlign: 'right' }]}>{`${comma(r.detectCnt)}회`}</Text>),
-              },
-              {
-                key: 'action',
-                title: '관리',
-                width: 110,
-                render: (r) => (r.resolved
-                  ? <Badge tone="green">해소</Badge>
-                  : <Button label="해소 처리" size="sm" onPress={() => resolveDriftRow(r)} />),
-              },
-            ]}
-            rows={drifts}
-          />
-        ) : (
-          <SourceNote>
-            {showResolvedDrift
-              ? '기록된 스키마 드리프트가 없습니다.'
-              : '미해소 드리프트가 없습니다. 이관 정의(연동 매핑)와 원본·대상 DB 의 테이블 구성이 일치합니다.'}
-          </SourceNote>
-        )}
+        <TabulatorGrid
+          columns={driftColumns}
+          rows={drifts}
+          onRowClick={showDriftDetail}
+          emptyText={showResolvedDrift
+            ? '기록된 스키마 드리프트가 없습니다.'
+            : '미해소 드리프트가 없습니다. 이관 정의(연동 매핑)와 원본·대상 DB 의 테이블 구성이 일치합니다.'}
+        />
       </Card>
+      </>
+      ) : null}
+
+      {SHOW_MAP_CARD ? (
+      <>
       <Gap />
-
-      <Grid cols={[3, 2]}>
-        <Card title="연동 매핑" sub="원본 테이블 ↔ 대상 테이블 · 이관 주기" tight>
-          <Table
-            minWidth={720}
-            keyExtractor={(r) => r.srcTable}
-            columns={[
-              { key: 'srcTable', title: '원본 (MSSQL)', width: 220, mono: true },
-              { key: 'dstTable', title: '대상 (PostgreSQL)', width: 160, mono: true },
-              { key: 'kind', title: '방식', width: 70, align: 'center' },
-              { key: 'keyColumns', title: '기준 컬럼', width: 130, mono: true },
-              { key: 'schedule', title: '주기', flex: 1, minWidth: 140 },
-            ]}
-            rows={maps}
-          />
-        </Card>
-
-        <Card title="연동 정책" sub="이관 방식과 검증 규칙">
-          <KeyValue
-            keyWidth={90}
-            rows={[
-              ['원본', policy?.source],
-              ['대상', policy?.target],
-              ['이관 방식', policy?.mode],
-              ['정합성 검증', policy?.validation],
-              ['재시도', policy?.retry],
-            ]}
-          />
-          <SourceNote>{policy?.note}</SourceNote>
-        </Card>
-      </Grid>
+      <Card title="연동 매핑" sub="원본 테이블 ↔ 대상 테이블 · 이관 주기">
+        <TabulatorGrid columns={mapColumns} rows={maps} emptyText="등록된 연동 매핑이 없습니다." />
+      </Card>
+      </>
+      ) : null}
     </View>
   );
 }
+
+/* ───────── Tabulator 셀 HTML 도우미 — 값은 서버 문자열이므로 이스케이프해서 넣습니다 ───────── */
+
+/** HTML 특수문자 이스케이프 */
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/** 빈 값은 대시로 */
+const dash = (v) => (v === null || v === undefined || v === '' ? '—' : v);
+
+/** 배지 — TabulatorGrid 의 .tag 클래스 (Badge 와 같은 색) */
+const tag = (text, tone) => `<span class="tag${tone ? ` tag-${tone}` : ''}">${esc(text)}</span>`;
+
+/** 작은 버튼 — 동작은 열의 cellClick 에서 받습니다 */
+const btn = (label, primary) => `<button type="button" class="tbtn${primary ? ' tbtn-primary' : ''}">${esc(label)}</button>`;
+
+/** 고정폭 글자 */
+const mono = (v) => `<span class="mono">${esc(dash(v))}</span>`;
+
+/** 자릿수가 흔들리지 않는 숫자 — muted 면 옅게 */
+const num = (v, muted) => `<span class="num${muted ? ' muted' : ''}">${esc(v)}</span>`;
+
+const monoFmt = (cell) => mono(cell.getValue());
+const numFmt = (cell) => num(comma(cell.getValue() ?? 0));
 
 /** 드리프트 발견 위치 라벨 */
 function driftSideLabel(side) {
@@ -468,16 +382,4 @@ function driftSideLabel(side) {
 /** 드리프트 구분 라벨 — NEW 는 정의에 없는 신규, MISSING 은 정의에는 있으나 사라진 테이블 */
 function driftKindLabel(kind) {
   return kind === 'NEW' ? '신규' : '유실';
-}
-
-/**
- * 다음 배치 시각 — 이미 지났으면 다음 날.
- * @returns {string} 'yyyy-MM-dd HH:mm:ss'
- */
-function nextBatchAt() {
-  const d = new Date();
-  if (d.getHours() >= BATCH_HOUR) d.setDate(d.getDate() + 1);
-  d.setHours(BATCH_HOUR, 0, 0, 0);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
 }

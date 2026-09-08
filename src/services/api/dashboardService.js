@@ -30,13 +30,25 @@ export function getDashboardAiSummary(params) {
  * 시간대별 불량률 추이
  *
  * `GET /api/v1/dashboard/ai/defect-trend`
- * @param {object} params date, interval(2h)
+ * @param {object} params date, interval(2h), topN(all)
  * @returns {Promise<object>} labels[], series[{name,data[]}], target
- * @remarks 전체 + 주 불량유형 2계열
+ * @remarks 불량률 + 조회 기간 발생 불량유형 전체 계열
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */
 export function getDashboardAiDefectTrend(params) {
   return request('getDashboardAiDefectTrend', params);
+}
+
+/**
+ * 시간대별 불량 유형 상세
+ *
+ * `GET /api/v1/dashboard/ai/defect-trend/slot-details`
+ * @param {object} params slot, interval(2h), date, from, to, plant
+ * @returns {Promise<object>} slot, slotFrom, slotTo, totalNgQty, typedNgQty, untypedNgQty, inputQty, okQty, defectRate, labelCount, items[]
+ * @remarks 매트릭스에서 선택한 한 구간의 불량 유형 전량
+ */
+export function getDashboardAiDefectTrendSlotDetails(params) {
+  return request('getDashboardAiDefectTrendSlotDetails', params);
 }
 
 /**

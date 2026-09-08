@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
 import { unitRange } from '@shared/stores/useAppStore';
-import { fetchAiBriefing, fetchAiCausePrescription, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
+import { fetchAiBriefing, fetchAiCausePrescription, fetchAiDefectTrendSlotDetails, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 import { RANGE_OPTIONS, rangeError } from '../model/aiDashboardFilterModel';
 
 export const AGG_UNITS = RANGE_OPTIONS;
@@ -70,6 +70,9 @@ export function useAiDashboardController() {
     if (id === aiGeneration.current) setAI((s) => ({ ...s, cause: cause || unavailable, causeLoading: false }));
   };
   const loadEquipmentDetail = (eqptCd) => fetchEquipmentDetail(eqptCd, applied.to);
+  const loadHourlyDefectDetails = (cell) => fetchAiDefectTrendSlotDetails({
+    cell, from: applied.from, to: applied.to, plant: applied.plant,
+  });
   return {
     loading, loadError: result.error, partialErrors: data?.errors || {}, validationError,
     pendingChanges: JSON.stringify(filters) !== JSON.stringify(applied),
@@ -84,5 +87,6 @@ export function useAiDashboardController() {
     lineProduction: data?.lineProduction, qualityIndex: data?.qualityIndex, composition: data?.composition,
     processYield: data?.processYield, planActual: data?.planActual, heatmap: data?.heatmap,
     loadEquipmentDetail,
+    loadHourlyDefectDetails,
   };
 }

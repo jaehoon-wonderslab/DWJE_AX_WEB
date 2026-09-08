@@ -63,6 +63,7 @@ export default function AiDashboardView({
   processYield,
   planActual,
   loadEquipmentDetail,
+  loadHourlyDefectDetails,
   refresh,
 }) {
   const s = useCommonStyles();
@@ -112,7 +113,11 @@ export default function AiDashboardView({
       sub: '2시간 구간 실측입니다.',
       wide: true,
       render: () => (
-        <HourlyDetailModalContent cell={cell} target={defectTrendData?.target || 3.0} />
+        <HourlyDetailModalContent
+          cell={cell}
+          target={defectTrendData?.target || 3.0}
+          loadDefectDetails={loadHourlyDefectDetails}
+        />
       ),
       footer: (close) => (
         <Button label="닫기" variant="primary" style={{ minWidth: 84 }} onPress={close} />
@@ -326,14 +331,9 @@ export default function AiDashboardView({
               unit="EA"
               height={200}
             />
-            {/*
-              몇 종을 그린 것인지 밝힙니다. 서버가 주는 계열은 구간 합계 **상위 N종**이라
-              합이 총 불량이 아닙니다. 적어 두지 않으면 이 그림을 불량 전량으로 읽습니다.
-              (예전에는 총 불량수에 0.48·0.32·0.20 을 곱해 세 유형으로 나눠 그렸습니다.)
-            */}
-            {trend?.seriesScope?.topN ? (
-              <SourceNote>{`불량 유형 상위 ${trend.seriesScope.topN}종입니다. 이 계열들의 합은 총 불량 수량이 아닙니다.`}</SourceNote>
-            ) : null}
+            <SourceNote>
+              {`조회 기간에 발생한 불량 유형 ${trend?.countSeries?.length || 0}종을 모두 표시합니다. 총 불량 수량은 시간대별 실측을 기준으로 확인합니다.`}
+            </SourceNote>
           </Card>
 
           {/* 3. 생산 계획 대비 실적 (1행 전체) */}

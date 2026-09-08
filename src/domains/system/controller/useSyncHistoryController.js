@@ -22,6 +22,20 @@ export const jobStateTone = (state) => {
   return 'blue';
 };
 
+/**
+ * 엔진 실행 상태 코드(SYNC_RUN_STATE) → 배지 색
+ *
+ * 완료 초록 · 일부 실패 주황 · 실패/점검 실패 빨강 · 진행 중 파랑 · 대상 없음/건너뜀/중단은 기본색.
+ * 예전 뷰는 'SUCCESS' 만 초록으로 봤는데 서버 코드는 DONE 이라 완료까지 전부 빨갛게 나왔습니다.
+ */
+export const runStateTone = (state) => {
+  if (state === 'DONE' || state === 'SUCCESS') return 'green';
+  if (state === 'PARTIAL') return 'amber';
+  if (state === 'FAIL' || state === 'PREFLIGHT_FAIL') return 'red';
+  if (state === 'RUNNING') return 'blue';
+  return '';
+};
+
 /** 진행 중 판정 — 서버 코드(RUNNING)와 예전 표시명('진행 중') 둘 다 */
 export const isRunning = (state) => state === 'RUNNING' || state === '진행 중';
 
@@ -125,7 +139,6 @@ export function useSyncHistoryController() {
     hasRunning,
     summary,
     maps: data?.maps?.items || [],
-    policy: data?.policy,
     // 스키마 드리프트 (SY-15-F09 ~ F11)
     driftSummary: data?.driftSummary,
     drifts: data?.drifts?.items || [],

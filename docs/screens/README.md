@@ -95,7 +95,7 @@
 | `/system/agent` | `ai-agent` | Agent 실행 현황 (30초 폴링) | [36](./36_system_agent.md) | 5 |
 | `/system/metric-standard` | `sys-metric` | 지표 측정 데이터 관리 | [37](./37_system_metric-standard.md) | 7 |
 | `/system/download-log` | `sys-dl` | 보고서 다운로드 이력 | [38](./38_system_download-log.md) | 4 |
-| `/system/sync-history` | `sys-sync` | 데이터 연동 이력 (조건부 30초 폴링) | [39](./39_system_sync-history.md) | 11 |
+| `/system/sync-history` | `sys-sync` | 데이터 연동 이력 (조건부 30초 폴링) | [39](./39_system_sync-history.md) | 8 |
 
 ---
 
@@ -137,8 +137,8 @@
 | `/system/model-version` | 탭 4 | 4 | 1 | 4 | △ | 모달 6 | | | |
 | `/system/agent` | | 4 | | 2 | △ | 모달 1 | xls | | **30초** |
 | `/system/metric-standard` | 3 | 4 | | 2 | △ | 모달 2 | xls | | |
-| `/system/download-log` | 5 | 4 | | 2 | **●** | 모달 1 | xls | | |
-| `/system/sync-history` | 2 | 5 | | 4 | △ | 모달 5 | xls | | **조건부 30초** |
+| `/system/download-log` | 5 | 2 | | 1 | | 모달 1 | xls | | |
+| `/system/sync-history` | 1 | 2 | | 2 | △ | 모달 3 | xls | | **조건부 30초** |
 
 **●** 구현됨 · **△** 서버 API 는 지원하나 화면 미노출(개선 대상)
 

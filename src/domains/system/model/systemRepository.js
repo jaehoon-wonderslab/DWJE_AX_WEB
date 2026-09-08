@@ -432,7 +432,7 @@ export async function loadSyncHistory({ state, kind, driftSide, driftResolved, p
     // 엔진 1회 실행 단위. 표 작업까지 가지 못한 실행(원본 접속 실패 등)은 jobs 에 안 남습니다
     runs: systemService.getSyncRuns({ size: 20 }),
     maps: systemService.getSyncMaps({}),
-    policy: systemService.getSyncPolicy({}),
+    // 연동 정책(getSyncPolicy)은 카드를 걷어내(2026-09-08) 더 부르지 않습니다
     // 스키마 드리프트 — 이관 정의와 실제 DB 구성이 어긋난 사실 (이관 엔진이 배치마다 기록)
     driftSummary: systemService.getSyncSchemaDriftSummary({}),
     drifts: systemService.getSyncSchemaDrift({ side: driftSideCode(driftSide), resolved: driftResolved }),

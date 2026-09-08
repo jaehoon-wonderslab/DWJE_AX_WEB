@@ -94,6 +94,15 @@ function columnKeys(file) {
   while ((m = re.exec(src))) {
     if (!/\brender:/.test(m[0])) keys.push(m[1]);
   }
+  /**
+   * Tabulator 표(`TabulatorGrid`)는 `{ title: '…', field: 'x', … }` 꼴입니다.
+   * 인라인 함수 formatter 가 있는 열은 `cell.getData()` 로 다른 필드를 읽을 수 있어 제외합니다.
+   * (이름 붙은 formatter — monoFmt · numFmt 처럼 자기 칸 값만 그리는 것 — 는 그대로 봅니다)
+   */
+  const re2 = /\{\s*title:\s*'[^']*'\s*,\s*field:\s*'([^']+)'[\s\S]*?\},?\n/g;
+  while ((m = re2.exec(src))) {
+    if (!/\bformatter:\s*(\(|function\b|\w+\s*=>)/.test(m[0])) keys.push(m[1]);
+  }
   return [...new Set(keys)];
 }
 

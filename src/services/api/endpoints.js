@@ -326,11 +326,20 @@ export const ENDPOINTS = {
   getDashboardAiDefectTrend: {
     no: 22, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
     name: '시간대별 불량률 추이', method: 'GET', path: '/api/v1/dashboard/ai/defect-trend',
-    params: 'date, interval(2h)',
+    params: 'date, interval(2h), topN(all)',
     response: 'labels[], series[{name,data[]}], target',
     roles: '전 부서', blind: ['yield'], priority: 1,
     tables: 'mes.tb_pop_defect_hist',
-    note: '전체 + 주 불량유형 2계열',
+    note: '불량률 + 조회 기간 발생 불량유형 전체 계열',
+  },
+  getDashboardAiDefectTrendSlotDetails: {
+    no: 22.1, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',
+    name: '시간대별 불량 유형 상세', method: 'GET', path: '/api/v1/dashboard/ai/defect-trend/slot-details',
+    params: 'slot, interval(2h), date, from, to, plant',
+    response: 'slot, slotFrom, slotTo, totalNgQty, typedNgQty, untypedNgQty, inputQty, okQty, defectRate, labelCount, items[{rank,defectTypeCd,defectType,untyped,ngQty,ratio,rawQty,recordCount,lotCount,itemCount,itemCds[],processIds[],remarks[],insUsers[],firstAt,lastAt,useFlg,masterRemark}]',
+    roles: '전 부서', blind: ['qty', 'yield'], priority: 1,
+    tables: 'mes.tb_pop_defect_hist, ax.tb_vision_label_hist',
+    note: '매트릭스 선택 구간의 불량 유형 전량',
   },
   getDashboardAiLineProduction: {
     no: 23, domain: '대시보드', comp: 'DB-01', screen: 'AI 통합 대시보드', funcId: 'DB-01-F01',

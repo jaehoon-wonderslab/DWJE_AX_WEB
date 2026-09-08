@@ -120,7 +120,7 @@ evidence: { kind, key, label, value, unit, ref }   // kind='doc' 이면 quote �
 
 | 차트 | 필드 |
 | :--- | :--- |
-| 불량률 추이 | `labels[]` · `rateSeries`(또는 `series`) · `countSeries`(유형별 수량) · `target` |
+| 불량률 추이 | `labels[]` · `rateSeries`(또는 `series`) · `countSeries`(유형별 수량, `topN=all`) · `target` |
 | 라인별 생산량 | `lines[{eqptCd, qty, defectRate}]` — 라벨은 `PR-` 접두 제거 |
 | 품질 지수 | `axes[{label, value, target}]` (6축) |
 | 불량 유형 구성 | `segments[{label,value}]` · `total` · `note` · `excludedBorderline` |
@@ -177,7 +177,7 @@ evidence: { kind, key, label, value, unit, ref }   // kind='doc' 이면 quote �
 | # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
 |---|---|---|---|---|---|---|---|---|---|
 | 21 | `getDashboardAiSummary` | 통합 요약 지표 | GET | `/api/v1/dashboard/ai/summary` | date | defectRate, uptimeRate, todayQty, pendingBorderline{cnt,maxWaitMin} | 전 부서 | qty, yield | 1 |
-| 22 | `getDashboardAiDefectTrend` | 시간대별 불량률 추이 | GET | `/api/v1/dashboard/ai/defect-trend` | date, interval(2h) | labels[], series[{name,data[]}], target | 전 부서 | yield | 1 |
+| 22 | `getDashboardAiDefectTrend` | 시간대별 불량률 추이 | GET | `/api/v1/dashboard/ai/defect-trend` | date, interval(2h), topN(all) | labels[], series[{name,data[]}], target | 전 부서 | yield | 1 |
 | 23 | `getDashboardAiLineProduction` | 라인별 생산량·불량률 | GET | `/api/v1/dashboard/ai/line-production` | date, processId | lines[{eqptCd,qty,defectRate}] | 전 부서 | qty, yield | 1 |
 | 24 | `getDashboardAiQualityIndex` | 공정 품질 지수(6축) | GET | `/api/v1/dashboard/ai/quality-index` | date | axes[{label,value,target}] | 전 부서 | yield | 1 |
 | 25 | `getDashboardAiDefectComposition` | 불량 유형 구성 | GET | `/api/v1/dashboard/ai/defect-composition` | date, processId | segments[{label,value}], total, excludedBorderline | 전 부서 | yield | 1 |

@@ -20,12 +20,21 @@
  * ■ 정렬은 표가 스스로 합니다
  * 머리글을 누르면 정렬되고, shift 를 누른 채 다른 머리글을 누르면 **조건이 쌓입니다**.
  * 자료가 바뀔 때 표를 새로 만들지 않고 `replaceData` 로 갈아 끼우므로 그 조건이 유지됩니다.
+ *
+ * ■ 행 클릭
+ * `onRowClick` 을 주면 행을 눌렀을 때 그 행의 자료를 넘겨 줍니다. 칸 안의 버튼·링크를 누른 것은
+ * 행 클릭으로 치지 않습니다 — 「재실행」을 눌렀는데 상세까지 열리면 두 가지가 겹칩니다.
+ *
+ * ■ 칸 안의 배지·버튼
+ * 셀 formatter 가 HTML 문자열을 돌려주면 그대로 그려지므로, `Badge` · `Button` 과 같은 모양의
+ * 클래스를 표 안에 두었습니다 — `.tag .tag-green|red|amber|blue` · `.tbtn .tbtn-primary` · `.mono`.
+ * 버튼 동작은 열의 `cellClick` 에서 받습니다.
  */
 import React, { useEffect, useId, useRef } from 'react';
 import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
-import { FONT_FAMILY } from '@shared/theme/styles';
+import { FONT_FAMILY, MONO_FAMILY } from '@shared/theme/styles';
 
 /** 묶음 머리글의 펼침 화살표가 차지하는 폭 — 첫 칸에서 이만큼 뺍니다 */
 export const ARROW_W = 26;
@@ -47,19 +56,25 @@ export default function TabulatorGrid({
   onSelectedChange,
   /** 첫 정렬 — 이후에는 사용자가 머리글로 바꿉니다 */
   initialSort,
+  /** 행을 눌렀을 때 — (행 자료, 이벤트). 칸 안의 버튼·링크 클릭은 제외됩니다 */
+  onRowClick,
 }) {
   const ref = useRef(null);
   const instance = useRef(null);
   /** 최신 값을 콜백 안에서 읽기 위한 통로 — 이것 때문에 표를 새로 만들지는 않습니다 */
   const selectedRef = useRef(selected);
   const onSelectedRef = useRef(onSelectedChange);
+  const onRowClickRef = useRef(onRowClick);
   /** 우리가 코드로 선택을 되돌리는 중인지 — 그때 나는 이벤트를 부모에게 되돌려주면 무한히 돕니다 */
   const restoring = useRef(false);
   selectedRef.current = selected;
   onSelectedRef.current = onSelectedChange;
+  onRowClickRef.current = onRowClick;
+  const hasRowClick = typeof onRowClick === 'function';
   const theme = useTheme();
   const id = useId().replace(/:/g, '_');
   const isDark = theme.isDark;
+  const { color, alpha } = theme;
 
   const c = {
     border: isDark ? '#1e293b' : '#e2e8f0',
@@ -164,6 +179,14 @@ export default function TabulatorGrid({
       table.on('dataProcessed', syncHead);
     }
 
+    if (hasRowClick) {
+      table.on('rowClick', (e, row) => {
+        // 칸 안의 버튼·링크·입력을 누른 것은 그 요소의 몫입니다 — 행 상세까지 함께 열지 않습니다
+        if (e?.target?.closest?.('button, a, input, select, textarea')) return;
+        onRowClickRef.current?.(row.getData(), e);
+      });
+    }
+
     instance.current = table;
     return () => {
       try {
@@ -175,7 +198,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -306,6 +329,32 @@ export default function TabulatorGrid({
           행에도 붙어 나오는데, 선택 칸처럼 좁고 가운데 정렬된 칸에서는 점 하나가 찍힌 것처럼 보입니다.
         */
         #grid_${id} .tabulator .tabulator-row .tabulator-col-resize-handle { display: none; }
+        ${hasRowClick ? `#grid_${id} .tabulator .tabulator-row { cursor: pointer; }` : ''}
+        /* 고정폭 글꼴 — ID·테이블명처럼 자릿수를 맞춰 읽는 칸 */
+        #grid_${id} .tabulator .mono { font-family: ${MONO_FAMILY}; font-size: 12px; }
+        /*
+          칸 안의 배지 — 화면의 \`Badge\` 와 같은 색·모양입니다.
+          formatter 가 HTML 을 돌려주는 자리라 RN 컴포넌트를 못 쓰므로 클래스로 둡니다.
+        */
+        #grid_${id} .tabulator .tag {
+          display: inline-flex; align-items: center; vertical-align: middle;
+          padding: 1px 8px; border-radius: 99px; border: 1px solid ${color.border};
+          background: ${color.secondary}; color: ${color.secondaryForeground};
+          font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap;
+        }
+        #grid_${id} .tabulator .tag-green { background: ${alpha('success', 0.12)}; border-color: ${alpha('success', 0.25)}; color: ${color.success}; }
+        #grid_${id} .tabulator .tag-red { background: ${alpha('destructive', 0.12)}; border-color: ${alpha('destructive', 0.25)}; color: ${color.destructive}; }
+        #grid_${id} .tabulator .tag-amber { background: ${alpha('warning', 0.14)}; border-color: ${alpha('warning', 0.3)}; color: ${color.warningText}; }
+        #grid_${id} .tabulator .tag-blue { background: ${alpha('info', 0.12)}; border-color: ${alpha('info', 0.25)}; color: ${color.info}; }
+        /* 칸 안의 작은 버튼 — 화면의 \`Button size="sm"\` 에 맞춘 모양. 동작은 열의 cellClick 에서 받습니다 */
+        #grid_${id} .tabulator .tbtn {
+          font: inherit; font-size: 12px; font-weight: 600; line-height: 18px;
+          padding: 3px 10px; border-radius: 7px; border: 1px solid ${color.border};
+          background: ${c.card}; color: ${c.text}; cursor: pointer; white-space: nowrap;
+        }
+        #grid_${id} .tabulator .tbtn:hover { background: ${c.hover}; }
+        #grid_${id} .tabulator .tbtn-primary { background: ${color.primary}; border-color: ${color.primary}; color: ${color.primaryForeground}; }
+        #grid_${id} .tabulator .tbtn-primary:hover { opacity: 0.9; background: ${color.primary}; }
       `}</style>
       <div ref={ref} />
     </View>
