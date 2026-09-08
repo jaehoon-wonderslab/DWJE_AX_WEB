@@ -22,6 +22,7 @@ const groups = [
       assert.equal(await groupLink.getByText(count, { exact: true }).count(), 1, `${groupName} 메뉴 개수`);
       await groupLink.click();
       await page.waitForURL(`**/menu/${slug}`);
+      assert.equal(await page.getByText('해당 화면으로 이동합니다.', { exact: true }).count(), 0, `${groupName}에 공통 안내 문구가 남아 있습니다`);
       for (const item of items) await page.getByText(item, { exact: true }).last().waitFor();
     }
     assert.deepEqual(errors, []);

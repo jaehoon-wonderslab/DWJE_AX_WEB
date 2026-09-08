@@ -61,7 +61,7 @@ export default function MenuHub({ groupName }) {
                     </View>
                   ) : null}
                 </View>
-                <Text style={[s.textMuted, { marginTop: 5 }]}>해당 화면으로 이동합니다.</Text>
+                <Text style={[s.textMuted, { marginTop: 5 }]}>{item.description}</Text>
               </View>
               <Icon name="chevronRight" size={17} color={theme.color.mutedForeground} />
             </TouchableOpacity>
