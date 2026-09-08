@@ -2,12 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, DateField, Filters, FormAlert, Loading, SelectChip, SelectField, SourceNote, TabulatorGrid, TextField } from '@shared/components/ui';
-import { BarChart, HBarChart, LineChart } from '@shared/components/charts-d3';
+import { Button, Card, DateField, Filters, FormAlert, Loading, SelectField, SourceNote, TabulatorGrid } from '@shared/components/ui';
+import { BarChart, GroupedBarChart, HBarChart, LineChart } from '@shared/components/charts-d3';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthStore } from '@shared/stores/useAuthStore';
-import { openProductPicker } from './ProductPicker';
 import { metricText, missingQuantity, numeric, processInsights } from '../model/processPeriodModel';
 
 const UNITS = ['일별', '주별', '월별', '기간선택'];
@@ -21,7 +20,9 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
   const showQty = canData('qty');
   const showYield = canData('yield');
   const [detailFilter, setDetailFilter] = useState('all');
-  const [query, setQuery] = useState('');
+  const [productHeaderFilters, setProductHeaderFilters] = useState({});
+  const [selectedProcesses, setSelectedProcesses] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState([]);
   const products = data?.products || EMPTY;
   const comparison = data?.processes || EMPTY;
   const periods = data?.periods || EMPTY;
@@ -36,7 +37,7 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
   const periodLabel = (period) => applied.unit === '월별' ? period.slice(0, 7) : period.slice(5);
   const detail = (filter = 'all', code = '') => {
     setDetailFilter(filter);
-    setQuery(code);
+    setProductHeaderFilters(code ? { code } : {});
     if (typeof document !== 'undefined') document.getElementById('process-product-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const allowed = (key) => key.endsWith('Rate') ? showYield : showQty;
@@ -57,15 +58,19 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
   const maskRows = (rows) => rows.map((p) => ({ ...p,
     ...Object.fromEntries(['qty', 'okQty', 'ngQty', 'defectRate', 'yieldRate'].map((key) => [key, allowed(key) ? p[key] : null])),
   }));
+  const processRows = useMemo(() => maskRows(comparison).map((p) => ({
+    ...p,
+    process: p.process || '공정명 미등록',
+    // API가 공정 ID를 주지 않는 경우에도 선택 상태를 안정적으로 유지할 수 있게 만듭니다.
+    compareKey: p.processId || p.process || '공정명 미등록',
+  })), [comparison, showQty, showYield]);
   const detailRows = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
     const rows = products.filter((p) => (detailFilter !== 'defect' || !showQty || p.ngQty > 0)
-      && (detailFilter !== 'missing' || !showQty || missingQuantity(p))
-      && (!keyword || `${p.code || ''} ${p.productNm || ''}`.toLowerCase().includes(keyword)));
+      && (detailFilter !== 'missing' || !showQty || missingQuantity(p)));
     return rows.map((p) => ({ ...p, code: p.code || '제품 코드 미등록', productNm: p.productNm || '제품명 미등록',
       ...Object.fromEntries(['qty', 'okQty', 'ngQty', 'defectRate', 'yieldRate'].map((key) => [key, (key.endsWith('Rate') ? showYield : showQty) ? p[key] : null])),
     }));
-  }, [products, query, detailFilter, showQty, showYield]);
+  }, [products, detailFilter, showQty, showYield]);
   const share = largest && summary.ngQty > 0 ? largest.ngQty / summary.ngQty * 100 : null;
   const missingCount = insights.incompleteProducts.length;
   const topProducts = insights.byDefects.slice(0, 8);
@@ -79,32 +84,20 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
       <SelectField label="집계 단위" value={filters.unit} options={UNITS} onChange={setUnit} />
       <DateField label="시작일" value={filters.from} onChange={(from) => edit({ from })} />
       <DateField label="종료일" value={filters.to} onChange={(to) => edit({ to })} />
-      <View><Text style={s.fieldLabel}>제품</Text><Button icon="search" label={filters.models.length ? `제품 선택 (${filters.models.length}개)` : '제품 선택 (전체)'}
-        onPress={() => openProductPicker({ selected: filters.models, onApply: (models) => edit({ models }) })} /></View>
-      <SelectField label="공정" value={filters.processId} options={[{ value: '', label: '전체 공정' }, ...processes.map((p) => ({ value: p.id, label: p.name || p.id }))]} onChange={(processId) => edit({ processId })} />
       <Button label="조회" icon="search" variant="primary" onPress={search} />
     </Filters>
-    {filters.models.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-      {filters.models.slice(0, 8).map((code) => <SelectChip key={code} label={`${code} ×`} small on onPress={() => edit({ models: filters.models.filter((p) => p !== code) })} />)}
-      {filters.models.length > 8 && <Text style={s.textSm}>외 {filters.models.length - 8}개</Text>}
-      <Button label="전체 제품 선택" size="sm" onPress={() => edit({ models: [] })} />
-    </View>}
     {dirty && <FormAlert tone="info">조회 조건이 변경되었습니다. 조회 버튼을 누르면 새 조건으로 집계합니다.</FormAlert>}
     {masterError && <FormAlert tone="error">공정 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요.</FormAlert>}
-    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-      <Badge tone="blue">기간 누계</Badge>
-      <Text style={s.textSm}>{applied.from} ~ {applied.to}</Text>
-      <Text style={s.textXs}>{applied.unit} · {processName} · {applied.models.length ? `${applied.models.length}개 제품` : '전체 제품'}</Text>
-    </View>
     {loading ? <Loading text="생산 실적과 우선 확인할 항목을 집계하고 있습니다…" /> : error ?
       <Card title="실적을 불러오지 못했습니다"><FormAlert tone="error">조회 요청을 처리하지 못했습니다. 조회 조건과 연결 상태를 확인한 뒤 다시 시도해 주세요.</FormAlert><Gap /><Button label="다시 조회" onPress={search} /></Card>
       : data ? <>
         {noProduction && <><FormAlert tone="info">이 기간에는 선택한 제품·공정의 생산 실적이 없습니다. 기간이나 조회 대상을 바꿔 주세요.</FormAlert><Gap /></>}
-        <Grid cols={4}>
-          <Metric label="얼마나 생산했나요?" name="생산 투입량" row={summary} metric="qty" allowed={showQty} unit="EA" note="여러 공정을 거친 수량의 누계" />
-          <Metric label="양품은 얼마나 되나요?" name="양품 수량" row={summary} metric="okQty" allowed={showQty} unit="EA" note="양품으로 집계된 수량" />
-          <Metric label="불량은 얼마나 나왔나요?" name="불량 수량" row={summary} metric="ngQty" allowed={showQty} unit="EA" note={showQty ? `불량 발생 제품 ${insights.byDefects.length}종` : '불량 수량 조회 권한이 필요합니다'} accent />
-          <Metric label="품질 수준은 어떤가요?" name="수율" row={summary} metric="yieldRate" allowed={showYield} unit="%" note={showYield && numeric(summary.defectRate) ? `불량률 ${numberText(summary.defectRate)}%` : '양품 수량을 투입 수량으로 나눈 비율'} />
+        <Grid cols={5}>
+          <Metric name="생산 투입량" row={summary} metric="qty" allowed={showQty} unit="EA" />
+          <Metric name="양품 수량" row={summary} metric="okQty" allowed={showQty} unit="EA" />
+          <Metric name="불량 수량" row={summary} metric="ngQty" allowed={showQty} unit="EA" />
+          <Metric name="수율" row={summary} metric="yieldRate" allowed={showYield} unit="%" />
+          <Metric name="불량률" row={summary} metric="defectRate" allowed={showYield} unit="%" />
         </Grid><Gap size={20} />
 
         <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
@@ -143,22 +136,31 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
             {showQty && showYield && insights.byRate.length ? <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}><View style={{ minWidth: 510, flex: 1 }}><HBarChart data={insights.byRate.slice(0, 8).map((p) => ({ l: p.process || '공정명 미등록', v: p.defectRate }))} unit="%" format={numberText} labelWidth={230} /></View></ScrollView> : <ChartMessage text={!showQty || !showYield ? '공정의 수량·품질 조회 권한이 필요합니다.' : '비교할 수 있는 공정 실적이 없습니다.'} />}
           </Card>
         </Grid><Gap size={20} />
-        <Card title="공정별로 비교해 보세요" sub="같은 기간·제품의 전체 공정 · 선택한 공정과 무관하게 비교 대상을 유지합니다">
-          <TabulatorGrid columns={processColumns} rows={maskRows(comparison).map((p) => ({ ...p, process: p.process || '공정명 미등록' }))} height={360} emptyText="비교할 공정 실적이 없습니다." />
+        <Card title="공정별 비교" sub="같은 기간·제품의 전체 공정 · 행을 여러 개 선택해 그래프로 비교할 수 있습니다.">
+          <SelectionComparison
+            rows={processRows}
+            selected={selectedProcesses}
+            onSelectedChange={setSelectedProcesses}
+            rowKey="compareKey"
+            labelField="process"
+            kind="공정"
+          />
+          <TabulatorGrid columns={processColumns} rows={processRows} height={360} emptyText="비교할 공정 실적이 없습니다."
+            selectable maxSelectable={10} rowKey="compareKey" selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
           <SourceNote>수량 미집계: 실적에 필요한 수량이 아직 모이지 않았습니다. 산출 자료 부족: 비율을 계산할 수량이 부족합니다.</SourceNote>
         </Card><Gap />
         <View nativeID="process-product-detail" style={{ scrollMarginTop: 70 }}>
-          <Card title="제품별 상세 실적" sub={`${processName} · 제품 ${products.length}종 · 열 제목으로 정렬할 수 있습니다`}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <SelectChip label="전체 제품" small on={detailFilter === 'all'} onPress={() => setDetailFilter('all')} />
-              {showQty && <><SelectChip label={`불량 발생 ${insights.byDefects.length}종`} small on={detailFilter === 'defect'} onPress={() => setDetailFilter('defect')} />
-                <SelectChip label={`집계 확인 ${missingCount}종`} small on={detailFilter === 'missing'} onPress={() => setDetailFilter('missing')} /></>}
-              {/* TextField 는 onChangeText 로 글자를 줍니다. onChange 로 받으면 이벤트 객체가 들어와
-                  아래 query.trim() 에서 화면이 통째로 죽습니다 — 한 글자만 쳐도 터집니다 */}
-              <TextField label="제품 찾기" value={query} onChangeText={setQuery} placeholder="제품 코드 또는 제품명" />
-              {(query || detailFilter !== 'all') && <Button label="상세 필터 해제" size="sm" onPress={() => { setQuery(''); setDetailFilter('all'); }} />}
-            </View>
-            <TabulatorGrid columns={columns} rows={detailRows} height={440} emptyText="현재 조건에 해당하는 제품이 없습니다. 상세 필터를 해제하거나 조회 대상을 바꿔 주세요." />
+          <Card title="제품별 상세 실적" sub={`${processName} · 제품 ${products.length}종 · 행을 여러 개 선택해 그래프로 비교할 수 있습니다`}>
+            <SelectionComparison
+              rows={detailRows}
+              selected={selectedProducts}
+              onSelectedChange={setSelectedProducts}
+              rowKey="code"
+              labelField="code"
+              kind="제품"
+            />
+            <TabulatorGrid columns={columns} rows={detailRows} height={440} emptyText="현재 조건에 해당하는 제품이 없습니다. 상세 필터를 해제하거나 조회 대상을 바꿔 주세요."
+              selectable maxSelectable={10} rowKey="code" selected={selectedProducts} onSelectedChange={setSelectedProducts} headerFilters={productHeaderFilters} />
             <SourceNote>제품 정보가 연결되지 않은 실적과 미집계 수량이 있으면 제품별 합과 전체 합이 다를 수 있습니다. 전체 합계는 상단 요약을 확인해 주세요.</SourceNote>
           </Card>
         </View>
@@ -166,18 +168,16 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
   </View>;
 }
 
-function Metric({ label, name, row, metric, allowed, unit, note, accent }) {
+function Metric({ name, row, metric, allowed, unit, note }) {
   const s = useCommonStyles();
-  const theme = useTheme();
   const measured = allowed && numeric(row[metric]);
-  return <View style={[s.card, { padding: 18, minHeight: 150, borderTopWidth: 3, borderTopColor: accent ? '#d97706' : theme.color.primary }]}>
-    <Text style={s.textXs}>{label}</Text>
-    <Text style={[s.textSm, { fontWeight: '600', marginTop: 7 }]}>{name}</Text>
+  return <View style={[s.card, { padding: 18, minHeight: 100 }]}>
+    <Text style={[s.textSm, { fontWeight: '600' }]}>{name}</Text>
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 10 }}>
-      <Text style={[s.textSm, { fontSize: measured ? 27 : 19, fontWeight: '700', color: accent && measured ? (theme.isDark ? '#fbbf24' : '#b45309') : theme.color.foreground }]}>{metricText(row, metric, allowed)}</Text>
+      <Text style={[s.textSm, { fontSize: measured ? 27 : 19, fontWeight: '700' }]}>{metricText(row, metric, allowed)}</Text>
       {measured && <Text style={s.textXs}>{unit}</Text>}
     </View>
-    <Text style={[s.textXs, { marginTop: 9 }]}>{note}</Text>
+    {note ? <Text style={[s.textXs, { marginTop: 9 }]}>{note}</Text> : null}
   </View>;
 }
 function Issue({ eyebrow, title, body, hint, action, muted }) {
@@ -194,4 +194,28 @@ function Issue({ eyebrow, title, body, hint, action, muted }) {
 function ChartMessage({ text }) {
   const s = useCommonStyles();
   return <View style={{ minHeight: 200, justifyContent: 'center', alignItems: 'center', padding: 20 }}><Text style={[s.textSm, { textAlign: 'center', lineHeight: 22 }]}>{text}</Text></View>;
+}
+
+/** 표에서 고른 항목만 같은 지표로 나란히 보여 주는 비교 영역 */
+function SelectionComparison({ rows, selected, onSelectedChange, rowKey, labelField, kind }) {
+  const s = useCommonStyles();
+  const selectedRows = useMemo(() => {
+    const keys = new Set(selected);
+    return rows.filter((row) => keys.has(row[rowKey]));
+  }, [rows, selected, rowKey]);
+
+  return (
+    <View style={{ marginBottom: 16, padding: 14, borderRadius: 9, backgroundColor: 'rgba(148,163,184,.08)', borderWidth: 1, borderColor: 'rgba(148,163,184,.2)' }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 8, marginBottom: selectedRows.length ? 12 : 0 }}>
+        <Text style={[s.textSm, { fontWeight: '600' }]}>{`${kind} ${selectedRows.length}/10개 선택됨`}</Text>
+        {selectedRows.length > 0 && <Button label="선택 해제" size="sm" onPress={() => onSelectedChange([])} />}
+        {!selectedRows.length && <Text style={s.textXs}>표 왼쪽 체크박스로 최대 10개 항목을 선택해 주세요.</Text>}
+      </View>
+      {selectedRows.length > 0 && <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={{ minWidth: Math.max(520, selectedRows.length * 84), flex: 1 }}>
+          <GroupedBarChart data={selectedRows.map((row) => ({ label: row[labelField], qty: row.qty, okQty: row.okQty, ngQty: row.ngQty }))} height={250} />
+        </View>
+      </ScrollView>}
+    </View>
+  );
 }

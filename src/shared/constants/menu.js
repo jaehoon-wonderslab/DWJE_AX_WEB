@@ -21,7 +21,6 @@ export const MENU = [
     items: [
       { id: 'dash-ai', name: 'AI 통합 대시보드', path: '/dashboard/ai', tag: '신규' },
       { id: 'dash-proc', name: '공정 및 제품 대시보드', path: '/dashboard/process', tag: '신규' },
-      { id: 'dash-kpi', name: '성과지표 대시보드', path: '/dashboard/kpi', tag: '신규' },
     ],
   },
   {

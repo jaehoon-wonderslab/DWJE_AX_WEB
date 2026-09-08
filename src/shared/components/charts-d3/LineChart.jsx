@@ -144,7 +144,7 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
   return (
     <View>
       <div ref={ref} style={{ width: '100%', position: 'relative' }}>
-        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehaviorX: 'contain' }}>
           <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
         </div>
         <Tooltip {...(hover || {})} />

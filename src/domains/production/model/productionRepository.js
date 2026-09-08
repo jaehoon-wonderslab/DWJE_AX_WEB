@@ -33,11 +33,11 @@ export const monitorStateLabel = (code) => MONITOR_STATE_LABEL[code] ?? code ?? 
  * 불량률·수율·가동률은 저장된 값이 아니라 계산값입니다.
  * 서버가 비워 보내면(원천 수량만 오는 경우) 여기서 채워 화면으로 넘깁니다.
  */
-export async function loadMonitor({ processId, lineRange, model, state, page, size }) {
+export async function loadMonitor({ targetDate, processId, lineRange, model, state, page, size }) {
   const stateCd = MONITOR_STATE_CODE[state] ?? state;
   const data = await unwrapAll({
-    summary: productionService.getProductionMonitorSummary({ processId }),
-    equipments: productionService.getProductionMonitorEquipments({ processId, lineRange, model, state: stateCd, page, size }),
+    summary: productionService.getProductionMonitorSummary({ targetDate, processId }),
+    equipments: productionService.getProductionMonitorEquipments({ targetDate, processId, lineRange, model, state: stateCd, page, size }),
   });
   return {
     ...data,
@@ -400,4 +400,3 @@ export const saveDailyReportRows = (targetDate, rows) =>
  * 웹 화면·메뉴를 걷어냈고, 서버 API 는 그 시스템이 쓰므로 그대로 둡니다.
  * 되살릴 일이 생기면 이 자리에 loadDowntimes · registerDowntime · updateDowntime 을 다시 둡니다.
  */
-

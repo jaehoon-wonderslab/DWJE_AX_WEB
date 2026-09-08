@@ -38,14 +38,14 @@ export const DATA_SCOPE_DEFAULT = {
 /** 부서별 메뉴 접근 권한 기본값 — 「권한 정의」 4절 */
 export const MENU_ACCESS_DEFAULT = {
   품질보증팀: [
-    'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
+    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
     'prod-monitor', 'prod-result',
     'qc-defect', 'qc-aoi',
     'alert-list', 'sys-gloss',
     'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
   ],
   생산관리팀: [
-    'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
+    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
     'prod-monitor', 'prod-result', 'prod-daily', 'daily-history',
     'qc-defect', 'qc-aoi',
     'alert-list', 'sys-gloss',
@@ -59,14 +59,14 @@ export const MENU_ACCESS_DEFAULT = {
     'rpt-press-morning', 'rpt-plating-morning',
   ],
   전산팀: [
-    'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
+    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
     'alert-list', 'sys-gloss', 'sys-rank',
     'base-model', 'sys-model-ver',
     'sys-account', 'sys-menu', 'sys-data', 'sys-audit', 'ai-agent', 'sys-metric', 'sys-dl', 'sys-sync',
     'alert-cond', 'sys-recip',
   ],
   경영진: [
-    'dash-ai', 'dash-proc', 'dash-kpi', 'ai-chat', 'chat-history',
+    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
     'prod-result', 'qc-defect',
     'alert-list', 'sys-gloss', 'sys-rank',
     'rpt-ship-plan', 'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',

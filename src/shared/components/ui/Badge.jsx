@@ -38,6 +38,7 @@ export default function Badge({ children, tone = '', style, textStyle }) {
 /** 상태 문자열에 맞는 색을 자동으로 고르는 배지 */
 const STATE_TONE = {
   가동: 'green',
+  '가동 중': 'green',
   정상: 'green',
   양품: 'green',
   완료: 'green',
@@ -45,6 +46,7 @@ const STATE_TONE = {
   사용: 'green',
   '서비스 중': 'green',
   경고: 'amber',
+  '점검 중': '',
   주의: 'amber',
   경계: 'amber',
   대기: '',
@@ -53,10 +55,11 @@ const STATE_TONE = {
   실행중: 'blue',
   검토중: 'blue',
   비가동: 'red',
+  정지: 'red',
   불량: 'red',
   위험: 'red',
   실패: 'red',
-  정지: 'red',
+  점검필요: 'red',
   반려: 'red',
   보관: '',
 };
