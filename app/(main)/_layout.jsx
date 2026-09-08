@@ -13,6 +13,7 @@ import { Platform, View, useWindowDimensions } from 'react-native';
 import { Redirect, Slot, usePathname } from 'expo-router';
 import { HOME_SCREEN_ID } from '@shared/constants/menu';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
+import { hubGroupOf, MENU } from '@shared/navigation/routes';
 import { useDataRangeBootstrap } from '@domains/common/controller/useDataRangeBootstrap';
 import Sidebar from '@shared/components/layout/Sidebar';
 import Topbar from '@shared/components/layout/Topbar';
@@ -35,15 +36,18 @@ export default function MainLayout() {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const toast = useUiStore((state) => state.toast);
 
-  const allowed = can(currentScreenId);
+  const hubGroup = hubGroupOf(pathname);
+  const allowed = hubGroup
+    ? MENU.find((group) => group.group === hubGroup)?.items.some((item) => can(item.id))
+    : can(currentScreenId);
 
   // 권한 없는 화면으로 들어오면 기본 화면으로 돌려보냅니다
   useEffect(() => {
-    if (!allowed && currentScreenId !== HOME_SCREEN_ID && menuPerms?.length) {
+    if (!allowed && (hubGroup || currentScreenId !== HOME_SCREEN_ID) && menuPerms?.length) {
       toast('접근 권한이 없는 화면입니다 — AI 통합 대시보드로 이동합니다');
       goToScreen(HOME_SCREEN_ID);
     }
-  }, [allowed, currentScreenId, menuPerms, goToScreen, toast]);
+  }, [allowed, currentScreenId, hubGroup, menuPerms, goToScreen, toast]);
 
   // 좁은 화면(태블릿 세로 이하)에서는 사이드바를 자동으로 숨깁니다
   const showSidebar = !collapsed && width > 860;

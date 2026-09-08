@@ -21,7 +21,7 @@ function walk(dir, base = '', out = []) {
   }
   return out;
 }
-const routes = walk(path.join(ROOT, 'app/(main)'));
+const routes = walk(path.join(ROOT, 'app/(main)')).filter((route) => !route.startsWith('/menu/'));
 
 let bad = 0;
 defined.forEach((d) => {
