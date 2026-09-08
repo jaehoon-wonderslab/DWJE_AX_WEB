@@ -41,4 +41,10 @@ export function screenIdOf(pathname) {
   return matched ? PATH_TO_ID[matched] : HOME_SCREEN_ID;
 }
 
+/** 대메뉴 허브 경로에 해당하는 그룹을 반환합니다. */
+export function hubGroupOf(pathname) {
+  const clean = pathname?.split('?')[0].replace(/\/+$/, '') || '/';
+  return MENU.find((group) => group.hubPath === clean)?.group || null;
+}
+
 export { HOME_PATH, HOME_SCREEN_ID, MENU, EXTRA_PAGES };

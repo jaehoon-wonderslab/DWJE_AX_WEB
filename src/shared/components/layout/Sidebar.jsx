@@ -8,7 +8,8 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Link } from 'expo-router';
 import { MENU } from '@shared/constants/menu';
-import { useCurrentScreenId } from '@shared/hooks/useAppNavigation';
+import { useAppNavigation } from '@shared/hooks/useAppNavigation';
+import { hubGroupOf } from '@shared/navigation/routes';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -20,14 +21,15 @@ export default function Sidebar() {
   const can = useAuthStore((state) => state.can);
   const menuPerms = useAuthStore((state) => state.menuPerms);
   const servingModelVer = useAuthStore((state) => state.servingModelVer);
-  const currentId = useCurrentScreenId();
+  const { currentScreenId: currentId, pathname } = useAppNavigation();
+  const currentHubGroup = hubGroupOf(pathname);
 
   // 현재 화면이 속한 그룹은 자동으로 펼칩니다
   const [openGroups, setOpenGroups] = useState({});
   useEffect(() => {
-    const g = MENU.find((x) => x.items.some((i) => i.id === currentId));
+    const g = MENU.find((x) => x.group === currentHubGroup || x.items.some((i) => i.id === currentId));
     if (g) setOpenGroups((prev) => ({ ...prev, [g.group]: true }));
-  }, [currentId]);
+  }, [currentId, currentHubGroup]);
 
   // menuPerms 가 바뀌면(계정 전환) 메뉴가 다시 계산됩니다
   const groups = MENU.map((g) => ({ ...g, items: g.items.filter((it) => can(it.id)) })).filter((g) => g.items.length);
@@ -113,29 +115,30 @@ export default function Sidebar() {
           }
 
           const open = !!openGroups[g.group];
-          const hasActive = g.items.some((i) => i.id === currentId);
+          const hasActive = currentHubGroup === g.group || g.items.some((i) => i.id === currentId);
           return (
             <View key={g.group} style={{ marginBottom: 2 }}>
-              <TouchableOpacity
-                onPress={() => setOpenGroups((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
-                activeOpacity={0.75}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  paddingVertical: 9,
-                  paddingHorizontal: 10,
-                  borderRadius: theme.metrics.radiusSm,
-                  backgroundColor: hasActive ? theme.color.accent : theme.alpha('muted', 0.6),
-                  marginBottom: 2,
-                }}
-              >
-                <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} color={theme.color.mutedForeground} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: theme.color.foreground, flex: 1 }}>{g.group}</Text>
-                <View style={{ borderWidth: 1, borderColor: theme.color.border, borderRadius: 99, paddingHorizontal: 6, backgroundColor: theme.color.card }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: theme.color.mutedForeground }}>{g.items.length}</Text>
-                </View>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'stretch', borderRadius: theme.metrics.radiusSm, backgroundColor: hasActive ? theme.color.accent : theme.alpha('muted', 0.6), marginBottom: 2 }}>
+                <TouchableOpacity
+                  accessibilityLabel={`${g.group} 하위 메뉴 ${open ? '접기' : '펼치기'}`}
+                  onPress={() => setOpenGroups((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
+                  activeOpacity={0.75}
+                  style={{ paddingVertical: 9, paddingLeft: 10, paddingRight: 7, justifyContent: 'center' }}
+                >
+                  <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} color={theme.color.mutedForeground} />
+                </TouchableOpacity>
+                <Link href={g.hubPath} asChild>
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingRight: 10 }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: theme.color.foreground, flex: 1 }}>{g.group}</Text>
+                    <View style={{ borderWidth: 1, borderColor: theme.color.border, borderRadius: 99, paddingHorizontal: 6, backgroundColor: theme.color.card }}>
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: theme.color.mutedForeground }}>{g.items.length}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </Link>
+              </View>
 
               {open ? (
                 <View style={{ paddingLeft: 8, marginLeft: 12, borderLeftWidth: 1, borderLeftColor: theme.color.border, paddingBottom: 6 }}>

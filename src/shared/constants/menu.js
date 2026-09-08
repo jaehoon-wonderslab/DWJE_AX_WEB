@@ -18,6 +18,7 @@ export const MENU = [
   },
   {
     group: '대시보드',
+    hubPath: '/menu/dashboard',
     items: [
       { id: 'dash-ai', name: 'AI 통합 대시보드', path: '/dashboard/ai', tag: '신규' },
       { id: 'dash-proc', name: '공정 및 제품 대시보드', path: '/dashboard/process', tag: '신규' },
@@ -25,6 +26,7 @@ export const MENU = [
   },
   {
     group: '생산관리',
+    hubPath: '/menu/production',
     items: [
       { id: 'prod-monitor', name: '생산 모니터링', path: '/production/monitor', tag: '수정' },
       { id: 'prod-result', name: '실적 집계·조회', path: '/production/result', tag: '수정' },
@@ -33,6 +35,7 @@ export const MENU = [
   },
   {
     group: '품질관리',
+    hubPath: '/menu/quality',
     items: [
       { id: 'qc-defect', name: '불량 현황 조회', path: '/quality/defect', tag: '신규' },
       { id: 'qc-aoi', name: 'AOI 판정 분석·예측', path: '/quality/aoi', tag: '신규' },
@@ -40,6 +43,7 @@ export const MENU = [
   },
   {
     group: '보고서',
+    hubPath: '/menu/report',
     items: [
       { id: 'rpt-press-morning', name: '아침회의 자료 (PRESS)', path: '/report/press-morning', tag: '신규' },
       { id: 'rpt-plating-morning', name: '아침회의 자료 (Plating·Coating)', path: '/report/plating-morning', tag: '신규' },
@@ -51,10 +55,12 @@ export const MENU = [
   },
   {
     group: '이상 알림',
+    hubPath: '/menu/alert',
     items: [{ id: 'alert-list', name: '알림 목록·상세', path: '/alert/list', tag: '신규' }],
   },
   {
     group: '시스템관리',
+    hubPath: '/menu/system',
     items: [
       { id: 'sys-account', name: '계정 관리', path: '/system/account', tag: '신규' },
       { id: 'sys-menu', name: '메뉴 접근 권한', path: '/system/menu-perm', tag: '신규' },
