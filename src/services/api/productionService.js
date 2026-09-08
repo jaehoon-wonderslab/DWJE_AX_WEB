@@ -17,7 +17,7 @@ import { request } from './client';
  * 모니터링 요약
  *
  * `GET /api/v1/production/monitor/summary`
- * @param {object} params processId
+ * @param {object} params targetDate(YYYY-MM-DD), processId
  * @returns {Promise<object>} running, warning, stopped, hourlyThroughput, stoppedDetail
  * @privateRemarks 접근 권한 품질보증팀·생산관리팀·제조팀·통합관리자 · 우선순위 1
  */
@@ -29,7 +29,7 @@ export function getProductionMonitorSummary(params) {
  * 설비별 실시간 현황
  *
  * `GET /api/v1/production/monitor/equipments`
- * @param {object} params lineRange, model, state, page, size
+ * @param {object} params targetDate(YYYY-MM-DD), lineRange, model, state, page, size
  * @returns {Promise<object>} items[{eqptCd,model,qty,defectRate,uptimeRate,strokeSpeed,lastCollectedAt,state}], meta
  * @remarks 10초 폴링. 운영 시 SSE 검토
  * @privateRemarks 접근 권한 상동 · 우선순위 1

@@ -19,7 +19,7 @@ export default function Card({ title, sub, right, children, style, bodyStyle, ti
       {title ? (
         <View style={s.cardHead}>
           <View style={{ flexShrink: 1 }}>
-            <Text style={s.cardHeadTitle}>{title}</Text>
+            <Text style={s.cardHeadTitle} numberOfLines={1}>{title}</Text>
             {sub ? <Text style={s.cardHeadSub}>{sub}</Text> : null}
           </View>
           {right ? <View style={s.cardHeadRight}>{right}</View> : null}

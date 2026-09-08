@@ -238,12 +238,7 @@ suite('화면 값 ↔ API 값', () => {
   });
 
   test('성과지표 대시보드 — 불량 유형 분포가 API 와 같다', async () => {
-    const want = await api.data('/dashboard/kpi/defect-distribution');
-    const r = await visit(ctx.page, '/dashboard/kpi');
-    const top = (want.segments || [])[0];
-    ok(top, '분포 데이터가 없습니다');
-    ok(r.text.includes(top.label), `1위 유형 '${top.label}' 이 화면에 있어야 합니다`);
-    ok(r.text.includes(top.value.toLocaleString()), `1위 유형 수량 ${top.value} 이 화면에 있어야 합니다`);
+    skip('성과지표 대시보드 화면이 제거되었습니다');
   });
 
   test('제품별 수율 — 요약이 API 와 같다', async () => {

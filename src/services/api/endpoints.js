@@ -235,7 +235,7 @@ export const ENDPOINTS = {
   getCommonMastersDefectTypes: {
     no: 12, domain: '인증·공통', comp: 'CM-05', screen: '공통', funcId: '',
     name: '불량 유형 목록 조회', method: 'GET', path: '/api/v1/common/masters/defect-types',
-    params: 'processId',
+    params: 'targetDate(YYYY-MM-DD), processId',
     response: 'defectTypes[{code,name,category}]',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_md_defect, mes.tb_md_defect_by_item, ax.tb_ai_defect_tag',
@@ -660,7 +660,7 @@ export const ENDPOINTS = {
   getProductionMonitorEquipments: {
     no: 56, domain: '생산관리', comp: 'PR-01', screen: '생산 모니터링', funcId: 'PR-01-F01/F03',
     name: '설비별 실시간 현황', method: 'GET', path: '/api/v1/production/monitor/equipments',
-    params: 'processId, lineRange(설비코드 전방 일치), model, state, page, size',
+    params: 'targetDate(YYYY-MM-DD), processId, lineRange(설비코드 전방 일치), model, state, page, size',
     response: 'items[{eqptCd,model,qty,defectRate,uptimeRate,strokeSpeed,lastCollectedAt,state}], meta',
     roles: '상동', blind: ['qty', 'yield', 'mold'], priority: 1,
     tables: 'mes.tb_md_eqpt, mes.tb_pop_defect_hist, ax.tb_met_metric_std',

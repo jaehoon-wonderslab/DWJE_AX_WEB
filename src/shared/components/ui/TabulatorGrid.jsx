@@ -47,6 +47,12 @@ export default function TabulatorGrid({
   onSelectedChange,
   /** 첫 정렬 — 이후에는 사용자가 머리글로 바꿉니다 */
   initialSort,
+  /** 각 데이터 열의 머리글에 검색 입력칸을 붙입니다 */
+  headerFilter = true,
+  /** 선택 가능한 최대 행 수 (0이면 제한 없음) */
+  maxSelectable = 0,
+  /** 외부 동작(상세 보기 등)에서 머리글 필터에 넣을 값 */
+  headerFilters,
 }) {
   const ref = useRef(null);
   const instance = useRef(null);
@@ -85,33 +91,23 @@ export default function TabulatorGrid({
      * (행에 `tabulator-selectable` 은 붙는데 `.tabulator-row-header` 가 없습니다).
      * 열로 넣으면 확실합니다 — 머리글 칸은 지금 보이는 행 전체를 한 번에 고릅니다.
      */
+    // 표마다 필터 설정을 반복하지 않아도 되도록 데이터 열은 기본적으로 검색 가능하게 둡니다.
+    // `headerFilter: false` 를 준 열은 (아이콘·계산 열 등) 그대로 제외합니다.
+    const filterableColumns = columns.map((column) => {
+      if (!headerFilter || !column?.field || column.headerFilter === false) return column;
+      return {
+        ...column,
+        headerFilter: column.headerFilter || 'input',
+        headerFilterLiveFilter: column.headerFilterLiveFilter ?? true,
+        headerFilterPlaceholder: column.headerFilterPlaceholder || `${column.title || '항목'} 검색`,
+      };
+    });
+
     const cols = selectable
       ? [
           {
             formatter: 'rowSelection',
-            /**
-             * 머리글 칸은 **직접 그립니다**
-             *
-             * Tabulator 가 주는 `titleFormatter: 'rowSelection'` 은 자기 안에 켜짐/꺼짐을
-             * 따로 들고 있는데, 코드로 행을 골라 두면(팝업을 열 때 이미 고른 제품을
-             * 되살립니다) 그 값이 어긋납니다. 그러면 **첫 클릭이 고르는 대신 지웁니다** —
-             * 실제로 5종이 골라진 상태에서 눌렀더니 0종이 됐습니다.
-             * 지금 상태를 보고 정하도록 손으로 답니다.
-             */
-            titleFormatter: () => {
-              const el = document.createElement('input');
-              el.type = 'checkbox';
-              el.setAttribute('aria-label', '검색된 행 모두 선택');
-              el.style.cursor = 'pointer';
-              return el;
-            },
-            headerClick: (e, col) => {
-              const t = col.getTable();
-              const all = t.getRows();
-              if (!all.length) return;
-              if (t.getSelectedRows().length >= all.length) t.deselectRow();
-              else t.selectRow(all);
-            },
+            title: '',
             headerSort: false,
             resizable: false,
             width: 42,
@@ -120,9 +116,9 @@ export default function TabulatorGrid({
             headerHozAlign: 'center',
             cellClick: (e, cell) => cell.getRow().toggleSelect(),
           },
-          ...columns,
+          ...filterableColumns,
         ]
-      : columns;
+      : filterableColumns;
 
     const table = new Tabulator(ref.current, {
       data: rows,
@@ -136,7 +132,7 @@ export default function TabulatorGrid({
       // shift 를 누른 채 머리글을 누르면 정렬 조건이 쌓입니다
       columnHeaderSortMulti: true,
       ...(initialSort ? { initialSort } : null),
-      ...(selectable ? { selectableRows: true } : null),
+      ...(selectable ? { selectableRows: maxSelectable || true } : null),
       ...(groupBy
         ? {
             groupBy,
@@ -147,21 +143,10 @@ export default function TabulatorGrid({
     });
 
     if (selectable) {
-      /** 머리글 네모를 지금 상태에 맞춥니다 — 일부만 골랐으면 중간 표시 */
-      const syncHead = () => {
-        const box = ref.current?.querySelector('.tabulator-header input[type="checkbox"]');
-        if (!box) return;
-        const total = table.getRows().length;
-        const on = table.getSelectedRows().length;
-        box.checked = total > 0 && on >= total;
-        box.indeterminate = on > 0 && on < total;
-      };
       table.on('rowSelectionChanged', (data) => {
-        syncHead();
         if (restoring.current) return;
         onSelectedRef.current?.(data.map((r) => (rowKey ? r[rowKey] : r)));
       });
-      table.on('dataProcessed', syncHead);
     }
 
     instance.current = table;
@@ -175,7 +160,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, headerFilter, maxSelectable]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -211,6 +196,42 @@ export default function TabulatorGrid({
     else table.on('tableBuilt', apply);
   }, [rows, selectable, rowKey]);
 
+  /**
+   * "선택 해제"처럼 부모가 선택 목록을 직접 바꾼 경우에도 표 안의 체크 상태를 맞춥니다.
+   * 기존에는 자료를 교체할 때만 되살려서, 버튼으로 빈 배열을 넣어도 Tabulator 행은 계속 선택돼 있었습니다.
+   */
+  useEffect(() => {
+    const table = instance.current;
+    if (!table || !selectable || !rowKey) return;
+    restoring.current = true;
+    try {
+      table.deselectRow();
+      const keep = new Set(selected || []);
+      if (keep.size) {
+        table.getRows().forEach((row) => {
+          if (keep.has(row.getData()[rowKey])) row.select();
+        });
+      }
+    } catch {
+      /* 표가 정리되는 중에는 동기화하지 않습니다 */
+    } finally {
+      restoring.current = false;
+    }
+  }, [selected, selectable, rowKey]);
+
+  useEffect(() => {
+    const table = instance.current;
+    if (!table || !headerFilters) return;
+    try {
+      table.clearHeaderFilter();
+      Object.entries(headerFilters).forEach(([field, value]) => {
+        if (value !== null && value !== undefined && String(value) !== '') table.setHeaderFilter(field, 'like', value);
+      });
+    } catch {
+      /* 표가 정리된 중에는 적용하지 않습니다 */
+    }
+  }, [headerFilters]);
+
   return (
     <View style={style} nativeID={`grid_${id}`}>
       <style>{`
@@ -234,6 +255,24 @@ export default function TabulatorGrid({
           font-size: 11.5px;
           padding: 9px 10px;
           white-space: normal;
+        }
+        #grid_${id} .tabulator .tabulator-header .tabulator-header-filter {
+          padding: 0 8px 8px;
+        }
+        #grid_${id} .tabulator .tabulator-header .tabulator-header-filter input {
+          width: 100%;
+          height: 28px;
+          padding: 0 8px;
+          color: ${c.text};
+          background: ${c.card};
+          border: 1px solid ${c.border};
+          border-radius: 5px;
+          font-size: 11px;
+          outline: none;
+        }
+        #grid_${id} .tabulator .tabulator-header .tabulator-header-filter input:focus {
+          border-color: ${c.accent};
+          box-shadow: 0 0 0 2px ${isDark ? 'rgba(96,165,250,.18)' : 'rgba(37,99,235,.14)'};
         }
         #grid_${id} .tabulator .tabulator-row {
           background: ${c.card};

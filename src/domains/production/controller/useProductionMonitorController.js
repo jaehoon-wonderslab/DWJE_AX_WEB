@@ -9,47 +9,22 @@ import { usePaging } from '@shared/hooks/usePaging';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import { fixed } from '@shared/utils/formatUtil';
-import { loadProcessOptions } from '@domains/common/model/dataRangeRepository';
-import { MONITOR_STATE_OPTIONS, loadMonitor, monitorStateLabel } from '../model/productionRepository';
+import { loadMonitor, monitorStateLabel } from '../model/productionRepository';
 
 const POLL_MS = 10000;
-
-/**
- * 공정 선택지 — 설비가 실제로 있는 공정만, 이름은 기준정보에서 붙입니다.
- *
- * @param {Array} rows 설비 목록
- * @param {Array} master loadProcessOptions() 결과 (`{value,label}`)
- */
-function buildProcessOptions(rows, master) {
-  const present = [...new Set((rows || []).map((x) => x.processId).filter(Boolean))];
-  const nameOf = Object.fromEntries((master || []).map((m) => [m.value, m.label]));
-  return [
-    { value: '전체', label: '전체' },
-    ...present.sort().map((id) => ({ value: id, label: nameOf[id] || id })),
-  ];
-}
 
 export function useProductionMonitorController() {
   const toast = useUiStore((state) => state.toast);
 
-  const [processId, setProcessId] = useState('전체');
-  const [model, setModel] = useState('전체');
-  const [state, setState] = useState('전체');
+  const [targetDate, setTargetDate] = useState('2026-08-30');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // 선택지는 실제 설비 목록에서 만듭니다.
-  // 기준정보 공정은 37종인데 설비가 있는 공정은 17종뿐이라, 마스터를 그대로 쓰면
-  // 20종은 골라도 0건입니다 — 사용자는 필터가 고장난 것으로 봅니다.
-  // size=0 은 전량입니다 — 1,000 으로 자르면 뒤쪽 공정·모델이 선택지에서 빠집니다
-  const { data: pool } = useAsync(() => loadMonitor({ size: 0 }), [], { silent: true });
-  const { data: processMaster } = useAsync(loadProcessOptions, [], { silent: true, initialData: [] });
-
   // 설비가 1,000대를 넘어 한 쪽씩 끊어 봅니다 (조회 조건이 바뀌면 1쪽으로)
-  const paging = usePaging({ resetKey: `${processId}|${model}|${state}` });
+  const paging = usePaging({ resetKey: targetDate });
 
   const { data, loading, reload } = useAsync(
-    () => loadMonitor({ processId, model, state, ...paging.params }),
-    [processId, model, state, paging.page, paging.size],
+    () => loadMonitor({ targetDate, ...paging.params }),
+    [targetDate, paging.page, paging.size],
     { silent: true }
   );
 
@@ -101,7 +76,7 @@ export function useProductionMonitorController() {
     let rows = items;
     try {
       // size=0 은 전량입니다 (한 쪽 상한 1,000 을 넘어 전부 옵니다)
-      const all = await loadMonitor({ processId, model, state, size: 0 });
+      const all = await loadMonitor({ targetDate, size: 0 });
       rows = all?.equipments?.items || items;
     } catch {
       toast('전체를 불러오지 못해 현재 쪽만 내려받습니다');
@@ -122,7 +97,7 @@ export function useProductionMonitorController() {
         monitorStateLabel(l.state),
       ]),
     });
-  }, [items, processId, model, state, itemsMeta?.total, toast]);
+  }, [items, targetDate, itemsMeta?.total, toast]);
 
   return {
     loading,
@@ -130,16 +105,11 @@ export function useProductionMonitorController() {
     items,
     paging,
     itemsMeta,
-    filters: { processId, model, state },
-    processOptions: buildProcessOptions(pool?.equipments?.items, processMaster),
-    modelOptions: ['전체', ...new Set((pool?.equipments?.items || []).map((x) => x.model).filter((m) => m && String(m).trim()))],
+    filters: { targetDate },
     iotMissing,
     noOutputToday,
     updatedAt,
-    stateOptions: MONITOR_STATE_OPTIONS,
-    setProcessId,
-    setModel,
-    setState,
+    setTargetDate,
     autoRefresh,
     toggleAutoRefresh,
     search,

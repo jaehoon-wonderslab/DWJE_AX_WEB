@@ -15,6 +15,7 @@ import BarChartD3 from './BarChart';
 import DonutChartD3 from './DonutChart';
 import DotPlotD3 from './DotPlot';
 import GaugeD3 from './Gauge';
+import GroupedBarChartD3 from './GroupedBarChart';
 import HBarChartD3 from './HBarChart';
 import HeatMapD3 from './HeatMap';
 import LineChartD3 from './LineChart';
@@ -25,6 +26,7 @@ const web = Platform.OS === 'web';
 
 export const LineChart = web ? LineChartD3 : native.LineChart;
 export const BarChart = web ? BarChartD3 : native.BarChart;
+export const GroupedBarChart = web ? GroupedBarChartD3 : native.BarChart;
 export const RadarChart = web ? RadarChartD3 : native.RadarChart;
 export const HBarChart = web ? HBarChartD3 : native.HBarChart;
 export const DotPlot = web ? DotPlotD3 : native.DotPlot;
