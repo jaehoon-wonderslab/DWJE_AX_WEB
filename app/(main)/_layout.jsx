@@ -17,6 +17,7 @@ import { hubGroupOf, MENU } from '@shared/navigation/routes';
 import { useDataRangeBootstrap } from '@domains/common/controller/useDataRangeBootstrap';
 import Sidebar from '@shared/components/layout/Sidebar';
 import Topbar from '@shared/components/layout/Topbar';
+import AiChatPanelHost from '@shared/components/layout/AiChatPanelHost';
 import { Loading, NoAccess } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -34,6 +35,8 @@ export default function MainLayout() {
   const menuPerms = useAuthStore((state) => state.menuPerms);
   const dept = useAuthStore((state) => state.userInfo?.dept);
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
+  const aiChatOpen = useUiStore((state) => state.aiChatOpen);
+  const aiChatSize = useUiStore((state) => state.aiChatSize);
   const toast = useUiStore((state) => state.toast);
 
   const hubGroup = hubGroupOf(pathname);
@@ -51,6 +54,7 @@ export default function MainLayout() {
 
   // 좁은 화면(태블릿 세로 이하)에서는 사이드바를 자동으로 숨깁니다
   const showSidebar = !collapsed && width > 860;
+  const chatUsesWorkspace = aiChatOpen && (aiChatSize === 'full' || width < 900);
 
   // 비로그인 접근 — 가려던 주소를 들고 로그인 화면으로 보냅니다
   if (!isLoggedIn) {
@@ -62,17 +66,22 @@ export default function MainLayout() {
       {showSidebar ? <Sidebar /> : null}
       <View style={s.main}>
         <Topbar />
-        {!allowed ? (
-          <View style={s.content}>
-            <NoAccess dept={dept} />
+        <View style={{ flex: 1, minHeight: 0, flexDirection: 'row' }}>
+          <View style={{ flex: 1, minWidth: 0, display: chatUsesWorkspace ? 'none' : 'flex' }}>
+            {!allowed ? (
+              <View style={s.content}>
+                <NoAccess dept={dept} />
+              </View>
+            ) : rangeReady ? (
+              <Slot />
+            ) : (
+              <View style={s.content}>
+                <Loading text="조회 기간을 확인하는 중입니다…" />
+              </View>
+            )}
           </View>
-        ) : rangeReady ? (
-          <Slot />
-        ) : (
-          <View style={s.content}>
-            <Loading text="조회 기간을 확인하는 중입니다…" />
-          </View>
-        )}
+          <AiChatPanelHost workspaceMode={chatUsesWorkspace} />
+        </View>
       </View>
     </View>
   );

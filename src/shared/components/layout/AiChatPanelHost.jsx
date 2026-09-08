@@ -1,9 +1,9 @@
 /**
- * 현재 업무 화면 위에서 여는 전역 AI 채팅 패널입니다.
+ * 현재 업무 화면 옆에서 함께 사용하는 전역 AI 채팅 패널입니다.
  * 기존 자연어 질의 컨트롤러와 응답 렌더러를 그대로 사용해 별도 데모 기능을 만들지 않습니다.
  */
 import React from 'react';
-import { Pressable, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useChatController } from '@domains/ai/controller/useChatController';
 import ChatView from '@domains/ai/view/ChatView';
 import { pageGroup, pageName } from '@shared/constants/menu';
@@ -21,7 +21,7 @@ const SIZE_LABELS = [
   ['full', '전체'],
 ];
 
-export default function AiChatPanelHost() {
+export default function AiChatPanelHost({ workspaceMode = false }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const { width } = useWindowDimensions();
@@ -34,8 +34,8 @@ export default function AiChatPanelHost() {
 
   if (!open) return null;
 
-  const actualSize = width < 720 ? 'full' : size;
-  const panelWidth = actualSize === 'full' ? width : actualSize === 'medium' ? Math.min(720, width * 0.68) : Math.min(430, width * 0.92);
+  const actualSize = workspaceMode ? 'full' : size;
+  const panelWidth = actualSize === 'full' ? undefined : actualSize === 'medium' ? Math.min(620, width * 0.46) : Math.min(410, width * 0.36);
   const hubGroup = hubGroupOf(pathname);
   const screenName = hubGroup || pageName(currentScreenId);
   const contextName = hubGroup || `${pageGroup(currentScreenId)} > ${screenName}`;
@@ -45,21 +45,16 @@ export default function AiChatPanelHost() {
   ];
 
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', inset: 0, zIndex: 70 }}>
-      <Pressable
-        accessibilityLabel="AI 채팅 배경"
-        onPress={close}
-        style={{ position: 'absolute', inset: 0, backgroundColor: actualSize === 'full' ? theme.color.background : theme.drawerOverlay }}
-      />
-      <View
-        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: panelWidth, backgroundColor: theme.color.background, borderLeftWidth: actualSize === 'full' ? 0 : 1, borderLeftColor: theme.color.border, ...theme.shadow }}
-      >
+    <View
+      accessibilityLabel="AI 채팅 작업 패널"
+      style={{ flex: actualSize === 'full' ? 1 : undefined, width: panelWidth, minWidth: actualSize === 'full' ? 0 : 360, backgroundColor: theme.color.background, borderLeftWidth: actualSize === 'full' ? 0 : 1, borderLeftColor: theme.color.border }}
+    >
           <View style={{ minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
             <View style={{ flex: 1, minWidth: 90 }}>
               <Text style={[s.textSm, { fontWeight: '700' }]}>AI 채팅</Text>
               <Text style={s.textXs} numberOfLines={1}>{contextName}</Text>
             </View>
-            {width >= 720 ? (
+            {width >= 900 ? (
               <View style={{ flexDirection: 'row', padding: 2, borderRadius: 8, backgroundColor: theme.color.secondary }}>
                 {SIZE_LABELS.map(([value, label]) => (
                   <TouchableOpacity
@@ -75,10 +70,10 @@ export default function AiChatPanelHost() {
               </View>
             ) : null}
             <IconButton name="plus" size={30} iconSize={14} onPress={chat.newSession} title="새 대화" />
-            <IconButton name="close" size={30} iconSize={14} onPress={close} title="닫기" />
+            <IconButton name="close" size={30} iconSize={14} onPress={close} title="AI 채팅 닫기" />
           </View>
 
-          <View style={{ flex: 1, paddingHorizontal: actualSize === 'full' ? Math.max(20, (width - 900) / 2) : 16, paddingVertical: 12 }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: actualSize === 'full' ? 960 : undefined, alignSelf: 'center', paddingHorizontal: actualSize === 'full' ? 28 : 16, paddingVertical: 12 }}>
             {!chat.messages.length ? (
               <View style={{ marginBottom: 4 }}>
                 <Text style={s.textXs}>현재 보고 있는 화면에서 바로 물어볼 수 있습니다.</Text>
@@ -99,7 +94,6 @@ export default function AiChatPanelHost() {
             ) : null}
             <ChatView {...chat} compact />
           </View>
-      </View>
     </View>
   );
 }
