@@ -32,7 +32,7 @@ function rememberSessionId(sessionId) {
   }
 }
 
-export function useChatController() {
+export function useChatController({ consumeRouteQuery = true } = {}) {
   const toast = useUiStore((state) => state.toast);
   const servingModelVer = useAuthStore((state) => state.servingModelVer);
   const params = useLocalSearchParams();
@@ -89,11 +89,11 @@ export function useChatController() {
   const handledQuery = useRef('');
   useEffect(() => {
     const q = params?.q;
-    if (q && q !== handledQuery.current) {
+    if (consumeRouteQuery && q && q !== handledQuery.current) {
       handledQuery.current = q;
       send(q);
     }
-  }, [params?.q, send]);
+  }, [consumeRouteQuery, params?.q, send]);
 
   /** 새 대화 시작 — 세션이 없으면 화면만 비웁니다 */
   const newSession = useCallback(async () => {

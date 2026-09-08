@@ -25,6 +25,9 @@ export default function Topbar() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
   const toast = useUiStore((state) => state.toast);
+  const aiChatOpen = useUiStore((state) => state.aiChatOpen);
+  const toggleAiChat = useUiStore((state) => state.toggleAiChat);
+  const can = useAuthStore((state) => state.can);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -90,6 +93,15 @@ export default function Topbar() {
         />
       </View>
 
+      {can('ai-chat') ? (
+        <IconButton
+          name="sparkles"
+          onPress={toggleAiChat}
+          title={aiChatOpen ? 'AI 채팅 닫기' : 'AI 채팅 열기'}
+          color={aiChatOpen ? theme.color.primary : theme.color.mutedForeground}
+          style={aiChatOpen ? { backgroundColor: theme.color.secondary, borderColor: theme.color.primary } : undefined}
+        />
+      ) : null}
       <IconButton name="bell" onPress={() => goToScreen('alert-list')} title="알림" />
       <IconButton name="moon" onPress={toggleTheme} title="테마" />
 

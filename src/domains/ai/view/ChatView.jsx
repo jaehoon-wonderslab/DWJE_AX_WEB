@@ -17,7 +17,7 @@ import { useTheme } from '@shared/theme/useTheme';
 
 export default function ChatView({
   messages, followups, input, setInput, pending, suggestions, servingModelVer, askedCount,
-  send, newSession, exportAnswer, rate, requestVoice,
+  send, newSession, exportAnswer, rate, requestVoice, compact = false,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -60,9 +60,9 @@ export default function ChatView({
   const deptAv = DEPTS.find((d) => d.id === userInfo?.dept)?.av || 'ME';
 
   return (
-    <View style={{ flex: 1, minHeight: 520 }}>
+    <View style={{ flex: 1, minHeight: compact ? 0 : 520 }}>
       {/* 세션 바 */}
-      <View
+      {!compact ? <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -82,13 +82,13 @@ export default function ChatView({
         <View style={s.spacer} />
         <Button label="새 대화" size="sm" icon="plus" onPress={newSession} />
         <Button label="추천 질의" size="sm" icon="sparkles" onPress={showSuggestions} />
-      </View>
+      </View> : null}
 
       {/* 대화 영역 */}
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 22 }}>
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: compact ? 14 : 22 }}>
         <View style={{ maxWidth: 840, width: '100%', alignSelf: 'center', gap: 20 }}>
           {!messages.length ? (
-            <EmptyChat suggestions={suggestions} onPick={send} />
+            <EmptyChat suggestions={suggestions} onPick={send} compact={compact} />
           ) : (
             messages.map((m, i) => <Message key={m.messageId || i} message={m} deptAv={deptAv} onExport={exportAnswer} onRate={rate} />)
           )}
@@ -140,9 +140,9 @@ export default function ChatView({
           </View>
         </View>
 
-        <Text style={[s.textXs, { textAlign: 'center', marginTop: 8 }]}>
+        {!compact ? <Text style={[s.textXs, { textAlign: 'center', marginTop: 8 }]}>
           조회 대상 데이터는 질문 의도에 따라 AI 가 자동으로 판단합니다. 답변에는 원천 화면·기간·LOT 근거가 함께 표시되며, 권한 범위를 벗어난 항목은 마스킹됩니다.
-        </Text>
+        </Text> : null}
       </View>
     </View>
   );
@@ -173,16 +173,16 @@ function MiniButton({ icon, label, onPress }) {
 }
 
 /** 빈 대화 상태 */
-function EmptyChat({ suggestions, onPick }) {
+function EmptyChat({ suggestions, onPick, compact }) {
   const s = useCommonStyles();
   const theme = useTheme();
   return (
-    <View style={{ maxWidth: 760, alignSelf: 'center', paddingTop: 40, paddingBottom: 10, width: '100%' }}>
-      <Text style={[s.pageTitle, { fontSize: 22, textAlign: 'center' }]}>무엇을 확인해 드릴까요?</Text>
-      <Text style={[s.textSm, { color: theme.color.mutedForeground, textAlign: 'center', marginTop: 8 }]}>
+    <View style={{ maxWidth: 760, alignSelf: 'center', paddingTop: compact ? 8 : 40, paddingBottom: 10, width: '100%' }}>
+      <Text style={[s.pageTitle, { fontSize: compact ? 18 : 22, textAlign: compact ? 'left' : 'center' }]}>무엇을 확인해 드릴까요?</Text>
+      <Text style={[s.textSm, { color: theme.color.mutedForeground, textAlign: compact ? 'left' : 'center', marginTop: 8 }]}>
         생산 실적 · 불량 현황 · 로트 이력 · 설비 가동 상태를 조회합니다. 표와 차트로 정리해 드리고 엑셀로 내려받을 수 있습니다.
       </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 26 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: compact ? 18 : 26 }}>
         {suggestions.map((x) => (
           <TouchableOpacity
             key={x.q}
