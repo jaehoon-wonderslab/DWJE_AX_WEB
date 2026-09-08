@@ -19,7 +19,6 @@ import { DrawerHost, GlobalApiSpinner, Loading, ModalHost, ToastHost } from '@sh
 import { FONT_FAMILY } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthBootstrap } from '@domains/auth/controller/useAuthBootstrap';
-import AiChatPanelHost from '@shared/components/layout/AiChatPanelHost';
 
 export default function RootLayout() {
   const theme = useTheme();
@@ -79,7 +78,6 @@ export default function RootLayout() {
         )}
         <ModalHost />
         <DrawerHost />
-        <AiChatPanelHost />
         <ToastHost />
         <GlobalApiSpinner />
       </View>

@@ -1,10 +1,10 @@
 /**
  * 상단 헤더 (CM-01 · CM-02)
  *
- * 브레드크럼 · 통합 검색 · 알림 · 테마 전환 · 계정 전환 메뉴로 구성됩니다.
+ * 브레드크럼 · AI 채팅 · 알림 · 테마 전환 · 계정 전환 메뉴로 구성됩니다.
  */
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { pageGroup, pageName } from '@shared/constants/menu';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { DEPTS } from '@shared/constants/dataFields';
@@ -24,13 +24,11 @@ export default function Topbar() {
   const userInfo = useAuthStore((state) => state.userInfo);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
-  const toast = useUiStore((state) => state.toast);
   const aiChatOpen = useUiStore((state) => state.aiChatOpen);
   const toggleAiChat = useUiStore((state) => state.toggleAiChat);
   const can = useAuthStore((state) => state.can);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [keyword, setKeyword] = useState('');
 
   const dept = DEPTS.find((d) => d.id === userInfo?.dept);
 
@@ -62,36 +60,6 @@ export default function Topbar() {
       </View>
 
       <View style={s.spacer} />
-
-      {/* 통합 검색 */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 7,
-          borderWidth: 1,
-          borderColor: theme.color.input,
-          borderRadius: theme.metrics.radius,
-          paddingHorizontal: 10,
-          height: 34,
-          width: 230,
-        }}
-      >
-        <Icon name="search" size={15} color={theme.color.mutedForeground} />
-        <TextInput
-          style={[s.textSm, { flex: 1, fontSize: 13, color: theme.color.foreground, outlineStyle: 'none' }]}
-          placeholder="LOT · 품목 · 금형 검색"
-          placeholderTextColor={theme.color.mutedForeground}
-          value={keyword}
-          onChangeText={setKeyword}
-          onSubmitEditing={() => {
-            if (!keyword.trim()) return;
-            // 통합 검색은 자연어 질의 화면으로 넘겨 처리합니다
-            goToScreen('ai-chat', { q: keyword.trim() });
-            setKeyword('');
-          }}
-        />
-      </View>
 
       {can('ai-chat') ? (
         <IconButton
