@@ -1,0 +1,574 @@
+{
+  "projectId": "1c0644a5-d473-4d11-8c46-d64d1d2ecd55",
+  "pkg": "dwje-ax-web",
+  "globalName": "DwjeAX",
+  "shape": "package",
+  "entry": "./.design-sync/entry.js",
+  "tsconfig": ".design-sync/tsconfig.json",
+  "srcDir": "src/shared/components",
+  "componentSrcMap": {
+    "Icon": "src/shared/components/ui/Icon.jsx",
+    "Hoverable": "src/shared/components/ui/Hoverable.jsx",
+    "Button": "src/shared/components/ui/Button.jsx",
+    "IconButton": "src/shared/components/ui/Button.jsx",
+    "ButtonRow": "src/shared/components/ui/Button.jsx",
+    "Card": "src/shared/components/ui/Card.jsx",
+    "CardBody": "src/shared/components/ui/Card.jsx",
+    "SourceNote": "src/shared/components/ui/Card.jsx",
+    "StatCard": "src/shared/components/ui/StatCard.jsx",
+    "Badge": "src/shared/components/ui/Badge.jsx",
+    "StateBadge": "src/shared/components/ui/Badge.jsx",
+    "Dot": "src/shared/components/ui/Badge.jsx",
+    "BlindValue": "src/shared/components/ui/BlindValue.jsx",
+    "BlindNote": "src/shared/components/ui/BlindValue.jsx",
+    "Table": "src/shared/components/ui/Table.jsx",
+    "TabulatorTable": "src/shared/components/ui/TabulatorTable.jsx",
+    "TabulatorGrid": "src/shared/components/ui/TabulatorGrid.jsx",
+    "Pagination": "src/shared/components/ui/Pagination.jsx",
+    "XlsTable": "src/shared/components/ui/XlsTable.jsx",
+    "XlsLegend": "src/shared/components/ui/XlsTable.jsx",
+    "PermMatrix": "src/shared/components/ui/PermMatrix.jsx",
+    "Tabs": "src/shared/components/ui/Tabs.jsx",
+    "KeyValue": "src/shared/components/ui/KeyValue.jsx",
+    "ProgressBar": "src/shared/components/ui/ProgressBar.jsx",
+    "Steps": "src/shared/components/ui/Steps.jsx",
+    "ListRow": "src/shared/components/ui/ListRow.jsx",
+    "Pred": "src/shared/components/ui/Pred.jsx",
+    "ConfTag": "src/shared/components/ui/Pred.jsx",
+    "Drift": "src/shared/components/ui/Pred.jsx",
+    "Hint": "src/shared/components/ui/Feedback.jsx",
+    "NoteText": "src/shared/components/ui/Feedback.jsx",
+    "EmptyState": "src/shared/components/ui/Feedback.jsx",
+    "Loading": "src/shared/components/ui/Feedback.jsx",
+    "NoAccess": "src/shared/components/ui/Feedback.jsx",
+    "FormAlert": "src/shared/components/ui/Feedback.jsx",
+    "Chip": "src/shared/components/ui/Chip.jsx",
+    "SourceChip": "src/shared/components/ui/Chip.jsx",
+    "SelectChip": "src/shared/components/ui/Chip.jsx",
+    "ChipRow": "src/shared/components/ui/Chip.jsx",
+    "Field": "src/shared/components/ui/Field.jsx",
+    "TextField": "src/shared/components/ui/Field.jsx",
+    "TextAreaField": "src/shared/components/ui/Field.jsx",
+    "SelectField": "src/shared/components/ui/Field.jsx",
+    "DateField": "src/shared/components/ui/Field.jsx",
+    "PasswordField": "src/shared/components/ui/Field.jsx",
+    "CheckRow": "src/shared/components/ui/Field.jsx",
+    "RadioRow": "src/shared/components/ui/Field.jsx",
+    "Filters": "src/shared/components/ui/Field.jsx",
+    "ToastHost": "src/shared/components/ui/Overlays.jsx",
+    "ModalHost": "src/shared/components/ui/Overlays.jsx",
+    "DrawerHost": "src/shared/components/ui/Overlays.jsx",
+    "GlobalApiSpinner": "src/shared/components/ui/GlobalApiSpinner.jsx",
+    "LogoMark": "src/shared/components/brand/Logo.jsx",
+    "LogoLockup": "src/shared/components/brand/Logo.jsx",
+    "ConstellationField": "src/shared/components/brand/ConstellationField.jsx",
+    "PageTransition": "src/shared/components/brand/PageTransition.jsx",
+    "PageHead": "src/shared/components/layout/PageHead.jsx",
+    "BackLink": "src/shared/components/layout/PageHead.jsx",
+    "PageContainer": "src/shared/components/layout/PageContainer.jsx",
+    "FullPageContainer": "src/shared/components/layout/PageContainer.jsx",
+    "Grid": "src/shared/components/layout/Grid.jsx",
+    "Gap": "src/shared/components/layout/Grid.jsx",
+    "ReportDoc": "src/shared/components/layout/ReportDoc.jsx",
+    "ReportTitle": "src/shared/components/layout/ReportDoc.jsx",
+    "SignalLegend": "src/shared/components/layout/ReportDoc.jsx",
+    "LineChart": "src/shared/components/charts-d3/LineChart.jsx",
+    "BarChart": "src/shared/components/charts-d3/BarChart.jsx",
+    "GroupedBarChart": "src/shared/components/charts-d3/GroupedBarChart.jsx",
+    "HBarChart": "src/shared/components/charts-d3/HBarChart.jsx",
+    "DonutChart": "src/shared/components/charts-d3/DonutChart.jsx",
+    "Gauge": "src/shared/components/charts-d3/Gauge.jsx",
+    "HeatMap": "src/shared/components/charts-d3/HeatMap.jsx",
+    "RadarChart": "src/shared/components/charts-d3/RadarChart.jsx",
+    "DotPlot": "src/shared/components/charts-d3/DotPlot.jsx",
+    "ParetoChart": "src/shared/components/charts-d3/ParetoChart.jsx",
+    "DwjeApp": ".design-sync/screens/index.jsx",
+    "ScreenAiChat": ".design-sync/screens/index.jsx",
+    "ScreenDashAi": ".design-sync/screens/index.jsx",
+    "ScreenDashProc": ".design-sync/screens/index.jsx",
+    "ScreenProdMonitor": ".design-sync/screens/index.jsx",
+    "ScreenProdResult": ".design-sync/screens/index.jsx",
+    "ScreenQcDefect": ".design-sync/screens/index.jsx",
+    "ScreenQcAoi": ".design-sync/screens/index.jsx",
+    "ScreenProdDaily": ".design-sync/screens/index.jsx",
+    "ScreenRptPressMorning": ".design-sync/screens/index.jsx",
+    "ScreenRptPlatingMorning": ".design-sync/screens/index.jsx",
+    "ScreenRptShipPlan": ".design-sync/screens/index.jsx",
+    "ScreenRptYieldModel": ".design-sync/screens/index.jsx",
+    "ScreenRptLrrCustomer": ".design-sync/screens/index.jsx",
+    "ScreenRptScrap": ".design-sync/screens/index.jsx",
+    "ScreenAlertList": ".design-sync/screens/index.jsx",
+    "ScreenSysAccount": ".design-sync/screens/index.jsx",
+    "ScreenSysMenu": ".design-sync/screens/index.jsx",
+    "ScreenSysData": ".design-sync/screens/index.jsx",
+    "ScreenAlertCond": ".design-sync/screens/index.jsx",
+    "ScreenSysRecip": ".design-sync/screens/index.jsx",
+    "ScreenSysGloss": ".design-sync/screens/index.jsx",
+    "ScreenSysRank": ".design-sync/screens/index.jsx",
+    "ScreenChatHistory": ".design-sync/screens/index.jsx",
+    "ScreenSysAudit": ".design-sync/screens/index.jsx",
+    "ScreenBaseModel": ".design-sync/screens/index.jsx",
+    "ScreenSysModelVer": ".design-sync/screens/index.jsx",
+    "ScreenAiAgent": ".design-sync/screens/index.jsx",
+    "ScreenSysMetric": ".design-sync/screens/index.jsx",
+    "ScreenSysDl": ".design-sync/screens/index.jsx",
+    "ScreenSysSync": ".design-sync/screens/index.jsx",
+    "ScreenDailyHistory": ".design-sync/screens/index.jsx",
+    "ScreenMenuDashboard": ".design-sync/screens/index.jsx",
+    "ScreenMenuOperation": ".design-sync/screens/index.jsx",
+    "ScreenMenuReport": ".design-sync/screens/index.jsx",
+    "ScreenMenuSystem": ".design-sync/screens/index.jsx",
+    "LoginScreen": ".design-sync/screens/index.jsx",
+    "SignupScreen": ".design-sync/screens/index.jsx",
+    "ForgotPasswordScreen": ".design-sync/screens/index.jsx"
+  },
+  "cssEntry": ".design-sync/ds-styles.css",
+  "docsDir": ".design-sync/docs",
+  "guidelinesGlob": [
+    "docs/duckwoo-ax-style-reference.md"
+  ],
+  "extraFonts": [
+    ".design-sync/fonts/fonts.css"
+  ],
+  "runtimeFontPrefixes": [
+    "Apple SD Gothic Neo"
+  ],
+  "overrides": {
+    "Card": {
+      "cardMode": "column"
+    },
+    "StatCard": {
+      "cardMode": "column"
+    },
+    "KeyValue": {
+      "cardMode": "column"
+    },
+    "Icon": {
+      "cardMode": "column"
+    },
+    "Filters": {
+      "cardMode": "column"
+    },
+    "Steps": {
+      "cardMode": "column"
+    },
+    "Pagination": {
+      "cardMode": "column"
+    },
+    "ListRow": {
+      "cardMode": "column"
+    },
+    "PageHead": {
+      "cardMode": "column"
+    },
+    "PageContainer": {
+      "cardMode": "column"
+    },
+    "FullPageContainer": {
+      "cardMode": "column"
+    },
+    "Grid": {
+      "cardMode": "column",
+      "viewport": "1200x700"
+    },
+    "ReportDoc": {
+      "cardMode": "column"
+    },
+    "ReportTitle": {
+      "cardMode": "column"
+    },
+    "Button": {
+      "cardMode": "column"
+    },
+    "DateField": {
+      "cardMode": "column"
+    },
+    "TextField": {
+      "cardMode": "column"
+    },
+    "ConstellationField": {
+      "cardMode": "column"
+    },
+    "Table": {
+      "cardMode": "column"
+    },
+    "TabulatorGrid": {
+      "cardMode": "column"
+    },
+    "TabulatorTable": {
+      "cardMode": "column",
+      "viewport": "1200x700"
+    },
+    "XlsTable": {
+      "cardMode": "column"
+    },
+    "XlsLegend": {
+      "cardMode": "column"
+    },
+    "PermMatrix": {
+      "cardMode": "column"
+    },
+    "NoAccess": {
+      "cardMode": "column"
+    },
+    "ToastHost": {
+      "cardMode": "single",
+      "primaryStory": "Saved",
+      "viewport": "900x600"
+    },
+    "ModalHost": {
+      "cardMode": "single",
+      "primaryStory": "Form",
+      "viewport": "900x700"
+    },
+    "DrawerHost": {
+      "cardMode": "single",
+      "primaryStory": "EquipDetail",
+      "viewport": "900x700"
+    },
+    "GlobalApiSpinner": {
+      "cardMode": "single",
+      "primaryStory": "Active",
+      "viewport": "900x400"
+    },
+    "LineChart": {
+      "cardMode": "column"
+    },
+    "BarChart": {
+      "cardMode": "column"
+    },
+    "GroupedBarChart": {
+      "cardMode": "column"
+    },
+    "HBarChart": {
+      "cardMode": "column"
+    },
+    "ParetoChart": {
+      "cardMode": "column"
+    },
+    "DonutChart": {
+      "cardMode": "column"
+    },
+    "HeatMap": {
+      "cardMode": "column"
+    },
+    "DotPlot": {
+      "cardMode": "column"
+    },
+    "LogoLockup": {
+      "cardMode": "column"
+    },
+    "DwjeApp": {
+      "cardMode": "single",
+      "primaryStory": "Home",
+      "viewport": "1440x900"
+    },
+    "ScreenAiChat": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenDashAi": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenDashProc": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenProdMonitor": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenProdResult": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenQcDefect": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenQcAoi": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenProdDaily": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptPressMorning": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptPlatingMorning": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptShipPlan": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptYieldModel": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptLrrCustomer": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenRptScrap": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenAlertList": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysAccount": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysMenu": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysData": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenAlertCond": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysRecip": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysGloss": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysRank": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenChatHistory": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysAudit": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenBaseModel": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysModelVer": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenAiAgent": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysMetric": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysDl": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenSysSync": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenDailyHistory": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenMenuDashboard": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenMenuOperation": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenMenuReport": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ScreenMenuSystem": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "LoginScreen": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "SignupScreen": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    },
+    "ForgotPasswordScreen": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "viewport": "1320x860"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "dtsPropsFor": {
+    "Button": "/** 버튼 글자(한 줄) */ label: string; /** primary=잉크 채움(화면에 하나) · outline=흰 배경 테두리(기본) · ghost=글자만 · danger=붉은 틴트 */ variant?: 'primary' | 'outline' | 'ghost' | 'danger'; /** md 34px(기본) · sm 28px */ size?: 'md' | 'sm'; /** 왼쪽 아이콘 이름(Icon name). 14px, sm 13px */ icon?: string; /** opacity .45, onPress 무시 */ disabled?: boolean; onPress?: () => void; /** 컨테이너 스타일 덧씌우기 */ style?: any; /** 라벨 Text 스타일 덧씌우기 */ textStyle?: any;",
+    "IconButton": "/** 아이콘 이름(Icon name) */ name: string; onPress?: () => void; /** 정사각 한 변(px). 기본 34 */ size?: number; /** 아이콘 크기(px). 기본 16 */ iconSize?: number; /** 아이콘 색 강제(기본: active 면 primary, 아니면 #3C3C3C) */ color?: string; /** 접근성 라벨(툴팁 문구) */ title?: string; /** 선택된 보기 — #F4F5F6 채움 + 잉크 아이콘 */ active?: boolean; style?: any;",
+    "ButtonRow": "children?: React.ReactNode; /** 예: { justifyContent: 'flex-end' } */ style?: any;",
+    "Hoverable": "/** 기본(정적) 스타일 — 레이아웃은 여기서 */ style?: any; /** 상태별 스타일. 함수면 hovered/pressed 를 받고, 객체면 항상 적용 */ hoverStyle?: any | ((state: { hovered: boolean; pressed: boolean }) => any); /** 노드 또는 상태를 받는 함수 */ children?: React.ReactNode | ((state: { hovered: boolean; pressed: boolean }) => React.ReactNode); onHoverIn?: (e: any) => void; onHoverOut?: (e: any) => void; onPressIn?: (e: any) => void; onPressOut?: (e: any) => void; onPress?: (e: any) => void; /** 나머지 Pressable props 그대로 전달 */ [key: string]: any;",
+    "Icon": "/** 아이콘 이름(59개). 모르는 이름은 info 로 대체 */ name: 'menu' | 'search' | 'bell' | 'moon' | 'chevronDown' | 'chevronRight' | 'chevronLeft' | 'chevronUp' | 'close' | 'check' | 'download' | 'upload' | 'printer' | 'info' | 'message' | 'plus' | 'edit' | 'trash' | 'refresh' | 'alert' | 'filter' | 'arrowUp' | 'arrowDown' | 'arrowRight' | 'arrowLeft' | 'play' | 'copy' | 'external' | 'clock' | 'file' | 'user' | 'users' | 'settings' | 'mic' | 'send' | 'sparkles' | 'thumbsUp' | 'thumbsDown' | 'eye' | 'eyeOff' | 'lock' | 'database' | 'activity' | 'layers' | 'grid' | 'chart' | 'save' | 'calendar' | 'shield' | 'link' | 'history' | 'book' | 'image' | 'minus' | 'sun' | 'logout' | 'triangle' | 'star' | 'starFilled'; /** 정사각 크기(px). 기본 16 */ size?: number; /** 선 색(starFilled 는 채움색). 기본 본문색 #1C1C1C */ color?: string; /** 선 굵기. 기본 1.6 */ strokeWidth?: number; /** Svg 스타일 */ style?: any;",
+    "Field": "/** 라벨(11px 캡션 회색). 없으면 라벨 줄 생략 */ label?: string; /** 라벨 아래 들어갈 컨트롤 */ children?: React.ReactNode; /** 바깥 컨테이너 스타일 */ style?: any; /** 라벨 뒤 앰버 * */ required?: boolean; /** 폭 100% */ full?: boolean; /** 빨간 오류 문구(입력란 오류 틴트와 함께) */ error?: string; /** 얇은 회색 안내 — error 가 있으면 숨김 */ hint?: string;",
+    "TextField": "label?: string; value?: string | number; onChangeText?: (text: string) => void; placeholder?: string; style?: any; /** TextInput 스타일 */ inputStyle?: any; required?: boolean; full?: boolean; error?: string; hint?: string; /** 그 밖의 TextInput props(editable·maxLength·keyboardType …)는 그대로 전달 */ [textInputProp: string]: any;",
+    "TextAreaField": "label?: string; value?: string; onChangeText?: (text: string) => void; placeholder?: string; /** 줄 수 — 높이 22×rows+18 (기본 3) */ rows?: number; style?: any; required?: boolean; /** 기본 true */ full?: boolean; error?: string; hint?: string;",
+    "SelectField": "label?: string; value?: string | number; /** 문자열 배열 또는 {value,label} 배열 */ options?: Array<string | number | { value: string | number; label: string }>; onChange?: (value: string | number, option: { value: string | number; label: string }) => void; style?: any; inputStyle?: any; required?: boolean; full?: boolean; error?: string; hint?: string; /** 값이 없을 때 문구 (기본 '선택') */ placeholder?: string;",
+    "DateField": "label?: string; /** YYYY-MM-DD */ value?: string; onChange?: (date: string) => void; style?: any; required?: boolean; full?: boolean; error?: string; hint?: string; /** 달력 선택 하한 (기본: 스토어 dataRange.fromDate) */ min?: string; /** 달력 선택 상한 (기본: 스토어 dataRange.toDate) */ max?: string;",
+    "PasswordField": "label?: string; value?: string; onChangeText?: (text: string) => void; placeholder?: string; style?: any; required?: boolean; full?: boolean; error?: string; hint?: string; /** 바깥 제어 표시 상태 — 없으면 자체 토글 */ visible?: boolean; onToggleVisible?: () => void; inputStyle?: any; [textInputProp: string]: any;",
+    "CheckRow": "/** 라벨 문구 */ label: string; /** 켜짐 여부(제어 컴포넌트) */ checked?: boolean; /** 줄을 눌렀을 때 */ onToggle?: () => void; /** 바깥 줄 스타일(RN ViewStyle) */ style?: Record<string, unknown>;",
+    "RadioRow": "/** 선택지 — 문자열 또는 { value, label } */ options: Array<string | { value: string; label: string }>; /** 현재 선택 값 */ value?: string; /** 선택 시 */ onChange?: (value: string) => void; /** 바깥 줄 스타일(세로 배치 등, RN ViewStyle) */ style?: Record<string, unknown>;",
+    "Filters": "/** 필드·버튼들 */ children?: React.ReactNode; /** 바깥 줄 스타일(RN ViewStyle) */ style?: Record<string, unknown>;",
+    "Chip": "/** 문구 */ label: string; /** 있으면 눌림(없으면 표기용 View) */ onPress?: () => void; /** 눌림 차단 — 모양은 바뀌지 않음 */ disabled?: boolean; /** 캡슐 스타일(RN ViewStyle) */ style?: Record<string, unknown>; /** 글자 스타일(RN TextStyle) */ textStyle?: Record<string, unknown>;",
+    "SourceChip": "/** 소스 이름 */ label: string; /** 미사용 표시(opacity .5 + 취소선) */ off?: boolean; /** 캡슐 스타일(RN ViewStyle) */ style?: Record<string, unknown>;",
+    "SelectChip": "/** 본문 */ label: string; /** 보조 설명(건수·비율) */ sub?: string; /** 선택 여부 — 잉크 채움 */ on?: boolean; /** 눌렀을 때(토글) */ onPress?: () => void; /** 촘촘한 크기(4/10px 패딩) */ small?: boolean; /** 캡슐 스타일(RN ViewStyle) */ style?: Record<string, unknown>;",
+    "ChipRow": "/** 칩들 */ children?: React.ReactNode; /** 바깥 줄 스타일(RN ViewStyle) */ style?: Record<string, unknown>;",
+    "StateBadge": "/** 상태 문구 — STATE_TONE 사전의 키(가동·비가동·점검 중·경고·불량·완료·진행 중 …). 사전에 없으면 기본 회색 */ state: string; style?: any;",
+    "Dot": "/** '' 기본 잉크 · amber 주의 · red 정지 · gray 비활성 */ tone?: '' | 'amber' | 'red' | 'gray'; /** 지름 px, 기본 7 */ size?: number; style?: any;",
+    "BlindValue": "/** 데이터 항목 key. 없으면 마스킹 대상이 아니라 항상 값 표시 */ field?: 'qty' | 'yield' | 'price' | 'customer' | 'plan' | 'mold' | 'worker'; /** 권한이 있을 때 보여 줄 값 */ value?: React.ReactNode; /** 값 텍스트 스타일(권한 있을 때만) */ textStyle?: any; /** 비공개 배지 스타일 */ style?: any; numberOfLines?: number;",
+    "BlindNote": "/** 표에 포함된 데이터 항목 key 목록 — 권한 없는 것만 골라 안내, 전부 허용이면 null */ fields?: string[];",
+    "Pred": "/** 무엇의 예측인지 */ label: string; /** 예측값(미리 포맷한 문자열) */ value: React.ReactNode; /** 단위, 값 뒤 작은 글씨 */ unit?: string; /** 신뢰 구간·근거 한 줄 */ ci?: string; /** '' 기본 · watch 앰버 틴트 · risk 적색 틴트 */ level?: '' | 'watch' | 'risk'; style?: any; /** ConfTag·Drift 등 부가 요소 */ children?: React.ReactNode;",
+    "ConfTag": "/** 0~1 신뢰도 → '신뢰도 NN%' 로 반올림 표기 */ value: number;",
+    "Drift": "/** 변화량. 양수 ▲ · 0 이하 ▼, 절댓값 소수 1자리 */ value: number; /** 기본 '%p' */ unit?: string; /** true 면 상승을 좋음(성공색)으로 해석 — 수율·달성률용 */ invert?: boolean;",
+    "ProgressBar": "/** 0~100, 범위 밖은 잘림. 기본 0 */ percent?: number; /** '' ink500 · ok 잉크 · warn 앰버 · bad 적색 */ tone?: '' | 'ok' | 'warn' | 'bad'; style?: any;",
+    "Steps": "/** 단계 목록(title 이 key) */ items?: { title: string; sub?: string }[]; /** 현재 단계, 1부터. 기본 1 */ step?: number; /** 단계 클릭(1부터 번호) */ onPick?: (no: number) => void; style?: any;",
+    "Tabs": "/** 문자열이면 value=label */ items?: (string | { value: string | number; label: string })[]; /** 선택된 항목의 value */ value?: string | number; onChange?: (value: string | number) => void; style?: any;",
+    "ListRow": "/** 상태 점 톤. undefined 면 점을 그리지 않음 */ tone?: '' | 'amber' | 'red' | 'gray'; title: string; desc?: string; /** 오른쪽 끝 시각 */ time?: string; /** 시각 앞 배지·건수 슬롯 */ right?: React.ReactNode; onPress?: () => void; /** 마지막 줄 — 밑줄 제거 */ last?: boolean; style?: any;",
+    "Pagination": "/** 서버 페이지 정보 */ meta: { page: number; size: number; total: number; totalPages: number }; /** 현재 쪽(없으면 meta.page) */ page?: number; /** 한 쪽 건수(없으면 meta.size, 기본 50). 0 은 전체 */ size?: number; onPage?: (page: number) => void; /** 없으면 페이지당 선택을 그리지 않음 */ onSize?: (size: number) => void; /** 기본 true */ showSize?: boolean; /** 기본 PAGE_SIZES [25, 50, 100, 200]. 0 은 '전체' */ sizes?: number[]; style?: any;",
+    "CardBody": "/** 구역 내용 */ children?: React.ReactNode; /** 여백 0 (표·정의목록을 꽉 채울 때) */ tight?: boolean; style?: any;",
+    "SourceNote": "/** 근거 문구. null·''·빈 배열이면 렌더하지 않음 */ children?: React.ReactNode; style?: any;",
+    "PageHead": "/** 제목 21px 600 잉크 */ title: string; /** 설명 12.5px 캡션(최대 폭 720) */ desc?: string; /** 제목 위 11px 소제목 */ eyebrow?: string; /** 우측 동작(ButtonRow 권장) */ actions?: React.ReactNode; style?: any;",
+    "BackLink": "/** 목적지 라벨 ('설비 현황으로') */ label: string; onPress?: () => void;",
+    "PageContainer": "children?: React.ReactNode; /** 최대 폭 해제(100%) */ fluid?: boolean; /** 최대 폭(기본 1400) */ maxWidth?: number | string; /** 내용 영역 스타일 */ contentContainerStyle?: any; /** ScrollView 자체 스타일 */ style?: any;",
+    "FullPageContainer": "children?: React.ReactNode; style?: any;",
+    "Grid": "/** 열 수(기본 3) 또는 flex 비율 배열 [2, 1] */ cols?: number | number[]; /** 칸 간격(기본 14) */ gap?: number; children?: React.ReactNode; style?: any;",
+    "Gap": "/** 세로 간격 px(기본 14) */ size?: number;",
+    "ReportDoc": "/** 인쇄 영역 id(nativeID) */ nodeId?: string; children?: React.ReactNode; style?: any;",
+    "ReportTitle": "/** 날짜 캡슐 문구 ('09.09 (화)') */ dateBox?: string; /** 제목 18px 600 */ title: string; /** 우측 슬롯(SignalLegend·배지) */ right?: React.ReactNode; style?: any;",
+    "SignalLegend": "/** 정렬 변경용({ justifyContent: 'flex-start' }) */ style?: any;",
+    "LogoMark": "/** 한 변(px). 기본 32 — 16 파비콘 · 24 상단 바 · 32 사이드바 · 48~64 히어로 */ size?: number; /** 단색(테마 글자색). 인쇄·비활성·워터마크용. 슬래시는 55% 불투명 */ mono?: boolean; /** Svg 스타일 */ style?: any;",
+    "LogoLockup": "/** 마크 크기(px). 워드마크 글자는 size*0.56, AX 는 size*0.42. 기본 28 */ size?: number; /** 태그라인(AI Decision Layer) 없이 한 줄 — 사이드바 접힘·상단 바 */ compact?: boolean; /** 어두운 배경용 — 글자 흰색 · 태그라인 60% 흰색 · AX 스카이블루 #00aeef */ light?: boolean; /** 바깥 컨테이너 스타일 */ style?: any;",
+    "ConstellationField": "/** 파티클 양 배율. 기본 1 (형상 최대 1,800 + 주변 최대 360) */ density?: number; /** 전체 불투명도. 기본 1. 흰 패널 위는 0.7~0.9 */ opacity?: number; /** 중심 형상. brain(기본, 울퉁불퉁 실루엣) · orb(원) · ambient(형상 없이 흩어진 파티클만) */ shape?: 'brain' | 'orb' | 'ambient'; /** 형상 중심 x (0~1). 기본 0.5 */ centerX?: number; /** 형상 중심 y (0~1). 기본 0.5 */ centerY?: number; /** 형상 반지름(짧은 변 대비). 기본 0.36 */ scale?: number; /** 드리프트·반짝임. 기본 true. prefers-reduced-motion 이면 자동 정지 */ animate?: boolean; /** 움직임 세기. 기본 1. 2 면 두 배 + 형상 공전 */ activity?: number; /** 파티클 색 목록. 기본 어두운 배경용 형광 팔레트, 흰 배경은 LIGHT_PALETTE */ palette?: string[]; /** 바깥 View(absolute fill) 스타일 덧씌우기 */ style?: any;",
+    "PageTransition": "/** 바뀌면 다시 재생(자식 재마운트). 보통 usePathname() */ routeKey?: string | number; children?: React.ReactNode; /** 시작 시 아래로 밀어 둔 거리(px). 기본 10 */ distance?: number; /** 재생 시간(ms). 기본 280 */ duration?: number; /** 래퍼 View 스타일 덧씌우기 */ style?: any;",
+    "Table": "/** 열 정의 — width 없는 열은 flex 비율로 남는 폭을 나눔 */ columns: Array<{ key: string; title: string; width?: number; flex?: number; minWidth?: number; align?: 'left' | 'center' | 'right'; /** React 노드를 셀에 포털로 렌더 */ render?: (row: any, index: number) => React.ReactNode; wrap?: boolean; mono?: boolean; num?: boolean; sortable?: boolean }>; rows: any[]; /** 행 클릭(셀 안 button/a/input 제외) */ onRowPress?: (row: any, index: number) => void; emptyText?: string; keyExtractor?: (row: any, index: number) => string | number; /** 주면 가로 스크롤로 감쌈 */ minWidth?: number; style?: any; /** 머리글 검색 입력칸(render 열 제외) */ filterable?: boolean; /** 고정 높이(표 안 세로 스크롤) */ height?: number;",
+    "TabulatorGrid": "/** Tabulator 열 정의(title/field/width/widthGrow/hozAlign/formatter …) */ columns: any[]; rows: any[]; height?: number; groupBy?: string; groupHeader?: (value: any, count: number, data: any[], group: any) => string; groupStartOpen?: boolean; emptyText?: string; style?: any; /** 왼쪽 42px 선택 칸 */ selectable?: boolean; /** 선택 목록에 담을 필드 */ rowKey?: string; selected?: any[]; onSelectedChange?: (keys: any[]) => void; initialSort?: Array<{ column: string; dir: 'asc' | 'desc' }>; onRowClick?: (rowData: any, event: MouseEvent) => void; /** 기본 true — 데이터 열마다 머리글 검색칸 */ headerFilter?: boolean; /** 0 이면 제한 없음 */ maxSelectable?: number; headerFilters?: Record<string, string | number>; instanceRef?: React.MutableRefObject<any>; /** 생성 시 한 번만 읽는 Tabulator 옵션 */ tableOptions?: Record<string, any>;",
+    "TabulatorTable": "/** 일자 행 배열 — _children 으로 제품(depth 2/isChild) → 공장·공정·설비(depth 3/isGrandChild) 3단 트리 */ rows: Array<{ date: string; inputQty?: number; okQty?: number; ngQty?: number; defectRate?: number | null; uptimeRate?: number | null; downtimeMin?: number; depth?: 1 | 2 | 3; isChild?: boolean; isGrandChild?: boolean; productNm?: string; parentProductNm?: string; plantNm?: string; processNm?: string; equipNm?: string; period?: string; _children?: any[] }>; emptyText?: string; style?: any;",
+    "XlsTable": "columns: Array<{ key: string; title: string; width?: number; align?: 'left' | 'center' | 'right'; num?: boolean }>; rows: Array<{ key?: string; /** group = 회색 그룹 행 · total = 합계 행 */ tone?: 'group' | 'total'; cells: Array<{ v?: string | number; /** v 대신 넣는 요소(Text 로 감싸지 않음) */ node?: React.ReactNode; tone?: 'ok' | 'warn' | 'bad' | 'group' | 'head'; align?: 'left' | 'right'; num?: boolean; /** 오른쪽 칸 병합 수 */ span?: number; bold?: boolean; /** 참고값 흐리게(opacity .55) */ faint?: boolean; wrap?: boolean }> }>; style?: any; /** 주면 본문만 세로 스크롤 */ maxHeight?: number; nativeID?: string; footer?: React.ReactNode;",
+    "XlsLegend": "items: Array<{ tone: 'ok' | 'warn' | 'bad'; label: string }>;",
+    "PermMatrix": "rows: Array<{ id: string | number; name: string; group?: string; /** 메뉴 비노출 하위 화면(↳ 회색) */ sub?: boolean }>; columns: Array<{ key: string | number; label: string; sublabel?: string; /** 통합관리자처럼 잠긴 열 */ locked?: boolean }>; isChecked: (rowId: string | number, colKey: string | number) => boolean; onToggle: (rowId: string | number, colKey: string | number) => void; /** 주면 그룹마다 '전체 허용/해제' 일괄 줄 표시 */ onToggleGroup?: (group: string, colKey: string | number, allowed: boolean) => void; rowLabelWidth?: number; groupLabelWidth?: number; footerLabel?: string; footerValue: (colKey: string | number) => number; /** 주면 260px '포함 데이터' 설명 열 추가 */ descOf?: (row: any) => string; maxHeight?: number;",
+    "Hint": "/** 안내 문구 */ children?: React.ReactNode; /** 왼쪽 Icon 이름. 기본 'info' (alert · clock · lock …) */ icon?: string; /** 컨테이너 스타일 덧씌우기 */ style?: any;",
+    "NoteText": "/** 왼쪽 2px 세로선 옆 10.5px 캡션 회색 설명 */ children?: React.ReactNode; style?: any;",
+    "EmptyState": "/** 빈 상태 문구. 기본 '조회된 데이터가 없습니다.' */ text?: string; style?: any;",
+    "Loading": "/** 안내 문구. 기본 '조회 중입니다…' · '' 이면 점만 */ text?: string; /** 세로 여백 18 · 점 6px (기본 48 · 8px) */ compact?: boolean; style?: any;",
+    "NoAccess": "/** 부서명 — 주면 '○○ 에 허용되지 않은 화면입니다.' 가 앞에 붙음 */ dept?: string; style?: any;",
+    "FormAlert": "/** 메시지. 비어 있으면 아무것도 그리지 않음 */ children?: React.ReactNode; /** error=붉은 틴트+alert(기본) · success=초록+check · info=잉크+info */ tone?: 'error' | 'success' | 'info'; style?: any;",
+    "ToastHost": "/** props 없음 — App 최상위에 한 번. useUiStore.getState().toast(message) 로 띄움(2.2초 후 자동 숨김) */",
+    "ModalHost": "/** props 없음 — App 최상위에 한 번. useUiStore.getState().openModal({ title?, sub?, wide?, maxWidth?, tight?, render, footer? }) · openConfirmModal(...) · openFormModal(...) 로 띄움 */",
+    "DrawerHost": "/** props 없음 — App 최상위에 한 번. useUiStore.getState().openDrawer({ title, sub?, render }) / closeDrawer() */",
+    "GlobalApiSpinner": "/** props 없음 — App 최상위에 한 번. useUiStore.apiLoadingCount > 0 (startApiLoading/endApiLoading) 동안 표시 */",
+    "LineChart": "/** x 축 라벨. series[].data 와 같은 길이 */ labels?: (string | number)[]; /** 계열. null 값은 선을 끊음. dashed 는 점선 */ series?: { name: string; data: (number | null)[]; dashed?: boolean }[]; /** 픽셀 높이(폭은 부모 컨테이너 측정) */ height?: number; /** y 하한 고정 */ min?: number; /** y 상한 고정 */ max?: number; /** 앰버 점선 목표선 */ target?: number; /** 목표 라벨·툴팁 접미사 */ unit?: string; /** 계열 2개 이상일 때 하단 범례 */ showLegend?: boolean;",
+    "BarChart": "/** 항목. v 주 계열(잉크) · v2 보조 계열 */ data?: { l: string; v: number | null; v2?: number | null }[]; height?: number; /** v2 를 v 위에 적층 */ stacked?: boolean; /** '%' 면 축·라벨을 % 포맷으로 */ unit?: string; /** 앰버 점선 목표선 · 초과 수치 빨강 */ target?: number | null; min?: number; max?: number;",
+    "GroupedBarChart": "/** 그룹. 지표 3종(qty·okQty·ngQty) 고정 · null 지표는 생략 */ data?: { label: string; qty?: number | null; okQty?: number | null; ngQty?: number | null }[]; height?: number; /** 툴팁 값 접미사 */ unit?: string;",
+    "HBarChart": "/** 항목. cls 'bad' 빨강 · 'warn' 앰버 · 기본 잉크. 높이는 항목 수×25px 자동 */ data?: { l: string; v: number | null; cls?: 'bad' | 'warn' | string }[]; /** 값 접미사 */ unit?: string; /** 앰버 목표 눈금 + 하단 캡션 */ target?: number; /** 값 포맷터(기본 천 단위 콤마) */ format?: (v: number) => string; /** 라벨 열 폭 px */ labelWidth?: number; /** 값 열 폭 px */ valueWidth?: number;",
+    "ParetoChart": "/** 항목. label/value 우선, 없으면 l/v. 내림차순 자동 정렬 · 0 이하 제외 */ data?: { label?: string; value?: number | null; l?: string; v?: number | null }[]; height?: number; /** 좌측 축 머리 (unit) · 툴팁 접미사 */ unit?: string;",
+    "DonutChart": "/** 계열 목록 — l 라벨 · v 값(건수·수량). v 가 null 인 항목은 걸러지고 순서대로 series 팔레트(잉크→앰버→회색→초록)를 받으므로 큰 항목을 앞에 */ segs?: { l: string; v: number | null }[]; /** 도넛 SVG 높이(px). 도넛 폭은 160 고정. 기본 180 */ height?: number; /** 가운데 합계 아래 단위. 기본 '건' */ unitLabel?: string;",
+    "Gauge": "/** 표시 값. null 이면 '데이터 없음'. min~max 로 클램프 */ value?: number | null; /** 범위 하한. 기본 0 */ min?: number; /** 범위 상한. 기본 100 */ max?: number; /** 값 뒤 단위('%' · 'EA' · '대'). 기본 '' */ unit?: string; /** 게이지 아래 설명 한 줄(10px 캡션) */ label?: string; /** 목표 눈금(앰버 선) 위치. 생략하면 없음 */ target?: number; /** 값 호 색 — '' 잉크 · ok 초록 · warn 앰버 · bad 빨강. 기본 '' */ level?: '' | 'ok' | 'warn' | 'bad';",
+    "HeatMap": "/** 행 라벨(설비명). 비면 '데이터 없음' */ rows?: string[]; /** 열 라벨('06'·'08'… 또는 요일). 비면 '데이터 없음' */ cols?: string[]; /** data[행][열] 값. 빠진 칸·null 은 '—' */ data?: (number | null)[][]; /** 범례 양끝 단위. 기본 '%' */ unit?: string; /** 가장 진한 색이 되는 값(낮을수록 진함). 기본 40 */ lo?: number; /** 가장 연한 색이 되는 값. 기본 100 */ hi?: number; /** 예약(미구현). 기본 true */ invert?: boolean; /** 셀 높이(px). 기본 32 */ cellHeight?: number;",
+    "RadarChart": "/** 축 목록 — l 축 이름 · v 현재 값(0~100) · t 목표(생략하면 점선 없음). 모든 v 가 null 이면 '데이터 없음' */ axes?: { l: string; v: number | null; t?: number | null }[]; /** SVG 높이(px). 반지름 = min(컨테이너 폭, height)/2 − 42. 기본 210 */ height?: number;",
+    "DotPlot": "/** 행 목록 — l 라벨 · v 값 · cls 점 색(생략 잉크 · warn 앰버 · bad 빨강). v 가 null 인 행은 걸러짐 */ data?: { l: string; v: number | null; cls?: 'warn' | 'bad' | string }[]; /** 축 하한(0 에서 시작하지 않는 것이 의도). 기본 0 */ min?: number; /** 축 상한. 기본 100 */ max?: number; /** 목표선(앰버) 위치. 주면 오른쪽에 편차 ±x.x%p 열이 생김 */ target?: number; /** 값·축 라벨 뒤 단위. 기본 '' */ unit?: string; /** 소수 자리. 기본 1 */ digits?: number; /** 왼쪽 라벨 열 폭(px). 기본 80 */ labelWidth?: number;",
+    "Badge": "/** 배지 글자 */ children?: React.ReactNode; /** '' 기본 회색 · green 정상 · blue 진행 · amber 주의 · red 오류 */ tone?: '' | 'green' | 'blue' | 'amber' | 'red'; /** 캡슐 컨테이너 스타일 */ style?: any; /** 글자 스타일 */ textStyle?: any;",
+    "StatCard": "/** 캡션 라벨(한 줄) */ label: string; /** 미리 포맷한 값 문자열(천 단위 콤마 등). field 가 있고 권한이 없으면 '비공개' 배지로 대체 */ value: string | number; /** 값 옆 단위 (%, EA …) */ unit?: string; /** 보조 문구(2줄까지) */ sub?: string; /** up=성공색 · down=오류색 · '' 회색 */ tone?: '' | 'up' | 'down'; /** 데이터 접근 권한 필드 id (없으면 항상 표시) */ field?: string; /** 라벨 줄 오른쪽 슬롯(배지·작은 버튼) */ right?: React.ReactNode; style?: any;",
+    "Card": "/** 머리말 제목 — 없으면 머리말을 그리지 않음 */ title?: string; /** 제목 아래 회색 부제 */ sub?: string; /** 머리말 오른쪽 슬롯(동작 버튼) */ right?: React.ReactNode; children?: React.ReactNode; style?: any; /** 본문 영역 스타일 */ bodyStyle?: any; /** true 면 본문 여백 없이(표·그리드가 꽉 차게) */ tight?: boolean; /** DOM id (인쇄·스크롤 타깃) */ nativeID?: string;",
+    "KeyValue": "/** [키, 값] 배열. 값은 문자열·숫자 또는 React 노드 */ rows: Array<[string, React.ReactNode | string | number]>; /** 키 열 폭(px, 기본 130) */ keyWidth?: number; style?: any;",
+    "DwjeApp": "/** 처음 보여 줄 경로 (기본 '/ai/chat') */ initialPath?: string; /** 셸 높이 (기본 '100vh') */ height?: number | string; /** 셸 폭 (기본 '100%') */ width?: number | string;",
+    "ScreenAiChat": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenDashAi": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenDashProc": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenProdMonitor": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenProdResult": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenQcDefect": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenQcAoi": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenProdDaily": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptPressMorning": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptPlatingMorning": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptShipPlan": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptYieldModel": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptLrrCustomer": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenRptScrap": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenAlertList": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysAccount": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysMenu": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysData": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenAlertCond": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysRecip": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysGloss": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysRank": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenChatHistory": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysAudit": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenBaseModel": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysModelVer": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenAiAgent": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysMetric": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysDl": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenSysSync": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenDailyHistory": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenMenuDashboard": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenMenuOperation": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenMenuReport": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ScreenMenuSystem": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "LoginScreen": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "SignupScreen": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */",
+    "ForgotPasswordScreen": "/** props 없음 — 데모 계정·목 데이터로 렌더합니다. 부모 컨테이너에 높이를 주세요 */"
+  }
+}

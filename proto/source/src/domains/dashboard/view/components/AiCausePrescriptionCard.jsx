@@ -1,0 +1,285 @@
+/**
+ * [Component] AI 공정 원인 분석 및 처방 권고 (XAI & Prescription)
+ *
+ * 공정·설비를 고르면 **왜 나빠졌는지**(원인)와 **무엇을 할지**(처방)를 보여 줍니다.
+ *
+ * ■ 서버가 검증한 문장만 그립니다
+ * 세 절 모두 `{ text, evidence[], verified }` 로 옵니다.
+ * 원인은 **지표 근거**(`qty`·`defect_rate`·`yield`·`defect`·`anomaly`)만,
+ * 처방은 **문서 근거**(`doc`)만 받도록 서버가 절별로 스키마를 갈라 뒀습니다 —
+ * 지시문으로 "두 절에 같은 내용을 쓰지 말라" 고만 했을 때는 지켜지지 않았다고 합니다.
+ *
+ * 2026-09-05 이전에는 여기에 **없는 설비 PR-01~PR-10** 과 수집조차 하지 않는 값
+ * (타발 압력 편차 ±14% · 금형 온도 48.5℃)이 그려졌습니다. 지어낸 처방은 없는 것만 못합니다.
+ */
+import React from 'react';
+import { Text, View } from 'react-native';
+import { Card, EmptyState, SelectField, TabulatorGrid } from '@shared/components/ui';
+import { ARROW_W } from '@shared/components/ui/TabulatorGrid';
+import { useCommonStyles } from '@shared/theme/styles';
+import { useTheme } from '@shared/theme/useTheme';
+import { comma, fixed } from '@shared/utils/formatUtil';
+import { NotReady, periodText, rangeText } from './AiBriefingCard';
+import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
+import { downloadCauseReport, evidenceValueText } from '../../model/aiReportExport';
+import { Button } from '@shared/components/ui';
+
+/**
+ * 표 열 — 사용자가 지정한 구분입니다
+ *
+ * 공장·설비·제품은 대상마다 하나이므로 **묶음 머리글에도 같은 순서로** 적습니다.
+ * 「AI 불량 판단 기준」은 그 대상이 왜 분석 대상이 됐는지(불량률과 기준값)이고,
+ * 「AI 불량 판단 근거」는 처방이 인용한 문서입니다.
+ */
+/**
+ * 앞 네 열의 폭 — 묶음 머리글이 같은 폭으로 늘어서야 열과 값이 맞습니다
+ *
+ * 공장은 **서버가 준 `plantNm` 만** 씁니다. 설비명·LOT 번호에서 유추하지 않습니다.
+ * 공장 마스터도, 설비·제품·일자로 공장을 짚는 경로도 DB 에 없습니다(2026-09-06 전수 확인).
+ * 설비 마스터(`tb_md_eqpt`)에도 공장 축이 없고 `plant_cd` 는 PL01 하나뿐입니다.
+ * 다만 작업장 이름 일부에 공장이 글자로 적혀 있어("C1-FQC(M-3공장)") 서버가 그것만
+ * 옮겨 담습니다 — **작업장 39개 중 10개**. 나머지 29개는 `plantNm: null` 이고 빈 칸으로 둡니다.
+ * `plantSource: 'wc_nm'` 이 이름에서 읽은 값이라는 표시입니다.
+ *
+ * 빈 칸을 채우려 들지 마세요. 그럴듯한 후보 둘 다 틀립니다.
+ *  · `tb_md_workcenter.bp_nm`(제조 1PART 등)은 거래처·담당 조직 축이라 이름의 공장과 3개만 맞습니다.
+ *  · 설비 번호로 가르는 것(10 이하면 제1공장)은 근거가 없고 실제와도 어긋납니다 —
+ *    W110 A-프레스=M-1 · W150 B-프레스=M-2 · W120 C-프레스=M-3 으로, 번호가 아니라
+ *    이름에 적힌 글자만이 근거입니다.
+ */
+export const COLUMN_WIDTH = { plant: 140, eqpt: 180, product: 200, standard: 160 };
+
+export const CAUSE_COLUMNS = [
+  { title: '공장', field: 'plant', width: COLUMN_WIDTH.plant },
+  { title: '설비', field: 'eqpt', width: COLUMN_WIDTH.eqpt },
+  { title: '제품', field: 'product', width: COLUMN_WIDTH.product },
+  { title: 'AI 불량 판단 기준', field: 'standard', width: COLUMN_WIDTH.standard, formatter: 'html' },
+  { title: '원인', field: 'cause', widthGrow: 3, formatter: 'html' },
+  { title: '조치 방안 제시', field: 'action', widthGrow: 3, formatter: 'html' },
+  { title: 'AI 불량 판단 근거', field: 'basis', widthGrow: 3, formatter: 'html' },
+];
+
+/** html 삽입 전 이스케이프 — 문서 인용문에 <, & 가 들어옵니다 */
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** 근거 한 묶음 → 표 안 html */
+function basisHtml(line, inline) {
+  const ev = (line && line.evidence) || [];
+  if (!ev.length) return inline ? '' : '<span class="muted">—</span>';
+  return ev
+    .map((e) => {
+      if (e.kind === 'doc') {
+        const where = [e.fileName, e.page ? `${e.page}쪽` : null].filter(Boolean).join(' · ');
+        const q = e.quote ? `<div class="quote">"${esc(e.quote.length > 120 ? `${e.quote.slice(0, 120)}…` : e.quote)}"</div>` : '';
+        return `<div>${esc(where)}</div>${q}`;
+      }
+      return `<div class="${inline ? 'muted' : ''}">${esc(e.label || e.key)} <span class="strong num">${esc(evidenceValueText(e))}</span></div>`;
+    })
+    .join('');
+}
+
+/**
+ * 대상별로 원인·처방을 **한 줄에 짝지어** 폅니다
+ *
+ * 수가 다르면 짧은 쪽을 비웁니다. 억지로 채우면 없는 대응이 있는 것처럼 보입니다.
+ */
+export function pairRows(targets = [], threshold) {
+  return targets.map((t) => {
+    /** 공장 — 서버가 못 주면 빈 칸. '—' 조차 적지 않습니다(모르는 것이지 없는 것이 아닙니다) */
+    const plant = t.plantNm || '';
+    const eqpt = t.eqptNm || t.eqptCd || '—';
+    const product = t.productNm || t.product
+      ? `${t.productNm || t.product}${t.productEtcCnt ? ` 외 ${comma(t.productEtcCnt)}종` : ''}`
+      : '—';
+    const rate = t.defectRate == null ? '—' : `${fixed(t.defectRate, 2)}%`;
+    const frac = t.denominator ? `${comma(t.numerator)}/${comma(t.denominator)}` : '';
+    const standard = `<span class="strong num">${esc(rate)}</span>`
+      + (frac ? `<div class="muted num">${esc(frac)}</div>` : '')
+      + (threshold ? `<div class="muted">기준 ${esc(fixed(threshold, 1))}% 초과</div>` : '');
+
+    /**
+     * 묶음 머리글 — **본 표의 열 폭 그대로** 공장 · 설비 · 제품 · AI 불량 판단 기준
+     *
+     * 값이 열 아래 같은 자리에 놓이므로 항목 이름을 따로 적지 않습니다 —
+     * 바로 위 열 이름이 곧 그 값의 이름입니다.
+     */
+    const w = COLUMN_WIDTH;
+    const group = [
+      `<span class="g" style="width:${w.plant - ARROW_W}px">${esc(plant)}</span>`,
+      `<span class="g" style="width:${w.eqpt}px">${esc(eqpt)}</span>`,
+      `<span class="g" style="width:${w.product}px">${esc(product)}</span>`,
+      `<span class="g" style="width:${w.standard}px">${esc(rate)}${frac ? ` <span class="muted">(${esc(frac)})</span>` : ''}</span>`,
+    ].join('');
+
+    return {
+      group,
+      plant,
+      eqpt,
+      product,
+      standard,
+      cause: listHtml(t.contributions),
+      action: listHtml(t.prescriptions),
+      basis: basisListHtml(t.prescriptions),
+    };
+  });
+}
+
+/**
+ * 문장 여러 개를 한 칸에
+ *
+ * 예전에는 원인과 처방을 index 로 짝지어 줄을 나눴는데, 수가 다르면 같은 설비·제품이
+ * 여러 줄에 되풀이돼 **다른 건인 줄 착각하게** 됩니다. 한 대상은 한 줄로 두고
+ * 문장을 칸 안에서 나눕니다.
+ */
+function listHtml(lines = []) {
+  if (!lines.length) return '<span class="muted">—</span>';
+  return lines
+    .map((l, i) => {
+      const basis = basisHtml(l, true);
+      return `<div class="li">${lines.length > 1 ? `<span class="muted">${i + 1}. </span>` : ''}${esc(l.text)}${basis}</div>`;
+    })
+    .join('');
+}
+
+/** 처방마다 인용한 문서를 한 칸에 — 번호를 맞춰 어느 처방 근거인지 보이게 합니다 */
+function basisListHtml(lines = []) {
+  if (!lines.length) return '<span class="muted">—</span>';
+  return lines
+    .map((l, i) => `<div class="li">${lines.length > 1 ? `<span class="muted">${i + 1}. </span>` : ''}${basisHtml(l)}</div>`)
+    .join('');
+}
+
+/** 근거 창·엑셀이 같은 묶음을 쓰도록 한 곳에서 만듭니다 */
+const SECTIONS = (causes, actions) => [
+  { heading: '원인 분석', lines: causes },
+  { heading: '처방 권고', lines: actions },
+];
+
+export default function AiCausePrescriptionCard({ causePrescription, loading, waiting, period, eqptOptions = [], selectedEqptCd, onSelectEqpt }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+
+  const cp = causePrescription;
+  /**
+   * 대상을 **배열로 다룹니다**
+   *
+   * 서버가 대상 하나만 줄 때는 한 줄짜리 배열로 만들고, 여러 공정을 주면 그대로 씁니다
+   * (불량률 기준을 넘은 공정을 모두 보여 달라는 요청).
+   * 화면·엑셀이 같은 구조를 보므로 서버가 바뀌어도 손댈 곳이 적습니다.
+   */
+  const targets = cp?.targets?.length
+    ? cp.targets.map((t) => ({
+        ...t,
+        contributions: (t.contributions || []).filter((x) => x?.text && x.verified !== false),
+        prescriptions: (t.prescriptions || []).filter((x) => x?.text && x.verified !== false),
+      }))
+    : cp?.target
+      ? [{
+          ...cp.target,
+          contributions: (cp.contributions || []).filter((x) => x?.text && x.verified !== false),
+          prescriptions: (cp.prescriptions || []).filter((x) => x?.text && x.verified !== false),
+        }]
+      : [];
+
+  const causes = targets.flatMap((t) => t.contributions);
+  const actions = targets.flatMap((t) => t.prescriptions);
+  const ready = !!cp?.modelVer && targets.length > 0 && (causes.length || actions.length);
+
+  return (
+    <Card
+      title="AI 공정 원인 분석 및 처방 권고"
+      right={
+        ready ? (
+          <>
+            <EvidenceButton
+              count={causes.length + actions.length}
+              onPress={() => openEvidenceModal({
+                title: 'AI 공정 원인 분석 및 처방 권고',
+                sections: SECTIONS(causes, actions),
+                droppedCnt: cp.droppedCnt,
+                analyzedAt: cp.analyzedAt,
+              })}
+            />
+            <Button
+              label="엑셀 다운로드"
+              size="sm"
+              icon="download"
+              // 화면 표와 **같은 행**을 넘깁니다 — 열이 다르면 받아 본 사람이 대조할 수 없습니다
+              onPress={() => downloadCauseReport({
+                rows: pairRows(targets, cp.threshold),
+                targetCnt: targets.length,
+                docs: collectDocs(SECTIONS(causes, actions)),
+                droppedCnt: cp.droppedCnt,
+                analyzedAt: cp.analyzedAt,
+                targetDate: cp.targetDate || cp.date,
+                threshold: cp.threshold,
+                omittedCnt: cp.omittedCnt,
+              })}
+            />
+          </>
+        ) : null
+      }
+    >
+      {/* 분석 결과가 있을 때만 대상 선택기를 냅니다 — 없는 설비를 고르게 두면 안 됩니다 */}
+      {ready && eqptOptions.length ? (
+        <SelectField
+          label="대상 설비"
+          value={selectedEqptCd}
+          options={eqptOptions}
+          onChange={onSelectEqpt}
+          style={{ minWidth: 260, marginBottom: 12 }}
+        />
+      ) : null}
+
+      {waiting ? (
+        // 브리핑이 같은 모델을 쓰는 중이라 아직 시작도 못 했습니다 — 준비 중과 구분해 알립니다
+        <EmptyState text="브리핑 분석이 끝나면 이어서 분석합니다." />
+      ) : loading ? (
+        /*
+          다시 분석하는 동안에는 앞선 결과를 지웁니다 — 브리핑 카드와 같은 이유입니다.
+          앞 구간의 표를 남겨 두면 필터와 표의 기간이 어긋난 채로 몇 분이 흐릅니다.
+        */
+        <EmptyState text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
+      ) : !ready ? (
+        <NotReady reason={cp?.reason} />
+      ) : (
+        <View style={{ gap: 12 }}>
+          {/* 어느 구간을 본 것인지 — 서버가 준 구간을 그대로 적습니다 */}
+          <Text style={s.textXs}>{periodText(cp)}</Text>
+          {/*
+            상한에 걸려 빠진 대상이 **있을 때만** 밝힙니다.
+            빠진 것을 안 적으면 "3.5% 초과 5곳" 이 사실과 달라집니다 — 실제로는 더 있는데
+            화면만 보고 다 봤다고 여기게 됩니다. 빠진 것이 없으면 적을 것도 없습니다.
+          */}
+          {cp.omittedCnt ? (
+            <Text style={s.textXs}>
+              {`불량률 ${fixed(cp.threshold, 1)}% 초과 ${comma(targets.length + cp.omittedCnt)}곳 중 나쁜 순 ${comma(targets.length)}곳입니다. `}
+              <Text style={{ fontWeight: '700' }}>{`나머지 ${comma(cp.omittedCnt)}곳은 분석하지 않았습니다.`}</Text>
+            </Text>
+          ) : null}
+
+          {/*
+            대상별로 **원인과 처방을 한 줄에 나란히** 놓습니다.
+            따로 나열하면 "이 원인에 대한 처방이 무엇인가" 를 사람이 눈으로 이어 붙여야 합니다.
+            수가 다르면 짧은 쪽을 비워 둡니다 — 억지로 짝을 맞추면 없는 대응을 있는 것처럼 보입니다.
+          */}
+          <TabulatorGrid
+            groupBy="group"
+            columns={CAUSE_COLUMNS}
+            rows={pairRows(targets, cp.threshold)}
+            groupStartOpen={false}
+            /* 높이를 박으면 접힌 상태에서 아래가 크게 빕니다 — 펼친 만큼만 자라게 둡니다 */
+            emptyText="근거가 확인된 분석 결과가 없습니다."
+          />
+
+          {/* 근거가 확인되지 않아 뺀 문장이 있을 때만 알립니다 — 조용히 버리면 안 됩니다 */}
+          {cp.droppedCnt ? (
+            <Text style={s.textXs}>{`근거가 확인되지 않아 뺀 문장 ${comma(cp.droppedCnt)}건.`}</Text>
+          ) : null}
+        </View>
+      )}
+    </Card>
+  );
+}
+
+

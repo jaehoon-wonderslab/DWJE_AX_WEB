@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@shared/components/charts": [
+        "src/shared/components/charts/index.js"
+      ],
+      "@shared/components/charts-d3": [
+        "src/shared/components/charts-d3/index.js"
+      ],
+      "@shared/components/ui": [
+        "src/shared/components/ui/index.js"
+      ],
+      "@app/*": [
+        "app/*"
+      ],
+      "@domains/*": [
+        "src/domains/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "react-native": [
+        "node_modules/react-native-web/dist/index.js"
+      ],
+      "react-native-svg": [
+        "node_modules/react-native-svg/lib/module/elements.web.js"
+      ],
+      "expo-router": [
+        ".design-sync/shims/expo-router.jsx"
+      ],
+      "react-native-safe-area-context": [
+        ".design-sync/shims/safe-area-context.jsx"
+      ]
+    }
+  }
+}

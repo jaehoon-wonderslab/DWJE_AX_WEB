@@ -7,12 +7,11 @@
  *        사번 없음과 비밀번호 불일치의 문구가 같은 것은 계정 열거를 막기 위한 의도입니다.
  *        화면에서 두 경우를 구분해 보여주지 마세요.
  */
-import React, { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { Button, FormAlert, Icon, TextField } from '@shared/components/ui';
+import React from 'react';
+import { Text } from 'react-native';
+import { Button, FormAlert, PasswordField, TextField } from '@shared/components/ui';
 import AuthCard, { AuthLinks } from '@shared/components/layout/AuthCard';
 import { useCommonStyles } from '@shared/theme/styles';
-import { useTheme } from '@shared/theme/useTheme';
 
 export default function LoginView({
   loginId,
@@ -27,8 +26,6 @@ export default function LoginView({
   goForgotPassword,
 }) {
   const s = useCommonStyles();
-  const theme = useTheme();
-  const [visible, setVisible] = useState(false);
 
   return (
     <AuthCard
@@ -59,34 +56,19 @@ export default function LoginView({
         full
       />
 
-      <View style={{ gap: 5 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={s.fieldLabel}>
-            비밀번호<Text style={{ color: '#dc2626' }}> *</Text>
-          </Text>
-          <TouchableOpacity
-            onPress={() => setVisible((v) => !v)}
-            activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-            accessibilityRole="button"
-            accessibilityLabel={visible ? '비밀번호 숨기기' : '비밀번호 표시'}
-          >
-            <Icon name={visible ? 'eyeOff' : 'eye'} size={13} color={theme.color.mutedForeground} />
-            <Text style={[s.textXs, { fontSize: 11 }]}>{visible ? '숨기기' : '표시'}</Text>
-          </TouchableOpacity>
-        </View>
-        <TextField
-          value={password}
-          onChangeText={setPassword}
-          placeholder="비밀번호"
-          secureTextEntry={!visible}
-          autoComplete="current-password"
-          textContentType="password"
-          error={fieldErrors.password}
-          onSubmitEditing={submit}
-          full
-        />
-      </View>
+      {/* Tab: 사번 → 비밀번호 → 로그인. 표시/숨김 눈 아이콘은 칸 안에 있고 탭 순서에서 빠져 있습니다 */}
+      <PasswordField
+        label="비밀번호"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="비밀번호"
+        autoComplete="current-password"
+        textContentType="password"
+        error={fieldErrors.password}
+        onSubmitEditing={submit}
+        required
+        full
+      />
 
       <Button
         label={pending ? '로그인 중…' : '로그인'}
@@ -96,7 +78,7 @@ export default function LoginView({
         style={{ height: 40, marginTop: 2 }}
       />
 
-      <Text style={[s.textXs, { fontSize: 11, lineHeight: 17, textAlign: 'center' }]}>
+      <Text style={[s.caption, { textAlign: 'center' }]}>
         비밀번호를 5회 잘못 입력하면 계정이 정지됩니다. 정지된 계정은 비밀번호 찾기로 다시 사용할 수 있습니다.
       </Text>
     </AuthCard>

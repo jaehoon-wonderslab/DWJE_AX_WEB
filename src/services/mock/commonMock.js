@@ -19,6 +19,16 @@ function dataPermsOf(dept) {
 }
 
 export const commonMock = {
+  /* ── 내 즐겨찾기 화면 (보고서 센터) — 세션 안에서만 유지 ── */
+  getUsersMeFavorites: () => {
+    if (!mockState.store.favorites) mockState.store.favorites = ['prod-daily', 'rpt-press-morning'];
+    return { items: mockState.store.favorites.map((screenId, i) => ({ screenId, sortOrder: i + 1 })) };
+  },
+  putUsersMeFavorites: ({ screenIds = [] }) => {
+    mockState.store.favorites = [...new Set(screenIds)].slice(0, 8);
+    return { items: mockState.store.favorites.map((screenId, i) => ({ screenId, sortOrder: i + 1 })) };
+  },
+
   postAuthLogin: ({ loginId }) => {
     const user = findUser(loginId) || DEFAULT_USER;
     mockState.currentUser = user;
@@ -70,6 +80,8 @@ export const commonMock = {
 
   getCommonCodes: ({ groupCd }) => ({ codes: COMMON_CODES[groupCd] || [] }),
 
+  /** 실적 보유 기간 — 목 실적 데이터(production·quality·dashboard)가 2026-06 ~ 2026-08-28 에 있으므로 그 구간을 돌려줍니다 (기준일 = toDate) */
+  getCommonDataRange: ({ plantCd = 'PL01', processId } = {}) => ({ plantCd, processId: processId || null, fromDate: '2026-06-01', toDate: '2026-08-28' }),
   getCommonMastersProcesses: () => ({ processes: PROCESSES }),
 
   getCommonMastersEquipments: ({ processId, keyword }) => {

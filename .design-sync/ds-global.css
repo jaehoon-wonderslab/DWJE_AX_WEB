@@ -1,0 +1,24 @@
+/* 덕우전자 AX — 전역 CSS (app/+html.jsx 의 GLOBAL_CSS 와 같은 내용). 글꼴은 fonts/fonts.css(extraFonts) 로 동봉 — 여기서 @import 하면 CSS 끝에 붙어 무시됨 */
+
+/* 캔버스 색은 토큰(--dwje-color-background)으로 페이지 루트에 직접 칩니다 — 전역 html 배경은 미리보기 카드를 회색 슬랩으로 만들어 제외 */
+body { color: #1C1C1C; }
+body {
+  font-family: "Pretendard Variable", "Pretendard", "Inter", "Noto Sans KR", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  word-break: keep-all;
+}
+::selection { background: rgba(30, 42, 120, 0.18); }
+:focus-visible { outline: 2px solid #1E2A78; outline-offset: 2px; border-radius: 6px; }
+
+* { scrollbar-width: thin; scrollbar-color: rgba(11,20,64,0.12) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(11,20,64,0.12); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(11,20,64,0.24); }
+
+@keyframes ax-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ax-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes ax-spin { to { transform: rotate(360deg); } }
+@keyframes ax-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }

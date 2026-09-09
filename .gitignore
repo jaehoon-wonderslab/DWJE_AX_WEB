@@ -1,3 +1,4 @@
+node_modules
 node_modules/
 .expo/
 dist/
@@ -22,3 +23,11 @@ npm-debug.*
 
 # 일회성 검증 스크립트 (재사용할 것은 tests/specs 로)
 scratch/
+
+# design-sync (claude.ai/design 동기화) — 스테이징 스크립트 · 빌드 출력 · 머신 상태
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+.design-sync/fonts/**/*.woff2

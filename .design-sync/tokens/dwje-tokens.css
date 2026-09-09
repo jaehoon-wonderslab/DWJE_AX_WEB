@@ -1,0 +1,75 @@
+/* 덕우전자 AX 디자인 토큰 — src/shared/theme/{colors,theme}.js 에서 생성 (node .design-sync/gen-tokens.mjs) */
+:root {
+  /* 색 — "Soft-matte panels on warm gray": 캔버스 위 흰 패널, 잉크 #0B1440, 캡션 #787878, 앰버는 데이터 채움 전용 */
+  --dwje-color-background: rgb(243, 244, 246);
+  --dwje-color-foreground: rgb(28, 28, 28);
+  --dwje-color-card: rgb(255, 255, 255);
+  --dwje-color-card-foreground: rgb(28, 28, 28);
+  --dwje-color-popover: rgb(255, 255, 255);
+  --dwje-color-muted: rgb(250, 250, 250);
+  --dwje-color-muted-foreground: rgb(120, 120, 120);
+  --dwje-color-primary: rgb(11, 20, 65);
+  --dwje-color-primary-foreground: rgb(255, 255, 255);
+  --dwje-color-secondary: rgb(244, 245, 246);
+  --dwje-color-secondary-foreground: rgb(61, 61, 61);
+  --dwje-color-accent: rgb(250, 250, 250);
+  --dwje-color-accent-foreground: rgb(11, 20, 65);
+  --dwje-color-destructive: rgb(229, 74, 46);
+  --dwje-color-destructive-foreground: rgb(255, 255, 255);
+  --dwje-color-success: rgb(46, 158, 87);
+  --dwje-color-warning: rgb(242, 193, 80);
+  --dwje-color-warning-text: rgb(178, 134, 31);
+  --dwje-color-info: rgb(30, 41, 118);
+  --dwje-color-border: rgb(223, 225, 231);
+  --dwje-color-input: rgb(223, 225, 231);
+  --dwje-color-ring: rgb(30, 41, 118);
+  --dwje-color-spark: rgb(242, 193, 80);
+  --dwje-color-ink500: rgb(63, 57, 167);
+  --dwje-color-data-mute: rgb(179, 183, 203);
+  --dwje-color-success-tint: rgb(234, 246, 236);
+  --dwje-color-text: rgb(28, 28, 28);
+  --dwje-color-text-dim: rgb(120, 120, 120);
+  --dwje-color-danger: rgb(229, 74, 46);
+  /* 표면·헤어라인 */
+  --dwje-surface: rgb(250, 250, 250);
+  --dwje-surface-hover: rgb(244, 245, 246);
+  --dwje-hairline: rgba(0, 0, 0, 0.03);
+  --dwje-hairline-strong: rgba(0, 0, 0, 0.06);
+  --dwje-divider: rgb(223, 225, 231);
+  /* 차트 계열색 — 잉크 900 → 700 → 500 → 앰버 → 비강조 → 성공 */
+  --dwje-series-1: #0B1440;
+  --dwje-series-2: #1E2A78;
+  --dwje-series-3: #3F3AA8;
+  --dwje-series-4: #F2C14E;
+  --dwje-series-5: #B4B8CC;
+  --dwje-series-6: #2E9E57;
+  /* 브랜드 고정색 — 로고·파티클 전용 */
+  --dwje-brand-deokwoo-blue: #0033a0;
+  --dwje-brand-sky-blue: #00aeef;
+  --dwje-brand-ink: #0B1440;
+  --dwje-brand-iris: #8052ff;
+  --dwje-brand-amber: #F2C14E;
+  --dwje-brand-spark: #ffb829;
+  --dwje-brand-verdant: #15846e;
+  --dwje-brand-magenta: #e35bd8;
+  /* 반지름·간격·치수 */
+  --dwje-radius-panel: 24px;
+  --dwje-radius: 16px;
+  --dwje-radius-action: 14px;
+  --dwje-radius-sm: 12px;
+  --dwje-radius-xs: 10px;
+  --dwje-radius-pill: 999px;
+  --dwje-gutter: 16px;
+  --dwje-sidebar-width: 228px;
+  --dwje-sidebar-collapsed-width: 64px;
+  --dwje-topbar-height: 64px;
+  --dwje-content-max-width: 1400px;
+  --dwje-content-column: 720px;
+  /* 글꼴 — 한글 Pretendard, 라틴·숫자 Inter. 굵기는 500(라벨·본문) · 600(제목·수치) 만 */
+  --dwje-font-sans: "Pretendard Variable", "Pretendard", "Inter", "Noto Sans KR", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dwje-font-num: "Inter", "Pretendard Variable", "Pretendard", sans-serif;
+  --dwje-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --dwje-weight-body: 500;
+  --dwje-weight-strong: 600;
+  --dwje-panel-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
