@@ -177,3 +177,22 @@ export function getQualityAoiPredictionBasis(params) {
  * @returns {Promise<object>} fields[{field,label,origin,dataFieldKey,required}]
  * @privateRemarks 접근 권한 상동 · 우선순위 2
  */
+/** AOI 불량 목록 — id·날짜 분류 (QC-03 불량 상세) */
+export function getQualityAoiDefects(params) {
+  return request('getQualityAoiDefects', params);
+}
+
+/** AOI 불량 상세 + NAS 이미지 목록 */
+export function getQualityAoiDefectsByDefectId(params) {
+  return request('getQualityAoiDefectsByDefectId', params);
+}
+
+/** AOI 불량 이미지 스트림(NAS 프록시) */
+export function getFilesAoiImagesByImageId(params) {
+  return request('getFilesAoiImagesByImageId', params);
+}
+
+/** AOI 설비 목록 — 불량 상세 필터용 */
+export function getQualityAoiDefectsEquipments(params) {
+  return request('getQualityAoiDefectsEquipments', params);
+}

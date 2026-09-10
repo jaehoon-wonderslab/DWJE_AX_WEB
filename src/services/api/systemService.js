@@ -1534,3 +1534,13 @@ export function getSystemUsersPending(params) {
 export function postSystemUsersByEmpNoApprove(params) {
   return request('postSystemUsersByEmpNoApprove', params);
 }
+
+/** 업로드 문서 목록 — 시스템 관리(읽기 전용) */
+export function getSystemUploads(params) {
+  return request('getSystemUploads', params);
+}
+
+/** 업로드 문서 버전 이력 — 시스템 관리 경로 */
+export function getSystemUploadsByDocIdVersions(params) {
+  return request('getSystemUploadsByDocIdVersions', params);
+}

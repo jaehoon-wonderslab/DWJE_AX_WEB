@@ -54,10 +54,10 @@ export default function AuthCard({ title, desc, width = 400, children, footer })
             <LogoLockup size={30} />
             <View style={{ maxWidth: 520 }}>
               <Text style={[s.eyebrow, { marginBottom: 12 }]}>{HERO.eyebrow}</Text>
-              <Text style={{ fontFamily: FONT_FAMILY, fontSize: wide ? 34 : 24, lineHeight: wide ? 44 : 32, fontWeight: '600', letterSpacing: wide ? -0.68 : -0.48, color: theme.color.primary }}>
+              <Text style={{ fontFamily: FONT_FAMILY, fontSize: wide ? 38 : 28, lineHeight: wide ? 44 : 32, fontWeight: '600', letterSpacing: wide ? -0.68 : -0.48, color: theme.color.primary }}>
                 {HERO.headline.join(wide ? '\n' : ' ')}
               </Text>
-              {wide ? <Text style={[s.body, { marginTop: 16, color: theme.color.secondaryForeground, maxWidth: 460, fontSize: 13, lineHeight: 22 }]}>{HERO.body}</Text> : null}
+              {wide ? <Text style={[s.body, { marginTop: 16, color: theme.color.secondaryForeground, maxWidth: 460, fontSize: 17, lineHeight: 22 }]}>{HERO.body}</Text> : null}
             </View>
             {wide ? <Text style={s.caption}>© DERKWOO ELECTRONICS CO., LTD. · On-premise AI</Text> : null}
           </View>

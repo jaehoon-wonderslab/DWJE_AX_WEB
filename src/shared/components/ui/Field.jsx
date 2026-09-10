@@ -31,7 +31,7 @@ export function Field({ label, children, style, required, full, error, hint }) {
       ) : null}
       {children}
       {error ? <Text style={s.fieldError}>{error}</Text> : null}
-      {!error && hint ? <Text style={[s.fieldLabel, { fontWeight: '300', fontSize: 11.5, lineHeight: 16 }]}>{hint}</Text> : null}
+      {!error && hint ? <Text style={[s.fieldLabel, { fontWeight: '300', fontSize: 15.5, lineHeight: 16 }]}>{hint}</Text> : null}
     </View>
   );
 }
@@ -182,7 +182,7 @@ export function SelectField({ label, value, options = [], onChange, style, input
                         s.textSm,
                         {
                           flex: 1,
-                          fontSize: 13,
+                          fontSize: 17,
                           fontWeight: isSelected ? '500' : '400',
                           color: theme.color.foreground,
                         },
@@ -254,7 +254,7 @@ export function DateField({ label, value, onChange, style, required, full, error
               backgroundColor: 'transparent',
               outline: 'none',
               color: theme.color.foreground,
-              fontSize: 13,
+              fontSize: 17,
             },
           ]}
           value={value ?? ''}

@@ -75,7 +75,7 @@ export default function PasswordFields({
                 />
               ))}
             </View>
-            <Text style={[s.textXs, { fontSize: 11 }]}>{strength.label}</Text>
+            <Text style={[s.textXs, { fontSize: 15 }]}>{strength.label}</Text>
           </View>
         ) : null}
       </View>
@@ -101,7 +101,7 @@ export default function PasswordFields({
           {PASSWORD_POLICY_TEXT.map((line) => (
             <View key={line} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.color.mutedForeground }} />
-              <Text style={[s.textXs, { fontSize: 11.5 }]}>{line}</Text>
+              <Text style={[s.textXs, { fontSize: 15.5 }]}>{line}</Text>
             </View>
           ))}
         </View>

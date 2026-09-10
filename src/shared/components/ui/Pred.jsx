@@ -15,7 +15,7 @@ export default function Pred({ label, value, unit, ci, level = '', style, childr
       <Text style={s.predLabel}>{label}</Text>
       <Text style={s.predValue}>
         {value}
-        {unit ? <Text style={{ fontSize: 12, fontWeight: '400', letterSpacing: 0 }}> {unit}</Text> : null}
+        {unit ? <Text style={{ fontSize: 16, fontWeight: '400', letterSpacing: 0 }}> {unit}</Text> : null}
       </Text>
       {ci ? <Text style={s.predCi}>{ci}</Text> : null}
       {children}
@@ -38,7 +38,7 @@ export function ConfTag({ value }) {
         alignSelf: 'flex-start',
       }}
     >
-      <Text style={[s.textXs, { fontSize: 10.5, fontWeight: '500' }]}>신뢰도 {Math.round(value * 100)}%</Text>
+      <Text style={[s.textXs, { fontSize: 14.5, fontWeight: '500' }]}>신뢰도 {Math.round(value * 100)}%</Text>
     </View>
   );
 }

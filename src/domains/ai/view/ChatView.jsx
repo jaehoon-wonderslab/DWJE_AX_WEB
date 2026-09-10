@@ -80,7 +80,7 @@ export default function ChatView({
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: theme.color.successTint }}>
           <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: theme.color.success }} />
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 11.5, fontWeight: '500', color: theme.color.foreground }}>질의 세션 활성</Text>
+          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, fontWeight: '500', color: theme.color.foreground }}>질의 세션 활성</Text>
         </View>
         <Text style={[s.caption, { flexShrink: 1 }]} numberOfLines={1}>
           {`${askedCount ? `질의 ${askedCount}건 · 세션 맥락 유지 중` : '새 대화 · 온프레미스 처리'} · 모델 ${servingModelVer || '—'}`}
@@ -129,7 +129,7 @@ export default function ChatView({
           }}
         >
           <TextInput
-            style={[s.text, { fontSize: 13, lineHeight: 20, paddingBottom: 10, outlineStyle: 'none' }]}
+            style={[s.text, { fontSize: 17, lineHeight: 20, paddingBottom: 10, outlineStyle: 'none' }]}
             placeholder="생산 실적 · 불량 현황 · 로트 이력을 질의하십시오"
             placeholderTextColor={theme.color.mutedForeground}
             value={input}
@@ -149,7 +149,7 @@ export default function ChatView({
               style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
             >
               <Icon name="sparkles" size={14} color={theme.color.primaryForeground} />
-              <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
+              <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -182,7 +182,7 @@ function MiniButton({ icon, label, onPress }) {
       }}
     >
       <Icon name={icon} size={13} color={theme.color.mutedForeground} />
-      <Text style={[s.textXs, { fontSize: 12 }]}>{label}</Text>
+      <Text style={[s.textXs, { fontSize: 16 }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -343,7 +343,7 @@ function Block({ block, messageId, onExport, onRate }) {
             align: i >= 2 ? 'right' : 'left',
             render: (row) => {
               const field = block.blindColumns?.[i];
-              return <BlindValue field={field} value={row[`c${i}`]} textStyle={[s.td, i >= 2 && s.num, { fontSize: 12 }]} />;
+              return <BlindValue field={field} value={row[`c${i}`]} textStyle={[s.td, i >= 2 && s.num, { fontSize: 16 }]} />;
             },
           }))}
           rows={block.rows.map((r) => Object.fromEntries(r.map((v, i) => [`c${i}`, v])))}

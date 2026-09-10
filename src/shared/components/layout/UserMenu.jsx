@@ -2,6 +2,7 @@
  * [View] 사용자 메뉴 (CM-02) — 현재 계정 · 로그아웃
  *
  * 프로토타입 시절의 "계정 전환" 목록은 걷어냈습니다. 로그인한 계정 하나만 보여 주고 로그아웃합니다.
+ * 2026-09-10: 상단바에서 사이드바 하단 사용자 카드로 이동 — `placement="up"` 이면 카드 위로 뜹니다.
  */
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -13,7 +14,7 @@ import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import Icon from '../ui/Icon';
 
-export default function UserMenu({ onClose }) {
+export default function UserMenu({ onClose, placement = 'down' }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const userInfo = useAuthStore((state) => state.userInfo);
@@ -26,10 +27,11 @@ export default function UserMenu({ onClose }) {
       <View
         style={{
           position: 'absolute',
-          right: 0,
-          top: 42,
           zIndex: 60,
           minWidth: 260,
+          // down: 상단바 버튼 아래 · up: 사이드바 사용자 카드 위
+          // up 은 사이드바 패널(overflow hidden) 안에 있으므로 카드 폭에 맞춥니다
+          ...(placement === 'up' ? { left: 0, right: 0, minWidth: 0, bottom: '100%', marginBottom: 8 } : { right: 0, top: 42 }),
           backgroundColor: theme.color.popover,
           borderWidth: 1,
           borderColor: theme.hairlineStrong,
@@ -41,7 +43,7 @@ export default function UserMenu({ onClose }) {
         {/* 현재 계정 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: theme.metrics.radiusSm, backgroundColor: theme.surface }}>
           <View style={{ width: 32, height: 32, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
+            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>

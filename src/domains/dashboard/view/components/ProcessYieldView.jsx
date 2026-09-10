@@ -74,7 +74,7 @@ export default function ProcessYieldView({ processYield }) {
                   },
                 ]}
               >
-                <Text style={{ fontSize: 11, fontWeight: '600', color: avgDiff >= 0 ? theme.color.success : theme.color.destructive }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: avgDiff >= 0 ? theme.color.success : theme.color.destructive }}>
                   {avgDiff >= 0 ? `+${avgDiff}%p` : `${avgDiff}%p`}
                 </Text>
               </View>
@@ -201,7 +201,7 @@ export default function ProcessYieldView({ processYield }) {
                         },
                       ]}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: diff >= 0 ? theme.color.success : theme.color.destructive }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: diff >= 0 ? theme.color.success : theme.color.destructive }}>
                         {diff >= 0 ? `+${diff}%p` : `${diff}%p`}
                       </Text>
                     </View>
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   summaryValRow: {
@@ -250,11 +250,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryVal: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '800',
   },
   summaryValSub: {
-    fontSize: 16,
+    fontSize: 20,
   },
   diffBadge: {
     paddingVertical: 1,
@@ -297,14 +297,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pIndexText: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '700',
   },
   processName: {
-    fontSize: 13,
+    fontSize: 17,
   },
   qtySub: {
-    fontSize: 11,
+    fontSize: 15,
   },
   rowCenter: {
     flex: 1,
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   scaleText: {
-    fontSize: 10,
+    fontSize: 14,
     color: '#9a9a9a',
   },
   rowRight: {
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   yieldText: {
-    fontSize: 17,
+    fontSize: 21,
   },
   diffPill: {
     paddingVertical: 1,

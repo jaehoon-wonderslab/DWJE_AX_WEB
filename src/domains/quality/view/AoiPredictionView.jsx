@@ -1,44 +1,51 @@
 /**
- * [View] QC-02 AOI 판정 분석·예측 (경로: /quality/aoi)
+ * [View] QC-02 AOI 판정 분석 (경로: /quality/aoi)
  *
- * 판정 이력과 공정 조건을 함께 학습해 앞으로 몇 시간 안에 무엇이 일어날지를 추정하고,
- * 그 추정의 근거가 되는 판정 신뢰도 진단을 함께 제시합니다.
- * 사용 API 9건 — /api/v1/quality/aoi/*
+ * 2026-09-11 (3차) — 카드를 한 행씩 쌓고, 불량 상세는 모달로 옮겼습니다.
+ *  1. 「불량 목록」·「출하 전 위험 LOT」 **각각 한 행 전체 폭** (요구 1) · 추이 밴드는 **d3**(charts-d3) 로 (요구 2)
+ *  3. 「출하 전 위험 LOT」 **쪽 나눔** 추가 (요구 3) — 서버 쪽 나눔이 없어 화면에서 자릅니다
+ *  4·5. 조회 조건은 **검사일 하루**만 (설비·LOT/모델 검색 제거) · 6. 「불량 상세 …」 제목 제거
+ *  7. 불량 목록 행 → **모달**로 판정 정보·검사 항목·NAS 사진 · 8. 「불량 이미지」 카드 제거
  *
- * 화면은 두 덩어리입니다. 「앞으로 일어날 일 — 추정」 / 「지금 상태 — 예측의 근거」
- * 모든 값은 서버 응답 필드만 그립니다. 임계값(SY-13 불량률 기준)이 없으면 등급·도달 예상은 "기준 미등록" 입니다.
+ * 2026-09-10 (2차) — 화면을 불량 판정 원본과 사진 중심으로 줄였습니다.
+ *  3. 예측 KPI·조건 줄(이상 가능성 분석 — 추정) · 설비별 위험도 · 잔여 시간 추정 · 판정 드리프트는 제거 (요구 3)
+ *  4. 「지금 상태 — 추정의 근거」 제목 제거 (요구 4)
+ *  5. 목록은 모두 Tabulator (요구 5) — 불량 목록 · 출하 전 위험 LOT · 불량 유형 구성 변화
+ *
+ * 사용 API — /api/v1/quality/aoi/defects(+상세) · /files/aoi-images/{imageId} · /aoi/prediction/{trend-band,lot-risk} · /aoi/defect-type-shift
+ * 모든 값은 서버 응답 필드만 그립니다. 임계값(SY-13 불량률 기준)이 없으면 확률·등급은 "산출 불가" 입니다.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
-import { LineChart } from '@shared/components/charts';
-import Grid, { Gap } from '@shared/components/layout/Grid';
+import { LineChart } from '@shared/components/charts-d3';
+import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import {
-  Badge, BlindValue, Button, Card, ConfTag, EmptyState, Filters, Hint, KeyValue, Loading, Pred, SelectField,
-  SourceNote, Table, XlsTable,
-} from '@shared/components/ui';
+import { Badge, Button, Card, EmptyState, KeyValue, Loading, Pagination, SourceNote, TabulatorGrid } from '@shared/components/ui';
+import { MENU } from '@shared/constants/menu';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { lastDataDate } from '@shared/stores/useAppStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
-import { etaText, levelOf } from '../controller/useAoiPredictionController';
+import AoiDefectSection from './components/AoiDefectSection';
+import AoiDefectModal from './components/AoiDefectModal';
 
-/** 숫자면 부호를 붙여 표시 (+1.20 / -0.40), 아니면 — */
-const signed = (v, digits = 2, unit = '') => {
+/** 머리말 설명은 메뉴 정의(qc-aoi)의 것을 그대로 씁니다 — 허브 카드와 화면이 같은 말을 하도록 */
+const AOI_MENU = MENU.flatMap((g) => g.items || []).find((it) => it.id === 'qc-aoi');
+
+/** 숫자면 부호를 붙여 표시 (+1.2% / -0.4%), 아니면 — */
+const signed = (v, digits = 1, unit = '') => {
   const n = Number(v);
   if (v === null || v === undefined || !Number.isFinite(n)) return '—';
   return `${n > 0 ? '+' : ''}${n.toFixed(digits)}${unit}`;
 };
 
-/** 퍼센트 값 — null 이면 — */
-const pct = (v, digits = 2) => (v === null || v === undefined ? '—' : `${fixed(v, digits)}%`);
-
 export default function AoiPredictionView({
-  loading, summary: sum, threshold, horizonHours, band, bandSeries, bandLabels, equipRisk, lotRisk, remaining,
-  drift, driftRange, driftOutCnt, shift, baseWeeks, basis,
-  filters, processOptions, horizonOptions, trainOptions, setTarget, setHorizon, setTrainPeriod, reload, recalc, exportExcel,
+  loading, threshold, horizonHours, band, bandSeries, bandLabels, lotRisk, lotRiskPage, lotRiskMeta, lotPaging, lotPageSizes,
+  shift, baseWeeks, basis, recalc, exportExcel,
+  /** 「불량 상세」 구역 컨트롤러(useAoiDefectsController) 반환값 */
+  defects,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -47,6 +54,7 @@ export default function AoiPredictionView({
 
   const thresholdText = threshold === null || threshold === undefined ? '미등록' : `${fixed(threshold, 2)}%`;
   const hz = horizonHours ?? 8;
+  const splitLabel = band?.labels?.[(band?.splitIndex ?? 1) - 1];
 
   /** 추정 근거·모델 모달 — 서버 응답: model{name,type,note} · trainPeriod · features[{name,source}] · validation{} · limitations[] */
   const showBasis = () => {
@@ -104,276 +112,180 @@ export default function AoiPredictionView({
     });
   };
 
-  if (loading) return <Loading />;
+  /** 불량 목록 행 → 상세 모달 (판정 정보 · 검사 항목 · NAS 사진) */
+  const openDefectModal = (row) => {
+    if (!row?.defectId) return;
+    openModal({
+      title: `불량 상세 · ${row.defectId}`,
+      sub: [row.judgedAt, row.processNm || row.wcCd, row.eqptCd].filter(Boolean).join(' · '),
+      maxWidth: 1120,
+      render: () => <AoiDefectModal defect={row} />,
+      footer: (close) => <Button label="닫기" onPress={close} />,
+    });
+  };
 
-  const predictedLevel = levelOf(sum.predictedDefectRate, threshold);
-  const eta = sum.thresholdEtaHours;
-  const etaLevel = threshold == null ? '' : eta === 0 ? 'risk' : eta != null && eta <= hz ? 'watch' : '';
-  const conf = sum.modelConfidence;
-  const splitLabel = band?.labels?.[(band?.splitIndex ?? 1) - 1];
-  const riskCnt = equipRisk.filter((r) => r.level === 'risk').length;
-  const watchCnt = equipRisk.filter((r) => r.level === 'watch').length;
+  /**
+   * 「출하 전 위험 LOT」 열 — 반폭에 놓이므로 출하 예정일은 LOT 아래 줄에, 근거·권고는 한 칸에 두 줄로 접습니다.
+   * 고객사는 `customer` 데이터 권한으로 가립니다.
+   */
+  const lotColumns = useMemo(() => [
+    {
+      title: 'LOT · 출하 예정',
+      field: 'lotNo',
+      minWidth: 108,
+      widthGrow: 1,
+      formatter: (cell) => {
+        const d = cell.getData();
+        return `<span class="mono">${esc(dash(cell.getValue()))}</span>${d.shipDue ? `<div class="muted mono">${esc(d.shipDue)}</div>` : ''}`;
+      },
+    },
+    { title: '모델', field: 'model', minWidth: 84, formatter: (cell) => esc(dash(cell.getValue())) },
+    {
+      title: '고객사',
+      field: 'customer',
+      minWidth: 88,
+      formatter: (cell) => (canData('customer') ? esc(dash(cell.getValue())) : '<span class="muted">비공개</span>'),
+    },
+    {
+      title: 'LRR 확률',
+      field: 'lrrProbability',
+      width: 86,
+      hozAlign: 'center',
+      headerHozAlign: 'center',
+      sorter: 'number',
+      formatter: (cell) => {
+        const d = cell.getData();
+        if (d.level === null || d.level === undefined) return '<span class="tag">산출 불가</span>';
+        if (!canData('yield')) return '<span class="muted">비공개</span>';
+        const tone = d.level === 'risk' ? 'tag-red' : d.level === 'watch' ? 'tag-amber' : 'tag-green';
+        return `<span class="tag ${tone}">${Math.round(Number(cell.getValue()) || 0)}%</span>`;
+      },
+    },
+    {
+      title: '근거 · 권고 (추정)',
+      field: 'basis',
+      minWidth: 190,
+      widthGrow: 3,
+      headerSort: false,
+      formatter: (cell) => {
+        const d = cell.getData();
+        return `${esc(dash(cell.getValue()))}${d.recommendation ? `<div class="muted">${esc(d.recommendation)}</div>` : ''}`;
+      },
+    },
+  ], [canData]);
+
+  /** 「불량 유형 구성 변화」 열 — 늘어난 유형은 오류색, 줄어든 유형은 성공색 */
+  const shiftColumns = useMemo(() => {
+    const qtyFmt = (digits) => (cell) => {
+      if (!canData('yield')) return '<span class="muted">비공개</span>';
+      const v = cell.getValue();
+      if (v === null || v === undefined) return '<span class="muted">—</span>';
+      return `<span class="num">${digits ? fixed(v, digits) : comma(v)}</span>`;
+    };
+    return [
+      { title: '불량 유형', field: 'defectType', minWidth: 150, widthGrow: 1, formatter: (cell) => `<span class="strong">${esc(dash(cell.getValue()))}</span>` },
+      { title: '기준일', field: 'today', width: 92, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(0) },
+      { title: `${baseWeeks}주 일평균`, field: 'baseAvg', width: 110, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(1) },
+      {
+        title: '변화',
+        field: 'change',
+        width: 92,
+        hozAlign: 'right',
+        headerHozAlign: 'right',
+        sorter: 'number',
+        formatter: (cell) => {
+          const v = Number(cell.getValue());
+          const none = cell.getValue() === null || cell.getValue() === undefined || !Number.isFinite(v) || v === 0;
+          const color = none ? theme.color.mutedForeground : v > 0 ? theme.color.destructive : theme.color.success;
+          return `<span class="num" style="font-weight:600;color:${color}">${none ? '—' : signed(v, 1, '%')}</span>`;
+        },
+      },
+      { title: '해석', field: 'interpretation', minWidth: 220, widthGrow: 2, headerSort: false, formatter: (cell) => esc(dash(cell.getValue())) },
+    ];
+  }, [canData, baseWeeks, theme]);
 
   return (
     <View>
       <PageHead
-        title="AOI 판정 분석·예측"
-        desc="AOI 판정 결과 자체는 MES 에 이미 적재되어 있습니다. 이 화면은 판정 이력과 공정 조건을 함께 학습해 앞으로 몇 시간 안에 무엇이 일어날지를 추정하고, 그 추정의 근거가 되는 판정 신뢰도 진단을 함께 제시합니다."
+        title="AOI 판정 분석"
+        desc={AOI_MENU?.description || 'AOI 판정 결과와 불량 상세·불량 이미지(NAS)를 확인하고 이상 가능성을 분석합니다.'}
         actions={
           <>
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />
-            <Button label="추정 근거·모델" size="sm" icon="info" onPress={showBasis} />
-            <Button label="예측 재산출" size="sm" variant="primary" icon="refresh" onPress={recalc} />
+            {defects ? <Button label="불량 목록 엑셀" size="sm" icon="download" onPress={defects.exportExcel} /> : null}
+            <Button label="분석 엑셀" size="sm" icon="download" onPress={exportExcel} />
           </>
         }
       />
 
-      <Filters>
-        <SelectField label="대상 (공정)" value={filters.target} options={processOptions} onChange={setTarget} />
-        <SelectField label="예측 구간" value={filters.horizon} options={horizonOptions} onChange={setHorizon} />
-        <SelectField label="학습 기간" value={filters.trainPeriod} options={trainOptions} onChange={setTrainPeriod} />
-        <Button label="조회" variant="primary" onPress={reload} />
-      </Filters>
-
-      {/* 예측 요약 4종 — 값마다 근거 구간·신뢰도를 함께 씁니다 */}
-      <Grid cols={4}>
-        <Pred
-          level={predictedLevel}
-          label={`+${hz}h 예상 불량률`}
-          value={<BlindValue field="yield" value={pct(sum.predictedDefectRate)} textStyle={s.predValue} />}
-          ci={`현재 ${canData('yield') ? pct(sum.currentDefectRate) : '비공개'} · 임계 ${thresholdText} · 선형 추세 추정`}
-        >
-          {conf != null ? <View style={{ marginTop: 6 }}><ConfTag value={conf} /></View> : null}
-        </Pred>
-        <Pred
-          level={etaLevel}
-          label="임계 도달 예상"
-          value={etaText(eta, { current: sum.currentDefectRate, threshold })}
-          ci={
-            threshold == null
-              ? 'SY-13 지표 기준에 불량률 임계값을 등록하면 산출됩니다'
-              : `임계 ${thresholdText} · 예측 구간 ${hz}h 안 도달 ${sum.thresholdReachCnt ? '예상' : '없음'}`
-          }
-        />
-        <Pred
-          level={conf != null && conf < 0.5 ? 'watch' : ''}
-          label="모델 신뢰도"
-          value={conf != null ? `${Math.round(conf * 100)}%` : '—'}
-          ci={`표본 ${comma(sum.sampleCnt)}개 (시간 단위) · 학습 ${sum.trainHours ?? '—'}h · 표본이 적거나 잔차가 크면 낮아집니다`}
-        />
-        <Pred
-          level={threshold != null && Number(sum.riskLotCnt) > 0 ? 'watch' : ''}
-          label="출하 위험 LOT"
-          value={`${comma(sum.riskLotCnt)} 건`}
-          ci={threshold == null ? `임계 미등록 · 최근 출하 LOT ${lotRisk.length}건을 모두 표시` : `최근 출하 LOT 중 불량률 ${thresholdText} 이상`}
-        />
-      </Grid>
+      {/* ── 1. 불량 목록 — 한 행 전체. 행을 누르면 모달(요구 7) ── */}
+      {defects ? <AoiDefectSection {...defects} onRowSelect={openDefectModal} /> : null}
       <Gap />
 
-      <Hint>예측은 확정 결과가 아니라 추정입니다. 모든 추정치에는 근거 구간과 신뢰도를 함께 표시하며, 조치 여부는 담당자가 결정합니다.</Hint>
-
-      <Text style={[s.pageTitle, { fontSize: 15, marginTop: 4, marginBottom: 10 }]}>앞으로 일어날 일 — 추정</Text>
-
+      {/* ── 출하 전 위험 LOT — 한 행 전체 + 쪽 나눔(요구 3) ── */}
       <Card
-        title="불량률 추이 · 예측 밴드"
-        sub={
-          band?.labels?.length
-            ? `${band.labels[0]} ~ ${splitLabel} 는 MES 실측 · 이후 +1h~+${hz}h 는 추정 · 임계 ${thresholdText}`
-            : `임계 ${thresholdText}`
-        }
-      >
-        {bandSeries.length ? (
-          <>
-            <LineChart labels={bandLabels} series={bandSeries} target={threshold ?? undefined} unit="%" height={220} />
-            <Text style={[s.textXs, { marginTop: 2 }]}>
-              {`▼ ${splitLabel ?? '—'} 기준 — 왼쪽은 실측, 오른쪽(+1h~+${hz}h)은 추정 구간입니다 · 점선은 추정 중앙값과 95% 신뢰 밴드`}
-            </Text>
-          </>
-        ) : (
-          <EmptyState text="추이를 그릴 판정 실적이 없습니다." />
-        )}
-        <SourceNote>
-          {basis?.model?.name ? `${basis.model.name} · ${basis.trainPeriod || ''}` : null}
-        </SourceNote>
-      </Card>
-      <Gap />
-
-      <Card
-        title="설비별 위험 예측 · 권고 조치"
-        sub={`현재값은 MES 판정 집계 · +2h/+${hz}h 는 추정치 · ${comma(equipRisk.length)}대`}
+        title="출하 전 위험 LOT"
+        sub={threshold == null ? 'LRR 발생 확률은 임계 기준이 있어야 산출됩니다 · 최근 LOT 불량률 순' : `고객사 LRR 발생 확률 추정 · 임계 ${thresholdText} 대비 초과 정도로 근사`}
         tight
-        right={
-          threshold == null ? (
-            <Badge tone="amber">임계 미등록</Badge>
-          ) : riskCnt ? (
-            <Badge tone="red">{`위험 ${riskCnt} · 주의 ${watchCnt}`}</Badge>
-          ) : watchCnt ? (
-            <Badge tone="amber">{`주의 ${watchCnt}`}</Badge>
-          ) : (
-            <Badge tone="green">전체 안정</Badge>
-          )
-        }
+        right={<Badge>{`${comma(lotRisk.length)}건`}</Badge>}
       >
-        {equipRisk.length ? (
-          <XlsTable
-            maxHeight={440}
-            columns={[
-              { key: 'eq', title: '설비 / 검사기', width: 220, align: 'left' },
-              { key: 'now', title: '현재 불량률', width: 100 },
-              { key: 'p2', title: '+2h 예측', width: 96 },
-              { key: 'p8', title: `+${hz}h 예측`, width: 96 },
-              { key: 'eta', title: '임계 도달 예상', width: 170, align: 'left' },
-              { key: 'why', title: '주 요인 (추정)', width: 150, align: 'left' },
-              { key: 'act', title: '권고 조치', width: 360, align: 'left' },
-              { key: 'conf', title: '신뢰도', width: 78 },
-            ]}
-            rows={equipRisk.map((r) => {
-              const tone = r.level === 'risk' ? 'bad' : r.level === 'watch' ? 'warn' : undefined;
-              return {
-                key: r.eqptCd,
-                cells: [
-                  { v: r.eqptNm ? `${r.eqptCd} · ${r.eqptNm}` : r.eqptCd, align: 'left', tone },
-                  { v: canData('yield') ? pct(r.currentRate) : '비공개', num: true },
-                  { v: canData('yield') ? pct(r.plus2h) : '비공개', num: true, tone: levelOf(r.plus2h, threshold) === 'risk' ? 'bad' : levelOf(r.plus2h, threshold) === 'watch' ? 'warn' : undefined },
-                  { v: canData('yield') ? pct(r.plus8h) : '비공개', num: true, tone: levelOf(r.plus8h, threshold) === 'risk' ? 'bad' : levelOf(r.plus8h, threshold) === 'watch' ? 'warn' : undefined },
-                  { v: r.etaLabel, align: 'left' },
-                  { v: r.mainFactor || '—', align: 'left' },
-                  { v: r.recommendation || '—', align: 'left' },
-                  { v: r.confidence != null ? Number(r.confidence).toFixed(2) : '—', num: true },
-                ],
-              };
-            })}
-          />
-        ) : (
-          <EmptyState text="해당 조건의 설비 판정 실적이 없습니다." />
-        )}
-      </Card>
-      <Gap />
-
-      <Grid cols={[2, 1]}>
-        <Card
-          title="출하 전 위험 LOT"
-          sub={threshold == null ? 'LRR 발생 확률은 임계 기준이 있어야 산출됩니다 · 최근 LOT 불량률 순' : '고객사 LRR 발생 확률 추정 · 임계 대비 초과 정도로 근사'}
-          tight
-        >
-          <Table
-            minWidth={880}
-            keyExtractor={(r) => r.lotNo}
-            columns={[
-              { key: 'lotNo', title: 'LOT', width: 122, mono: true },
-              { key: 'model', title: '모델', width: 128 },
-              { key: 'customer', title: '고객사', width: 132, render: (r) => <BlindValue field="customer" value={r.customer ?? '—'} textStyle={s.td} /> },
-              { key: 'shipDue', title: '출하 예정', width: 84, align: 'center', render: (r) => <Text style={[s.td, { textAlign: 'center' }]}>{r.shipDue || '—'}</Text> },
-              {
-                key: 'lrrProbability',
-                title: 'LRR 발생 확률',
-                width: 116,
-                render: (r) => (
-                  r.level === null ? (
-                    <Badge>산출 불가</Badge>
-                  ) : (
-                    <Badge tone={r.level === 'risk' ? 'red' : r.level === 'watch' ? 'amber' : 'green'}>
-                      {canData('yield') ? `${Math.round(r.lrrProbability)}%` : '비공개'}
-                    </Badge>
-                  )
-                ),
-              },
-              { key: 'basis', title: '근거 (추정)', flex: 1, minWidth: 260, wrap: true },
-              { key: 'recommendation', title: '권고', width: 170, wrap: true },
-            ]}
-            rows={lotRisk}
-            emptyText="최근 출하 LOT 실적이 없습니다."
-          />
-        </Card>
-
-        <Card title="잔여 시간 추가 발생 추정" sub={`향후 ${remaining.horizonHours ?? hz}시간`}>
-          <KeyValue
-            keyWidth={132}
-            rows={[
-              ['추가 불량 수량 (추정)', <BlindValue key="ng" field="qty" value={remaining.estimatedNgQty != null ? `${comma(remaining.estimatedNgQty)} EA` : '—'} textStyle={s.kvVal} />],
-              ['구간 불량률 (추정)', <BlindValue key="rate" field="yield" value={pct(remaining.estimatedRate)} textStyle={s.kvVal} />],
-              ['시간당 평균 생산량', <BlindValue key="avg" field="qty" value={remaining.avgHourlyQty != null ? `${comma(remaining.avgHourlyQty)} EA` : '—'} textStyle={s.kvVal} />],
-              ['신뢰도', remaining.confidence != null ? <ConfTag key="conf" value={remaining.confidence} /> : '—'],
-            ]}
-          />
-          <SourceNote>시간당 평균 생산량 × 예측 구간 × 추정 불량률로 계산한 추정치입니다. 조치를 취하면 예측을 다시 산출하세요.</SourceNote>
-        </Card>
-      </Grid>
-
-      <Text style={[s.pageTitle, { fontSize: 15, marginTop: 22, marginBottom: 10 }]}>지금 상태 — 예측의 근거</Text>
-
-      <Card
-        title="AOI 검사기별 판정 드리프트"
-        sub={`판정 기준이 흔들리면 예측 신뢰도가 함께 떨어집니다 · 최근 14일${driftRange != null ? ` · 경계 구간 ±${fixed(driftRange, 1)}%p` : ''}`}
-        tight
-        right={driftOutCnt ? <Badge tone="red">{`기준 이탈 ${driftOutCnt}`}</Badge> : <Badge tone="green">전체 정상</Badge>}
-      >
-        {drift.length ? (
-          <XlsTable
-            maxHeight={400}
-            columns={[
-              { key: 'aoi', title: '검사기', width: 240, align: 'left' },
-              { key: 'n', title: '판정 건수', width: 100 },
-              { key: 'dr', title: '기준 대비 드리프트', width: 140 },
-              { key: 'over', title: '과검 추정', width: 96 },
-              { key: 'under', title: '미검 추정', width: 96 },
-              { key: 'agree', title: '재검 일치율', width: 110 },
-              { key: 'edge', title: '경계 판정 비중', width: 120 },
-              { key: 'state', title: '상태', width: 96 },
-            ]}
-            rows={drift.map((r) => {
-              const bad = r.state && r.state !== 'NORMAL';
-              const driftBad = driftRange != null && Math.abs(Number(r.drift) || 0) >= driftRange;
-              return {
-                key: r.aoiCd,
-                cells: [
-                  { v: r.aoiNm ? `${r.aoiCd} · ${r.aoiNm}` : r.aoiCd, align: 'left' },
-                  { v: canData('qty') ? comma(r.judgeCnt) : '비공개', num: true },
-                  { v: signed(r.drift, 2, '%p'), num: true, tone: driftBad ? 'bad' : undefined },
-                  { v: canData('yield') ? pct(r.overRejectEst) : '비공개', num: true },
-                  { v: canData('yield') ? pct(r.underRejectEst) : '비공개', num: true },
-                  { v: pct(r.recheckMatchRate), num: true, tone: bad ? 'bad' : undefined },
-                  { v: pct(r.borderlineRatio), num: true, tone: bad ? 'bad' : undefined },
-                  { v: r.stateInfo.label, tone: r.stateInfo.tone || undefined },
-                ],
-              };
-            })}
-          />
-        ) : (
-          <EmptyState text="최근 14일 AOI 판정 실적이 없습니다." />
-        )}
-      </Card>
-      <Gap />
-
-      <Card title="불량 유형 구성 변화" sub={`${lastDataDate()} vs 직전 ${baseWeeks}주 일평균 · 불량 건수 기준`} tight>
-        <Table
-          minWidth={720}
-          keyExtractor={(r) => r.defectCd || r.defectType}
-          columns={[
-            { key: 'defectType', title: '불량 유형', width: 180 },
-            { key: 'today', title: '기준일', width: 100, align: 'right', render: (r) => <BlindValue field="yield" value={comma(r.today)} textStyle={[s.td, s.num]} /> },
-            { key: 'baseAvg', title: `${baseWeeks}주 일평균`, width: 110, align: 'right', render: (r) => <BlindValue field="yield" value={r.baseAvg != null ? fixed(r.baseAvg, 1) : '—'} textStyle={[s.td, s.num]} /> },
-            {
-              key: 'change',
-              title: '변화',
-              width: 100,
-              align: 'right',
-              render: (r) => {
-                const v = Number(r.change);
-                const none = r.change === null || r.change === undefined || !Number.isFinite(v) || v === 0;
-                return (
-                  <Text style={[s.td, s.num, { fontWeight: '600', color: none ? theme.color.mutedForeground : v > 0 ? theme.color.destructive : theme.color.success }]}>
-                    {none ? '—' : signed(v, 1, '%')}
-                  </Text>
-                );
-              },
-            },
-            { key: 'interpretation', title: '해석', flex: 1, minWidth: 220 },
-          ]}
-          rows={shift}
-          emptyText="비교할 불량 유형 실적이 없습니다."
+        <TabulatorGrid
+          columns={lotColumns}
+          rows={lotRiskPage}
+          headerFilter={false}
+          emptyText="최근 출하 LOT 실적이 없습니다."
         />
+        <Pagination meta={lotRiskMeta} {...lotPaging.bind} sizes={lotPageSizes} />
       </Card>
+      <Gap />
+
+      {/* ── 3. 남은 분석 — 추이 밴드 · 불량 유형 구성 변화 (나머지 추정 블록은 제거) ── */}
+      {loading ? (
+        <Loading />
+      ) : (
+        <>
+          <Card
+            title="불량률 추이 · 추정 밴드"
+            sub={
+              band?.labels?.length
+                ? `${band.labels[0]} ~ ${splitLabel} 는 MES 실측 · 이후 +1h~+${hz}h 는 추정 · 임계 ${thresholdText}`
+                : `임계 ${thresholdText}`
+            }
+            right={
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                <Button label="추정 근거·모델" size="sm" icon="info" onPress={showBasis} />
+                <Button label="예측 재산출" size="sm" icon="refresh" onPress={recalc} />
+              </View>
+            }
+          >
+            {bandSeries.length ? (
+              <>
+                {/* 시간 단위 점이 많아(실측 + 추정 구간) 점 간격을 좁혀 가로 스크롤 없이 전체를 보입니다 */}
+                <LineChart labels={bandLabels} series={bandSeries} target={threshold ?? undefined} unit="%" height={240} minPointWidth={16} />
+                <Text style={[s.textXs, { marginTop: 2 }]}>
+                  {`▼ ${splitLabel ?? '—'} 기준 — 왼쪽은 실측, 오른쪽(+1h~+${hz}h)은 추정 구간입니다 · 점선은 추정 중앙값과 95% 신뢰 밴드`}
+                </Text>
+              </>
+            ) : (
+              <EmptyState text="추이를 그릴 판정 실적이 없습니다." />
+            )}
+            <SourceNote>
+              {basis?.model?.name ? `${basis.model.name} · ${basis.trainPeriod || ''}` : null}
+            </SourceNote>
+          </Card>
+          <Gap />
+
+          <Card title="불량 유형 구성 변화" sub={`${lastDataDate()} vs 직전 ${baseWeeks}주 일평균 · 불량 건수 기준`} tight>
+            <TabulatorGrid columns={shiftColumns} rows={shift} emptyText="비교할 불량 유형 실적이 없습니다." />
+          </Card>
+        </>
+      )}
     </View>
   );
 }
+
+/* ───────── Tabulator 셀 HTML 도우미 — 서버 문자열은 이스케이프해서 넣습니다 ───────── */
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+const dash = (v) => (v === null || v === undefined || v === '' ? '—' : v);

@@ -66,12 +66,13 @@ export default function MenuPermView({
       <Gap />
 
       <Hint>
-        회색 행은 메뉴에 노출되지 않지만 버튼·링크로 진입하는 하위 화면입니다. 상위 화면만 열고 하위 화면을 닫으면 해당 버튼을 눌렀을 때 접근이 차단되므로 함께 열어 두는 것을 권장합니다.
+        회색 행은 메뉴에 노출되지 않지만 버튼·링크로 진입하는 하위 화면입니다. 상위 화면만 열고 하위 화면을 닫으면 해당 버튼을 눌렀을 때 접근이 차단되므로 함께 열어 두는 것을 권장합니다. 「동작」 표시가 붙은 행(예: AI 통합 대시보드 › 업로드 리포트 업로드)은 화면이 아니라 그 버튼을 쓸 수 있는지를 정합니다 — 보기 권한과 따로 줍니다.
       </Hint>
 
       <Card title="부서 × 화면" sub="체크된 화면만 좌측 메뉴에 표시되고 열람할 수 있습니다" tight>
         <PermMatrix
           maxHeight={620}
+          rowLabelWidth={260}
           rows={screens}
           columns={depts.map((d) => ({ key: d.id, label: d.name, sublabel: d.abbr, locked: adminDepts.includes(String(d.id)) }))}
           isChecked={(screenId, deptId) => (matrix[deptId] || []).includes(screenId)}

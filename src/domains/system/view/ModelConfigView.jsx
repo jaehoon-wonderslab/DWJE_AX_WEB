@@ -159,7 +159,7 @@ export default function ModelConfigView({
               flex: 1,
               minWidth: 220,
               mono: true,
-              render: (r) => <Text style={{ fontSize: 12 }}>{Array.isArray(r.targetFields) ? r.targetFields.join(', ') : r.targetFields || r.fields || '—'}</Text>,
+              render: (r) => <Text style={{ fontSize: 16 }}>{Array.isArray(r.targetFields) ? r.targetFields.join(', ') : r.targetFields || r.fields || '—'}</Text>,
             },
             {
               key: 'action',

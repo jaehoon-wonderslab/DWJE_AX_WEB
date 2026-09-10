@@ -11,14 +11,17 @@ import { useChartSize } from './useChartSize';
 
 const PAD = { l: 46, r: 16, t: 16, b: 34 };
 
-export default function GroupedBarChart({ data = [], height = 250, unit = ' EA' }) {
+/** 기본 계열 — 실적 집계(투입 · 양품 · 불량). 다른 계열을 그릴 때는 `metrics` 로 넘깁니다 */
+const DEFAULT_METRICS = [
+  { key: 'qty', label: '투입량' }, { key: 'okQty', label: '양품 수량' }, { key: 'ngQty', label: '불량 수량' },
+];
+
+export default function GroupedBarChart({ data = [], height = 250, unit = ' EA', metrics: metricsProp }) {
   const theme = useTheme();
   const { ref, width } = useChartSize(height);
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
-  const metrics = [
-    { key: 'qty', label: '투입량' }, { key: 'okQty', label: '양품 수량' }, { key: 'ngQty', label: '불량 수량' },
-  ];
+  const metrics = metricsProp?.length ? metricsProp : DEFAULT_METRICS;
   const rows = data.map((row) => ({ ...row, values: metrics.map((m) => ({ ...m, value: num(row[m.key]) })) }));
   const empty = !rows.length || rows.every((row) => row.values.every((v) => v.value === null));
   const contentWidth = Math.max(width || 300, rows.length * 116 + PAD.l + PAD.r);
@@ -38,7 +41,7 @@ export default function GroupedBarChart({ data = [], height = 250, unit = ' EA' 
 
     y.ticks(5).forEach((tick) => {
       g.append('line').attr('x1', PAD.l).attr('x2', PAD.l + iw).attr('y1', y(tick)).attr('y2', y(tick)).attr('stroke', c.grid).attr('stroke-dasharray', '3 3');
-      g.append('text').attr('x', PAD.l - 6).attr('y', y(tick) + 3).attr('text-anchor', 'end').attr('font-size', FONT.axis).attr('fill', c.axis).text(Math.round(tick).toLocaleString());
+      g.append('text').attr('x', PAD.l - 6).attr('y', y(tick) + 3).attr('text-anchor', 'end').attr('font-size', FONT.axis).attr('fill', c.axis).text(Number(tick.toFixed(2)).toLocaleString());
     });
 
     rows.forEach((row, i) => {
@@ -50,9 +53,9 @@ export default function GroupedBarChart({ data = [], height = 250, unit = ' EA' 
         g.append('rect').attr('x', barX).attr('y', barY).attr('width', x1.bandwidth()).attr('height', y(0) - barY).attr('rx', 3).attr('fill', c.series(mi));
         // 막대가 짧아도 축·그래프 밖으로 나가지 않도록 상단 여백 안에서만 수치를 보입니다.
         g.append('text').attr('x', barX + x1.bandwidth() / 2).attr('y', Math.max(PAD.t + 10, barY - 4))
-          .attr('text-anchor', 'middle').attr('font-size', 9).attr('font-weight', '600').attr('fill', c.text)
+          .attr('text-anchor', 'middle').attr('font-size', 13).attr('font-weight', '600').attr('fill', c.text)
           .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
-          .text(value.value >= 10000 ? `${(value.value / 10000).toFixed(1)}만` : Math.round(value.value).toLocaleString());
+          .text(value.value >= 10000 ? `${(value.value / 10000).toFixed(1)}만` : Number(value.value.toFixed(2)).toLocaleString());
       });
       g.append('text').attr('x', gx + x0.bandwidth() / 2).attr('y', height - 8).attr('text-anchor', 'middle').attr('font-size', FONT.axis).attr('fill', c.axis).text(String(row.label));
       g.append('rect').attr('x', gx).attr('y', PAD.t).attr('width', x0.bandwidth()).attr('height', ih).attr('fill', 'transparent')
@@ -75,7 +78,7 @@ export default function GroupedBarChart({ data = [], height = 250, unit = ' EA' 
       <Tooltip {...(hover || {})} />
     </div>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
-      {metrics.map((metric, i) => <View key={metric.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: theme.seriesAt(i) }} /><Text style={{ fontSize: 11, color: theme.color.mutedForeground }}>{metric.label}</Text></View>)}
+      {metrics.map((metric, i) => <View key={metric.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: theme.seriesAt(i) }} /><Text style={{ fontSize: 15, color: theme.color.mutedForeground }}>{metric.label}</Text></View>)}
     </View>
   </View>;
 }

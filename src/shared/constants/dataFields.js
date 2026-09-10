@@ -59,7 +59,7 @@ export const MENU_ACCESS_DEFAULT = {
     'rpt-press-morning', 'rpt-plating-morning',
   ],
   전산팀: [
-    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
+    'dash-ai', 'dash-ai-upload', 'sys-upload-doc', 'dash-proc', 'ai-chat', 'chat-history',
     'alert-list', 'sys-gloss', 'sys-rank',
     'base-model', 'sys-model-ver',
     'sys-account', 'sys-menu', 'sys-data', 'sys-audit', 'ai-agent', 'sys-metric', 'sys-dl', 'sys-sync',

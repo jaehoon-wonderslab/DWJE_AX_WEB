@@ -174,7 +174,7 @@ function PickerBody({ initial, onChange }) {
                   borderColor: theme.color.border,
                 }}
               >
-                <Text style={[s.mono, { fontSize: 11.5, fontWeight: '600' }]}>{code}</Text>
+                <Text style={[s.mono, { fontSize: 15.5, fontWeight: '600' }]}>{code}</Text>
                 <Icon name="close" size={10} color={theme.color.mutedForeground} />
               </TouchableOpacity>
             ))}

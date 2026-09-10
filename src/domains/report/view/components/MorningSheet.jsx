@@ -109,10 +109,10 @@ export default function MorningSheet({ nodeId, title, baseDate, resultDate, rows
       {/* ───── 양식 머리 ───── */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <View style={{ borderWidth: 2, borderColor: theme.color.foreground, borderRadius: 18, paddingVertical: 5, paddingHorizontal: 18 }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', letterSpacing: 0.5, color: theme.color.foreground }}>{dateBoxOf(baseDate)}</Text>
+          <Text style={{ fontSize: 21, fontWeight: '700', letterSpacing: 0.5, color: theme.color.foreground }}>{dateBoxOf(baseDate)}</Text>
         </View>
 
-        <Text style={{ flex: 1, minWidth: 200, textAlign: 'center', fontSize: 19, fontWeight: '700', color: theme.color.primary }}>{title}</Text>
+        <Text style={{ flex: 1, minWidth: 200, textAlign: 'center', fontSize: 23, fontWeight: '700', color: theme.color.primary }}>{title}</Text>
 
         <View style={{ alignItems: 'flex-end', gap: 3 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -172,7 +172,7 @@ function Qty({ field, v, mask }) {
 function WeekCell({ row, mask, tone }) {
   const s = useCommonStyles();
   const theme = useTheme();
-  const line = [s.xlsCellText, { fontSize: 10.5, lineHeight: 14 }];
+  const line = [s.xlsCellText, { fontSize: 14.5, lineHeight: 14 }];
   const rateColor = tone === 'bad' ? theme.color.destructive : tone === 'warn' ? theme.color.warningText : undefined;
   const known = hasTarget(row.weekTarget);
 

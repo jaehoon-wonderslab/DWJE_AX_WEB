@@ -114,7 +114,7 @@ export default function ProductionResultView({
                   pointerEvents: 'none',
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '500', color: theme.color.background, whiteSpace: 'nowrap' }}>
+                <Text style={{ fontSize: 16, fontWeight: '500', color: theme.color.background, whiteSpace: 'nowrap' }}>
                   {tooltipText}
                 </Text>
                 {/* 말풍선 꼬리 */}

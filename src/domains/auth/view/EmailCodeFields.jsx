@@ -50,7 +50,7 @@ export default function EmailCodeFields({ verification, notice }) {
 
       {/* 남은 시간 · 재발송 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <Text style={[s.textXs, { fontSize: 11.5, color: expired ? theme.color.destructive : theme.color.mutedForeground }]}>
+        <Text style={[s.textXs, { fontSize: 15.5, color: expired ? theme.color.destructive : theme.color.mutedForeground }]}>
           {expired ? '유효 시간이 지났습니다' : `남은 시간 ${formatCountdown(expiresIn)}`}
         </Text>
         <Button
@@ -62,7 +62,7 @@ export default function EmailCodeFields({ verification, notice }) {
         />
       </View>
 
-      {verifying ? <Text style={[s.textXs, { fontSize: 11.5 }]}>인증 코드를 확인하는 중입니다…</Text> : null}
+      {verifying ? <Text style={[s.textXs, { fontSize: 15.5 }]}>인증 코드를 확인하는 중입니다…</Text> : null}
     </>
   );
 }

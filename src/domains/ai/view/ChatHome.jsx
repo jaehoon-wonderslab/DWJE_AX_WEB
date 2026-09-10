@@ -65,7 +65,7 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: theme.color[TONE_DOT[sec.tone] || 'border'] }} />
-                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, fontWeight: '600', color: theme.color.primary }}>{sec.title}</Text>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, lineHeight: 17, fontWeight: '600', color: theme.color.primary }}>{sec.title}</Text>
                   <View style={s.spacer} />
                   <Icon name="arrowRight" size={12} color={theme.color.mutedForeground} />
                 </View>

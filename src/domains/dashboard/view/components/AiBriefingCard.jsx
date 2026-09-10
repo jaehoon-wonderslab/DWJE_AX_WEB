@@ -144,10 +144,10 @@ export function VerifiedLines({ lines = [], dropped = 0, emptyText }) {
               backgroundColor: theme.alpha('primary', 0.12),
             }}
           >
-            <Text style={{ fontSize: 11, fontWeight: '700', color: theme.color.primary }}>{i + 1}</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.primary }}>{i + 1}</Text>
           </View>
           <View style={{ flex: 1, gap: 7 }}>
-            <Text style={[s.textSm, { lineHeight: 23, fontSize: 14 }]}>{line.text}</Text>
+            <Text style={[s.textSm, { lineHeight: 23, fontSize: 18 }]}>{line.text}</Text>
             <View style={{ gap: 5 }}>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 {(line.evidence || []).map((e, j) => (

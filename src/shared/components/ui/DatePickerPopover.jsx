@@ -179,7 +179,7 @@ export default function DatePickerPopover({ visible, onClose, value, onSelect, m
           >
             <Icon name="chevronLeft" size={13} color={theme.color.foreground} />
           </TouchableOpacity>
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '500', letterSpacing: -0.2, color: theme.color.foreground, marginHorizontal: 6 }}>
+          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '500', letterSpacing: -0.2, color: theme.color.foreground, marginHorizontal: 6 }}>
             {viewYear}년 {viewMonth + 1}월
           </Text>
           <TouchableOpacity
@@ -201,7 +201,7 @@ export default function DatePickerPopover({ visible, onClose, value, onSelect, m
             backgroundColor: theme.alpha('primary', 0.12),
           }}
         >
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 11, fontWeight: '500', color: theme.color.primary }}>오늘</Text>
+          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '500', color: theme.color.primary }}>오늘</Text>
         </TouchableOpacity>
       </View>
 
@@ -212,7 +212,7 @@ export default function DatePickerPopover({ visible, onClose, value, onSelect, m
             <Text
               style={{
                 fontFamily: FONT_FAMILY,
-                fontSize: 10.5,
+                fontSize: 14.5,
                 fontWeight: '500',
                 letterSpacing: 0.3,
                 color: i === 0 ? theme.color.destructive : i === 6 ? theme.color.info : theme.color.mutedForeground,
@@ -256,7 +256,7 @@ export default function DatePickerPopover({ visible, onClose, value, onSelect, m
               <Text
                 style={{
                   fontFamily: FONT_FAMILY,
-                  fontSize: 11.5,
+                  fontSize: 15.5,
                   fontWeight: isSelected ? '600' : isToday ? '500' : '400',
                   color: isSelected
                     ? theme.color.primaryForeground

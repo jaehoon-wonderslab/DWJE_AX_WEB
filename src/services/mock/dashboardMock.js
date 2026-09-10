@@ -10,6 +10,9 @@ import {
   KPI_TREND, MANHOUR_BY_DEPT, MASTER_AI, METRIC_HEATMAP,
 } from './data/dashboard';
 import { factOf, LINES, MOLDS, PROC_DEFECT, PROC_TREND, PROCESSES, PRODUCTS } from './data/masters';
+import { addVersion, dataOf, listDocs, uploadStore, versionsOf } from './data/uploads';
+import { mockState } from './state';
+import { nowStamp } from '@shared/utils/formatUtil';
 
 /** 선택된 제품들의 공정 실적을 계산합니다 */
 function rowsOf(processId, codes) {
@@ -48,6 +51,13 @@ function summaryOf(processId, codes) {
     avgUptime: rows.length ? Math.round(rows.reduce((a, r) => a + r.uptimeRate, 0) / rows.length) : 0,
     productCnt: rows.length,
   };
+}
+
+/** 업로드 결과 문구 — 파싱 상태에 따라 */
+function uploadMessage(data) {
+  const n = data.parsed?.warnings?.length || 0;
+  if (data.parseState === 'FAIL') return `v${data.version} 을 저장했지만 읽을 시트가 없습니다 (파싱 실패)`;
+  return n ? `v${data.version} 을 업로드했습니다 — 파싱 경고 ${n}건` : `v${data.version} 을 업로드했습니다 — 파싱 완료`;
 }
 
 export const dashboardMock = {
@@ -255,6 +265,38 @@ export const dashboardMock = {
     productCnt: productCodes?.length || 0,
     ...summaryOf(processId, productCodes),
   }),
+
+  /* ───────── DB-01 업로드 리포트 (엑셀 업로드 · 버전 · 파싱 데이터) ─────────
+   * 문서·버전은 data/uploads.js 의 세션 저장소에 쌓입니다 — 시스템관리 「업로드 문서 목록」 도 같은 것을 읽습니다.
+   */
+  getDashboardUploads: ({ keyword } = {}) => ({ items: listDocs({ keyword }) }),
+  postDashboardUploads: ({ file, title, memo } = {}) => {
+    const name = String(title || '').trim();
+    if (!name) return { success: false, code: 'E-VALID-001', message: '제목을 입력해 주세요', data: null, error: { code: 'E-VALID-001', field: 'title' } };
+    const st = uploadStore();
+    st.seq += 1;
+    const docId = `UPD-2026-${String(st.seq).padStart(4, '0')}`;
+    const stamp = nowStamp();
+    const user = mockState.currentUser;
+    st.docs.push({ docId, title: name, memo: memo || '', createdBy: user.empNo, createdByName: user.name, createdAt: stamp });
+    const data = addVersion(docId, { file, memo: '최초 등록', stamp, user });
+    return { success: true, code: 'SUCCESS', message: uploadMessage(data), data };
+  },
+  // 새 버전 응답은 새 문서 업로드와 같은 전체 응답입니다 — 화면이 두 번째 조회 없이 바로 그립니다
+  postDashboardUploadsByDocIdVersions: ({ docId, file, memo } = {}) => {
+    const doc = uploadStore().docs.find((d) => d.docId === docId);
+    if (!doc) return { success: false, code: 'E-NOTFOUND', message: '문서를 찾을 수 없습니다', data: null };
+    const data = addVersion(docId, { file, memo, stamp: nowStamp(), user: mockState.currentUser });
+    return { success: true, code: 'SUCCESS', message: uploadMessage(data), data };
+  },
+  getDashboardUploadsByDocIdVersions: ({ docId } = {}) => versionsOf(docId),
+  getDashboardUploadsByDocIdVersionsByVersionData: ({ docId, version } = {}) => {
+    const data = dataOf(docId, version);
+    if (!data) return { success: false, code: 'E-NOTFOUND', message: '해당 버전의 파싱 결과가 없습니다', data: null };
+    return data;
+  },
+  // 목에는 실제 파일이 없습니다 — 화면은 data 가 null 이면 안내만 띄웁니다
+  getDashboardUploadsByDocIdVersionsByVersionFile: () => ({ success: true, code: 'SUCCESS', message: '목 모드에서는 원본 파일을 내려받을 수 없습니다', data: null }),
 
   /* ───────── DB-03 성과지표 대시보드 ───────── */
   getDashboardKpiSummary: () => ({ cards: KPI_CARDS }),

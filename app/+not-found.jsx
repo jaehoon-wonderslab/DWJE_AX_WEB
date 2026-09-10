@@ -19,7 +19,7 @@ export default function NotFound() {
         <Text style={[s.body, { textAlign: 'center', color: theme.color.mutedForeground }]}>주소를 확인하십시오. 메뉴에서 다시 고르거나 기본 화면으로 돌아갈 수 있습니다.</Text>
         <Link href={HOME_PATH} asChild>
           <Pressable style={({ hovered }) => ({ marginTop: 12, height: 36, paddingHorizontal: 16, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center', opacity: hovered ? 0.92 : 1 })}>
-            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12.5, fontWeight: '600', color: '#fff' }}>자연어 질의로 돌아가기</Text>
+            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16.5, fontWeight: '600', color: '#fff' }}>자연어 질의로 돌아가기</Text>
           </Pressable>
         </Link>
       </View>

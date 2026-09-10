@@ -67,13 +67,13 @@ export default function MenuHub({ groupName }) {
                   backgroundColor: hovered || pressed ? theme.surface : 'transparent',
                 })}
               >
-                <Text style={{ fontFamily: NUM_FAMILY, fontSize: 11, fontWeight: '600', letterSpacing: 0.2, color: theme.color.mutedForeground, width: 22, fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontFamily: NUM_FAMILY, fontSize: 15, fontWeight: '600', letterSpacing: 0.2, color: theme.color.mutedForeground, width: 22, fontVariant: ['tabular-nums'] }}>
                   {String(i + 1).padStart(2, '0')}
                 </Text>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <Text style={s.heading2xs}>{item.name}</Text>
-                    {item.tag ? <Text style={[s.caption, { fontSize: 10 }]}>{item.tag}</Text> : null}
+                    {item.tag ? <Text style={[s.caption, { fontSize: 14 }]}>{item.tag}</Text> : null}
                   </View>
                   {item.description ? <Text style={[s.bodySm, { marginTop: 3 }]}>{item.description}</Text> : null}
                 </View>

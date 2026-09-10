@@ -257,7 +257,7 @@ function NumberCell({ value, tone, onSave }) {
         height: 26,
         marginHorizontal: 6,
         paddingHorizontal: 6,
-        fontSize: 11.5,
+        fontSize: 15.5,
         textAlign: 'right',
         fontVariant: ['tabular-nums'],
         borderWidth: 1,

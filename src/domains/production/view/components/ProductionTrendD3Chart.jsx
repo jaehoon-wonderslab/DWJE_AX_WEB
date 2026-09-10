@@ -101,7 +101,7 @@ export default function ProductionTrendD3Chart({
   if (!labels.length || !xScale) {
     return (
       <View style={{ height, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 16, fontWeight: '300', color: theme.color.mutedForeground, textAlign: 'center' }}>
+        <Text style={{ fontSize: 20, fontWeight: '300', color: theme.color.mutedForeground, textAlign: 'center' }}>
           해당 기간의 추이 데이터가 없습니다.
         </Text>
       </View>

@@ -4,8 +4,9 @@
  * 체크를 바꾸면 그 부서에 속한 모든 계정의 좌측 메뉴가 즉시 바뀝니다.
  * 내 부서 권한이 바뀐 경우 사이드바에 바로 반영되도록 내 권한도 다시 받아옵니다.
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { fetchMe } from '@domains/auth/model/authRepository';
+import { EXTRA_PAGES, pageName } from '@shared/constants/menu';
 import { useAsync } from '@shared/hooks/useAsync';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -20,7 +21,22 @@ export function useMenuPermController() {
   const { data, loading, reload } = useAsync(() => repo.loadMenuPerms(), []);
 
   const matrixData = data?.matrix;
-  const screens = matrixData?.screens || [];
+  /**
+   * 화면 행 — 서버(또는 목)가 준 목록에 「동작 권한」 표시를 붙입니다.
+   * `dash-ai-upload` 처럼 화면이 아니라 버튼 동작을 막는 행은 메뉴 정의(EXTRA_PAGES.action)로 가려냅니다.
+   * 서버가 `kind: 'ACTION'` 을 주면 그것도 같은 뜻으로 봅니다.
+   */
+  const screens = useMemo(
+    () => (matrixData?.screens || []).map((r) => {
+      const extra = EXTRA_PAGES.find((e) => e.id === r.id);
+      const action = !!(r.action || String(r.kind || r.type || '').toUpperCase() === 'ACTION' || extra?.action);
+      // 동작 권한 행은 「상위 화면 › 동작」 으로 — 서버는 sub: true 만 주므로 상위 이름은 메뉴 정의에서 찾습니다
+      const parentId = r.parent || r.parentId || extra?.parent;
+      const label = action && parentId ? `${pageName(parentId)} › ${r.name}` : undefined;
+      return { ...r, sub: r.sub ? 1 : 0, action, label };
+    }),
+    [matrixData]
+  );
   const depts = matrixData?.depts || [];
   const matrix = matrixData?.matrix || {};
 

@@ -62,7 +62,7 @@ export default function HeatMap({
             <View style={{ flex: 1, flexDirection: 'row', gap: 4 }}>
               {cols.map((c) => (
                 <View key={c} style={{ flex: 1, minWidth: 42, alignItems: 'center' }}>
-                  <Text style={[s.textXs, { fontSize: 11, fontWeight: '600', color: theme.color.mutedForeground }]}>
+                  <Text style={[s.textXs, { fontSize: 15, fontWeight: '600', color: theme.color.mutedForeground }]}>
                     {c}
                   </Text>
                 </View>
@@ -75,7 +75,7 @@ export default function HeatMap({
             <View key={r} style={{ flexDirection: 'row', marginBottom: 4, alignItems: 'center' }}>
               {/* 좌측 설비명 라벨 */}
               <View style={{ width: 120, paddingRight: 12, justifyContent: 'center' }}>
-                <Text style={[s.textXs, { fontSize: 11.5, fontWeight: '600', textAlign: 'right', color: theme.color.foreground }]}>
+                <Text style={[s.textXs, { fontSize: 15.5, fontWeight: '600', textAlign: 'right', color: theme.color.foreground }]}>
                   {r}
                 </Text>
               </View>
@@ -100,7 +100,7 @@ export default function HeatMap({
                     >
                       <Text
                         style={{
-                          fontSize: 11,
+                          fontSize: 15,
                           fontWeight: '600',
                           color: text,
                           fontVariant: ['tabular-nums'],
@@ -119,7 +119,7 @@ export default function HeatMap({
 
       {/* 하단 범례 바 (100% [블록들] 40%) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 }}>
-        <Text style={[s.textXs, { fontSize: 10.5, color: theme.color.mutedForeground }]}>{`${hi}${unit}`}</Text>
+        <Text style={[s.textXs, { fontSize: 14.5, color: theme.color.mutedForeground }]}>{`${hi}${unit}`}</Text>
         <View style={{ flexDirection: 'row', gap: 3 }}>
           {['#e5f0fd', '#cde1fb', '#a3c9f8', '#6ba5f2', '#4385e0'].map((color, idx) => (
             <View
@@ -133,7 +133,7 @@ export default function HeatMap({
             />
           ))}
         </View>
-        <Text style={[s.textXs, { fontSize: 10.5, color: theme.color.mutedForeground }]}>{`${lo}${unit}`}</Text>
+        <Text style={[s.textXs, { fontSize: 14.5, color: theme.color.mutedForeground }]}>{`${lo}${unit}`}</Text>
       </View>
     </View>
   );

@@ -274,7 +274,7 @@ export function printDocument({ nodeId, title, role }) {
     `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title>${css}` +
       `<style>body{background:#fff;padding:16px;color:#0b0d10}@page{size:A4 landscape;margin:9mm}` +
       `.no-print{display:none!important}</style></head><body>${node.outerHTML}` +
-      `<div style="margin-top:14px;font-size:10.5px;color:#6b7280">덕우전자 AX — ${title} · 출력 ${stamp} · 열람 계정 ${role || ''}</div>` +
+      `<div style="margin-top:14px;font-size:14.5px;color:#6b7280">덕우전자 AX — ${title} · 출력 ${stamp} · 열람 계정 ${role || ''}</div>` +
       `</body></html>`
   );
   win.document.close();

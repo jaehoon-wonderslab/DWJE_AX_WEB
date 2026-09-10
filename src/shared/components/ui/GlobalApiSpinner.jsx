@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontFamily: FONT_FAMILY,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '500',
     letterSpacing: 0.35,
     textTransform: 'uppercase',

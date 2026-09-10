@@ -68,7 +68,7 @@ export default function Gauge({ value = 0, min = 0, max = 100, unit = '', label,
 
     if (label) {
       g.append('text').attr('y', 14).attr('text-anchor', 'middle')
-        .attr('font-size', 10).attr('fill', c.axis).text(String(label));
+        .attr('font-size', 14).attr('fill', c.axis).text(String(label));
     }
   }, [value, min, max, unit, label, target, level, theme, v, animate]);
 

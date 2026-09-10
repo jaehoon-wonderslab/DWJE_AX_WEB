@@ -70,7 +70,7 @@ export default function AlertBell() {
             pointerEvents="none"
             style={{ position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 99, backgroundColor: theme.color.destructive, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.color.card }}
           >
-            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 9, lineHeight: 11, fontWeight: '600', color: '#fff' }}>{badge}</Text>
+            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 11, fontWeight: '600', color: '#fff' }}>{badge}</Text>
           </View>
         ) : null}
       </View>
@@ -120,7 +120,7 @@ export default function AlertBell() {
                     <View style={{ width: 3, borderRadius: 2, backgroundColor: dot, marginTop: 2 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.listTitle} numberOfLines={1}>{a.title || a.type || '알림'}</Text>
-                      {a.desc ? <Text style={[s.listDesc, { fontSize: 11.5, lineHeight: 16 }]} numberOfLines={2}>{a.desc}</Text> : null}
+                      {a.desc ? <Text style={[s.listDesc, { fontSize: 15.5, lineHeight: 16 }]} numberOfLines={2}>{a.desc}</Text> : null}
                       <Text style={[s.caption, { marginTop: 4 }]} numberOfLines={1}>
                         {[a.eqptNm || a.eqptCd, a.agent, a.occurredAt].filter(Boolean).join(' · ')}
                       </Text>

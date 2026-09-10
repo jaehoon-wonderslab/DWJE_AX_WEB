@@ -65,6 +65,8 @@ export default function AiDashboardView({
   loadEquipmentDetail,
   loadHourlyDefectDetails,
   refresh,
+  /** 머리말 바로 아래에 끼우는 요소 — 라우트가 탭(MES 현황 | 업로드 리포트)을 넣습니다 */
+  headExtra = null,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -134,6 +136,7 @@ export default function AiDashboardView({
           <Button label="새로고침" size="sm" variant="primary" icon="refresh" onPress={refresh} />
         }
       />
+      {headExtra}
 
       <Filters>
         <SelectField

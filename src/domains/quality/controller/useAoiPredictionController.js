@@ -10,11 +10,15 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useAsync } from '@shared/hooks/useAsync';
+import { usePaging } from '@shared/hooks/usePaging';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import { fixed } from '@shared/utils/formatUtil';
 import { loadProcessOptions } from '@domains/common/model/dataRangeRepository';
 import { loadAoiPrediction, recalculatePrediction } from '../model/qualityRepository';
+
+/** 출하 전 위험 LOT 한 쪽 건수 — 카드 하나에 들어가는 만큼만 */
+export const LOT_PAGE_SIZES = [10, 25, 50];
 
 /** 서버가 받는 값은 "8h" 처럼 시간 수입니다 — 라벨만 사람 말로 보여 줍니다 */
 const HORIZON_BASE = [
@@ -117,6 +121,21 @@ export function useAoiPredictionController() {
     [data]
   );
 
+  /**
+   * 출하 전 위험 LOT 쪽 나눔 (요구 3, 2026-09-11)
+   * 서버(`/prediction/lot-risk`)가 쪽을 나눠 주지 않아 **받은 목록을 화면에서 자릅니다**.
+   * 서버에 page·size 가 생기면 이 계산을 지우고 응답 meta 를 그대로 쓰면 됩니다.
+   */
+  const lotPaging = usePaging({ size: 10, resetKey: `${target}|${horizon}|${lotRisk.length}` });
+  const lotRiskPage = useMemo(() => {
+    const start = (lotPaging.page - 1) * lotPaging.size;
+    return lotRisk.slice(start, start + lotPaging.size);
+  }, [lotRisk, lotPaging.page, lotPaging.size]);
+  const lotRiskMeta = useMemo(
+    () => ({ page: lotPaging.page, size: lotPaging.size, total: lotRisk.length, totalPages: Math.max(1, Math.ceil(lotRisk.length / lotPaging.size)) }),
+    [lotRisk.length, lotPaging.page, lotPaging.size]
+  );
+
   /** 드리프트 — 상태 코드를 표시명으로, 이탈 건수를 셉니다 */
   const driftRange = data?.drift?.borderlineRange ?? null;
   const drift = useMemo(
@@ -170,6 +189,11 @@ export function useAoiPredictionController() {
     bandLabels,
     equipRisk,
     lotRisk,
+    /** 현재 쪽만 자른 목록 · 쪽 정보 · 쪽 조작 (표에 그대로 넘깁니다) */
+    lotRiskPage,
+    lotRiskMeta,
+    lotPaging,
+    lotPageSizes: LOT_PAGE_SIZES,
     remaining: data?.remaining || {},
     drift,
     driftRange,

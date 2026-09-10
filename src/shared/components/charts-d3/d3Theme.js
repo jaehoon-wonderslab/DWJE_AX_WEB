@@ -6,7 +6,7 @@
  */
 
 /** 축·눈금·값 글자 크기 — 기존 차트와 같은 값을 씁니다 */
-export const FONT = { axis: 9, value: 9.5, center: 19, gauge: 26, unit: 12 };
+export const FONT = { axis: 13, value: 13.5, center: 23, gauge: 30, unit: 16 };
 
 /**
  * @param {object} theme useTheme() 결과

@@ -137,7 +137,7 @@ export default function ShipPlanView({
       ) : (
         <ReportDoc nodeId={NODE_ID}>
           <View style={{ paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: theme.divider, marginBottom: 16 }}>
-            <Text style={[s.headingXs, { fontSize: 24, lineHeight: 30 }]}>{title}</Text>
+            <Text style={[s.headingXs, { fontSize: 28, lineHeight: 30 }]}>{title}</Text>
           </View>
 
           <Grid cols={4}>

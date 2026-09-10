@@ -34,7 +34,7 @@ export default function SignupView(c) {
             ['상태', '승인 대기 (PENDING)'],
           ]}
         />
-        <Text style={[s.textXs, { fontSize: 11.5, lineHeight: 18 }]}>
+        <Text style={[s.textXs, { fontSize: 15.5, lineHeight: 18 }]}>
           승인 전에 로그인하면 「가입 승인 대기 중인 계정입니다」 안내가 표시됩니다. 승인이 늦어지면 전산팀에 문의해 주세요.
         </Text>
         <Button label="로그인 화면으로" variant="primary" onPress={c.goLogin} style={{ height: 40 }} />
@@ -77,7 +77,7 @@ export default function SignupView(c) {
               />
             </View>
             {c.empNoCheck.checked && c.empNoCheck.available ? (
-              <Text style={[s.textXs, { fontSize: 11.5, color: theme.color.success }]}>{c.empNoCheck.message}</Text>
+              <Text style={[s.textXs, { fontSize: 15.5, color: theme.color.success }]}>{c.empNoCheck.message}</Text>
             ) : null}
           </View>
 

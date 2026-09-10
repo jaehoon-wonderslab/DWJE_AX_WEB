@@ -26,6 +26,10 @@ export const useAppStore = create((set, get) => ({
   baseDate: today(),
   setBaseDate: (baseDate) => set({ baseDate }),
 
+  // ── AI 통합 대시보드 (DB-01) 탭 — 'mes' MES 현황 · 'upload' 업로드 리포트 (세션 안에서 마지막 탭을 기억) ──
+  aiDashTab: 'mes',
+  setAiDashTab: (aiDashTab) => set({ aiDashTab }),
+
   // ── 공정 및 제품 대시보드 (DB-02) 선택 상태 ─────────────
   /** 선택한 공정 ID — 비어 있으면 서버 공정 목록의 첫 항목으로 맞춰집니다 */
   dashProcess: '',

@@ -76,7 +76,7 @@ export default function PermMatrix({
             <Text style={[s.xlsCellText, s.xlsHeadText]} numberOfLines={1}>
               {c.label}
             </Text>
-            {c.sublabel ? <Text style={[s.xlsCellText, { fontSize: 10, opacity: 0.7 }]}>{c.sublabel}</Text> : null}
+            {c.sublabel ? <Text style={[s.xlsCellText, { fontSize: 14, opacity: 0.7 }]}>{c.sublabel}</Text> : null}
           </View>
         ))}
       </View>
@@ -103,7 +103,7 @@ export default function PermMatrix({
                     activeOpacity={0.7}
                     style={[s.xlsCell, { width: colWidth, alignItems: 'center' }]}
                   >
-                    <Text style={[s.xlsCellText, { fontSize: 10.5, color: c.locked ? theme.color.mutedForeground : theme.color.primary }]}>
+                    <Text style={[s.xlsCellText, { fontSize: 14.5, color: c.locked ? theme.color.mutedForeground : theme.color.primary }]}>
                       {allOn ? '전체 해제' : '전체 허용'}
                     </Text>
                   </TouchableOpacity>
@@ -121,10 +121,16 @@ export default function PermMatrix({
               <Text style={s.xlsCellText}>{r.group}</Text>
             </View>
           ) : null}
-          <View style={[s.xlsCell, { width: rowLabelWidth }]}>
-            <Text style={[s.xlsCellText, s.xlsLeft, r.sub && { color: theme.color.mutedForeground }]} numberOfLines={1}>
-              {r.sub ? `↳ ${r.name}` : r.name}
+          <View style={[s.xlsCell, { width: rowLabelWidth, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+            <Text style={[s.xlsCellText, s.xlsLeft, { flexShrink: 1 }, r.sub && { color: theme.color.mutedForeground }]} numberOfLines={1}>
+              {r.label || (r.sub ? `↳ ${r.name}` : r.name)}
             </Text>
+            {/* 동작 권한 — 화면이 아니라 버튼(업로드 등)을 막는 행. 상위 화면 보기 권한과 따로 줍니다 */}
+            {r.action ? (
+              <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: theme.alpha('primary', 0.08), flexShrink: 0 }}>
+                <Text style={[s.xlsCellText, { fontSize: 14, lineHeight: 14, color: theme.color.primary }]}>동작</Text>
+              </View>
+            ) : null}
           </View>
           {descOf ? (
             <View style={[s.xlsCell, { width: 260 }]}>

@@ -48,7 +48,7 @@ export function ToastHost() {
         ...theme.shadow,
       }}
     >
-      <Text style={[s.textSm, { color: theme.color.primaryForeground, fontSize: 12.5, fontWeight: '500' }]}>{message}</Text>
+      <Text style={[s.textSm, { color: theme.color.primaryForeground, fontSize: 16.5, fontWeight: '500' }]}>{message}</Text>
     </Animated.View>
   );
 }

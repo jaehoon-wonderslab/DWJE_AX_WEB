@@ -109,7 +109,7 @@ function FormBody({ fields, initial, note, onReady }) {
           if (f.type === 'static') {
             return (
               <Field key={f.key} {...common} full={f.full}>
-                <Text style={[s.textSm, { paddingTop: 7, fontSize: 13 }]}>{f.value}</Text>
+                <Text style={[s.textSm, { paddingTop: 7, fontSize: 17 }]}>{f.value}</Text>
               </Field>
             );
           }

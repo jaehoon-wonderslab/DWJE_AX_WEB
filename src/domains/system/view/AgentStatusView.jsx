@@ -105,7 +105,7 @@ export default function AgentStatusView({
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={s.textXs}>{stage.stage != null ? `${stage.stage}.` : ''}</Text>
-                      <Text style={[s.textSm, { fontWeight: '600', fontSize: 12, flex: 1 }]} numberOfLines={1}>{stage.name}</Text>
+                      <Text style={[s.textSm, { fontWeight: '600', fontSize: 16, flex: 1 }]} numberOfLines={1}>{stage.name}</Text>
                       <Dot tone={dotTone(stage.state)} />
                     </View>
                     <Text style={[s.textXs, { marginTop: 2 }]} numberOfLines={2}>{stage.desc || ''}</Text>

@@ -152,7 +152,7 @@ export default function DatePickerModal({ visible, onClose, value, onSelect, min
               >
                 <Icon name="chevronLeft" size={14} color={theme.color.foreground} />
               </TouchableOpacity>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: theme.color.foreground }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.color.foreground }}>
                 {viewYear}년 {viewMonth + 1}월
               </Text>
               <TouchableOpacity
@@ -176,7 +176,7 @@ export default function DatePickerModal({ visible, onClose, value, onSelect, min
                 borderColor: theme.color.primary,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '600', color: theme.color.primary }}>오늘</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: theme.color.primary }}>오늘</Text>
             </TouchableOpacity>
           </View>
 
@@ -186,7 +186,7 @@ export default function DatePickerModal({ visible, onClose, value, onSelect, min
               <View key={wd} style={{ width: 38, alignItems: 'center' }}>
                 <Text
                   style={{
-                    fontSize: 11.5,
+                    fontSize: 15.5,
                     fontWeight: '600',
                     color: i === 0 ? '#ef4444' : i === 6 ? '#3b82f6' : theme.color.mutedForeground,
                   }}
@@ -230,7 +230,7 @@ export default function DatePickerModal({ visible, onClose, value, onSelect, min
                 >
                   <Text
                     style={{
-                      fontSize: 12,
+                      fontSize: 16,
                       fontWeight: isSelected ? '700' : isToday ? '600' : '400',
                       color: isSelected
                         ? theme.color.primaryForeground
@@ -263,7 +263,7 @@ export default function DatePickerModal({ visible, onClose, value, onSelect, min
                 borderColor: theme.color.border,
               }}
             >
-              <Text style={{ fontSize: 12, color: theme.color.foreground }}>닫기</Text>
+              <Text style={{ fontSize: 16, color: theme.color.foreground }}>닫기</Text>
             </TouchableOpacity>
           </View>
         </Pressable>

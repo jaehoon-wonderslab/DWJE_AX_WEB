@@ -54,7 +54,7 @@ export function FormAlert({ children, tone = 'error', style }) {
       accessibilityRole="alert"
     >
       <Icon name={icon} size={15} color={theme.color[token]} />
-      <Text style={[s.textSm, { flex: 1, fontSize: 12.5, lineHeight: 19, fontWeight: '500' }]}>{children}</Text>
+      <Text style={[s.textSm, { flex: 1, fontSize: 16.5, lineHeight: 19, fontWeight: '500' }]}>{children}</Text>
     </View>
   );
 }

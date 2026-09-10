@@ -20,6 +20,7 @@ import {
 import { AGENTS } from './data/dashboard';
 import { FAMILY_ORDER_DEFAULT, PRODUCTS } from './data/masters';
 import { mockState } from './state';
+import { listDocs, versionsOf } from './data/uploads';
 
 function store() {
   if (!mockState.store.system) {
@@ -67,6 +68,10 @@ const menuCount = (dept) => (menuAccessOf(dept) === '*' ? permRows().length : me
 const dataCount = (dept) => (dataScopeOf(dept) === '*' ? DATA_FIELDS.length : dataScopeOf(dept).length);
 
 export const systemMock = {
+  /* ───────── SY-16 업로드 문서 목록 (읽기 전용) — 대시보드 업로드 리포트와 같은 저장소 ───────── */
+  getSystemUploads: ({ keyword, uploadedBy, from, to } = {}) => ({ items: listDocs({ keyword, uploadedBy, from, to }) }),
+  getSystemUploadsByDocIdVersions: ({ docId } = {}) => versionsOf(docId),
+
   /* ═══════════ SY-01 계정 관리 ═══════════ */
   getSystemAccountsSummary: () => {
     const st = store();

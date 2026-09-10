@@ -141,12 +141,12 @@ export default function TabulatorTable({
             if (sInfo) {
               const arrow = sInfo.dir === 'asc' ? '▲' : '▼';
               const rankBadge = activeSorters.length > 1
-                ? `<span style="font-size: 9px; font-weight: 600; background: ${colors.primary}; color: #ffffff; border-radius: 9px; min-width: 13px; height: 13px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">${sIdx + 1}</span>`
+                ? `<span style="font-size:13px; font-weight: 600; background: ${colors.primary}; color: #ffffff; border-radius: 9px; min-width: 13px; height: 13px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">${sIdx + 1}</span>`
                 : '';
-              indicator.innerHTML = `<span style="color: ${colors.primary}; font-weight: 600; font-size: 10px;">${arrow}</span>${rankBadge}`;
+              indicator.innerHTML = `<span style="color: ${colors.primary}; font-weight: 600; font-size:14px;">${arrow}</span>${rankBadge}`;
               el.setAttribute('aria-sort', sInfo.dir === 'asc' ? 'ascending' : 'descending');
             } else {
-              indicator.innerHTML = `<span style="color: ${colors.mutedText}; opacity: 0.35; font-size: 9.5px;">▲▼</span>`;
+              indicator.innerHTML = `<span style="color: ${colors.mutedText}; opacity: 0.35; font-size:13.5px;">▲▼</span>`;
               el.setAttribute('aria-sort', 'none');
             }
           }
@@ -237,15 +237,15 @@ export default function TabulatorTable({
             const rowData = cell.getRow().getData();
             const val = cell.getValue() || rowData.date || rowData.period || '—';
             if (rowData.isGrandChild || rowData.depth === 3) {
-              return `<span data-depth="3" style="color: ${colors.mutedText}; font-size: 11px; opacity: 0.45;">↳ ↳</span>`;
+              return `<span data-depth="3" style="color: ${colors.mutedText}; font-size:15px; opacity: 0.45;">↳ ↳</span>`;
             }
             if (rowData.isChild || rowData.depth === 2) {
-              return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: ${colors.mutedText};">
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; font-size:15.5px; color: ${colors.mutedText};">
                 <span style="opacity: 0.65;">↳</span>
                 <span style="font-variant-numeric: tabular-nums; font-weight: 400;">${val}</span>
               </span>`;
             }
-            return `<span style="font-weight: 500; font-size: 12.5px; color: ${colors.rowText}; font-variant-numeric: tabular-nums;">${val}</span>`;
+            return `<span style="font-weight: 500; font-size:16.5px; color: ${colors.rowText}; font-variant-numeric: tabular-nums;">${val}</span>`;
           },
         },
         {
@@ -283,18 +283,18 @@ export default function TabulatorTable({
             const val = cell.getValue() || rowData.productNm || '';
             if (rowData.isGrandChild || rowData.depth === 3) {
               const pName = val || rowData.parentProductNm || '';
-              return `<span style="display: inline-flex; align-items: center; gap: 4px; color: ${colors.mutedText}; font-size: 11px; opacity: 0.75;">
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; color: ${colors.mutedText}; font-size:15px; opacity: 0.75;">
                 <span>↳</span>
                 <span style="font-weight: 500;">${pName || '—'}</span>
               </span>`;
             }
             if (rowData.isChild || rowData.depth === 2) {
               const displayVal = val || rowData.period || '기타';
-              return `<span style="display: inline-flex; align-items: center; font-weight: 500; color: ${colors.rowText}; background: ${colors.chipBg}; padding: 2px 9px; border-radius: 99px; font-size: 11.5px;">${displayVal}</span>`;
+              return `<span style="display: inline-flex; align-items: center; font-weight: 500; color: ${colors.rowText}; background: ${colors.chipBg}; padding: 2px 9px; border-radius: 99px; font-size:15.5px;">${displayVal}</span>`;
             }
             // Depth 1 (일자 행)
             const childCount = Array.isArray(rowData._children) ? rowData._children.length : 0;
-            return `<span style="color: ${colors.mutedText}; font-size: 11.5px; font-weight: 500;">전체 (${childCount ? `${childCount}개 품목` : '일자 합계'})</span>`;
+            return `<span style="color: ${colors.mutedText}; font-size:15.5px; font-weight: 500;">전체 (${childCount ? `${childCount}개 품목` : '일자 합계'})</span>`;
           },
         },
         {
@@ -351,17 +351,17 @@ export default function TabulatorTable({
               // 작업장 이름에 공장이 적힌 곳만 서버가 채워 줍니다(2026-09-06 기준 620행 중 126행).
               const plantText = rowData.plantNm || '';
               const equipText = rowData.equipNm || rowData.period || '—';
-              return `<span data-depth="3" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 400; font-size: 11.5px; color: ${colors.rowText};">
-                ${plantText ? `<span style="font-weight: 500; color: ${colors.info}; background: ${colors.infoBg}; padding: 1px 7px; border-radius: 99px; font-size: 10px;">${plantText}</span>` : ''}
-                <span style="font-weight: 500; color: ${tagColor}; background: ${tagBg}; padding: 1px 7px; border-radius: 99px; font-size: 10px;">${rowData.processNm || '공정'}</span>
+              return `<span data-depth="3" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 400; font-size:15.5px; color: ${colors.rowText};">
+                ${plantText ? `<span style="font-weight: 500; color: ${colors.info}; background: ${colors.infoBg}; padding: 1px 7px; border-radius: 99px; font-size:14px;">${plantText}</span>` : ''}
+                <span style="font-weight: 500; color: ${tagColor}; background: ${tagBg}; padding: 1px 7px; border-radius: 99px; font-size:14px;">${rowData.processNm || '공정'}</span>
                 <span style="font-weight: 500;">${equipText}</span>
               </span>`;
             }
             if (rowData.isChild || rowData.depth === 2) {
-              return `<span style="color: ${colors.mutedText}; font-size: 11px; background: ${colors.subtle}; padding: 1px 8px; border-radius: 99px;">품목별 소계</span>`;
+              return `<span style="color: ${colors.mutedText}; font-size:15px; background: ${colors.subtle}; padding: 1px 8px; border-radius: 99px;">품목별 소계</span>`;
             }
             // Depth 1
-            return `<span style="color: ${colors.mutedText}; font-size: 11.5px;">—</span>`;
+            return `<span style="color: ${colors.mutedText}; font-size:15.5px;">—</span>`;
           },
         },
         {
@@ -567,7 +567,7 @@ export default function TabulatorTable({
           border-radius: 16px !important;
           background-color: ${colors.card} !important;
           font-family: inherit !important;
-          font-size: 13px !important;
+          font-size:17px !important;
           overflow: hidden !important;
           width: 100% !important;
         }
@@ -576,7 +576,7 @@ export default function TabulatorTable({
           border-bottom: 1px solid ${colors.border} !important;
           color: ${colors.headerText} !important;
           font-weight: 600 !important;
-          font-size: 11px !important;
+          font-size:15px !important;
           letter-spacing: 0.22px !important;
           border-top: none !important;
         }
@@ -607,7 +607,7 @@ export default function TabulatorTable({
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter input {
           width: 100% !important;
           padding: 4px 8px !important;
-          font-size: 11.5px !important;
+          font-size:15.5px !important;
           font-family: inherit !important;
           border-radius: 8px !important;
           border: 1px solid ${colors.border} !important;
@@ -625,7 +625,7 @@ export default function TabulatorTable({
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col .tabulator-header-filter input::placeholder {
           color: ${colors.mutedText} !important;
-          font-size: 11px !important;
+          font-size:15px !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-title {
           font-weight: 600 !important;
@@ -686,7 +686,7 @@ export default function TabulatorTable({
           background-color: transparent !important;
           color: ${colors.headerText} !important;
           font-weight: 500 !important;
-          font-size: 11px !important;
+          font-size:15px !important;
           cursor: pointer !important;
           user-select: none !important;
           vertical-align: middle !important;
@@ -708,7 +708,7 @@ export default function TabulatorTable({
           color: ${colors.mutedText} !important;
           padding: 40px !important;
           text-align: center !important;
-          font-size: 13px !important;
+          font-size:17px !important;
         }
         /* Tabulator 내장 푸터 & 페이징 컨트롤 (Shadcn UI 스타일) */
         .tabulator-shadcn-${tableId} .tabulator-footer {
@@ -724,7 +724,7 @@ export default function TabulatorTable({
         }
         .tabulator-shadcn-${tableId} .tabulator-footer .tabulator-page-counter {
           color: ${colors.headerText} !important;
-          font-size: 12.5px !important;
+          font-size:16.5px !important;
           font-weight: 500 !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-footer .tabulator-paginator {
@@ -734,7 +734,7 @@ export default function TabulatorTable({
           flex-wrap: wrap !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-footer .tabulator-paginator label {
-          font-size: 12px !important;
+          font-size:16px !important;
           color: ${colors.headerText} !important;
           margin-right: 6px !important;
           margin-left: 8px !important;
@@ -745,7 +745,7 @@ export default function TabulatorTable({
           padding: 4px 10px !important;
           background-color: transparent !important;
           color: ${colors.rowText} !important;
-          font-size: 12px !important;
+          font-size:16px !important;
           margin-right: 14px !important;
           outline: none !important;
           cursor: pointer !important;
@@ -756,7 +756,7 @@ export default function TabulatorTable({
           background-color: transparent !important;
           color: ${colors.mutedText} !important;
           padding: 3px 8px !important;
-          font-size: 12px !important;
+          font-size:16px !important;
           font-weight: 400 !important;
           min-width: 28px !important;
           height: 28px !important;

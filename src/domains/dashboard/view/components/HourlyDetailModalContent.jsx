@@ -198,20 +198,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 4,
   },
   metricValue: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
   },
   metricUnit: {
-    fontSize: 10,
+    fontSize: 14,
     marginTop: 2,
   },
   metricSubText: {
-    fontSize: 10,
+    fontSize: 14,
     marginTop: 2,
   },
   actionSection: {
@@ -226,10 +226,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionTitle: {
-    fontSize: 13,
+    fontSize: 17,
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 16,
     flex: 1,
     lineHeight: 18,
   },

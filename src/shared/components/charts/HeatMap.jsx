@@ -35,7 +35,7 @@ export default function HeatMap({ rows = [], cols = [], data = [], unit = '', lo
             <View style={{ width: 74 }} />
             {cols.map((c) => (
               <View key={c} style={{ width: cellWidth, alignItems: 'center', paddingVertical: 2 }}>
-                <Text style={[s.textXs, { fontSize: 10.5, fontWeight: '600' }]}>{c}</Text>
+                <Text style={[s.textXs, { fontSize: 14.5, fontWeight: '600' }]}>{c}</Text>
               </View>
             ))}
           </View>
@@ -43,7 +43,7 @@ export default function HeatMap({ rows = [], cols = [], data = [], unit = '', lo
           {rows.map((r, ri) => (
             <View key={r} style={{ flexDirection: 'row', marginBottom: 2 }}>
               <View style={{ width: 74, justifyContent: 'center', paddingRight: 7 }}>
-                <Text style={[s.textXs, { fontSize: 10.5, fontWeight: '600', textAlign: 'right' }]} numberOfLines={1}>
+                <Text style={[s.textXs, { fontSize: 14.5, fontWeight: '600', textAlign: 'right' }]} numberOfLines={1}>
                   {r}
                 </Text>
               </View>
@@ -59,7 +59,7 @@ export default function HeatMap({ rows = [], cols = [], data = [], unit = '', lo
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={[s.textXs, { fontSize: 10.5, color: theme.color.foreground, fontVariant: ['tabular-nums'] }]}>
+                  <Text style={[s.textXs, { fontSize: 14.5, color: theme.color.foreground, fontVariant: ['tabular-nums'] }]}>
                     {data[ri]?.[ci] ?? '—'}
                   </Text>
                 </View>

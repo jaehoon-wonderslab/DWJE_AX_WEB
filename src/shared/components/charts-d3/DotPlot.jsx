@@ -43,7 +43,7 @@ export default function DotPlot({ data = [], min = 0, max = 100, target, unit = 
     rows.forEach((d, i) => {
       const y = i * (ROW_H + GAP);
       const mid = y + ROW_H / 2;
-      g.append('text').attr('x', 0).attr('y', mid + 4).attr('font-size', 12).attr('fill', c.axis).text(String(d.l));
+      g.append('text').attr('x', 0).attr('y', mid + 4).attr('font-size', 16).attr('fill', c.axis).text(String(d.l));
       g.append('rect').attr('x', left).attr('y', mid - 1).attr('width', iw).attr('height', 2).attr('fill', c.muted);
       if (target !== undefined) {
         g.append('rect').attr('x', left + x(target) - 1).attr('y', y + 1).attr('width', 2).attr('height', ROW_H - 2).attr('fill', c.target);
@@ -60,14 +60,14 @@ export default function DotPlot({ data = [], min = 0, max = 100, target, unit = 
 
       g.append('text')
         .attr('x', left + iw + 52).attr('y', mid + 4).attr('text-anchor', 'end')
-        .attr('font-size', 12).attr('font-weight', '600').attr('fill', c.text)
+        .attr('font-size', 16).attr('font-weight', '600').attr('fill', c.text)
         .text(`${d.v.toFixed(digits)}${unit}`);
 
       if (target !== undefined) {
         const gap = d.v - target;
         g.append('text')
           .attr('x', width).attr('y', mid + 4).attr('text-anchor', 'end')
-          .attr('font-size', 11).attr('fill', gap < 0 ? c.target : theme.color.success)
+          .attr('font-size', 15).attr('fill', gap < 0 ? c.target : theme.color.success)
           .text(`${gap > 0 ? '+' : ''}${gap.toFixed(digits)}%p`);
       }
     });
@@ -78,7 +78,7 @@ export default function DotPlot({ data = [], min = 0, max = 100, target, unit = 
       g.append('text')
         .attr('x', left + x(v)).attr('y', axisY)
         .attr('text-anchor', i === 0 ? 'start' : i === 2 ? 'end' : 'middle')
-        .attr('font-size', 9).attr('fill', c.axis)
+        .attr('font-size', 13).attr('fill', c.axis)
         .text(`${Number(v).toFixed(digits)}${unit}`);
     });
   }, [data, width, theme, min, max, target, unit, digits, labelWidth]);

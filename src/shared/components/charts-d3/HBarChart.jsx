@@ -47,7 +47,7 @@ export default function HBarChart({ data = [], unit = '', target, format = comma
       const y = i * (ROW_H + GAP);
       g.append('text')
         .attr('x', 0).attr('y', y + ROW_H - 4)
-        .attr('font-size', 12).attr('fill', c.axis)
+        .attr('font-size', 16).attr('fill', c.axis)
         .text(String(d.l));
       g.append('rect')
         .attr('x', left).attr('y', y).attr('width', iw).attr('height', ROW_H).attr('rx', 4)
@@ -71,7 +71,7 @@ export default function HBarChart({ data = [], unit = '', target, format = comma
       }
       g.append('text')
         .attr('x', width).attr('y', y + ROW_H - 4).attr('text-anchor', 'end')
-        .attr('font-size', 12).attr('font-weight', '600').attr('fill', c.text)
+        .attr('font-size', 16).attr('font-weight', '600').attr('fill', c.text)
         .text(`${format(d.v)}${unit}`);
     });
   }, [data, width, theme, target, unit, labelWidth, valueWidth, format, animate]);

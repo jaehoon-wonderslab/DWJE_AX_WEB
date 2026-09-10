@@ -79,7 +79,7 @@ export default function RadarChart({ axes = [], height = 210 }) {
       g.append('text')
         .attr('x', lx).attr('y', ly + 3)
         .attr('text-anchor', Math.abs(lx) < 4 ? 'middle' : lx > 0 ? 'start' : 'end')
-        .attr('font-size', 11).attr('fill', c.text)
+        .attr('font-size', 15).attr('fill', c.text)
         .attr('font-weight', '600')
         .text(`${d.l}${valStr}`);
 

@@ -251,7 +251,8 @@ export async function request(key, params = {}, options = {}) {
         // 아직 목이 없는 API 는 빈 성공 응답으로 처리해 화면이 깨지지 않게 합니다
         return { success: true, code: 'SUCCESS', message: `[mock 미구현] ${def.name}`, data: null, masked: [] };
       }
-      const data = await handler(rest, def);
+      // 목 핸들러에는 경로 파라미터({defectId} 등)도 함께 넘깁니다 — 실 서버는 URL 에서 읽지만 목은 인자로만 받습니다
+      const data = await handler(dropEmptyParams(params), def);
       if (data && data.success !== undefined) return data; // 핸들러가 전체 응답을 만든 경우
       return { success: true, code: 'SUCCESS', message: `${def.name} 조회가 완료되었습니다.`, data, masked: [] };
     }

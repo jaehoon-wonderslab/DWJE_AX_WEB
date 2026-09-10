@@ -71,7 +71,7 @@ function BootScreen({ theme }) {
       <Animated.View style={{ opacity: pulse }}>
         <LogoMark size={44} />
       </Animated.View>
-      <Text style={{ fontFamily: FONT_FAMILY, fontSize: 11.5, letterSpacing: 0.22, fontWeight: '500', color: theme.color.mutedForeground }}>
+      <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, letterSpacing: 0.22, fontWeight: '500', color: theme.color.mutedForeground }}>
         접속 정보를 확인하는 중입니다
       </Text>
     </View>

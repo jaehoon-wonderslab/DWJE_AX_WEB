@@ -493,3 +493,35 @@ export function postDashboardKpiEvidenceExport(params) {
 export function getDashboardProcessPeriod(params) {
   return request('getDashboardProcessPeriod', params);
 }
+
+/** 업로드 리포트 문서 목록 (DB-01 업로드 리포트 탭) */
+export function getDashboardUploads(params) {
+  return request('getDashboardUploads', params);
+}
+
+/** 엑셀 업로드 — 새 문서 (multipart). 권한 dash-ai-upload */
+export function postDashboardUploads(params) {
+  // file 이 든 객체를 multipart 로 보냅니다 (axios 가 Content-Type 을 보고 FormData 로 바꿔 줍니다)
+  return request('postDashboardUploads', params, { headers: { 'Content-Type': 'multipart/form-data' } });
+}
+
+/** 엑셀 업로드 — 기존 문서에 새 버전 */
+export function postDashboardUploadsByDocIdVersions(params) {
+  return request('postDashboardUploadsByDocIdVersions', params, { headers: { 'Content-Type': 'multipart/form-data' } });
+}
+
+/** 업로드 문서 버전 이력 */
+export function getDashboardUploadsByDocIdVersions(params) {
+  return request('getDashboardUploadsByDocIdVersions', params);
+}
+
+/** 업로드 문서 파싱 데이터(차트·표 블록) */
+export function getDashboardUploadsByDocIdVersionsByVersionData(params) {
+  return request('getDashboardUploadsByDocIdVersionsByVersionData', params);
+}
+
+/** 업로드 원본 엑셀 다운로드 */
+export function getDashboardUploadsByDocIdVersionsByVersionFile(params) {
+  // 원본 xlsx 스트림 — 실 서버에서는 Blob 이 그대로 돌아옵니다 (표준 응답 봉투가 아닙니다)
+  return request('getDashboardUploadsByDocIdVersionsByVersionFile', params, { responseType: 'blob' });
+}

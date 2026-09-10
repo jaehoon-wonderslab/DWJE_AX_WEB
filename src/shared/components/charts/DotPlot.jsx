@@ -66,7 +66,7 @@ export default function DotPlot({ data = [], min = 0, max = 100, target, unit = 
       })}
       <View style={{ flexDirection: 'row', paddingLeft: labelWidth + 10, paddingRight: target !== undefined ? 118 : 62 }}>
         {[min, (min + max) / 2, max].map((t, i) => (
-          <Text key={i} style={[s.textXs, { flex: 1, fontSize: 10.5, textAlign: i === 0 ? 'left' : i === 1 ? 'center' : 'right' }]}>
+          <Text key={i} style={[s.textXs, { flex: 1, fontSize: 14.5, textAlign: i === 0 ? 'left' : i === 1 ? 'center' : 'right' }]}>
             {t}
             {unit}
           </Text>

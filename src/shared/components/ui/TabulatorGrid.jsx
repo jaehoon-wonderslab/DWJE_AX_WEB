@@ -181,7 +181,38 @@ export default function TabulatorGrid({
 
     instance.current = table;
     if (instanceRef) instanceRef.current = table;
+
+    // 컨테이너 폭이 바뀌면(AI 레일 열기·닫기·드래그, 사이드바 접기) 열 폭을 다시 맞춥니다.
+    // fitColumns 는 표를 만들 때의 폭만 알기 때문에, 그대로 두면 오른쪽 열이 잘리거나 가로 스크롤이 생깁니다.
+    let ro = null;
+    let raf = 0;
+    if (typeof ResizeObserver !== 'undefined' && ref.current) {
+      const box = ref.current.getBoundingClientRect();
+      let lastW = box.width;
+      let lastH = box.height;
+      ro = new ResizeObserver((entries) => {
+        const r = entries[0]?.contentRect;
+        const w = r?.width || 0;
+        const h = r?.height || 0;
+        // 폭뿐 아니라 **높이 변화도** 봅니다 — 모달·드로어처럼 열릴 때 0 높이에서 시작하는 자리에 놓이면
+        // 표가 한 줄만 그려진 채 남습니다(가상 스크롤이 높이를 0으로 재기 때문).
+        if ((!w && !h) || (Math.abs(w - lastW) < 1 && Math.abs(h - lastH) < 1)) return;
+        lastW = w;
+        lastH = h;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          try {
+            table.redraw(true);
+          } catch {
+            /* 표가 정리되는 중 */
+          }
+        });
+      });
+      ro.observe(ref.current);
+    }
     return () => {
+      if (ro) ro.disconnect();
+      cancelAnimationFrame(raf);
       try {
         table.destroy();
       } catch {
@@ -271,7 +302,7 @@ export default function TabulatorGrid({
           background: ${c.card};
           border: 1px solid ${theme.divider};
           border-radius: 16px;
-          font-size: 12.5px;
+          font-size:16.5px;
           font-weight: 500;
         }
         #grid_${id} .tabulator .tabulator-header {
@@ -285,7 +316,7 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tabulator-header .tabulator-col-title {
           color: ${c.headText};
           font-weight: 600;
-          font-size: 11px;
+          font-size:15px;
           letter-spacing: 0.22px;
           padding: 10px 12px;
           white-space: normal;
@@ -301,7 +332,7 @@ export default function TabulatorGrid({
           background: ${alpha('foreground', 0.03)};
           border: 1px solid ${c.border};
           border-radius: 8px;
-          font-size: 11px;
+          font-size:15px;
           outline: none;
         }
         #grid_${id} .tabulator .tabulator-header .tabulator-header-filter input:focus {
@@ -323,7 +354,7 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tabulator-header .tabulator-col .tabulator-col-content .tabulator-col-sorter { color: ${c.muted}; }
         #grid_${id} .tabulator .tabulator-footer { background: transparent; border-top: 1px solid ${c.border}; color: ${c.muted}; }
         #grid_${id} .tabulator .tabulator-placeholder { background: transparent; }
-        #grid_${id} .tabulator .tabulator-placeholder .tabulator-placeholder-contents { color: ${c.muted}; font-size: 12.5px; }
+        #grid_${id} .tabulator .tabulator-placeholder .tabulator-placeholder-contents { color: ${c.muted}; font-size:16.5px; }
         #grid_${id} .tabulator .tabulator-row:hover { background: ${c.hover}; }
         #grid_${id} .tabulator .tabulator-cell {
           color: ${c.text};
@@ -337,7 +368,7 @@ export default function TabulatorGrid({
           background: ${c.groupBg};
           border-bottom: 1px solid ${c.border};
           font-weight: 500;
-          font-size: 12.5px;
+          font-size:16.5px;
           color: ${c.text};
           padding: 9px 10px;
         }
@@ -382,6 +413,15 @@ export default function TabulatorGrid({
         /* React 포털 셀 */
         #grid_${id} .tabulator .ax-cell { display: block; width: 100%; }
         #grid_${id} .tabulator .muted { color: ${c.muted}; }
+        /* 칩 목록(유사어 등) — 칸 안에서 줄바꿈되는 캡슐 묶음. 내 것은 파란 테두리 + × 삭제 */
+        #grid_${id} .tabulator .chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0; }
+        #grid_${id} .tabulator .chips .tag { white-space: nowrap; }
+        #grid_${id} .tabulator .chips .tag small { margin-left: 4px; font-size:14px; font-weight: 500; }
+        #grid_${id} .tabulator .chip-mine { cursor: pointer; }
+        #grid_${id} .tabulator .chip-x { margin-left: 4px; padding: 0 3px; font-weight: 600; color: ${c.muted}; cursor: pointer; }
+        #grid_${id} .tabulator .chip-x:hover { color: ${c.text}; }
+        #grid_${id} .tabulator .tbtn-ghost { border-color: transparent; background: transparent; }
+        #grid_${id} .tabulator .tbtn + .tbtn { margin-left: 4px; }
         #grid_${id} .tabulator .quote { color: ${c.muted}; font-style: italic; }
         #grid_${id} .tabulator .strong { font-weight: 500; color: ${c.text}; }
         /* 한 칸에 문장이 여럿일 때 — 줄 사이를 벌려 어디서 끊기는지 보이게 합니다 */
@@ -397,7 +437,7 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tabulator-row .tabulator-col-resize-handle { display: none; }
         ${hasRowClick ? `#grid_${id} .tabulator .tabulator-row { cursor: pointer; }` : ''}
         /* 고정폭 글꼴 — ID·테이블명처럼 자릿수를 맞춰 읽는 칸 */
-        #grid_${id} .tabulator .mono { font-family: ${MONO_FAMILY}; font-size: 12px; }
+        #grid_${id} .tabulator .mono { font-family: ${MONO_FAMILY}; font-size:16px; }
         /*
           칸 안의 배지 — 화면의 \`Badge\` 와 같은 색·모양입니다.
           formatter 가 HTML 을 돌려주는 자리라 RN 컴포넌트를 못 쓰므로 클래스로 둡니다.
@@ -406,7 +446,7 @@ export default function TabulatorGrid({
           display: inline-flex; align-items: center; vertical-align: middle;
           padding: 1px 8px; border-radius: 99px; border: 1px solid rgba(0,0,0,0.07);
           background: #fff; color: ${color.secondaryForeground};
-          font-size: 11px; font-weight: 500; line-height: 16px; white-space: nowrap;
+          font-size:15px; font-weight: 500; line-height: 16px; white-space: nowrap;
         }
         #grid_${id} .tabulator .tag-green { background: ${color.successTint}; border-color: transparent; color: ${color.success}; }
         #grid_${id} .tabulator .tag-red { background: ${alpha('destructive', 0.1)}; border-color: transparent; color: ${color.destructive}; }
@@ -414,7 +454,7 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tag-blue { background: ${alpha('info', 0.08)}; border-color: transparent; color: ${color.info}; }
         /* 칸 안의 작은 버튼 — 화면의 \`Button size="sm"\` 에 맞춘 모양. 동작은 열의 cellClick 에서 받습니다 */
         #grid_${id} .tabulator .tbtn {
-          font: inherit; font-size: 12px; font-weight: 500; line-height: 18px;
+          font: inherit; font-size:16px; font-weight: 500; line-height: 18px;
           padding: 3px 11px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);
           background: #fff; color: ${c.text}; cursor: pointer; white-space: nowrap;
         }

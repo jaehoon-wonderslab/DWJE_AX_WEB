@@ -73,7 +73,7 @@ function EvidenceBody({ sections, droppedCnt }) {
   return (
     <View style={{ gap: 18 }}>
       <View style={{ padding: 11, borderRadius: 6, backgroundColor: theme.alpha('info', 0.08) }}>
-        <Text style={[s.textXs, { lineHeight: 20, fontSize: 12.5 }]}>
+        <Text style={[s.textXs, { lineHeight: 20, fontSize: 16.5 }]}>
           <Text style={{ fontWeight: '700' }}>지표 근거</Text>는 서버가 값을 다시 구해 대조한 것이고,{' '}
           <Text style={{ fontWeight: '700' }}>참고 문서</Text>는 과거 불량분석 문서의 원문입니다.
           대조를 통과하지 못한 문장은 표시하지 않습니다.
@@ -83,7 +83,7 @@ function EvidenceBody({ sections, droppedCnt }) {
       {metrics.length ? (
         <View style={{ gap: 8 }}>
           <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>지표 근거</Text>
+            <Text style={{ fontSize: 19, fontWeight: '700', color: theme.color.foreground }}>지표 근거</Text>
             <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${metrics.length}건`}</Text>
           </View>
           <TabulatorGrid
@@ -104,7 +104,7 @@ function EvidenceBody({ sections, droppedCnt }) {
       {docs.length ? (
         <View style={{ gap: 8 }}>
           <View style={[s.rowGap6, { flexWrap: 'wrap' }]}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: theme.color.foreground }}>참고 문서</Text>
+            <Text style={{ fontSize: 19, fontWeight: '700', color: theme.color.foreground }}>참고 문서</Text>
             <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`${docs.length}건`}</Text>
           </View>
           <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
@@ -189,7 +189,7 @@ export function EvidenceButton({ onPress, disabled, count }) {
       <Text style={[s.textXs, { fontWeight: '700', color: theme.color.primary }]}>판단 근거</Text>
       {count ? (
         <View style={{ paddingHorizontal: 5, borderRadius: 8, backgroundColor: theme.alpha('primary', 0.16) }}>
-          <Text style={{ fontSize: 10.5, fontWeight: '700', color: theme.color.primary }}>{count}</Text>
+          <Text style={{ fontSize: 14.5, fontWeight: '700', color: theme.color.primary }}>{count}</Text>
         </View>
       ) : null}
     </TouchableOpacity>

@@ -123,8 +123,8 @@ export default function YieldByModelView({
 
       <ReportDoc nodeId={NODE_ID}>
         <View style={{ alignItems: 'center', paddingTop: 14, paddingBottom: 16, borderBottomWidth: 2, borderBottomColor: theme.color.foreground, marginBottom: 16 }}>
-          <Text style={{ fontSize: 19, fontWeight: '800', color: theme.color.foreground }}>제품별 수율 현황</Text>
-          <Text style={[s.textXs, { fontSize: 12.5, marginTop: 5 }]}>{`${yearMonth}  /  품질보증팀`}</Text>
+          <Text style={{ fontSize: 23, fontWeight: '800', color: theme.color.foreground }}>제품별 수율 현황</Text>
+          <Text style={[s.textXs, { fontSize: 16.5, marginTop: 5 }]}>{`${yearMonth}  /  품질보증팀`}</Text>
         </View>
 
         <Grid cols={4}>

@@ -3,7 +3,7 @@
  */
 import * as qualityService from '@services/api/qualityService';
 import { command, unwrap, unwrapAll } from '@services/api/request';
-import { lastDataDate, recentRange } from '@shared/stores/useAppStore';
+import { lastDataDate } from '@shared/stores/useAppStore';
 
 /* ───────── QC-01 불량 현황 조회 ───────── */
 
@@ -41,14 +41,13 @@ export function loadDefectByLine({ from, to, processId, defectTypeCd }) {
 export function loadAoiPrediction({ target, horizon, trainPeriod }) {
   const scope = target && target !== '전체' ? target : undefined;
   const params = { target: scope, horizon, trainPeriod };
-  const drift = recentRange(14);
+  // 2026-09-10 — 화면에서 「설비별 위험도」·「잔여 시간 추가 발생 추정」·「AOI 검사기별 판정 드리프트」 를 없앴으므로
+  // 그 세 조회(equipment-risk · remaining-estimate · inspector-drift)는 부르지 않습니다.
+  // `summary` 는 화면에 그리지 않지만 **임계값(SY-13 불량률 기준)의 출처**라 남겨 둡니다 — band 응답의 threshold 는 비어 오는 환경이 있습니다.
   return unwrapAll({
     summary: qualityService.getQualityAoiPredictionSummary(params),
     band: qualityService.getQualityAoiPredictionTrendBand({ target: scope, horizon }),
-    equipRisk: qualityService.getQualityAoiPredictionEquipmentRisk({ target: scope, horizon }),
     lotRisk: qualityService.getQualityAoiPredictionLotRisk({ target: scope }),
-    remaining: qualityService.getQualityAoiPredictionRemainingEstimate({ target: scope, horizon }),
-    drift: qualityService.getQualityAoiInspectorDrift({ from: drift.from, to: drift.to }),
     shift: qualityService.getQualityAoiDefectTypeShift({ date: lastDataDate(), baseWeeks: 4 }),
     basis: qualityService.getQualityAoiPredictionBasis({}),
   });

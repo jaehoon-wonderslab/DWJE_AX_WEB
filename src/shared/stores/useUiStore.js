@@ -3,6 +3,25 @@ import { create } from 'zustand';
 let toastTimer = null;
 let modalSeq = 0;
 
+/** 브라우저에 남기는 UI 선호값 — 저장소가 막혀 있어도 앱은 그대로 동작합니다 */
+function readPref(key, fallback) {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return fallback;
+    const v = window.localStorage.getItem(key);
+    return v === null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+function persist(key, patch) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(key, String(Object.values(patch)[0]));
+  } catch {
+    /* 저장 실패는 무시 */
+  }
+  return patch;
+}
+
 /**
  * 공통 UI 요소 전역 스토어 — 토스트 · 모달 · 드로어 (CM-05)
  *
@@ -53,13 +72,16 @@ export const useUiStore = create((set, get) => ({
   openDrawer: (config) => set({ drawer: config }),
   closeDrawer: () => set({ drawer: null }),
 
-  // ── 전역 AI 채팅 패널 ──────────────────────────────────
-  aiChatOpen: false,
-  aiChatSize: 'compact', // compact | medium | full
-  toggleAiChat: () => set((state) => ({ aiChatOpen: !state.aiChatOpen })),
-  openAiChat: () => set({ aiChatOpen: true }),
-  closeAiChat: () => set({ aiChatOpen: false }),
-  setAiChatSize: (aiChatSize) => set({ aiChatSize }),
+  // ── 전역 AI 채팅 패널(덕파트장 AI 레일) ────────────────
+  //  · 기본 열림. 폭은 드래그로 조절하며 브라우저에 기억합니다(최소 320px · 최대 창 폭의 40%).
+  //  · 예전 3단 크기(compact/medium/full)는 없어졌습니다.
+  aiChatOpen: readPref('dwje.ax.aiChatOpen', 'true') !== 'false',
+  aiChatWidth: Number(readPref('dwje.ax.aiChatWidth', '400')) || 400,
+  toggleAiChat: () => set((state) => persist('dwje.ax.aiChatOpen', { aiChatOpen: !state.aiChatOpen })),
+  openAiChat: () => set(persist('dwje.ax.aiChatOpen', { aiChatOpen: true })),
+  closeAiChat: () => set(persist('dwje.ax.aiChatOpen', { aiChatOpen: false })),
+  /** 레일 폭(px). 범위 보정은 레이아웃이 창 폭을 알고 하므로 여기서는 하한만 둡니다 */
+  setAiChatWidth: (aiChatWidth) => set(persist('dwje.ax.aiChatWidth', { aiChatWidth: Math.max(320, Math.round(aiChatWidth)) })),
 
   // ── 전역 API 로딩 스피너 ────────────────────────────────
   apiLoadingCount: 0,

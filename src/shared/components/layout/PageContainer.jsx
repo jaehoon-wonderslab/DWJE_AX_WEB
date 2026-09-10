@@ -29,5 +29,5 @@ export default function PageContainer({ children, fluid = false, maxWidth, conte
 
 export function FullPageContainer({ children, style }) {
   const theme = useTheme();
-  return <View style={[{ flex: 1, minHeight: 0, padding: 24, paddingTop: 16, maxWidth: theme.metrics.contentMaxWidth, width: '100%' }, style]}>{children}</View>;
+  return <View style={[{ flex: 1, minHeight: 0, padding: 24, paddingTop: 16, width: '100%' }, style]}>{children}</View>;
 }

@@ -10,6 +10,11 @@
  *
  * 메뉴 항목은 실제 링크(<Link>)입니다. 새 탭 열기·주소 복사가 그대로 동작하고,
  * 로그인 계정의 소속 부서 권한으로 필터링해 접근 가능한 항목만 그립니다.
+ *
+ * 2026-09-10 변경
+ *  · 「덕파트장 AI」(자연어 질의) 는 스크롤되는 메뉴 목록 밖, 「메뉴 접기」 아래 **고정 카드 버튼**으로 둡니다.
+ *    누를 수 있는 버튼임이 보이도록 채움 배경 + 아이콘 + 캡션("AI를 통해 궁금한 것을 물어보세요").
+ *  · 계정 메뉴(현재 계정 · 로그아웃)는 상단바에서 내려와 하단 사용자 카드를 누르면 위로 뜹니다.
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -26,6 +31,7 @@ import { useTheme } from '@shared/theme/useTheme';
 import { LogoLockup, LogoMark } from '../brand/Logo';
 import Hoverable from '../ui/Hoverable';
 import Icon from '../ui/Icon';
+import UserMenu from './UserMenu';
 
 /** 그룹별 아이콘 (디자인 시스템 선 아이콘) */
 const GROUP_ICON = {
@@ -47,6 +53,8 @@ export default function Sidebar({ collapsed = false }) {
   const { currentScreenId: currentId, pathname } = useAppNavigation();
   const currentHubGroup = hubGroupOf(pathname);
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
   // 현재 화면이 속한 그룹은 자동으로 펼칩니다
   const [openGroups, setOpenGroups] = useState({});
   useEffect(() => {
@@ -59,9 +67,12 @@ export default function Sidebar({ collapsed = false }) {
   }, [currentId, currentHubGroup]);
 
   // menuPerms 가 바뀌면(계정 전환) 메뉴가 다시 계산됩니다. hidden 그룹은 사이드바에 내지 않습니다
-  const groups = MENU.filter((g) => !g.hidden)
+  const groups = MENU.filter((g) => !g.hidden && !g.solo)
     .map((g) => ({ ...g, items: g.items.filter((it) => can(it.id)) }))
     .filter((g) => g.items.length);
+  // 고정 카드로 그리는 단독 항목(덕파트장 AI)
+  const aiItem = MENU.find((g) => g.solo)?.items.find((it) => can(it.id)) || null;
+  const aiOn = aiItem ? aiItem.id === currentId : false;
 
   const dept = DEPTS.find((d) => d.id === userInfo?.dept);
   const width = collapsed ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth;
@@ -93,6 +104,42 @@ export default function Sidebar({ collapsed = false }) {
         </Pressable>
       </View>
 
+      {/* 고정 — 덕파트장 AI (스크롤 영향 없음) */}
+      {aiItem ? (
+        <View style={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 8, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+          <Link href={aiItem.path} asChild>
+            <Hoverable
+              accessibilityLabel={`${aiItem.name} — AI를 통해 궁금한 것을 물어보세요`}
+              hoverStyle={({ hovered, pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: 10,
+                height: collapsed ? 40 : undefined,
+                paddingVertical: collapsed ? 0 : 9,
+                paddingHorizontal: collapsed ? 0 : 10,
+                borderRadius: theme.metrics.radiusSm,
+                borderWidth: 1,
+                borderColor: aiOn ? theme.color.primary : hovered ? theme.alpha('primary', 0.28) : theme.alpha('primary', 0.14),
+                backgroundColor: aiOn ? theme.color.primary : hovered || pressed ? theme.alpha('primary', 0.1) : theme.alpha('primary', 0.05),
+                ...(theme.panelShadow && !collapsed ? { shadowColor: '#0B1440', shadowOpacity: hovered ? 0.1 : 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } } : {}),
+              })}
+            >
+              <View style={{ width: 26, height: 26, borderRadius: 99, alignItems: 'center', justifyContent: 'center', backgroundColor: aiOn ? '#fff' : theme.color.primary }}>
+                <Icon name="sparkles" size={14} color={aiOn ? theme.color.primary : '#fff'} />
+              </View>
+              {!collapsed ? (
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 17, fontWeight: '600', color: aiOn ? '#fff' : theme.color.primary }} numberOfLines={1}>{aiItem.name}</Text>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14.5, lineHeight: 14, fontWeight: '500', color: aiOn ? 'rgba(255,255,255,0.72)' : theme.color.mutedForeground }} numberOfLines={1}>AI를 통해 궁금한 것을 물어보세요</Text>
+                </View>
+              ) : null}
+              {!collapsed ? <Icon name="chevronRight" size={13} color={aiOn ? 'rgba(255,255,255,0.7)' : theme.color.mutedForeground} /> : null}
+            </Hoverable>
+          </Link>
+        </View>
+      ) : null}
+
       {/* 아코디언 내비 */}
       <ScrollView
         style={{ flex: 1 }}
@@ -103,22 +150,6 @@ export default function Sidebar({ collapsed = false }) {
         {groups.map((g) => {
           const icon = GROUP_ICON[g.group] || 'grid';
           const hasActive = currentHubGroup === g.group || g.items.some((i) => i.id === currentId);
-
-          // 단독 항목(자연어 질의) — 행 하나가 곧 화면입니다
-          if (g.solo) {
-            const it = g.items[0];
-            const on = it.id === currentId;
-            return (
-              <View key={g.group} style={{ marginBottom: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                <Link href={it.path} asChild>
-                  <Hoverable hoverStyle={({ hovered }) => navRow(theme, { on, hovered, collapsed })} accessibilityLabel={it.name}>
-                    <Icon name={icon} size={16} color={on ? theme.color.primary : theme.color.secondaryForeground} />
-                    {!collapsed ? <Text style={navLabel(theme, on)} numberOfLines={1}>{it.name}</Text> : null}
-                  </Hoverable>
-                </Link>
-              </View>
-            );
-          }
 
           // 한 줄 그룹(보고서) — 허브로 가는 행 하나. 하위 보고서는 허브의 드롭다운에서 고릅니다
           if (g.single) {
@@ -172,10 +203,10 @@ export default function Sidebar({ collapsed = false }) {
                           })}
                         >
                           <View style={{ width: 5, height: 5, borderRadius: 99, backgroundColor: on ? theme.color.warning : theme.divider }} />
-                          <Text style={{ flex: 1, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, fontWeight: on ? '600' : '500', color: on ? theme.color.primary : theme.color.secondaryForeground }} numberOfLines={1}>
+                          <Text style={{ flex: 1, fontFamily: FONT_FAMILY, fontSize: 16, lineHeight: 17, fontWeight: on ? '600' : '500', color: on ? theme.color.primary : theme.color.secondaryForeground }} numberOfLines={1}>
                             {it.name}
                           </Text>
-                          {it.tag === '필수' ? <Text style={[s.caption, { fontSize: 10 }]}>필수</Text> : null}
+                          {it.tag === '필수' ? <Text style={[s.caption, { fontSize: 14 }]}>필수</Text> : null}
                         </Hoverable>
                       </Link>
                     );
@@ -192,21 +223,30 @@ export default function Sidebar({ collapsed = false }) {
         ) : null}
       </ScrollView>
 
-      {/* 하단 고정 사용자 카드 */}
-      <View style={{ margin: 10, marginTop: 0, padding: collapsed ? 8 : 12, borderRadius: theme.metrics.radius, backgroundColor: theme.surface, flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' }}>
-        <View style={{ width: 30, height: 30, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
-        </View>
-        {!collapsed ? (
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>
-              {userInfo?.name || '게스트'} <Text style={{ fontWeight: '500', color: theme.color.mutedForeground }}>{positionLabel(userInfo?.pos)}</Text>
-            </Text>
-            <Text style={s.caption} numberOfLines={1}>
-              {userInfo?.dept || '—'}{servingModelVer ? ` · 모델 ${servingModelVer}` : ''}
-            </Text>
+      {/* 하단 고정 사용자 카드 — 누르면 계정 메뉴(현재 계정 · 로그아웃)가 위로 뜹니다 */}
+      <View style={{ margin: 10, marginTop: 0, position: 'relative', zIndex: 30 }}>
+        <Pressable
+          onPress={() => setMenuOpen((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel="계정 메뉴"
+          style={({ hovered }) => ({ padding: collapsed ? 8 : 12, borderRadius: theme.metrics.radius, backgroundColor: menuOpen || hovered ? theme.surfaceHover : theme.surface, borderWidth: 1, borderColor: menuOpen ? theme.hairlineStrong : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' })}
+        >
+          <View style={{ width: 30, height: 30, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
           </View>
-        ) : null}
+          {!collapsed ? (
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>
+                {userInfo?.name || '게스트'} <Text style={{ fontWeight: '500', color: theme.color.mutedForeground }}>{positionLabel(userInfo?.pos)}</Text>
+              </Text>
+              <Text style={s.caption} numberOfLines={1}>
+                {userInfo?.dept || '—'}{servingModelVer ? ` · 모델 ${servingModelVer}` : ''}
+              </Text>
+            </View>
+          ) : null}
+          {!collapsed ? <Icon name={menuOpen ? 'chevronDown' : 'chevronUp'} size={13} color={theme.color.mutedForeground} /> : null}
+        </Pressable>
+        {menuOpen ? <UserMenu placement="up" onClose={() => setMenuOpen(false)} /> : null}
       </View>
     </View>
   );
@@ -228,5 +268,5 @@ function navRow(theme, { on, hovered, collapsed }) {
 }
 
 function navLabel(theme, on) {
-  return { fontFamily: FONT_FAMILY, fontSize: 12.5, lineHeight: 18, fontWeight: on ? '600' : '500', color: on ? theme.color.primary : theme.color.secondaryForeground };
+  return { fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 18, fontWeight: on ? '600' : '500', color: on ? theme.color.primary : theme.color.secondaryForeground };
 }

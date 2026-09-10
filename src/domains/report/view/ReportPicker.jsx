@@ -153,9 +153,9 @@ export default function ReportPicker() {
                   })}
                 >
                   {last ? <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: on ? theme.color.primaryForeground : theme.color.warning }} /> : null}
-                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: on ? '600' : '500', color: on ? theme.color.primaryForeground : theme.color.secondaryForeground }}>{it.name}</Text>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: on ? '600' : '500', color: on ? theme.color.primaryForeground : theme.color.secondaryForeground }}>{it.name}</Text>
                   <View style={{ minWidth: 20, height: 18, paddingHorizontal: 6, borderRadius: 99, backgroundColor: on ? 'rgba(255,255,255,0.18)' : theme.surfaceHover, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontFamily: NUM_FAMILY, fontSize: 10.5, fontWeight: '600', color: on ? theme.color.primaryForeground : theme.color.mutedForeground }}>{u.useCount}</Text>
+                    <Text style={{ fontFamily: NUM_FAMILY, fontSize: 14.5, fontWeight: '600', color: on ? theme.color.primaryForeground : theme.color.mutedForeground }}>{u.useCount}</Text>
                   </View>
                 </Pressable>
               );

@@ -101,7 +101,7 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
         </Grid><Gap size={20} />
 
         <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-          <Text style={[s.textSm, { fontSize: 18, fontWeight: '700' }]}>먼저 확인해 주세요</Text>
+          <Text style={[s.textSm, { fontSize: 22, fontWeight: '700' }]}>먼저 확인해 주세요</Text>
           <Text style={s.textXs}>조회 기간의 실제 실적에서 찾은 확인 항목</Text>
         </View>
         <Grid cols={3}>
@@ -174,7 +174,7 @@ function Metric({ name, row, metric, allowed, unit, note }) {
   return <View style={[s.card, { padding: 18, minHeight: 100 }]}>
     <Text style={[s.textSm, { fontWeight: '600' }]}>{name}</Text>
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 10 }}>
-      <Text style={[s.textSm, { fontSize: measured ? 27 : 19, fontWeight: '700' }]}>{metricText(row, metric, allowed)}</Text>
+      <Text style={[s.textSm, { fontSize: measured ? 31 : 23, fontWeight: '700' }]}>{metricText(row, metric, allowed)}</Text>
       {measured && <Text style={s.textXs}>{unit}</Text>}
     </View>
     {note ? <Text style={[s.textXs, { marginTop: 9 }]}>{note}</Text> : null}

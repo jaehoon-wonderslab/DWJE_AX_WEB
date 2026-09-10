@@ -136,12 +136,12 @@ export default function DailyReportView({
               paddingHorizontal: 18,
             }}
           >
-            <Text style={{ fontSize: 17, fontWeight: '700', color: theme.color.foreground, letterSpacing: 0.5 }}>
+            <Text style={{ fontSize: 21, fontWeight: '700', color: theme.color.foreground, letterSpacing: 0.5 }}>
               {badgeDate(targetDate)}
             </Text>
           </View>
 
-          <Text style={{ flex: 1, textAlign: 'center', fontSize: 19, fontWeight: '700', color: theme.color.primary, minWidth: 200 }}>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 23, fontWeight: '700', color: theme.color.primary, minWidth: 200 }}>
             생산관리팀 (PRESS)
           </Text>
 
@@ -269,7 +269,7 @@ function TargetCell({ row, onChange }) {
 function WeekCell({ row }) {
   const s = useCommonStyles();
   const canData = useAuthStore((state) => state.canData);
-  const line = [s.xlsCellText, { fontSize: 10.5, lineHeight: 14 }];
+  const line = [s.xlsCellText, { fontSize: 14.5, lineHeight: 14 }];
 
   if (row.weekTarget === null) return <Text style={s.xlsCellText}>—</Text>;
   if (!canData('qty')) return <BlindValue field="qty" value="" />;

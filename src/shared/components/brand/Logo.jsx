@@ -75,7 +75,7 @@ export function LogoLockup({ size = 28, compact = false, light = false, style })
           <Text style={{ fontFamily: FONT_FAMILY, fontSize: Math.round(size * 0.42), fontWeight: '600', letterSpacing: 1.2, color: axColor }}>AX</Text>
         </View>
         {!compact ? (
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 9.5, lineHeight: 13, fontWeight: '500', letterSpacing: 0.9, textTransform: 'uppercase', color: muted, marginTop: 1 }}>
+          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 13.5, lineHeight: 13, fontWeight: '500', letterSpacing: 0.9, textTransform: 'uppercase', color: muted, marginTop: 1 }}>
             AI Decision Layer
           </Text>
         ) : null}

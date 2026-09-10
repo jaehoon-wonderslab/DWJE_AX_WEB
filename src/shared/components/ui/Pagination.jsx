@@ -57,7 +57,7 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
   const SizePicker = () =>
     showSize && onSize ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <Text style={[s.textXs, { color: theme.color.mutedForeground, fontSize: 11.5, marginRight: 2 }]}>페이지당</Text>
+        <Text style={[s.textXs, { color: theme.color.mutedForeground, fontSize: 15.5, marginRight: 2 }]}>페이지당</Text>
         {sizes.map((n) => {
           const isSelected = n === size || (!size && n === 50);
           return (
@@ -80,7 +80,7 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
                 style={[
                   s.textXs,
                   {
-                    fontSize: 11.5,
+                    fontSize: 15.5,
                     fontWeight: isSelected ? '600' : '500',
                     color: isSelected ? theme.color.primary : theme.color.mutedForeground,
                   },
@@ -99,7 +99,7 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
   if (showingAll || (totalPages <= 1 && total <= per)) {
     return (
       <View style={[wrap, { borderTopWidth: 1, borderTopColor: theme.hairline }, style]}>
-        <Text style={[s.textXs, { fontSize: 12, color: theme.color.mutedForeground }]}>
+        <Text style={[s.textXs, { fontSize: 16, color: theme.color.mutedForeground }]}>
           전체 <Text style={{ fontWeight: '500', color: theme.color.foreground }}>{comma(total)}</Text>건
         </Text>
         <View style={{ marginLeft: 'auto' }}><SizePicker /></View>
@@ -136,7 +136,7 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
 
   return (
     <View style={[wrap, { borderTopWidth: 1, borderTopColor: theme.hairline }, style]}>
-      <Text style={[s.textXs, { fontSize: 12, color: theme.color.mutedForeground }]}>
+      <Text style={[s.textXs, { fontSize: 16, color: theme.color.mutedForeground }]}>
         전체 <Text style={{ fontWeight: '500', color: theme.color.foreground }}>{comma(total)}</Text>건 중{' '}
         <Text style={{ fontWeight: '500', color: theme.color.foreground }}>{`${comma(first)}–${comma(last)}`}</Text>
       </Text>
@@ -166,7 +166,7 @@ export default function Pagination({ meta, page, size, onPage, onSize, style, sh
               <Text
                 style={[
                   s.textXs,
-                  { fontSize: 12, fontWeight: n === current ? '600' : '400' },
+                  { fontSize: 16, fontWeight: n === current ? '600' : '400' },
                   n === current
                     ? { color: theme.color.primaryForeground }
                     : { color: theme.color.mutedForeground },

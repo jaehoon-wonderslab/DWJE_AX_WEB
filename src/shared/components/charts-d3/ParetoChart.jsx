@@ -81,7 +81,7 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
     // 좌측 Y축 라벨
     g.append('text')
       .attr('x', PAD.l - 6).attr('y', PAD.t - 10).attr('text-anchor', 'end')
-      .attr('font-size', 10).attr('fill', c.axis)
+      .attr('font-size', 14).attr('fill', c.axis)
       .text(`(${unit})`);
 
     // 2. 우측 Y축 (누적 %)
@@ -101,7 +101,7 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       .attr('stroke', '#ef4444').attr('stroke-dasharray', '4 3').attr('stroke-width', 1.4);
     g.append('text')
       .attr('x', PAD.l + iw - 4).attr('y', y80 - 4).attr('text-anchor', 'end')
-      .attr('font-size', 9.5).attr('fill', '#ef4444').attr('font-weight', '600')
+      .attr('font-size', 13.5).attr('fill', '#ef4444').attr('font-weight', '600')
       .text('80% 집중관리선');
 
     // 4. 세로 막대 (불량 수량)
@@ -122,7 +122,7 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       // 막대 상단 수량 값 라벨 (항상 표시 + halo 효과)
       g.append('text')
         .attr('x', cx).attr('y', yLeft(d.v) - 5).attr('text-anchor', 'middle')
-        .attr('font-size', 10.5).attr('font-weight', '600').attr('fill', c.text)
+        .attr('font-size', 14.5).attr('font-weight', '600').attr('fill', c.text)
         .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
         .text(d.v.toLocaleString());
 
@@ -130,13 +130,13 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       const labelText = d.l.length > 5 ? `${d.l.slice(0, 4)}…` : d.l;
       g.append('text')
         .attr('x', cx).attr('y', base + 14).attr('text-anchor', 'middle')
-        .attr('font-size', 11).attr('font-weight', isTop3 ? 'bold' : 'normal')
+        .attr('font-size', 15).attr('font-weight', isTop3 ? 'bold' : 'normal')
         .attr('fill', isTop3 ? (theme.isDark ? '#38bdf8' : '#0284c7') : c.axis)
         .text(labelText);
 
       g.append('text')
         .attr('x', cx).attr('y', base + 26).attr('text-anchor', 'middle')
-        .attr('font-size', 9.5).attr('fill', c.axis)
+        .attr('font-size', 13.5).attr('fill', c.axis)
         .text(`${d.share}%`);
     });
 
@@ -162,7 +162,7 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       // 누적 % 수치 라벨 (halo 효과)
       g.append('text')
         .attr('x', cx).attr('y', cy - 7).attr('text-anchor', 'middle')
-        .attr('font-size', 9.5).attr('font-weight', 'bold').attr('fill', '#ea580c')
+        .attr('font-size', 13.5).attr('font-weight', 'bold').attr('fill', '#ea580c')
         .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
         .text(`${d.cumShare}%`);
     });

@@ -284,7 +284,7 @@ export default function HourlyDefectPivotMatrix({
             padding: '12px 16px',
             borderRadius: 14,
             boxShadow: '0 20px 40px rgba(0,0,0,0.45)',
-            fontSize: 12,
+            fontSize: 16,
             lineHeight: 1.5,
             minWidth: 220,
             backdropFilter: 'blur(8px)',
@@ -313,10 +313,10 @@ export default function HourlyDefectPivotMatrix({
             <span style={{ color: theme.color.mutedForeground }}>공정 수율:</span>
             <span style={{ fontWeight: 600 }}>{rate(hoverTooltip.cell.yield)}</span>
           </div>
-          <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${theme.hairline}`, fontSize: 11, color: theme.color.mutedForeground }}>
+          <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${theme.hairline}`, fontSize: 15, color: theme.color.mutedForeground }}>
             주 결함: <span style={{ color: theme.color.spark, fontWeight: 500 }}>{hoverTooltip.cell.primaryDefect || '—'}</span>
           </div>
-          <div style={{ marginTop: 4, fontSize: 10, color: theme.color.primary }}>
+          <div style={{ marginTop: 4, fontSize: 14, color: theme.color.primary }}>
             눌러서 자세히 보기 &gt;
           </div>
         </div>,
@@ -345,10 +345,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   matrixTitle: {
-    fontSize: 13,
+    fontSize: 17,
   },
   matrixSub: {
-    fontSize: 11,
+    fontSize: 15,
   },
   legendRow: {
     flexDirection: 'row',
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   legendText: {
-    fontSize: 10,
+    fontSize: 14,
   },
   scrollContainer: {
     width: '100%',
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   thText: {
-    fontSize: 11,
+    fontSize: 15,
   },
   dateCol: {
     width: 110,
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   dateText: {
-    fontSize: 11,
+    fontSize: 15,
   },
   slotCol: {
     flex: 1,
@@ -428,10 +428,10 @@ const styles = StyleSheet.create({
     cursor: 'pointer',
   },
   cellRateText: {
-    fontSize: 11,
+    fontSize: 15,
   },
   summaryRateText: {
-    fontSize: 11,
+    fontSize: 15,
   },
   bottomHelp: {
     flexDirection: 'row',
@@ -441,6 +441,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   helpText: {
-    fontSize: 11,
+    fontSize: 15,
   },
 });

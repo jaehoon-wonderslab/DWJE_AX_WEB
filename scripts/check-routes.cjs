@@ -7,7 +7,8 @@ const ROOT = path.join(__dirname, '..');
 const MENU_SRC = fs.readFileSync(path.join(ROOT, 'src/shared/constants/menu.js'), 'utf8');
 
 // 메뉴 정의에서 { id, path } 를 뽑습니다
-const defined = [...MENU_SRC.matchAll(/id: '([\w-]+)', name: '[^']*', path: '([^']*)'/g)].map((m) => ({ id: m[1], path: m[2] }));
+// 경로에 '#' 이 붙은 항목은 화면이 아닌 동작 권한 행(예: dash-ai-upload)이라 라우트 검사에서 뺍니다
+const defined = [...MENU_SRC.matchAll(/id: '([\w-]+)', name: '[^']*', path: '([^']*)'/g)].map((m) => ({ id: m[1], path: m[2] })).filter((d) => !d.path.includes('#'));
 
 // app/(main) 아래 라우트 파일 → URL 경로
 function walk(dir, base = '', out = []) {

@@ -36,10 +36,10 @@ export default function Tooltip({ at, title, rows = [] }) {
       }}
     >
       {title ? (
-        <div style={{ fontSize: 10.5, color: theme.color.mutedForeground, marginBottom: rows.length ? 4 : 0 }}>{title}</div>
+        <div style={{ fontSize: 14.5, color: theme.color.mutedForeground, marginBottom: rows.length ? 8 : 4 }}>{title}</div>
       ) : null}
       {rows.map((r) => (
-        <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: theme.color.foreground }}>
+        <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15.5, color: theme.color.foreground }}>
           <span style={{ width: 8, height: 8, borderRadius: 99, background: r.color, display: 'inline-block' }} />
           <span style={{ color: theme.color.mutedForeground }}>{r.name}</span>
           <span style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{r.value}</span>

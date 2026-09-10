@@ -75,3 +75,5 @@
 - 인증·데이터: `global-shim.js` 가 `process.env.EXPO_PUBLIC_USE_MOCK=true`, `LIVE_AUTH=false`(데모 모드) 를 넣어 `useAuthBootstrap` 이 기본 계정(20140901 시스템·통합관리자)으로 자동 로그인하고, 번들 로드 시에도 스토어에 같은 계정·'*' 권한을 미리 넣음(단독 Screen 컴포넌트용). 모든 API 는 `src/services/mock` 목 응답.
 - 목 데이터 수정 1건: `mock/data/system.js` 의 알림 조건·수신 그룹 `channels`/`groups` 가 문자열('메일 · SMS')이라 화면(`(r.channels||[]).map`)이 죽음 → 배열로 바꾸고 `getAlertConditions` 응답에 명세 필드(on·validWindow·dedupMin) 를 보강. 실 API 에서는 원래 배열.
 - 미리보기: DwjeApp 은 `single` 1440x900(라우터 상태를 공유하므로 카드 하나에 1개), Screen* 은 `single` 1320x860. 카드 안에서 메뉴를 누르면 실제로 화면이 바뀜.
+
+- **개발 서버 모드 주의(2026-09-10)**: 서브에이전트가 확인용으로 8090 을 `EXPO_PUBLIC_USE_MOCK=true` 로 재시작해 두어 사용자에게 목 데이터(용어 32건)가 보였음. 확인 작업은 **8091** 등 다른 포트를 쓰고, 8090 은 `.env`(실 API) 그대로 둘 것.

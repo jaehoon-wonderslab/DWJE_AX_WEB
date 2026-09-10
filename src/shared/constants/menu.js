@@ -16,7 +16,7 @@ export const MENU = [
   {
     group: 'AI 어시스턴트',
     solo: true,
-    items: [{ id: 'ai-chat', name: '자연어 질의', path: '/ai/chat', tag: '신규' }],
+    items: [{ id: 'ai-chat', name: '덕파트장 AI', path: '/ai/chat', tag: '신규' }],
   },
   {
     group: '대시보드',
@@ -35,7 +35,7 @@ export const MENU = [
     items: [
       { id: 'prod-result', name: '실적 집계·조회', path: '/production/result', tag: '수정', description: 'MES 생산 실적을 기간·제품·공정별로 집계해 조회합니다.' },
       { id: 'qc-defect', name: '불량 현황 조회', path: '/quality/defect', tag: '신규', description: '기간·공정·불량 유형별 발생 현황과 추이를 확인합니다.' },
-      { id: 'qc-aoi', name: 'AOI 판정 분석·예측', path: '/quality/aoi', tag: '신규', description: 'AOI 판정 결과를 분석하고 품질 이상 가능성을 확인합니다.' },
+      { id: 'qc-aoi', name: 'AOI 판정 분석', path: '/quality/aoi', tag: '수정', description: 'AOI 판정 결과와 불량 상세·불량 이미지(NAS)를 확인하고 이상 가능성을 분석합니다.' },
     ],
   },
   {
@@ -79,6 +79,7 @@ export const MENU = [
       { id: 'ai-agent', name: 'Agent 실행 현황', path: '/system/agent', tag: '신규', description: 'Master AI와 Worker Agent의 작동 상태를 확인합니다.' },
       { id: 'sys-metric', name: '지표 측정 데이터 관리', path: '/system/metric-standard', tag: '신규', description: '장애·불량 판정에 사용하는 기준 수치와 임계값을 관리합니다.' },
       { id: 'sys-dl', name: '보고서 다운로드 이력', path: '/system/download-log', tag: '신규', description: '사용자별 보고서·화면 파일 다운로드 이력을 조회합니다.' },
+      { id: 'sys-upload-doc', name: '업로드 문서 목록', path: '/system/upload-doc', tag: '신규', description: 'AI 통합 대시보드 업로드 리포트에 올라온 엑셀 문서와 버전 이력을 조회합니다(읽기 전용).' },
       { id: 'sys-sync', name: '데이터 연동 이력', path: '/system/sync-history', tag: '필수', description: 'MES에서 AX 계층으로 이관된 데이터 연동 결과와 오류를 확인합니다.' },
     ],
   },
@@ -89,6 +90,8 @@ export const MENU = [
  * (상위 화면의 버튼·링크로 진입합니다)
  */
 export const EXTRA_PAGES = [
+  // 동작 권한 — 화면이 아니라 '업로드' 동작. 경로에 #upload 를 붙여 실제 라우트와 겹치지 않게 합니다 (check-routes 는 무시)
+  { id: 'dash-ai-upload', name: '업로드 리포트 업로드', path: '/dashboard/ai#upload', group: '대시보드', parent: 'dash-ai', action: true },
   { id: 'daily-history', name: '이전 보고서', path: '/production/daily-report/history', group: '보고서', parent: 'prod-daily' },
 ];
 

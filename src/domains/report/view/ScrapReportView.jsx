@@ -74,7 +74,7 @@ export default function ScrapReportView({
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               <Cell label="문서번호" flex={1}>{byHand}</Cell>
               <View style={[line, { flex: 1.4, minWidth: 220, padding: 8, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: theme.color.foreground, letterSpacing: 2 }}>폐기 보고서</Text>
+                <Text style={{ fontSize: 21, fontWeight: '700', color: theme.color.foreground, letterSpacing: 2 }}>폐기 보고서</Text>
               </View>
               <View style={{ flexDirection: 'row', minWidth: 220, flex: 1 }}>
                 <View style={[line, { width: 28, backgroundColor: theme.alpha('muted', 0.5), alignItems: 'center', justifyContent: 'center' }]}>

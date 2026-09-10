@@ -22,7 +22,18 @@ import { labelStride, useChartSize } from './useChartSize';
 
 const PAD = { l: 38, r: 12, t: 14, b: 24 };
 
-export default function LineChart({ labels = [], series = [], height = 170, min, max, target, unit = '', showLegend = true }) {
+/** 포인트 수치 라벨이 서로 닿지 않는 최소 간격(px) — 이보다 좁으면 건너뛰며 씁니다 */
+const VALUE_LABEL_MIN_PX = 42;
+
+export default function LineChart({
+  labels = [], series = [], height = 170, min, max, target, unit = '', showLegend = true,
+  /**
+   * 점 하나가 차지하는 최소 폭(px). 이 값 × 점 개수가 카드보다 넓으면 가로로 스크롤됩니다.
+   * 기본 44 는 값 라벨이 겹치지 않는 간격입니다 — 시간 단위처럼 점이 많고 **전체 모양을 한눈에** 봐야 하는
+   * 그래프는 더 작게 넘겨(예 26) 스크롤 없이 그립니다.
+   */
+  minPointWidth = 44,
+}) {
   const s = useCommonStyles();
   const theme = useTheme();
   const { ref, width } = useChartSize(height);
@@ -35,7 +46,7 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
   }));
   const all = lines.flatMap((se) => se.points.map((p) => p.v)).filter((v) => v !== null);
 
-  const minPointW = 44;
+  const minPointW = minPointWidth;
   const contentWidth = Math.max(width || 300, labels.length * minPointW + PAD.l + PAD.r);
 
   useEffect(() => {
@@ -55,6 +66,16 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
 
     // 눈금선 · y 라벨 — 사람이 읽기 좋은 값은 d3 가 고릅니다
     const ticks = y.ticks(5);
+    /**
+     * 소수 자리 — 눈금 간격이 1 미만이면(수율 96.8~98.3 · Cp 1.0~1.7 처럼 좁은 범위) 정수로 반올림하면
+     * 눈금이 전부 「98 98 97」 로 겹쳐 보입니다. 간격에 맞춰 1~2자리를 남깁니다.
+     */
+    const step = ticks.length > 1 ? Math.abs(ticks[1] - ticks[0]) : 1;
+    const axisDec = step < 0.1 ? 2 : step < 1 ? 1 : 0;
+    const fmtAxis = (t) => (axisDec ? t.toFixed(axisDec) : Math.abs(t) < 10 ? t.toFixed(1) : Math.round(t).toLocaleString());
+    const span = Math.abs(hi - lo);
+    const pointDec = span < 1 ? 2 : span < 10 ? 1 : 0;
+    const fmtPoint = (v) => (pointDec ? v.toFixed(pointDec) : v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString());
     const g = svg.append('g');
     ticks.forEach((t) => {
       g.append('line')
@@ -63,7 +84,7 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
       g.append('text')
         .attr('x', PAD.l - 6).attr('y', y(t) + 3).attr('text-anchor', 'end')
         .attr('font-size', FONT.axis).attr('fill', c.axis)
-        .text(Math.abs(t) < 10 ? t.toFixed(1) : Math.round(t).toLocaleString());
+        .text(fmtAxis(t));
     });
 
     // 목표선
@@ -97,13 +118,20 @@ export default function LineChart({ labels = [], series = [], height = 170, min,
         .attr('cx', (d) => x(d.i)).attr('cy', (d) => y(d.v)).attr('r', 3.2)
         .attr('fill', c.dot).attr('stroke', col).attr('stroke-width', 1.8);
 
-      // 각 포인트 상단 수치 라벨 상시 표기 (Halo 적용)
-      se.points.filter(defined).forEach((d) => {
+      /**
+       * 포인트 상단 수치 라벨 — 점 간격이 좁으면 솎아 냅니다.
+       * 시간 단위 추이처럼 점이 수십 개면 모든 점에 값을 쓰면 글자가 서로 겹쳐 오히려 못 읽습니다.
+       * x 축 라벨과 같은 방식으로 stride 를 잡고, 마지막 점은 언제나 씁니다(현재값이라 가장 중요합니다).
+       */
+      const stepPx = iw / Math.max(labels.length - 1, 1);
+      const valueStride = Math.max(1, Math.ceil(VALUE_LABEL_MIN_PX / Math.max(stepPx, 1)));
+      const lastIdx = se.points.filter(defined).reduce((m, d) => Math.max(m, d.i), -1);
+      se.points.filter(defined).filter((d) => d.i % valueStride === 0 || d.i === lastIdx).forEach((d) => {
         g.append('text')
           .attr('x', x(d.i)).attr('y', y(d.v) - 6).attr('text-anchor', 'middle')
-          .attr('font-size', 9.5).attr('font-weight', '600').attr('fill', col)
+          .attr('font-size', 13.5).attr('font-weight', '600').attr('fill', col)
           .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
-          .text(typeof d.v === 'number' ? (d.v < 10 ? d.v.toFixed(1) : Math.round(d.v).toLocaleString()) : d.v);
+          .text(typeof d.v === 'number' ? fmtPoint(d.v) : d.v);
       });
     });
 

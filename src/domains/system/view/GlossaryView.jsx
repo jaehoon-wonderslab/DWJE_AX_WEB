@@ -5,11 +5,11 @@
  *        유사어는 누구나 등록하되, 본인이 등록한 것만 수정·삭제할 수 있습니다.
  * 사용 API 9건 — /api/v1/glossary/*
  */
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, CheckRow, Filters, Hint, Icon, Loading, Pagination, SelectField, SourceNote, StatCard, Table, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
+import { Button, Card, CheckRow, Filters, Hint, Icon, Loading, Pagination, SelectField, SourceNote, StatCard, TabulatorGrid, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
@@ -20,6 +20,59 @@ export default function GlossaryView({
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
+  // 표 안의 칩·버튼은 HTML 로 그리고(Tabulator formatter), 클릭은 cellClick 에서 data-* 로 가려냅니다.
+  // 열 정의는 한 번만 만들고 최신 핸들러는 ref 로 읽습니다(아래 return 직전에 채움) — 훅이라 조기 return 보다 위에 둡니다.
+  const handlers = useRef({});
+  const columns = useMemo(() => [
+    { title: '공식 용어', field: 'term', minWidth: 110, widthGrow: 1, formatter: (c) => `<span class="strong">${esc(c.getValue())}</span>` },
+    { title: '뜻', field: 'definition', minWidth: 170, widthGrow: 3, formatter: (c) => esc(c.getValue() || '—') },
+    { title: '분류', field: 'domain', minWidth: 84, formatter: (c) => (c.getValue() ? `<span class="tag">${esc(c.getValue())}</span>` : '<span class="muted">—</span>') },
+    {
+      title: '유사어 (등록자)',
+      field: 'variants',
+      minWidth: 200,
+      widthGrow: 4,
+      headerSort: false,
+      headerFilter: false,
+      formatter: (c) => {
+        const list = c.getValue() || [];
+        if (!list.length) return '<span class="muted">등록된 유사어 없음</span>';
+        return `<span class="chips">${list
+          .map((v) => `<span class="tag ${v.mine ? 'tag-blue chip-mine' : ''}" data-variant="${esc(v.variantId)}" title="${v.mine ? '누르면 수정' : esc(v.byName || '')}">${esc(v.word)} <small class="muted">${v.mine ? '내 등록' : esc(v.byName || '')}</small>${v.mine ? `<b class="chip-x" data-del="${esc(v.variantId)}" title="삭제">×</b>` : ''}</span>`)
+          .join('')}</span>`;
+      },
+      cellClick: (e, c) => {
+        const row = c.getRow().getData();
+        const del = e.target.closest('[data-del]');
+        if (del) {
+          const v = (row.variants || []).find((x) => String(x.variantId) === del.dataset.del);
+          if (v) handlers.current.confirmDeleteVariant(v);
+          return;
+        }
+        const chip = e.target.closest('[data-variant]');
+        if (chip) {
+          const v = (row.variants || []).find((x) => String(x.variantId) === chip.dataset.variant);
+          if (v?.mine) handlers.current.openVariantForm(row, v);
+        }
+      },
+    },
+    {
+      title: '관리',
+      field: 'termId',
+      width: canEditTerm ? 210 : 104,
+      headerSort: false,
+      headerFilter: false,
+      formatter: () =>
+        `<button class="tbtn" data-act="add">유사어 추가</button>${canEditTerm ? ' <button class="tbtn" data-act="edit">편집</button> <button class="tbtn tbtn-ghost" data-act="del">삭제</button>' : ''}`,
+      cellClick: (e, c) => {
+        const act = e.target.closest('[data-act]')?.dataset.act;
+        const row = c.getRow().getData();
+        if (act === 'add') handlers.current.openVariantForm(row, null);
+        else if (act === 'edit') handlers.current.openTermForm(row);
+        else if (act === 'del') handlers.current.confirmDeleteTerm(row);
+      },
+    },
+  ], [canEditTerm]);
 
   /* ───────── 공식 용어 ───────── */
   const openTermForm = (row) =>
@@ -78,6 +131,8 @@ export default function GlossaryView({
 
   if (loading) return <Loading />;
 
+  // 최신 핸들러를 표 클릭에서 읽을 수 있게 매 렌더마다 갱신 (훅 아님)
+  handlers.current = { openVariantForm, openTermForm, confirmDeleteTerm, confirmDeleteVariant };
   return (
     <View>
       <PageHead
@@ -154,70 +209,24 @@ export default function GlossaryView({
       </Filters>
 
       <Card title="용어 · 유사어" sub={`${itemsMeta?.total ?? terms.length}건${filters.mineOnly ? ' · 내가 등록한 유사어가 있는 용어만' : ''}`} tight>
-        <Table
-          minWidth={980}
-          keyExtractor={(r) => r.termId}
-          emptyText="검색 조건에 맞는 용어가 없습니다."
-          columns={[
-            { key: 'term', title: '공식 용어', width: 130, render: (r) => <Text style={[s.td, { fontWeight: '700' }]}>{r.term}</Text> },
-            { key: 'definition', title: '뜻', width: 280, wrap: true },
-            { key: 'domain', title: '분류', width: 110, render: (r) => <Badge>{r.domain}</Badge> },
-            {
-              key: 'variants',
-              title: '유사어 (등록자)',
-              flex: 1,
-              minWidth: 300,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingVertical: 4 }}>
-                  {(r.variants || []).map((v) => (
-                    <TouchableOpacity
-                      key={v.variantId}
-                      disabled={!v.mine}
-                      onPress={() => openVariantForm(r, v)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 5,
-                        paddingVertical: 2,
-                        paddingLeft: 8,
-                        paddingRight: v.mine ? 4 : 8,
-                        borderRadius: 99,
-                        borderWidth: 1,
-                        borderColor: v.mine ? theme.alpha('primary', 0.35) : theme.color.border,
-                        backgroundColor: v.mine ? theme.color.accent : theme.color.muted,
-                      }}
-                    >
-                      <Text style={[s.textXs, { fontWeight: '600', color: v.mine ? theme.color.primary : theme.color.foreground }]}>{v.word}</Text>
-                      <Text style={[s.textXs, { fontSize: 10 }]}>{v.mine ? '내 등록' : v.byName}</Text>
-                      {v.mine ? (
-                        <TouchableOpacity onPress={() => confirmDeleteVariant(v)} style={{ width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name="close" size={10} color={theme.color.mutedForeground} />
-                        </TouchableOpacity>
-                      ) : null}
-                    </TouchableOpacity>
-                  ))}
-                  {!(r.variants || []).length ? <Text style={s.textXs}>등록된 유사어 없음</Text> : null}
-                </View>
-              ),
-            },
-            {
-              key: 'action',
-              title: '관리',
-              width: 150,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', gap: 4 }}>
-                  <Button label="유사어 추가" size="sm" onPress={() => openVariantForm(r, null)} />
-                  {canEditTerm ? <Button label="편집" size="sm" onPress={() => openTermForm(r)} /> : null}
-                  {canEditTerm ? <Button label="삭제" size="sm" variant="ghost" onPress={() => confirmDeleteTerm(r)} /> : null}
-                </View>
-              ),
-            },
-          ]}
+        <TabulatorGrid
+          columns={columns}
           rows={terms}
+          rowKey="termId"
+          height={terms.length > 12 ? 620 : undefined}
+          emptyText="검색 조건에 맞는 용어가 없습니다."
+          tableOptions={TABLE_OPTIONS}
         />
           <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
       </Card>
     </View>
   );
+}
+
+/** Tabulator 옵션 — 긴 뜻·유사어 칩이 줄바꿈되어도 행 높이가 따라 늘어나게 */
+const TABLE_OPTIONS = { renderVertical: 'basic' };
+
+/** formatter 가 HTML 문자열을 그리므로 사용자 입력은 반드시 이스케이프합니다 */
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }

@@ -40,7 +40,7 @@ export function ReportTitle({ dateBox, title, right, style }) {
     <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 18 }, style]}>
       {dateBox ? (
         <View style={{ borderRadius: 999, paddingVertical: 7, paddingHorizontal: 16, backgroundColor: theme.surface }}>
-          <Text style={[s.numeralSm, { fontSize: 15, lineHeight: 20 }]}>{dateBox}</Text>
+          <Text style={[s.numeralSm, { fontSize: 19, lineHeight: 20 }]}>{dateBox}</Text>
         </View>
       ) : null}
       <Text style={[s.headingXs, { flex: 1, minWidth: 180 }]}>{title}</Text>

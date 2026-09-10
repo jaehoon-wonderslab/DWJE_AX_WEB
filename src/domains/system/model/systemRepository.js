@@ -491,3 +491,24 @@ export const setMetricApplied = (stdId, on) =>
  */
 export const exportTrainsetByRange = ({ from, to }) =>
   command(systemService.postAiChatHistoryExportTrainset({ from, to, format: 'jsonl' }));
+
+/* ───────── SY-16 업로드 문서 목록 (읽기 전용) ─────────
+ * 대시보드 「업로드 리포트」 문서 전체 + 버전 이력(/system/uploads/{docId}/versions). 삭제·편집 API 는 없습니다(버전만 쌓임).
+ */
+
+/**
+ * 업로드 문서 목록 — { items[], meta }
+ * @param {object} params { keyword, uploadedBy, from, to, page, size } ('전체' 는 client 가 걸러 냅니다)
+ */
+export const loadSystemUploads = (params = {}) => unwrapPaged(systemService.getSystemUploads(params));
+
+/**
+ * 버전 이력 (시스템 관리 경로 — dash-ai 권한이 없는 관리자도 볼 수 있습니다)
+ * 응답 { docId, title, latestVersion, items[] } 에서 items 를 최신 버전이 먼저 오도록 돌려줍니다.
+ */
+export async function loadSystemUploadVersions(docId) {
+  if (!docId) return [];
+  const data = await unwrap(systemService.getSystemUploadsByDocIdVersions({ docId }), { items: [] });
+  const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+  return [...items].sort((a, b) => Number(b.version) - Number(a.version));
+}

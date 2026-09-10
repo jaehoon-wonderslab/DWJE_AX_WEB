@@ -25,7 +25,7 @@ export default function PasswordResetView(c) {
         <FormAlert tone="success">
           {c.result?.message || '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.'}
         </FormAlert>
-        <Text style={[s.textXs, { fontSize: 11.5, lineHeight: 18 }]}>
+        <Text style={[s.textXs, { fontSize: 15.5, lineHeight: 18 }]}>
           연속 로그인 실패로 정지된 계정이었다면 이번 재설정으로 함께 풀립니다.
         </Text>
         <Button label="로그인 화면으로" variant="primary" onPress={c.goLogin} style={{ height: 40 }} />
@@ -80,7 +80,7 @@ export default function PasswordResetView(c) {
             disabled={c.verification.sending}
             style={{ height: 40, marginTop: 2 }}
           />
-          <Text style={[s.textXs, { fontSize: 11, lineHeight: 17 }]}>
+          <Text style={[s.textXs, { fontSize: 15, lineHeight: 17 }]}>
             보안을 위해 입력한 정보가 실제 계정과 일치하는지 알려 주지 않습니다. 일치하는 계정이 있을 때만 코드가 발송됩니다.
           </Text>
         </>
