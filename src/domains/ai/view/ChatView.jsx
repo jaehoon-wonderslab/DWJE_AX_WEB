@@ -8,7 +8,8 @@
 import React, { useEffect, useRef } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LineChart } from '@shared/components/charts';
-import { Badge, BlindValue, Button, Chip, ChipRow, Icon, Loading, Table } from '@shared/components/ui';
+import { Badge, BlindValue, Button, Chip, ChipRow, Icon, Table } from '@shared/components/ui';
+import AiThinking from '@shared/components/brand/AiThinking';
 import { DEPTS } from '@shared/constants/dataFields';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -103,7 +104,8 @@ export default function ChatView({
             // 질문과 답이 같은 messageId 를 나눠 쓰므로 누가 말했는지와 순번을 함께 키로 씁니다
             messages.map((m, i) => <Message key={`${m.messageId ?? 'm'}-${m.who}-${i}`} message={m} deptAv={deptAv} onExport={exportAnswer} onRate={rate} />)
           )}
-          {pending ? <Loading compact text="응답을 생성하는 중입니다…" /> : null}
+          {/* 조건부 마운트가 아닙니다 — 답이 도착한 뒤 입자가 한 점으로 수렴하는 동안 스스로 남아 있습니다 */}
+          <AiThinking active={pending} compact={compact} text="응답을 생성하는 중입니다…" />
         </View>
       </ScrollView>
 

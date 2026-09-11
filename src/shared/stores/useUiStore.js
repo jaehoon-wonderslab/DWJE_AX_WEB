@@ -83,6 +83,12 @@ export const useUiStore = create((set, get) => ({
   /** 레일 폭(px). 범위 보정은 레이아웃이 창 폭을 알고 하므로 여기서는 하한만 둡니다 */
   setAiChatWidth: (aiChatWidth) => set(persist('dwje.ax.aiChatWidth', { aiChatWidth: Math.max(320, Math.round(aiChatWidth)) })),
 
+  // ── 로그인 진입 연출 ────────────────────────────────────
+  /** 로그인이 성공한 직후 한 번만 재생합니다 (루트 레이아웃의 EntryTransition) */
+  entryPlaying: false,
+  playEntry: () => set({ entryPlaying: true }),
+  endEntry: () => set({ entryPlaying: false }),
+
   // ── 전역 API 로딩 스피너 ────────────────────────────────
   apiLoadingCount: 0,
   startApiLoading: () => set((state) => ({ apiLoadingCount: state.apiLoadingCount + 1 })),

@@ -23,10 +23,14 @@ import { LogoMark } from '@shared/components/brand/Logo';
 import { FONT_FAMILY } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthBootstrap } from '@domains/auth/controller/useAuthBootstrap';
+import EntryTransition from '@shared/components/brand/EntryTransition';
+import { useUiStore } from '@shared/stores/useUiStore';
 
 export default function RootLayout() {
   const theme = useTheme();
   const { booting } = useAuthBootstrap();
+  const entryPlaying = useUiStore((state) => state.entryPlaying);
+  const endEntry = useUiStore((state) => state.endEntry);
 
   // 웹에서 문서 배경색을 테마에 맞춥니다 (레이아웃 바깥 여백 · 라이트/다크 전환 시)
   useEffect(() => {
@@ -43,6 +47,9 @@ export default function RootLayout() {
       <View style={{ flex: 1, backgroundColor: theme.color.background }}>
         <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         {booting ? <BootScreen theme={theme} /> : <Slot />}
+        {/* 로그인 진입 연출 — 라우트가 바뀌는 동안에도 끊기지 않도록 여기(루트)에 둡니다.
+            토스트·모달보다 먼저 그려 「환영합니다」 안내가 덮개 위에 보이게 합니다 */}
+        {entryPlaying ? <EntryTransition onDone={endEntry} /> : null}
         <ModalHost />
         <DrawerHost />
         <ToastHost />

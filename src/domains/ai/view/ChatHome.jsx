@@ -11,7 +11,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LogoMark } from '@shared/components/brand/Logo';
-import { Loading } from '@shared/components/ui';
+import AiGatherField from '@shared/components/brand/AiGatherField';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import Icon from '@shared/components/ui/Icon';
@@ -41,8 +41,9 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
         </View>
       </View>
 
-      {/* 2. 브리핑 카드 */}
-      <View style={{ padding: 16, paddingHorizontal: 18, borderRadius: theme.metrics.radius, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surface }}>
+      {/* 2. 브리핑 카드 — 브리핑이 오는 동안 카드 안에 입자가 떠 있다가 문장이 도착하면 흩어집니다 */}
+      <View style={{ padding: 16, paddingHorizontal: 18, borderRadius: theme.metrics.radius, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surface, position: 'relative', overflow: 'hidden' }}>
+        <AiGatherField active={loading && !sections?.length} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
           <Icon name="sparkles" size={15} color={theme.color.primary} />
           <Text style={s.heading2xs}>AI 브리핑</Text>
@@ -52,7 +53,10 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
         </View>
 
         {loading && !sections?.length ? (
-          <Loading compact text="브리핑을 준비하는 중입니다…" />
+          // 기다림의 신호는 입자 밭이 맡습니다 — 여기서는 글만 둡니다
+          <View style={{ paddingVertical: 26, alignItems: 'center' }}>
+            <Text style={s.emptyText}>브리핑을 준비하는 중입니다…</Text>
+          </View>
         ) : (
           <View style={{ paddingTop: 12, gap: 14 }}>
             {(sections || []).map((sec) => (

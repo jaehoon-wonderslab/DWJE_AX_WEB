@@ -17,6 +17,7 @@ import { hubGroupOf } from '@shared/navigation/routes';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
+import AiLiveDot from '../brand/AiLiveDot';
 import { IconButton } from '../ui/Button';
 import Icon from '../ui/Icon';
 
@@ -40,7 +41,7 @@ export default function AiChatPanelHost({ width = 400 }) {
       {/* 고정 헤더 — 세션 캡슐 · 맥락 · 새 대화 · 닫기 */}
       <View style={{ minHeight: theme.metrics.topbarHeight, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: theme.divider, backgroundColor: theme.color.card }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, backgroundColor: theme.color.successTint }}>
-          <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: theme.color.success }} />
+          <AiLiveDot size={14} />
           <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, fontWeight: '500', color: theme.color.foreground }}>덕파트장 AI</Text>
         </View>
         <Text style={[s.caption, { flex: 1, minWidth: 40 }]} numberOfLines={1}>{contextName}</Text>

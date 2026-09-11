@@ -2,7 +2,9 @@
  * 대메뉴 허브 — 그룹을 눌렀을 때 접근 가능한 하위 화면을 고르는 화면입니다.
  *
  * 왼쪽에 페이지 헤더(소제목 · 21px 제목 · 설명), 오른쪽에 화면 목록.
- * 목록 행은 흰 카드 안에서 #DFE1E7 헤어라인으로만 나뉩니다 — 두 자리 번호 · 13px 600 화면명 · 12px 설명.
+ * 목록의 각 화면은 **자기 카드**로 따로 떨어져 있습니다 — 두 자리 번호 · 화면명 · 설명.
+ * 한 카드 안에 헤어라인으로만 나누면 줄줄이 붙어 보여 고르기가 어려웠습니다.
+ * 카드마다 10px 을 띄워 하나씩 눈에 들어오게 했습니다.
  */
 import React from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
@@ -51,8 +53,8 @@ export default function MenuHub({ groupName }) {
           <Text style={[s.caption, { marginTop: 16 }]}>{`접근 가능한 화면 ${items.length}개`}</Text>
         </View>
 
-        {/* 화면 목록 */}
-        <View style={[s.card, { flex: 1, width: '100%', maxWidth: 760 }]}>
+        {/* 화면 목록 — 카드 하나에 화면 하나 */}
+        <View style={{ flex: 1, width: '100%', maxWidth: 760, gap: 10 }}>
           {items.map((item, i) => (
             <Link key={item.id} href={item.path} asChild>
               <Hoverable
@@ -62,9 +64,11 @@ export default function MenuHub({ groupName }) {
                   gap: 16,
                   paddingVertical: 14,
                   paddingHorizontal: 18,
-                  borderBottomWidth: i === items.length - 1 ? 0 : 1,
-                  borderBottomColor: theme.divider,
-                  backgroundColor: hovered || pressed ? theme.surface : 'transparent',
+                  borderWidth: 1,
+                  borderColor: theme.divider,
+                  borderRadius: theme.metrics.radius,
+                  overflow: 'hidden',
+                  backgroundColor: hovered || pressed ? theme.surface : theme.color.card,
                 })}
               >
                 <Text style={{ fontFamily: NUM_FAMILY, fontSize: 15, fontWeight: '600', letterSpacing: 0.2, color: theme.color.mutedForeground, width: 22, fontVariant: ['tabular-nums'] }}>
@@ -81,7 +85,11 @@ export default function MenuHub({ groupName }) {
               </Hoverable>
             </Link>
           ))}
-          {!items.length ? <Text style={[s.emptyText, { paddingVertical: 24 }]}>이 그룹에서 접근 가능한 화면이 없습니다.</Text> : null}
+          {!items.length ? (
+            <View style={s.card}>
+              <Text style={[s.emptyText, { paddingVertical: 24 }]}>이 그룹에서 접근 가능한 화면이 없습니다.</Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </PageContainer>

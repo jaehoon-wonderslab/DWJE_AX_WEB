@@ -63,6 +63,7 @@ const GLOBAL_CSS = `
   @keyframes ax-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    /* 반복까지 끊어야 합니다 — 무한 반복은 시간만 0 이 되면 아주 빠르게 계속 돕니다 */
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   }
 `;

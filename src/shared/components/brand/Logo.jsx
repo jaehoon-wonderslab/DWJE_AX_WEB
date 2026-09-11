@@ -1,12 +1,16 @@
 /**
- * 브랜드 로고 — 덕우전자 CI 'D' 심볼의 재해석
+ * 브랜드 로고 — 덕우전자 CI 심볼마크
  *
- * CI(docs/덕우전자-CI.jpg)의 심볼마크는 'D' 안을 가로지르는 역동적인 획으로 이루어져 있습니다.
- * 여기서는 그 구조를 두 획으로 단순화했습니다.
- *  · 보울(bowl)  — Deokwoo Blue(PANTONE 286C 계열) → 밝은 블루 그라디언트의 D 바깥 곡선
- *  · 슬래시      — Sky Blue 의 기울어진 획. D 의 세로 기둥을 앞으로 기울여 "전진·정밀" 을 표현
+ * CI 원본(docs/덕우전자-CI.jpg)의 심볼마크를 그대로 씁니다.
+ * 시트에서 가장 큰 인스턴스(195×184)를 잘라 흰 배경을 알파로 빼고 4배로 키운 것이
+ * `src/assets/logo-mark.png` (780×736) 입니다.
  *
- * 그라디언트는 디자인 가이드가 로고·파티클에만 허용하는 요소입니다. UI 컴포넌트에서는 쓰지 않습니다.
+ * 한때 이 자리에는 CI 를 손으로 옮겨 그린 근사 도형(D 보울 + 기울어진 획)이 있었습니다.
+ * 실제 심볼과 형태가 달라 CI 원본으로 교체했습니다. 임의로 다시 그리지 마십시오.
+ *
+ * 상자는 정사각(size×size)이고 심볼은 그 안에 contain 으로 놓입니다.
+ * 심볼 자체는 가로가 6% 더 길어 위아래로 아주 조금 여백이 생깁니다 — 기존 배치를 건드리지
+ * 않으려고 정사각을 유지했습니다. (EntryTransition 의 입자 형상도 같은 규칙으로 맞춥니다)
  *
  * 사용 예)
  *   <LogoMark size={32} />
@@ -14,41 +18,29 @@
  *   <LogoLockup size={24} compact />      // 마크 + 한 줄 워드마크
  */
 import React from 'react';
-import { Text, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import { Image, Text, View } from 'react-native';
 import { BRAND } from '@shared/theme/colors';
 import { FONT_FAMILY } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
+/** CI 심볼마크 — 흰 배경을 알파로 뺀 투명 PNG */
+export const LOGO_MARK_SOURCE = require('../../../assets/logo-mark.png');
+
 /**
  * 심볼마크
  * @param {object} props
- * @param {number} [props.size]  한 변의 길이(px)
+ * @param {number} [props.size]  상자 한 변의 길이(px)
  * @param {boolean} [props.mono] 단색(현재 글자색)으로 — 인쇄·비활성 표시용
  */
 export function LogoMark({ size = 32, mono = false, style }) {
   const theme = useTheme();
-  const fg = theme.color.foreground;
-  // CI 원색(PANTONE 286C) 에서 한 단계 밝은 블루로 흐르는 그라디언트
-  const bowlFrom = BRAND.deokwooBlue;
-  const bowlTo = '#1f6fe0';
   return (
-    <Svg width={size} height={size} viewBox="0 0 64 64" style={style} accessibilityLabel="덕우전자 심볼">
-      <Defs>
-        <LinearGradient id="dwBowl" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={bowlFrom} />
-          <Stop offset="1" stopColor={bowlTo} />
-        </LinearGradient>
-        <LinearGradient id="dwSlash" x1="0" y1="1" x2="1" y2="0">
-          <Stop offset="0" stopColor={BRAND.skyBlue} />
-          <Stop offset="1" stopColor="#8fe3ff" />
-        </LinearGradient>
-      </Defs>
-      {/* D 의 보울 — 바깥 반지름 26, 안쪽 반지름 15 */}
-      <Path d="M22 6h14a26 26 0 0 1 0 52H22V47h14a15 15 0 0 0 0-30H22Z" fill={mono ? fg : 'url(#dwBowl)'} />
-      {/* 기울어진 기둥 — CI 의 관통하는 획 */}
-      <Path d="M6 58 20 6h12L18 58Z" fill={mono ? fg : 'url(#dwSlash)'} opacity={mono ? 0.55 : 1} />
-    </Svg>
+    <Image
+      source={LOGO_MARK_SOURCE}
+      accessibilityLabel="덕우전자 심볼"
+      resizeMode="contain"
+      style={[{ width: size, height: size }, mono ? { tintColor: theme.color.foreground } : null, style]}
+    />
   );
 }
 

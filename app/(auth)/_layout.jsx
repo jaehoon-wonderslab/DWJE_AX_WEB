@@ -7,7 +7,8 @@
  * 되돌릴 곳은 로그인 컨트롤러가 쓰는 것과 같은 규칙(`next` → 없으면 기본 화면)입니다.
  * 로그인 직후 컨트롤러의 이동과 이 리다이렉트가 겹쳐도 목적지가 같도록 맞춘 것입니다.
  *
- * 로그인 ↔ 회원가입 ↔ 비밀번호 찾기 사이를 오갈 때 폼이 떠오르는 전환을 넣습니다.
+ * 로그인 ↔ 회원가입 ↔ 비밀번호 찾기 사이를 오갈 때 폼이 블러에서 선명해지며 떠오릅니다.
+ * 본문 화면보다 조금 더 길고 깊게 — 브랜드 히어로가 있는 화면이라 여유를 줍니다.
  * 인증 화면도 앱과 같은 라이트 테마입니다.
  */
 import React from 'react';
@@ -29,7 +30,7 @@ export default function AuthLayout() {
   }
 
   return (
-    <PageTransition routeKey={pathname} distance={14} duration={360}>
+    <PageTransition routeKey={pathname} distance={16} blur={14} duration={560}>
       <Slot />
     </PageTransition>
   );

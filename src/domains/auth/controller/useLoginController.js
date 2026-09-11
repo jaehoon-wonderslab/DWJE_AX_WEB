@@ -22,6 +22,7 @@ export function useLoginController() {
   const setMe = useAuthStore((state) => state.setMe);
   const setLogout = useAuthStore((state) => state.setLogout);
   const toast = useUiStore((state) => state.toast);
+  const playEntry = useUiStore((state) => state.playEntry);
 
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -67,11 +68,14 @@ export function useLoginController() {
       setMe(me.me);
 
       toast(`${res.user?.name || ''}님 환영합니다`);
+      // 입자가 모여 로고가 되는 진입 연출 — 화면을 옮기기 직전에 켭니다.
+      // 덮개는 루트 레이아웃에 있어 라우트가 바뀌어도 끊기지 않습니다.
+      playEntry();
       router.replace(nextPath);
     } finally {
       setPending(false);
     }
-  }, [loginId, password, setLogin, setMe, setLogout, toast, router, nextPath]);
+  }, [loginId, password, setLogin, setMe, setLogout, toast, playEntry, router, nextPath]);
 
   return {
     loginId,
