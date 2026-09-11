@@ -31,7 +31,7 @@ npm install          # 최초 1회
 cp .env.example .env # 최초 1회
 
 npm run web          # 개발 서버 → http://localhost:8081
-npm run build:web    # 정적 빌드 → dist/ (메뉴별 HTML 생성)
+npm run build:web    # 배포용 정적 빌드 → dist/ (API 주소 자동 주입 및 패키지 생성)
 npm run check        # 구문 · 서비스 참조 · 목 커버리지 · 라우트 일치 검사
 ```
 
@@ -39,7 +39,7 @@ npm run check        # 구문 · 서비스 참조 · 목 커버리지 · 라우�
 
 | 키 | 기본값 | 설명 |
 | :--- | :--- | :--- |
-| `EXPO_PUBLIC_API_URL` | `http://localhost:8080` | API 서버 주소 |
+| `EXPO_PUBLIC_API_URL` | `http://localhost:8080` | 로컬 개발 API 주소. 배포 빌드에서는 `http://192.168.2.8:8080`으로 자동 주입 |
 | `EXPO_PUBLIC_USE_MOCK` | `false` | `false` = 실 서버 호출 (기본) / `true` = 명세 기반 목 응답 |
 | `EXPO_PUBLIC_MOCK_DELAY` | `180` | 목 응답 지연 (ms) |
 | `EXPO_PUBLIC_LIVE_AUTH` | `true` | 목 모드에서도 인증 API 만 실 서버로 (`false` 면 인증도 목 + 자동 로그인) |
@@ -47,6 +47,10 @@ npm run check        # 구문 · 서비스 참조 · 목 커버리지 · 라우�
 
 > **백엔드 연동 전환** — `.env` 의 `EXPO_PUBLIC_USE_MOCK=false` 한 줄만 바꾸면 됩니다.
 > 화면·컨트롤러·리포지토리 코드는 고치지 않습니다.
+
+`npm run web`은 `.env`의 로컬 API 주소를 사용합니다. `npm run build:web`은 배포 전용 빌드로 실행되며
+`EXPO_PUBLIC_API_URL=http://192.168.2.8:8080`, `EXPO_PUBLIC_USE_MOCK=false`를 빌드 프로세스에만 주입합니다.
+따라서 `.env` 파일을 배포용으로 바꾸지 않아도 됩니다.
 
 ### 실 API 연동 상태
 

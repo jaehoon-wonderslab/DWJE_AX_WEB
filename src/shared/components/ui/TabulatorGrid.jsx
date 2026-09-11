@@ -153,6 +153,8 @@ export default function TabulatorGrid({
       // shift 를 누른 채 머리글을 누르면 정렬 조건이 쌓입니다
       columnHeaderSortMulti: true,
       ...(tableOptions || null),
+      // 크기 조정은 아래 observer 한 곳에서 처리합니다.
+      autoResize: false,
       ...(initialSort ? { initialSort } : null),
       ...(selectable ? { selectableRows: maxSelectable || true } : null),
       ...(groupBy
@@ -182,30 +184,28 @@ export default function TabulatorGrid({
     instance.current = table;
     if (instanceRef) instanceRef.current = table;
 
-    // 컨테이너 폭이 바뀌면(AI 레일 열기·닫기·드래그, 사이드바 접기) 열 폭을 다시 맞춥니다.
-    // fitColumns 는 표를 만들 때의 폭만 알기 때문에, 그대로 두면 오른쪽 열이 잘리거나 가로 스크롤이 생깁니다.
+    // 내용 높이는 포털이 채워진 결과이므로 redraw의 입력으로 쓰지 않습니다.
+    // 높이 변화 → 강제 redraw → 빈 포털 → 높이 변화의 반복을 막습니다.
     let ro = null;
     let raf = 0;
+    let built = false;
+    table.on('tableBuilt', () => { built = true; });
     if (typeof ResizeObserver !== 'undefined' && ref.current) {
-      const box = ref.current.getBoundingClientRect();
-      let lastW = box.width;
-      let lastH = box.height;
+      let lastW;
+      let lastH;
       ro = new ResizeObserver((entries) => {
-        const r = entries[0]?.contentRect;
-        const w = r?.width || 0;
-        const h = r?.height || 0;
-        // 폭뿐 아니라 **높이 변화도** 봅니다 — 모달·드로어처럼 열릴 때 0 높이에서 시작하는 자리에 놓이면
-        // 표가 한 줄만 그려진 채 남습니다(가상 스크롤이 높이를 0으로 재기 때문).
-        if ((!w && !h) || (Math.abs(w - lastW) < 1 && Math.abs(h - lastH) < 1)) return;
+        const rect = entries[0]?.contentRect;
+        if (!rect) return;
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+        const changed = w !== lastW || (height && h !== lastH);
         lastW = w;
         lastH = h;
+        if (!changed || !w || !built) return;
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(() => {
-          try {
-            table.redraw(true);
-          } catch {
-            /* 표가 정리되는 중 */
-          }
+          // 강제 redraw는 formatter/포털과 스크롤 위치를 초기화합니다.
+          table.redraw();
         });
       });
       ro.observe(ref.current);
@@ -296,7 +296,7 @@ export default function TabulatorGrid({
   }, [headerFilters]);
 
   return (
-    <View style={style} nativeID={`grid_${id}`}>
+    <View style={[{ minWidth: 0, width: '100%' }, style]} nativeID={`grid_${id}`}>
       <style>{`
         #grid_${id} .tabulator {
           background: ${c.card};
@@ -462,7 +462,7 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tbtn-primary { background: ${color.primary}; border-color: ${color.primary}; color: ${color.primaryForeground}; font-weight: 600; }
         #grid_${id} .tabulator .tbtn-primary:hover { opacity: 0.9; background: ${color.primary}; }
       `}</style>
-      <div ref={ref} />
+      <div ref={ref} style={{ width: '100%', minWidth: 0 }} />
     </View>
   );
 }

@@ -4,12 +4,14 @@
  * 불량 목록에서 행을 누르면 이 컴포넌트가 모달 안에 그려집니다.
  *  왼쪽 — NAS 사진(4:3 확대 · 썸네일 줄 · 촬영 정보 · 경로 복사). `available === false` 는 "파일 없음" 자리표시.
  *  오른쪽 — 판정 정보(작업장·설비·LOT·시리얼·수량·등급 …).
- *  아래 — DIMENSION 검사 항목 표(SEQ 당 1종류 · 하나라도 불량이면 시리얼 불량). MSSQL 원천이 붙기 전에는 나오지 않습니다.
+ *  아래 — DIMENSION 측정 표. **한 줄 = 한 SEQ(제품 1개의 측정 회차)** 이고 치수(FAI)는 가로로 폅니다.
+ *        쓰는 FAI 개수가 작업장마다 달라(S110 45개 · S120 58개) 열은 응답이 준 번호로 만듭니다.
+ *        SEQ 중 하나라도 불량이면 그 시리얼이 불량입니다. MSSQL 원천이 붙기 전에는 나오지 않습니다.
  *
  * 상세는 이 컴포넌트가 직접 받습니다(useAoiDefectDetail) — 모달 내용은 전역 모달 스토어가 그리므로
  * 바깥 컨트롤러의 상태 변화로는 다시 그려지지 않기 때문입니다.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Badge, BlindValue, Button, EmptyState, Icon, IconButton, KeyValue, Loading, SourceNote, TabulatorGrid } from '@shared/components/ui';
 import { MONO_FAMILY, useCommonStyles } from '@shared/theme/styles';
@@ -27,14 +29,39 @@ export default function AoiDefectModal({ defect }) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const row = width >= ROW_MIN;
-  const { detail, loading, images, activeImage, activeIndex, showImage, stepImage, copyPath, measurementRows } =
+  const { detail, loading, images, activeImage, activeIndex, showImage, stepImage, copyPath, seqRows, valueCols } =
     useAoiDefectDetail(defect?.defectId);
+
+  /** 치수 열은 응답이 준 번호로 만듭니다 — 설비마다 개수가 다릅니다 */
+  const measurementColumns = useMemo(
+    () => [
+      ...MEASUREMENT_HEAD_COLUMNS,
+      ...valueCols.map((c) => ({
+        title: c.title,
+        field: c.key,
+        width: 82,
+        hozAlign: 'right',
+        headerHozAlign: 'right',
+        sorter: 'number',
+        formatter: (cell) => {
+          const v = cell.getValue();
+          return v === null || v === undefined || v === '' ? '<span class="muted">—</span>' : `<span class="num">${esc(v)}</span>`;
+        },
+      })),
+    ],
+    [valueCols]
+  );
 
   // 상세가 오기 전에는 목록 행의 값으로 먼저 그립니다 — 모달이 빈 채로 떠 있지 않게
   const d = detail || defect || {};
   const qty = (v) => <BlindValue field="qty" value={v === null || v === undefined ? '—' : comma(v)} textStyle={s.kvVal} />;
   const failCnt = d.ngQty ?? d.failSeqCnt;
   const seqCnt = d.sampleQty ?? d.seqCnt;
+  /** DIMENSION 응답이면 회차 기준으로 읽습니다 — MES 의 검사/양품/불량 3종과는 뜻이 다릅니다 */
+  const isDimension = d.seqCnt !== undefined && d.seqCnt !== null;
+  const failRate = Number.isFinite(Number(d.failRate))
+    ? Number(d.failRate)
+    : (Number.isFinite(Number(failCnt)) && Number(seqCnt) > 0 ? (Number(failCnt) / Number(seqCnt)) * 100 : null);
 
   const info = (
     <View style={{ flex: row ? 1 : undefined, minWidth: 0 }}>
@@ -47,11 +74,21 @@ export default function AoiDefectModal({ defect }) {
           ['LOT · 시리얼', `${d.lotNo || '—'}${d.serialNo ? ` · ${d.serialNo}` : ''}`],
           ...(d.model || d.modelNm ? [['모델', d.modelNm ? `${d.model} (${d.modelNm})` : d.model]] : []),
           ...(d.moldCd ? [['금형 · 캐비티', <BlindValue key="mold" field="mold" value={`${d.moldCd}${d.cavity != null ? ` · CAV ${d.cavity}` : ''}`} textStyle={s.kvVal} />]] : []),
-          ['검사 · 양품 · 불량', (
-            <View key="qty" style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              {qty(seqCnt)}<Text style={s.textXs}>/</Text>{qty(d.okQty)}<Text style={s.textXs}>/</Text>{qty(failCnt)}
-            </View>
-          )],
+          isDimension
+            ? ['검사 회차 · 불량', (
+              <View key="seq" style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                {qty(seqCnt)}
+                <Text style={s.textXs}>회차 중</Text>
+                {qty(failCnt)}
+                {failRate === null ? null : <Badge tone={failRate >= 30 ? 'red' : failRate >= 10 ? 'amber' : 'green'}>{`${failRate.toFixed(1)}%`}</Badge>}
+              </View>
+            )]
+            : ['검사 · 양품 · 불량', (
+              <View key="qty" style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                {qty(seqCnt)}<Text style={s.textXs}>/</Text>{qty(d.okQty)}<Text style={s.textXs}>/</Text>{qty(failCnt)}
+              </View>
+            )],
+          ...(isDimension && d.partial ? [['구간', `이 날짜 구간은 SEQ ${comma(d.seqMin)} 부터입니다 — 앞 구간은 전날에 있습니다`]] : []),
           ...(d.grade || d.remark || d.comment ? [['등급 · 비고', [d.grade, d.remark || d.comment].filter(Boolean).join(' · ')]] : []),
         ]}
       />
@@ -151,28 +188,33 @@ export default function AoiDefectModal({ defect }) {
         </View>
       )}
 
-      {/* DIMENSION 검사 항목 — MSSQL 원천이 붙으면 SEQ 당 한 줄로 옵니다 */}
-      {measurementRows.length ? (
+      {/* DIMENSION 측정 — 한 줄 = 한 SEQ, 치수는 가로로 */}
+      {seqRows.length ? (
         <View style={{ marginTop: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-            <Text style={s.heading2xs}>검사 항목</Text>
-            <Text style={s.caption}>{`${comma(measurementRows.length)}건 · 불량 ${comma(measurementRows.filter((m) => m.passed === false || m.passed === 0).length)}건 · SEQ 당 검사 1종류`}</Text>
+            <Text style={s.heading2xs}>측정 회차 (SEQ)</Text>
+            <Text style={s.caption}>
+              {`${comma(seqRows.length)}회차${detail?.seqCnt ? ` / 전체 ${comma(detail.seqCnt)}회차` : ''} · 불량 ${comma(seqRows.filter((m) => m.passed === false || m.passed === 0 || m.passed === '0').length)}회차 · 치수 ${valueCols.length}개`}
+            </Text>
           </View>
           <TabulatorGrid
-            columns={MEASUREMENT_COLUMNS}
-            rows={measurementRows}
+            columns={measurementColumns}
+            rows={seqRows}
             // 모달 안(ScrollView)에서는 가상 스크롤이 높이를 잘못 재 한 줄만 보입니다 — 'basic' 으로 실제 높이를 쓰게 합니다
             tableOptions={MEASUREMENT_TABLE_OPTIONS}
-            height={measurementRows.length > 12 ? 420 : undefined}
+            height={seqRows.length > 12 ? 420 : undefined}
             headerFilter={false}
-            emptyText="검사 항목이 없습니다."
+            emptyText="측정 회차가 없습니다."
           />
+          <Text style={[s.caption, { marginTop: 6 }]}>
+            치수 열이 많아 표를 옆으로 밀어 볼 수 있습니다 · 규격(상·하한)이 오면 벗어난 값을 붉게 표시합니다
+          </Text>
         </View>
       ) : loading ? (
-        <View style={{ marginTop: 12 }}><Loading compact text="검사 항목을 불러오는 중입니다…" /></View>
+        <View style={{ marginTop: 12 }}><Loading compact text="측정 회차를 불러오는 중입니다…" /></View>
       ) : null}
 
-      <SourceNote>사진은 NAS 원본을 API 가 인증 후 전달합니다(서명 링크 · 만료 시 다시 조회). 검사 항목은 MSSQL 치수 검사(TB_SAMSUN_DIMENSION) 원천입니다.</SourceNote>
+      <SourceNote>사진은 NAS 원본을 API 가 인증 후 전달합니다(서명 링크 · 만료 시 다시 조회). 측정값은 MSSQL 치수 검사(EDGE.dbo.TB_SAMSUN_DIMENSION) 원천이며, 한 회차(SEQ)가 치수 45~58개를 함께 갖습니다.</SourceNote>
     </View>
   );
 }
@@ -193,12 +235,14 @@ function Photo({ img, thumb = false, s }) {
 
 const MEASUREMENT_TABLE_OPTIONS = { renderVertical: 'basic' };
 
-const MEASUREMENT_COLUMNS = [
-  { title: 'SEQ', field: 'seq', width: 72, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: (c) => `<span class="num">${esc(c.getValue())}</span>` },
+/** 치수 열 앞에 늘 붙는 세 칸 — SEQ · 판정 · 측정 시각 */
+const MEASUREMENT_HEAD_COLUMNS = [
+  { title: 'SEQ', field: 'seq', width: 72, frozen: true, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: (c) => `<span class="num">${esc(c.getValue())}</span>` },
   {
     title: '판정',
     field: 'passed',
-    width: 78,
+    width: 74,
+    frozen: true,
     hozAlign: 'center',
     headerHozAlign: 'center',
     formatter: (c) => {
@@ -208,10 +252,7 @@ const MEASUREMENT_COLUMNS = [
       return `<span class="tag ${ok ? 'tag-green' : 'tag-red'}">${ok ? '통과' : '불량'}</span>`;
     },
   },
-  { title: '검사 항목', field: 'name', minWidth: 110, formatter: (c) => `<span class="mono">${esc(dash(c.getValue()))}</span>` },
-  { title: '측정값', field: 'value', minWidth: 110, widthGrow: 1, hozAlign: 'right', headerHozAlign: 'right', formatter: (c) => `<span class="num">${esc(dash(c.getValue()))}</span>` },
-  { title: '측정 시각', field: 'dateTime', minWidth: 140, formatter: (c) => `<span class="mono nowrap">${esc(dash(c.getValue()))}</span>` },
-  { title: '비고', field: 'comment', minWidth: 120, widthGrow: 1, headerSort: false, formatter: (c) => esc(dash(c.getValue())) },
+  { title: '측정 시각', field: 'measuredAt', width: 150, formatter: (c) => `<span class="mono nowrap">${esc(dash(c.getValue()))}</span>` },
 ];
 
 function esc(v) {

@@ -12,7 +12,7 @@ import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import { Badge, Button, Card, Hint, Loading, Pagination, StatCard, Table, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
-import { POSITIONS, positionLabel } from '@shared/constants/accounts';
+import { POSITIONS } from '@shared/constants/accounts';
 import { useCommonStyles } from '@shared/theme/styles';
 
 /** 직급 선택지 예비값 — 공통코드(SYS_POSITION)를 아직 못 받았을 때만 씁니다 */
@@ -35,7 +35,6 @@ export default function AccountView({
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
   const posOptions = positionOptions?.length ? positionOptions : POSITION_FALLBACK;
-  const posLabel = (code) => posOptions.find((o) => o.value === code)?.label || positionLabel(code);
 
   /* ───────── 계정 등록·편집 ───────── */
   const openUserForm = (row) =>
@@ -151,14 +150,13 @@ export default function AccountView({
         actions={
           <>
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />
-            <Button label="메뉴 접근 권한" size="sm" icon="lock" onPress={() => goToScreen('sys-menu')} />
             <Button label="부서 등록" size="sm" icon="plus" onPress={() => openDeptForm(null)} />
             <Button label="계정 등록" size="sm" variant="primary" icon="plus" onPress={() => openUserForm(null)} />
           </>
         }
       />
 
-      <Grid cols={4}>
+      <Grid cols={3}>
         <StatCard
           label="가입 계정"
           value={(summary?.userCnt?.active ?? 0) + (summary?.userCnt?.suspended ?? 0)}
@@ -174,7 +172,6 @@ export default function AccountView({
           right={pending.length ? <Badge tone="amber">승인 필요</Badge> : null}
         />
         <StatCard label="부서" value={summary?.deptCnt ?? 0} unit="개" sub="권한 부여 단위" />
-        <StatCard label="현재 로그인" value={me?.name} sub={`${me?.dept} · ${posLabel(me?.pos)}`} />
       </Grid>
       <Gap />
 

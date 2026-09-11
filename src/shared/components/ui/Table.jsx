@@ -19,7 +19,7 @@
  *   />
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { createPortal } from 'react-dom';
 import TabulatorGrid from './TabulatorGrid';
 
@@ -39,8 +39,10 @@ export default function Table({
   /** 최신 열·행을 formatter 가 읽는 통로 (formatter 는 표를 만들 때의 클로저에 묶입니다) */
   const colsRef = useRef(columns);
   const rowsRef = useRef(rows);
+  const keyExtractorRef = useRef(keyExtractor);
   colsRef.current = columns;
   rowsRef.current = rows;
+  keyExtractorRef.current = keyExtractor;
   const tableRef = useRef(null);
 
   /** 포털로 채울 셀 — formatter 가 만든 빈 div 와 (열 순번 · 행 순번) */
@@ -79,7 +81,7 @@ export default function Table({
    * 세로 렌더링은 basic — 화면의 표는 쪽 단위(≤200행)라 가상 스크롤이 필요 없고,
    * 가상 렌더는 스크롤마다 셀을 다시 만들어 포털을 새로 채워야 합니다.
    */
-  const tableOptions = useMemo(() => ({ renderVertical: 'basic' }), []);
+  const tableOptions = useMemo(() => ({ renderVertical: 'basic', layout: 'fitColumns' }), []);
 
   /**
    * 열 정의 → Tabulator 열
@@ -87,7 +89,7 @@ export default function Table({
    * 열의 **모양**이 바뀔 때만 표를 다시 만듭니다. 화면들이 render 마다 새 배열을 넘기므로
    * 정의 자체를 의존성으로 두면 키 입력마다 표가 부서지고 정렬이 풀립니다.
    */
-  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num].join(':')).join('|');
+  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num, c.sortable].join(':')).join('|');
   const tabColumns = useMemo(
     () => {
       // 모든 열이 고정 폭이면 표 오른쪽이 비어 버립니다 — 마지막 열이 남는 폭을 채우게 합니다
@@ -109,7 +111,7 @@ export default function Table({
           base.minWidth = col.width;
         } else {
           base.widthGrow = col.flex || 1;
-          const min = col.minWidth || col.width;
+          const min = col.minWidth || col.width || 120;
           if (min) base.minWidth = min;
         }
         if (col.render) {
@@ -142,8 +144,8 @@ export default function Table({
 
   // 행 데이터 — 원본 행을 그대로 두고 순번만 붙입니다 (포털이 원본 객체를 찾는 열쇠)
   const data = useMemo(
-    () => (rows || []).map((row, i) => ({ ...row, __idx: i, __k: keyExtractor ? String(keyExtractor(row, i)) : String(i) })),
-    [rows, keyExtractor]
+    () => (rows || []).map((row, i) => ({ ...row, __idx: i, __k: keyExtractorRef.current ? String(keyExtractorRef.current(row, i)) : String(i) })),
+    [rows]
   );
 
   const grid = (
@@ -172,16 +174,17 @@ export default function Table({
     );
   });
 
-  // 열이 많으면 가로 스크롤로 감싸되 기본 너비는 항상 100%를 채웁니다
+  // 포털이 비어 있는 시점의 내용 폭으로 열을 재지 않고 선언된 최소 폭을 보장합니다.
+  // 스크롤 컨테이너는 부모 폭 안에 두어 넓은 표가 페이지 전체를 밀어내지 않게 합니다.
+  const tableMinWidth = Math.max(
+    minWidth || 0,
+    columns.reduce((sum, col) => sum + (col.width || col.minWidth || 120), 0)
+  );
   return (
     <>
-      {minWidth ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator style={{ width: '100%' }} contentContainerStyle={{ minWidth: '100%', width: '100%' }}>
-          <View style={{ minWidth, width: '100%' }}>{grid}</View>
-        </ScrollView>
-      ) : (
-        <View style={{ width: '100%' }}>{grid}</View>
-      )}
+      <div style={{ width: '100%', minWidth: 0, overflowX: 'auto' }}>
+        <div style={{ width: '100%', minWidth: tableMinWidth }}>{grid}</div>
+      </div>
       {portals}
     </>
   );

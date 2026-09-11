@@ -6,8 +6,14 @@
  *  · 행을 누르면 **모달**이 열려 판정 정보와 NAS 사진을 크게 보여 줍니다(요구 7).
  *    화면에 붙어 있던 「불량 이미지」 카드는 없앴습니다(요구 8).
  *  · 실 설비명("VN-AOI PACKING KRIOS 4")이 길어 한 칸은 **두 줄까지만** 쓰고 둘째 줄은 …로 자릅니다.
- *  · 수량 3종은 `qty` 데이터 권한으로 가립니다. MSSQL(DIMENSION) 전환 후에는 검사 항목(SEQ) 기준 수치가 옵니다 —
+ *  · 수량은 `qty` 데이터 권한으로 가립니다. MSSQL(DIMENSION) 전환 후에는 검사 회차(SEQ) 기준 수치가 옵니다 —
  *    `sampleQty ?? seqCnt` · `ngQty ?? failSeqCnt` 로 양쪽 응답을 함께 읽습니다.
+ *
+ * 2026-09-11 MSSQL 실측 반영 (docs/requests/REQ_20260911_aoi_dimension_mssql_실측.md)
+ *  · 「불량률」 열을 둡니다 — DIMENSION 규칙(SEQ 중 하나라도 PASSED=0 이면 불량)으로는 시리얼이 **거의 전부 불량**이라
+ *    합부만으로는 줄을 세울 수 없습니다. 실제로 2026-09-11 은 시리얼 70개가 모두 불량이었고 SEQ 불량률은 24.7% 였습니다.
+ *  · 「판정」은 배지로 두되 정렬 기본은 불량률입니다.
+ *  · 시리얼이 날짜를 가로지르면(`partial`·`seqMin>1`) 시리얼 칸에 「이어짐」을 답니다 — 그 날짜 구간만 보고 있다는 뜻입니다.
  */
 import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
@@ -19,6 +25,22 @@ import { comma } from '@shared/utils/formatUtil';
 
 /** 표 높이 — 25행이 기본이라 스크롤로 봅니다 */
 const LIST_HEIGHT = 460;
+
+/** 불량 건수 — MES(ngQty) 와 DIMENSION(failSeqCnt) 양쪽을 읽습니다 */
+const ngOf = (d) => {
+  const v = Number(d.ngQty ?? d.failSeqCnt);
+  return Number.isFinite(v) ? v : null;
+};
+
+/** 불량률(%) — 서버가 주면 그대로, 없으면 불량/검사 로 계산합니다 */
+const rateOf = (d) => {
+  const given = Number(d.failRate);
+  if (Number.isFinite(given)) return given;
+  const ng = ngOf(d);
+  const all = Number(d.sampleQty ?? d.seqCnt);
+  if (ng === null || !Number.isFinite(all) || all <= 0) return null;
+  return (ng / all) * 100;
+};
 
 export default function AoiDefectSection({
   loading, items, meta, paging, pageSizes,
@@ -39,11 +61,11 @@ export default function AoiDefectSection({
     };
     return [
       // plant-wc-lot-serial(지금) · wc~eqpt~lot~serial(MSSQL 전환 후) — 길어서 두 줄까지 접힙니다
-      { title: '불량 ID', field: 'defectId', minWidth: 150, widthGrow: 2, formatter: monoFmt },
+      { title: '불량 ID', field: 'defectId', minWidth: 138, widthGrow: 2, formatter: monoFmt },
       {
         title: '판정 일시',
         field: 'judgedAt',
-        minWidth: 100,
+        minWidth: 94,
         formatter: (cell) => {
           const [d, t] = String(dash(cell.getValue())).split(' ');
           return `<span class="mono nowrap">${esc(d)}</span>${t ? `<span class="muted mono nowrap">${esc(t)}</span>` : ''}`;
@@ -74,11 +96,26 @@ export default function AoiDefectSection({
         title: 'LOT · 시리얼',
         field: 'lotNo',
         minWidth: 104,
-        formatter: (cell) => `<span class="mono nowrap">${esc(dash(cell.getValue()))}</span>${cell.getData().serialNo ? `<span class="muted mono nowrap">${esc(cell.getData().serialNo)}</span>` : ''}`,
+        formatter: (cell) => {
+          const d = cell.getData();
+          // 시리얼이 날짜를 가로지르면 그 날짜 구간만 보고 있다는 뜻입니다 (MSSQL 실측 A-4)
+          const carried = d.partial === true || (Number(d.seqMin) > 1);
+          const tail = d.serialNo ? `<span class="muted mono nowrap">${esc(d.serialNo)}${carried ? ' · 이어짐' : ''}</span>` : '';
+          return `<span class="mono nowrap">${esc(dash(cell.getValue()))}</span>${tail}`;
+        },
       },
-      { title: '모델', field: 'model', minWidth: 66, formatter: (cell) => `<span class="nowrap">${esc(dash(cell.getValue()))}</span>` },
-      { title: '검사', field: 'sampleQty', width: 74, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt((d) => d.sampleQty ?? d.seqCnt) },
-      { title: '양품', field: 'okQty', width: 74, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt((d) => d.okQty) },
+      {
+        // MES 는 모델, DIMENSION 은 호기(COMMENT, 예 '#7 B') 가 옵니다 — 있는 쪽을 씁니다
+        title: '모델 · 호기',
+        field: 'model',
+        minWidth: 76,
+        formatter: (cell) => {
+          const d = cell.getData();
+          return `<span class="nowrap">${esc(dash(cell.getValue() || d.cavity))}</span>`;
+        },
+      },
+      { title: '검사', field: 'sampleQty', width: 78, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt((d) => d.sampleQty ?? d.seqCnt) },
+
       {
         title: '불량',
         field: 'ngQty',
@@ -88,15 +125,45 @@ export default function AoiDefectSection({
         sorter: 'number',
         formatter: (cell) => {
           if (!canQty) return '<span class="muted">비공개</span>';
+          const v = ngOf(cell.getData());
+          return v === null ? '<span class="muted">—</span>' : `<span class="num strong">${comma(v)}</span>`;
+        },
+      },
+      {
+        // DIMENSION 에서 가장 중요한 열입니다 — 합부만으로는 시리얼이 거의 전부 불량이라 줄이 서지 않습니다
+        title: '불량률',
+        field: 'failRate',
+        width: 100,
+        hozAlign: 'right',
+        headerHozAlign: 'right',
+        sorter: (a, b, aRow, bRow) => (rateOf(aRow.getData()) ?? -1) - (rateOf(bRow.getData()) ?? -1),
+        formatter: (cell) => {
+          if (!canQty) return '<span class="muted">비공개</span>';
+          const r = rateOf(cell.getData());
+          if (r === null) return '<span class="muted">—</span>';
+          const tone = r >= 30 ? 'red' : r >= 10 ? 'amber' : 'green';
+          return `<span class="tag tag-${tone}">${r.toFixed(1)}%</span>`;
+        },
+      },
+      {
+        title: '판정',
+        field: 'passed',
+        width: 68,
+        hozAlign: 'center',
+        headerHozAlign: 'center',
+        formatter: (cell) => {
           const d = cell.getData();
-          const v = Number(d.ngQty ?? d.failSeqCnt);
-          return Number.isFinite(v) ? `<span class="num strong">${comma(v)}</span>` : '<span class="muted">—</span>';
+          const ng = ngOf(d);
+          // passed 가 오면 그대로, 없으면 불량 SEQ 수로 판단합니다 (하나라도 있으면 불량)
+          const bad = d.passed === false || d.passed === 0 || (d.passed === undefined && ng !== null && ng > 0);
+          if (d.passed === undefined && ng === null) return '<span class="muted">—</span>';
+          return bad ? '<span class="tag tag-red">불량</span>' : '<span class="tag tag-green">양품</span>';
         },
       },
       {
         title: '사진',
         field: 'imageCnt',
-        width: 56,
+        width: 68,
         hozAlign: 'right',
         headerHozAlign: 'right',
         headerSort: false,

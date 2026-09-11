@@ -31,3 +31,10 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 .design-sync/fonts/**/*.woff2
+
+# Deploy zip & runtime logs
+dwje-web-deploy.zip
+run/
+logs/
+.playwright-mcp/
+
