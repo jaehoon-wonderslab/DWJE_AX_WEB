@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Card, EmptyState, SelectField, TabulatorGrid } from '@shared/components/ui';
+import { Card, SparkleSpinner, SelectField, TabulatorGrid } from '@shared/components/ui';
 import { ARROW_W } from '@shared/components/ui/TabulatorGrid';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -189,7 +189,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
     <Card
       title="AI 공정 원인 분석 및 처방 권고"
       right={
-        ready ? (
+        ready && !loading ? (
           <>
             <EvidenceButton
               count={causes.length + actions.length}
@@ -221,7 +221,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
       }
     >
       {/* 분석 결과가 있을 때만 대상 선택기를 냅니다 — 없는 설비를 고르게 두면 안 됩니다 */}
-      {ready && eqptOptions.length ? (
+      {ready && !loading && !waiting && eqptOptions.length ? (
         <SelectField
           label="대상 설비"
           value={selectedEqptCd}
@@ -233,13 +233,13 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
 
       {waiting ? (
         // 브리핑이 같은 모델을 쓰는 중이라 아직 시작도 못 했습니다 — 준비 중과 구분해 알립니다
-        <EmptyState text="브리핑 분석이 끝나면 이어서 분석합니다." />
+        <SparkleSpinner text="브리핑 분석이 끝나면 이어서 분석합니다." />
       ) : loading ? (
         /*
           다시 분석하는 동안에는 앞선 결과를 지웁니다 — 브리핑 카드와 같은 이유입니다.
           앞 구간의 표를 남겨 두면 필터와 표의 기간이 어긋난 채로 몇 분이 흐릅니다.
         */
-        <EmptyState text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
+        <SparkleSpinner text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
       ) : !ready ? (
         <NotReady reason={cp?.reason} />
       ) : (

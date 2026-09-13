@@ -34,7 +34,34 @@ import React, { useEffect, useId, useRef } from 'react';
 import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
+import './tabulatorHeaders.css';
 import { FONT_FAMILY, MONO_FAMILY } from '@shared/theme/styles';
+
+/**
+ * 쪽 이동 한글 문구
+ *
+ * `counter` 는 `showing + 범위 + of + 합계 + rows` 를 이어 붙입니다.
+ * 한국어 어순에 맞추려고 showing 을 비우고 of 를 ' / ' 로 둡니다 → 「1-10 / 40건」
+ */
+const KO_LANG = {
+  ko: {
+    pagination: {
+      page_size: '표시 건수',
+      page_title: '쪽',
+      first: '처음',
+      first_title: '첫 쪽',
+      last: '끝',
+      last_title: '마지막 쪽',
+      prev: '이전',
+      prev_title: '이전 쪽',
+      next: '다음',
+      next_title: '다음 쪽',
+      all: '전체',
+      counter: { showing: '', of: ' / ', rows: '건', pages: '쪽' },
+    },
+    data: { loading: '불러오는 중', error: '오류' },
+  },
+};
 
 /** 묶음 머리글의 펼침 화살표가 차지하는 폭 — 첫 칸에서 이만큼 뺍니다 */
 export const ARROW_W = 26;
@@ -68,8 +95,20 @@ export default function TabulatorGrid({
   instanceRef,
   /** Tabulator 옵션 덧붙이기 (예: renderVertical: 'basic') — 표를 만들 때 한 번만 읽습니다 */
   tableOptions,
+  /** 쪽 나누기 — 한 쪽에 보일 행 수. 주면 표 아래에 쪽 이동이 붙습니다 */
+  pageSize,
+  /** 칸마다 세로 줄을 그립니다 — 열이 많아 눈이 미끄러지는 표에서 씁니다 */
+  bordered = false,
+  productionStyle = false,
+  /** 접었다 펴는 트리 — 자식 행은 각 행의 `childField` 배열에 담습니다 */
+  dataTree = false,
+  childField = '_children',
+  treeStartExpanded = false,
+  treeChildIndent = 14,
 }) {
   const ref = useRef(null);
+  const railRef = useRef(null);
+  const railWidthRef = useRef(null);
   const instance = useRef(null);
   /** 최신 값을 콜백 안에서 읽기 위한 통로 — 이것 때문에 표를 새로 만들지는 않습니다 */
   const selectedRef = useRef(selected);
@@ -114,15 +153,34 @@ export default function TabulatorGrid({
      */
     // 표마다 필터 설정을 반복하지 않아도 되도록 데이터 열은 기본적으로 검색 가능하게 둡니다.
     // `headerFilter: false` 를 준 열은 (아이콘·계산 열 등) 그대로 제외합니다.
-    const filterableColumns = columns.map((column) => {
+    // 머리글 그룹({ title, columns: [...] })은 자식까지 내려가며 손봅니다.
+    // 그룹 자체에는 field 가 없어, 얕게 훑으면 그룹 안의 열에만 검색칸·최소 너비가 빠집니다.
+    const prepare = (definition) => {
+      if (Array.isArray(definition.columns)) {
+        return { ...definition, columns: definition.columns.map(prepare) };
+      }
+      // 가용 폭이 좁아져도 열을 계속 압축하지 않고 표 내부 가로 스크롤로 넘깁니다.
+      const column = {
+        ...definition,
+        minWidth: definition.minWidth ?? (typeof definition.width === 'number' ? definition.width : 120),
+      };
       if (!headerFilter || !column?.field || column.headerFilter === false) return column;
       return {
         ...column,
         headerFilter: column.headerFilter || 'input',
         headerFilterLiveFilter: column.headerFilterLiveFilter ?? true,
+        ...(dataTree && !column.headerFilterFunc ? {
+          headerFilterFunc: (query, value, row) => {
+            const q = String(query ?? '').trim().toLocaleLowerCase();
+            const matches = node => String(node[column.field] ?? '').toLocaleLowerCase().includes(q) ||
+              (node[childField] || []).some(matches);
+            return !q || matches(row);
+          },
+        } : {}),
         headerFilterPlaceholder: column.headerFilterPlaceholder || `${column.title || '항목'} 검색`,
       };
-    });
+    };
+    const filterableColumns = columns.map(prepare);
 
     const cols = selectable
       ? [
@@ -144,10 +202,13 @@ export default function TabulatorGrid({
     const table = new Tabulator(ref.current, {
       data: rows,
       columns: cols,
-      layout: 'fitColumns',
+      layout: productionStyle ? 'fitData' : 'fitColumns',
+      layoutColumnsOnNewData: productionStyle,
+      columnDefaults: { resizable: 'header' },
+      resizableColumnFit: false,
       responsiveLayout: false,
       placeholder: emptyText,
-      height: height || undefined,
+      height: height || (dataTree ? 560 : undefined),
       // 셀 안에서 줄이 바뀌므로 행 높이를 내용에 맞춥니다
       variableHeight: true,
       // shift 를 누른 채 머리글을 누르면 정렬 조건이 쌓입니다
@@ -157,6 +218,33 @@ export default function TabulatorGrid({
       autoResize: false,
       ...(initialSort ? { initialSort } : null),
       ...(selectable ? { selectableRows: maxSelectable || true } : null),
+      ...(pageSize && !dataTree
+        ? {
+            pagination: true,
+            paginationMode: 'local',
+            paginationSize: pageSize,
+            paginationCounter: 'rows',
+            // 쪽 이동 문구는 **항상** 한글입니다 — 한국어 화면에 First/Prev/Next/Last 와
+            // "Showing 1-10 of 40 rows" 가 섞여 있을 이유가 없습니다
+            locale: 'ko',
+            langs: KO_LANG,
+            ...(productionStyle ? { paginationSizeSelector: [10, 25, 50, 100] } : null),
+          }
+        : null),
+      ...(dataTree
+        ? {
+            dataTree: true,
+            dataTreeChildField: childField,
+            dataTreeStartExpanded: treeStartExpanded,
+            dataTreeChildIndent: treeChildIndent,
+            dataTreeExpandElement: '<button type="button" class="dw-tree-toggle" aria-label="하위 항목 펼치기" aria-expanded="false">+</button>',
+            dataTreeCollapseElement: '<button type="button" class="dw-tree-toggle" aria-label="하위 항목 접기" aria-expanded="true">−</button>',
+            // 자식이 없는 행에 빈 자리를 남기지 않습니다
+            dataTreeBranchElement: false,
+            // 자식이 검색에 걸리면 그 위 단계도 함께 남깁니다 — 아니면 걸린 행이 통째로 사라집니다
+            dataTreeFilter: true,
+          }
+        : null),
       ...(groupBy
         ? {
             groupBy,
@@ -166,6 +254,78 @@ export default function TabulatorGrid({
         : null),
     });
 
+
+    // 붙여넣기·한글 조합 완료도 검색합니다(기본 Tabulator는 keyup 중심).
+    const applyHeaderInput = event => {
+      const input = event.target;
+      if (event.isComposing || !input.closest?.('.tabulator-header-filter')) return;
+      const field = input.closest('.tabulator-col')?.getAttribute('tabulator-field');
+      if (!field) return;
+      // setHeaderFilterValue는 입력 요소를 재생성하므로 커서가 사라집니다.
+      // 기존 입력 요소의 기본 검색 이벤트를 사용합니다.
+      input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Unidentified', bubbles: true }));
+    };
+    ref.current.addEventListener('input', applyHeaderInput);
+    ref.current.addEventListener('compositionend', applyHeaderInput);
+
+    // 트리 버튼은 펼침/접힘 때 교체되므로 렌더와 상태 변경 후 의미를 다시 붙입니다.
+    let tooltipFrame = 0;
+    const updateTreeTooltips = () => {
+      if (!dataTree || !ref.current) return;
+      const visit = rows => rows.forEach(row => {
+        if (row.isTreeExpanded()) visit(row.getTreeChildren());
+        const button = row.getElement().querySelector('.dw-tree-toggle');
+        if (!button) return;
+        const chain = [];
+        let current = row;
+        while (current) {
+          const label = current.getData().levelLabel;
+          if (label) chain.unshift(label);
+          current = current.getTreeParent();
+        }
+        if (!chain.length) return;
+        const action = button.getAttribute('aria-expanded') === 'true' ? '접기' : '펼치기';
+        const description = chain.join(' → ') + ' · 하위 항목 ' + action;
+        button.title = description;
+        button.setAttribute('aria-label', description);
+      });
+      visit(table.getRows());
+    };
+    ['renderComplete', 'dataTreeRowExpanded', 'dataTreeRowCollapsed'].forEach(event => table.on(event, () => {
+      updateTreeTooltips();
+      cancelAnimationFrame(tooltipFrame);
+      tooltipFrame = requestAnimationFrame(updateTreeTooltips);
+    }));
+
+    let sizeFrame = 0, railFrame = 0, holder;
+    const rail = railRef.current;
+    const syncRail = () => {
+      cancelAnimationFrame(railFrame);
+      railFrame = requestAnimationFrame(() => {
+        if (!holder || !rail || !railWidthRef.current) return;
+        railWidthRef.current.style.width = (rail.clientWidth + Math.max(0, holder.scrollWidth - holder.clientWidth)) + 'px';
+        rail.scrollLeft = holder.scrollLeft;
+      });
+    };
+    const fromRail = () => { if (holder && holder.scrollLeft !== rail.scrollLeft) holder.scrollLeft = rail.scrollLeft; };
+    const fromTable = () => { if (rail && rail.scrollLeft !== holder.scrollLeft) rail.scrollLeft = holder.scrollLeft; };
+    const autoSize = () => {
+      cancelAnimationFrame(sizeFrame);
+      sizeFrame = requestAnimationFrame(() => {
+        table.getColumns().forEach(column => column.setWidth(true));
+        syncRail();
+      });
+    };
+    if (productionStyle) {
+      rail?.addEventListener('scroll', fromRail);
+      table.on('tableBuilt', () => {
+        holder = ref.current?.querySelector('.tabulator-tableholder');
+        holder?.addEventListener('scroll', fromTable);
+        autoSize();
+      });
+      ['dataProcessed', 'dataTreeRowExpanded', 'pageLoaded'].forEach(event => table.on(event, autoSize));
+      ['renderComplete', 'columnResized'].forEach(event => table.on(event, syncRail));
+    }
     if (selectable) {
       table.on('rowSelectionChanged', (data) => {
         if (restoring.current) return;
@@ -212,6 +372,13 @@ export default function TabulatorGrid({
     }
     return () => {
       if (ro) ro.disconnect();
+      ref.current?.removeEventListener('input', applyHeaderInput);
+      ref.current?.removeEventListener('compositionend', applyHeaderInput);
+      cancelAnimationFrame(sizeFrame);
+      cancelAnimationFrame(tooltipFrame);
+      cancelAnimationFrame(railFrame);
+      rail?.removeEventListener('scroll', fromRail);
+      holder?.removeEventListener('scroll', fromTable);
       cancelAnimationFrame(raf);
       try {
         table.destroy();
@@ -223,7 +390,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, treeChildIndent, dataTree]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -296,9 +463,12 @@ export default function TabulatorGrid({
   }, [headerFilters]);
 
   return (
-    <View style={[{ minWidth: 0, width: '100%' }, style]} nativeID={`grid_${id}`}>
+    <View style={[{ minWidth: 0, width: '100%', maxWidth: '100%' }, style]} nativeID={`grid_${id}`}>
       <style>{`
         #grid_${id} .tabulator {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
           background: ${c.card};
           border: 1px solid ${theme.divider};
           border-radius: 16px;
@@ -311,7 +481,34 @@ export default function TabulatorGrid({
         }
         #grid_${id} .tabulator .tabulator-header .tabulator-col {
           background: transparent;
-          border-right: 0;
+          border-right: ${bordered ? `1px solid ${c.border}` : '0'};
+        }
+        /* 얼린 열(frozen) — 배경을 채우지 않으면 밑으로 지나가는 본문 글자가 비칩니다.
+           행 배경을 물려받게 두면 hover 색도 함께 따라옵니다. */
+        /* 이 표는 행 배경이 투명입니다(흰색은 카드가 냅니다). 그래서 얼린 칸에 inherit 를 주면
+           투명으로 풀려 밑으로 지나가는 글자가 그대로 비칩니다 — 실제 색을 박아 둡니다. */
+        #grid_${id} .tabulator .tabulator-row .tabulator-cell.tabulator-frozen {
+          background: ${color.card};
+          /* 흐르는 칸이 얼린 칸 위에 그려지지 않도록 */
+          z-index: 3;
+        }
+        #grid_${id} .tabulator .tabulator-row:not(.tabulator-tree-level-0)[class*="tabulator-tree-level-"] .tabulator-cell.tabulator-frozen {
+          background: ${c.groupBg};
+        }
+        #grid_${id} .tabulator .tabulator-row:hover .tabulator-cell.tabulator-frozen { background: ${c.hover}; }
+        #grid_${id} .tabulator .tabulator-header .tabulator-col.tabulator-frozen { background: ${c.headBg}; z-index: 4; }
+        /* 얼린 쪽과 흐르는 쪽의 경계 — 여기서 잘렸다는 표시 */
+        #grid_${id} .tabulator .tabulator-frozen.tabulator-frozen-left { border-right: 1px solid ${c.border}; }
+        #grid_${id} .tabulator .tabulator-frozen.tabulator-frozen-right { border-left: 1px solid ${c.border}; }
+
+        /* 머리글 그룹 — 묶음 제목은 가운데, 그 아래 실제 열이 붙습니다 */
+        #grid_${id} .tabulator .tabulator-header .tabulator-col.tabulator-col-group > .tabulator-col-content .tabulator-col-title {
+          text-align: center;
+          color: ${c.text};
+          font-weight: 600;
+        }
+        #grid_${id} .tabulator .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols {
+          border-top: 1px solid ${c.border};
         }
         #grid_${id} .tabulator .tabulator-header .tabulator-col-title {
           color: ${c.headText};
@@ -340,6 +537,11 @@ export default function TabulatorGrid({
           box-shadow: 0 0 0 2px ${c.focusRing};
         }
         /* Tabulator 기본 CSS 의 흰 표 배경·짝수행 회색을 지웁니다 — 캔버스가 그대로 비치게 */
+        #grid_${id} .tabulator .tabulator-tableholder {
+          overflow-x: auto !important;
+          touch-action: pan-x pan-y;
+          overscroll-behavior-x: contain;
+        }
         #grid_${id} .tabulator .tabulator-tableholder,
         #grid_${id} .tabulator .tabulator-tableholder .tabulator-table { background: transparent; color: ${c.text}; }
         #grid_${id} .tabulator .tabulator-row,
@@ -353,13 +555,66 @@ export default function TabulatorGrid({
         #grid_${id} .tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort="descending"] { background: transparent; }
         #grid_${id} .tabulator .tabulator-header .tabulator-col .tabulator-col-content .tabulator-col-sorter { color: ${c.muted}; }
         #grid_${id} .tabulator .tabulator-footer { background: transparent; border-top: 1px solid ${c.border}; color: ${c.muted}; }
+        /* 쪽 이동 — 표 아래 가운데. 지금 쪽만 잉크색으로 채웁니다 */
+        #grid_${id} .tabulator .tabulator-footer .tabulator-paginator { color: ${c.muted}; font-size: 15px; padding: 6px 10px; }
+        #grid_${id} .tabulator .tabulator-footer .tabulator-page {
+          background: transparent; border: 1px solid ${c.border}; border-radius: 8px;
+          color: ${c.text}; font-family: inherit; font-size: 15px; font-weight: 500;
+          margin: 0 2px; padding: 3px 9px;
+        }
+        #grid_${id} .tabulator .tabulator-footer .tabulator-page:hover:not(.active):not(:disabled) { background: ${c.hover}; }
+        #grid_${id} .tabulator .tabulator-footer .tabulator-page.active {
+          background: ${color.primary}; border-color: ${color.primary}; color: ${color.primaryForeground}; font-weight: 600;
+        }
+        #grid_${id} .tabulator .tabulator-footer .tabulator-page:disabled { opacity: 0.4; }
+        #grid_${id} .tabulator .tabulator-footer .tabulator-page-size {
+          background: transparent; border: 1px solid ${c.border}; border-radius: 8px;
+          color: ${c.text}; font-family: inherit; font-size: 15px; padding: 3px 6px; margin: 0 6px;
+        }
+        #grid_${id} .dw-tree-toggle {
+          display:inline-flex; align-items:center; justify-content:center;
+          width:26px; height:26px; padding:0; margin-right:8px;
+          border:1px solid ${c.muted}; border-radius:6px;
+          color:${c.text}; background:${color.card}; font-family:inherit; font-weight:600;
+          font-size:20px; line-height:1; cursor:pointer; vertical-align:middle;
+        }
+        #grid_${id} .dw-tree-toggle:hover, #grid_${id} .dw-tree-toggle:focus-visible {
+          border-color:${color.primary}; outline:2px solid ${color.primary}; outline-offset:1px;
+        }
+        #grid_${id} .tabulator .tabulator-cell[tabulator-field="outline"] {
+          padding:12px 8px !important; position:relative;
+        }
+        ${[1,2,3].map(depth => `
+          #grid_${id} .tabulator-row.tabulator-tree-level-${depth} .tabulator-cell[tabulator-field="outline"] {
+            padding-left:${8 + depth * 14}px !important;
+            background-image:repeating-linear-gradient(to right, ${c.border} 0px, ${c.border} 1px, transparent 1px, transparent 14px);
+            background-size:${depth * 14}px 100%; background-position:8px 0; background-repeat:no-repeat;
+          }
+        `).join('')}
+        /* 트리 펼침 단추 — 이름 앞에 붙는 작은 삼각형 */
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control {
+          border-color: ${c.muted}; margin-right: 7px;
+        }
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control:hover { border-color: ${color.primary}; }
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control .tabulator-data-tree-control-collapse,
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control .tabulator-data-tree-control-expand { background: ${c.muted}; }
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control:hover .tabulator-data-tree-control-collapse,
+        #grid_${id} .tabulator .tabulator-cell .tabulator-data-tree-control:hover .tabulator-data-tree-control-expand { background: ${color.primary}; }
+        /* 자식 행은 살짝 가라앉혀 부모와 갈립니다.
+           Tabulator 6 은 깊이를 속성이 아니라 클래스로 답니다 — .tabulator-tree-level-N */
+        #grid_${id} .tabulator .tabulator-row:not(.tabulator-tree-level-0)[class*="tabulator-tree-level-"] {
+          background: ${c.groupBg};
+        }
+        #grid_${id} .tabulator .tabulator-row:not(.tabulator-tree-level-0)[class*="tabulator-tree-level-"]:hover {
+          background: ${c.hover};
+        }
         #grid_${id} .tabulator .tabulator-placeholder { background: transparent; }
         #grid_${id} .tabulator .tabulator-placeholder .tabulator-placeholder-contents { color: ${c.muted}; font-size:16.5px; }
         #grid_${id} .tabulator .tabulator-row:hover { background: ${c.hover}; }
         #grid_${id} .tabulator .tabulator-cell {
           color: ${c.text};
           padding: 10px 12px;
-          border-right: 0;
+          border-right: ${bordered ? `1px solid ${c.rowBorder}` : '0'};
           white-space: normal;
           line-height: 1.55;
           vertical-align: top;
@@ -460,8 +715,42 @@ export default function TabulatorGrid({
         }
         #grid_${id} .tabulator .tbtn:hover { background: ${c.hover}; }
         #grid_${id} .tabulator .tbtn-primary { background: ${color.primary}; border-color: ${color.primary}; color: ${color.primaryForeground}; font-weight: 600; }
+        /* 칸 안의 비중 막대 — .bar-cell > .bar-track > .bar-fill + .bar-num */
+        #grid_${id} .tabulator .bar-cell { display: flex; align-items: center; gap: 8px; width: 100%; }
+        #grid_${id} .tabulator .bar-track {
+          flex: 1; min-width: 24px; height: 6px; border-radius: 99px;
+          background: ${alpha('foreground', 0.08)}; overflow: hidden;
+        }
+        #grid_${id} .tabulator .bar-fill { height: 100%; border-radius: 99px; background: ${color.primary}; }
+        #grid_${id} .tabulator .bar-num { flex: none; font-size: 15px; color: ${c.text}; }
         #grid_${id} .tabulator .tbtn-primary:hover { opacity: 0.9; background: ${color.primary}; }
+
+        ${bordered ? `
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle { width:10px; margin-left:-5px; margin-right:-5px; cursor:col-resize; background:linear-gradient(to right, transparent 4px, ${theme.hairlineStrong} 4px, ${theme.hairlineStrong} 6px, transparent 6px); }
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle:hover { background:${color.primary}; }
+        ` : ''}
+        ${productionStyle ? `
+          #grid_${id} .tabulator { font-size:17px; font-weight:400; }
+          #grid_${id} .tabulator .tabulator-header .tabulator-col { padding:11px 16px; border-right:1px solid ${theme.hairlineStrong}; }
+          #grid_${id} .tabulator .tabulator-col-content { padding:0; }
+          #grid_${id} .tabulator .tabulator-col-title { padding:0; white-space:nowrap; }
+          #grid_${id} .tabulator .tabulator-header-filter { padding:0; margin-top:6px; }
+          #grid_${id} .tabulator .tabulator-header-filter input { font-size:15.5px; }
+          #grid_${id} .tabulator .tabulator-row .tabulator-cell { padding:12px 16px; white-space:nowrap; border-right:1px solid ${theme.hairlineStrong}; font-variant-numeric:tabular-nums; }
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle { width:10px; margin-left:-5px; margin-right:-5px; cursor:col-resize; background:linear-gradient(to right, transparent 4px, ${theme.hairlineStrong} 4px, ${theme.hairlineStrong} 6px, transparent 6px); }
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle:hover { background:${color.primary}; }
+          #grid_${id} .tabulator .tabulator-data-tree-control { border-radius:99px; width:17px; height:17px; margin-right:7px; }
+          #grid_${id} .tabulator .tabulator-footer { background:${c.headBg}; padding:10px 16px; }
+          #grid_${id} .tabulator .tabulator-page { border-radius:99px; font-size:16px; }
+          #grid_${id} .tabulator .tabulator-page.active { background:${color.primary}; color:${color.primaryForeground}; }
+        ` : ''}
       `}</style>
+      {productionStyle && <>
+        <div style={{ fontSize:14, color:c.muted, marginBottom:6 }}>열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 가로 스크롤로 오른쪽 열을 확인하세요.</div>
+        <div ref={railRef} role="region" aria-label="표 가로 스크롤" tabIndex={0} style={{ width:'100%', overflowX:'scroll', height:18, marginBottom:8, touchAction:'pan-x pan-y' }}>
+          <div ref={railWidthRef} style={{ height:1 }} />
+        </div>
+      </>}
       <div ref={ref} style={{ width: '100%', minWidth: 0 }} />
     </View>
   );

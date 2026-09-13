@@ -1,6 +1,16 @@
 /**
  * [View] QC-02 AOI 판정 분석 (경로: /quality/aoi)
  *
+ * 2026-09-13 (5차)
+ *  · 「출하 전 위험 LOT」 표 → **「덕반장 AI AOI 분석」 카드**로 바꾸고 **첫 자리**로 올렸습니다.
+ *    표는 값을 늘어놓을 뿐이고, 정작 서버가 만든 근거·권고 문장이 칸 안에 접혀 안 보였습니다.
+ *    이제 문장이 먼저 나오고, 서로 견줄 게 많을 때만(위험·주의 2건 이상) 표가 아래에 붙습니다.
+ *
+ * 2026-09-13 (4차)
+ *  · 「불량 유형 구성 변화」 비교 기준을 **직전 4주 → 1주 일평균**으로 (기준이 멀수록 지금 상태와 어긋납니다)
+ *  · 같은 카드에 **쪽 나눔**을 넣고 **「해석」 열은 제거**했습니다 — 서버 문장이 행마다 같은 말을 되풀이해
+ *    폭만 차지했고, 증감은 「변화」 열의 색과 부호로 이미 읽힙니다
+ *
  * 2026-09-11 (3차) — 카드를 한 행씩 쌓고, 불량 상세는 모달로 옮겼습니다.
  *  1. 「불량 목록」·「출하 전 위험 LOT」 **각각 한 행 전체 폭** (요구 1) · 추이 밴드는 **d3**(charts-d3) 로 (요구 2)
  *  3. 「출하 전 위험 LOT」 **쪽 나눔** 추가 (요구 3) — 서버 쪽 나눔이 없어 화면에서 자릅니다
@@ -17,10 +27,10 @@
  */
 import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
-import { LineChart } from '@shared/components/charts-d3';
+import { BandChart } from '@shared/components/charts-d3';
 import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, EmptyState, KeyValue, Loading, Pagination, SourceNote, TabulatorGrid } from '@shared/components/ui';
+import { Button, Card, EmptyState, KeyValue, Loading, SourceNote, TabulatorGrid } from '@shared/components/ui';
 import { MENU } from '@shared/constants/menu';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { lastDataDate } from '@shared/stores/useAppStore';
@@ -28,8 +38,12 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
-import AoiDefectSection from './components/AoiDefectSection';
+import AoiAgentAnalysisCard from './components/AoiAgentAnalysisCard';
+import AoiDefectSection, { AoiDateFilter } from './components/AoiDefectSection';
 import AoiDefectModal from './components/AoiDefectModal';
+
+/** 「불량 유형 구성 변화」 한 쪽에 보일 행 수 */
+const SHIFT_PAGE_SIZE = 10;
 
 /** 머리말 설명은 메뉴 정의(qc-aoi)의 것을 그대로 씁니다 — 허브 카드와 화면이 같은 말을 하도록 */
 const AOI_MENU = MENU.flatMap((g) => g.items || []).find((it) => it.id === 'qc-aoi');
@@ -43,7 +57,7 @@ const signed = (v, digits = 1, unit = '') => {
 
 export default function AoiPredictionView({
   loading, threshold, horizonHours, band, bandSeries, bandLabels, lotRisk, lotRiskPage, lotRiskMeta, lotPaging, lotPageSizes,
-  shift, baseWeeks, basis, recalc, exportExcel,
+  shift, baseWeeks, shiftBase, basis, recalc, exportExcel,
   /** 「불량 상세」 구역 컨트롤러(useAoiDefectsController) 반환값 */
   defects,
 }) {
@@ -124,56 +138,6 @@ export default function AoiPredictionView({
     });
   };
 
-  /**
-   * 「출하 전 위험 LOT」 열 — 반폭에 놓이므로 출하 예정일은 LOT 아래 줄에, 근거·권고는 한 칸에 두 줄로 접습니다.
-   * 고객사는 `customer` 데이터 권한으로 가립니다.
-   */
-  const lotColumns = useMemo(() => [
-    {
-      title: 'LOT · 출하 예정',
-      field: 'lotNo',
-      minWidth: 108,
-      widthGrow: 1,
-      formatter: (cell) => {
-        const d = cell.getData();
-        return `<span class="mono">${esc(dash(cell.getValue()))}</span>${d.shipDue ? `<div class="muted mono">${esc(d.shipDue)}</div>` : ''}`;
-      },
-    },
-    { title: '모델', field: 'model', minWidth: 84, formatter: (cell) => esc(dash(cell.getValue())) },
-    {
-      title: '고객사',
-      field: 'customer',
-      minWidth: 88,
-      formatter: (cell) => (canData('customer') ? esc(dash(cell.getValue())) : '<span class="muted">비공개</span>'),
-    },
-    {
-      title: 'LRR 확률',
-      field: 'lrrProbability',
-      width: 86,
-      hozAlign: 'center',
-      headerHozAlign: 'center',
-      sorter: 'number',
-      formatter: (cell) => {
-        const d = cell.getData();
-        if (d.level === null || d.level === undefined) return '<span class="tag">산출 불가</span>';
-        if (!canData('yield')) return '<span class="muted">비공개</span>';
-        const tone = d.level === 'risk' ? 'tag-red' : d.level === 'watch' ? 'tag-amber' : 'tag-green';
-        return `<span class="tag ${tone}">${Math.round(Number(cell.getValue()) || 0)}%</span>`;
-      },
-    },
-    {
-      title: '근거 · 권고 (추정)',
-      field: 'basis',
-      minWidth: 190,
-      widthGrow: 3,
-      headerSort: false,
-      formatter: (cell) => {
-        const d = cell.getData();
-        return `${esc(dash(cell.getValue()))}${d.recommendation ? `<div class="muted">${esc(d.recommendation)}</div>` : ''}`;
-      },
-    },
-  ], [canData]);
-
   /** 「불량 유형 구성 변화」 열 — 늘어난 유형은 오류색, 줄어든 유형은 성공색 */
   const shiftColumns = useMemo(() => {
     const qtyFmt = (digits) => (cell) => {
@@ -183,13 +147,18 @@ export default function AoiPredictionView({
       return `<span class="num">${digits ? fixed(v, digits) : comma(v)}</span>`;
     };
     return [
-      { title: '불량 유형', field: 'defectType', minWidth: 150, widthGrow: 1, formatter: (cell) => `<span class="strong">${esc(dash(cell.getValue()))}</span>` },
-      { title: '기준일', field: 'today', width: 92, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(0) },
-      { title: `${baseWeeks}주 일평균`, field: 'baseAvg', width: 110, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(1) },
+      // 「해석」 열을 뺀 뒤 유형 열이 남은 폭을 전부 먹어 한쪽만 넓어졌습니다.
+      // 숫자 열에도 늘어날 몫(widthGrow)을 나눠 주어 여백이 고르게 퍼지게 합니다.
+      { title: '불량 유형', field: 'defectType', minWidth: 160, widthGrow: 3, formatter: (cell) => `<span class="strong">${esc(dash(cell.getValue()))}</span>` },
+      // 「기준일」 이라는 말은 그 칸이 무엇인지 알려 주지 않습니다 — 날짜를 그대로 답니다
+      { title: shiftBase?.date || '기준일', field: 'today', minWidth: 120, widthGrow: 1, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(0) },
+      { title: `직전 ${baseWeeks}주 일평균`, field: 'baseAvg', minWidth: 140, widthGrow: 1, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt(1) },
       {
-        title: '변화',
+        // 「변화」 만으로는 무엇이 무엇에 견준 것인지 알 수 없습니다
+        title: '일평균 대비 증감률',
         field: 'change',
-        width: 92,
+        minWidth: 110,
+        widthGrow: 1,
         hozAlign: 'right',
         headerHozAlign: 'right',
         sorter: 'number',
@@ -200,9 +169,8 @@ export default function AoiPredictionView({
           return `<span class="num" style="font-weight:600;color:${color}">${none ? '—' : signed(v, 1, '%')}</span>`;
         },
       },
-      { title: '해석', field: 'interpretation', minWidth: 220, widthGrow: 2, headerSort: false, formatter: (cell) => esc(dash(cell.getValue())) },
     ];
-  }, [canData, baseWeeks, theme]);
+  }, [canData, baseWeeks, shiftBase, theme]);
 
   return (
     <View>
@@ -217,25 +185,24 @@ export default function AoiPredictionView({
         }
       />
 
-      {/* ── 1. 불량 목록 — 한 행 전체. 행을 누르면 모달(요구 7) ── */}
-      {defects ? <AoiDefectSection {...defects} onRowSelect={openDefectModal} /> : null}
+      {/* 조회 조건 — 화면 전체에 걸리므로 맨 앞에 둡니다 */}
+      {defects ? <AoiDateFilter {...defects} /> : null}
+
+      {/* ── 1. 덕반장 AI AOI 분석 — 첫 카드. 표 대신 문장으로, 견줄 게 많으면 표도 함께 ── */}
+      <AoiAgentAnalysisCard
+        loading={loading}
+        lotRisk={lotRisk}
+        lotRiskPage={lotRiskPage}
+        lotRiskMeta={lotRiskMeta}
+        lotPaging={lotPaging}
+        lotPageSizes={lotPageSizes}
+        threshold={threshold}
+        thresholdText={thresholdText}
+      />
       <Gap />
 
-      {/* ── 출하 전 위험 LOT — 한 행 전체 + 쪽 나눔(요구 3) ── */}
-      <Card
-        title="출하 전 위험 LOT"
-        sub={threshold == null ? 'LRR 발생 확률은 임계 기준이 있어야 산출됩니다 · 최근 LOT 불량률 순' : `고객사 LRR 발생 확률 추정 · 임계 ${thresholdText} 대비 초과 정도로 근사`}
-        tight
-        right={<Badge>{`${comma(lotRisk.length)}건`}</Badge>}
-      >
-        <TabulatorGrid
-          columns={lotColumns}
-          rows={lotRiskPage}
-          headerFilter={false}
-          emptyText="최근 출하 LOT 실적이 없습니다."
-        />
-        <Pagination meta={lotRiskMeta} {...lotPaging.bind} sizes={lotPageSizes} />
-      </Card>
+      {/* ── 2. 불량 목록 — 한 행 전체. 행을 누르면 모달(요구 7) ── */}
+      {defects ? <AoiDefectSection {...defects} onRowSelect={openDefectModal} /> : null}
       <Gap />
 
       {/* ── 3. 남은 분석 — 추이 밴드 · 불량 유형 구성 변화 (나머지 추정 블록은 제거) ── */}
@@ -257,14 +224,20 @@ export default function AoiPredictionView({
               </View>
             }
           >
-            {bandSeries.length ? (
-              <>
-                {/* 시간 단위 점이 많아(실측 + 추정 구간) 점 간격을 좁혀 가로 스크롤 없이 전체를 보입니다 */}
-                <LineChart labels={bandLabels} series={bandSeries} target={threshold ?? undefined} unit="%" height={240} minPointWidth={16} />
-                <Text style={[s.textXs, { marginTop: 2 }]}>
-                  {`▼ ${splitLabel ?? '—'} 기준 — 왼쪽은 실측, 오른쪽(+1h~+${hz}h)은 추정 구간입니다 · 점선은 추정 중앙값과 95% 신뢰 밴드`}
-                </Text>
-              </>
+            {band?.labels?.length ? (
+              // 밴드는 선 두 개가 아니라 **면**으로 그려야 읽힙니다 — BandChart 가 그 일을 합니다.
+              // 실측·추정 경계도 글이 아니라 그림 안에 세로선과 바탕 틴트로 들어갑니다.
+              <BandChart
+                labels={band.labels}
+                actual={band.actual}
+                estimated={band.estimated}
+                bandHigh={band.bandHigh}
+                bandLow={band.bandLow}
+                splitIndex={band.splitIndex}
+                threshold={threshold ?? undefined}
+                unit="%"
+                height={260}
+              />
             ) : (
               <EmptyState text="추이를 그릴 판정 실적이 없습니다." />
             )}
@@ -274,8 +247,20 @@ export default function AoiPredictionView({
           </Card>
           <Gap />
 
-          <Card title="불량 유형 구성 변화" sub={`${lastDataDate()} vs 직전 ${baseWeeks}주 일평균 · 불량 건수 기준`} tight>
-            <TabulatorGrid columns={shiftColumns} rows={shift} emptyText="비교할 불량 유형 실적이 없습니다." />
+          <Card
+            title="불량 유형 구성 변화"
+            sub={shiftBase
+              ? `${shiftBase.date} vs 직전 ${shiftBase.weeks}주(${shiftBase.from} ~ ${shiftBase.to}) 일평균 · 불량 건수 기준`
+              : `${lastDataDate()} vs 직전 ${baseWeeks}주 일평균 · 불량 건수 기준`}
+            tight
+          >
+            <TabulatorGrid
+              columns={shiftColumns}
+              rows={shift}
+              pageSize={SHIFT_PAGE_SIZE}
+              bordered
+              emptyText="비교할 불량 유형 실적이 없습니다."
+            />
           </Card>
         </>
       )}

@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 
 import * as native from '../charts';
 
+import BandChartD3 from './BandChart';
 import BarChartD3 from './BarChart';
 import DonutChartD3 from './DonutChart';
 import DotPlotD3 from './DotPlot';
@@ -34,5 +35,7 @@ export const HeatMap = web ? HeatMapD3 : native.HeatMap;
 export const Gauge = web ? GaugeD3 : native.Gauge;
 export const DonutChart = web ? DonutChartD3 : native.DonutChart;
 export const ParetoChart = ParetoChartD3;
+/** 추정 밴드 — 웹 전용(네이티브 대응 없음) */
+export const BandChart = BandChartD3;
 
 export { num, isNum, withValues, ChartEmpty } from '../charts/chartData';

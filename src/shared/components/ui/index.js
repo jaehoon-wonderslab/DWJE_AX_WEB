@@ -28,3 +28,5 @@ export { Field, TextField, TextAreaField, SelectField, DateField, PasswordField,
 export { openFormModal, openConfirmModal } from './FormModal';
 export { ToastHost, ModalHost, DrawerHost } from './Overlays';
 export { default as GlobalApiSpinner } from './GlobalApiSpinner';
+
+export { default as SparkleSpinner } from './SparkleSpinner';

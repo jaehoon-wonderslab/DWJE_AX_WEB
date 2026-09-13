@@ -18,7 +18,9 @@ import { useTheme } from '@shared/theme/useTheme';
 import { ChartEmpty, num } from '../charts/chartData';
 import { FONT, tokens } from './d3Theme';
 import Tooltip from './Tooltip';
-import { labelStride, useChartSize } from './useChartSize';
+import { useChartSize } from './useChartSize';
+
+import { axisLabelWidth } from './axisLabelWidth';
 
 const PAD = { l: 38, r: 12, t: 14, b: 24 };
 
@@ -28,9 +30,8 @@ const VALUE_LABEL_MIN_PX = 42;
 export default function LineChart({
   labels = [], series = [], height = 170, min, max, target, unit = '', showLegend = true,
   /**
-   * 점 하나가 차지하는 최소 폭(px). 이 값 × 점 개수가 카드보다 넓으면 가로로 스크롤됩니다.
-   * 기본 44 는 값 라벨이 겹치지 않는 간격입니다 — 시간 단위처럼 점이 많고 **전체 모양을 한눈에** 봐야 하는
-   * 그래프는 더 작게 넘겨(예 26) 스크롤 없이 그립니다.
+   * 점 하나가 차지하는 최소 폭(px). 축 글자가 더 길면 글자에 맞춰 늘립니다.
+   * 전체 너비가 카드보다 넓으면 가로로 스크롤됩니다.
    */
   minPointWidth = 44,
 }) {
@@ -46,7 +47,7 @@ export default function LineChart({
   }));
   const all = lines.flatMap((se) => se.points.map((p) => p.v)).filter((v) => v !== null);
 
-  const minPointW = minPointWidth;
+  const minPointW = axisLabelWidth(labels, FONT.axis, minPointWidth);
   const contentWidth = Math.max(width || 300, labels.length * minPointW + PAD.l + PAD.r);
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function LineChart({
     const lo = min !== undefined ? min : Math.min(...all, num(target) ?? Infinity);
     const hi = max !== undefined ? max : Math.max(...all, num(target) ?? -Infinity);
 
-    const x = scalePoint().domain(labels.map((_, i) => i)).range([PAD.l, PAD.l + iw]);
+    const x = scalePoint().domain(labels.map((_, i) => i)).range([PAD.l, PAD.l + iw]).padding(0.5);
     const y = scaleLinear().domain([lo, hi === lo ? lo + 1 : hi]).range([PAD.t + ih, PAD.t]);
 
     const svg = select(svgRef.current);
@@ -123,7 +124,7 @@ export default function LineChart({
        * 시간 단위 추이처럼 점이 수십 개면 모든 점에 값을 쓰면 글자가 서로 겹쳐 오히려 못 읽습니다.
        * x 축 라벨과 같은 방식으로 stride 를 잡고, 마지막 점은 언제나 씁니다(현재값이라 가장 중요합니다).
        */
-      const stepPx = iw / Math.max(labels.length - 1, 1);
+      const stepPx = x.step();
       const valueStride = Math.max(1, Math.ceil(VALUE_LABEL_MIN_PX / Math.max(stepPx, 1)));
       const lastIdx = se.points.filter(defined).reduce((m, d) => Math.max(m, d.i), -1);
       se.points.filter(defined).filter((d) => d.i % valueStride === 0 || d.i === lastIdx).forEach((d) => {
@@ -135,12 +136,10 @@ export default function LineChart({
       });
     });
 
-    // x 라벨 — 좁으면 솎아 냅니다
-    const stride = labelStride(labels.length, iw);
+    // 글자 길이만큼 간격을 확보하여 모든 시점을 표시합니다. 양끝에도 반 칸의 여백을 둡니다.
     labels.forEach((l, i) => {
-      if (i % stride !== 0) return;
       g.append('text')
-        .attr('x', x(i)).attr('y', height - 7).attr('text-anchor', 'middle')
+        .attr('class', 'x-axis-label').attr('x', x(i)).attr('y', height - 7).attr('text-anchor', 'middle')
         .attr('font-size', FONT.axis).attr('fill', c.axis)
         .text(String(l));
     });
@@ -171,8 +170,8 @@ export default function LineChart({
 
   return (
     <View>
-      <div ref={ref} style={{ width: '100%', position: 'relative' }}>
-        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehaviorX: 'contain' }}>
+      <div ref={ref} style={{ width: '100%', minWidth: 0, position: 'relative' }}>
+        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
           <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
         </div>
         <Tooltip {...(hover || {})} />

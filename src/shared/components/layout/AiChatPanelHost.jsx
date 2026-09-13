@@ -1,5 +1,5 @@
 /**
- * 덕파트장 AI 레일 패널 — 업무 화면 옆에서 함께 쓰는 AI 채팅
+ * 덕반장 AI 레일 패널 — 업무 화면 옆에서 함께 쓰는 AI 채팅
  *
  * 기존 자연어 질의 컨트롤러와 응답 렌더러를 그대로 사용해 별도 데모 기능을 만들지 않습니다.
  *  · 본문 패널 오른쪽에 떠 있는 흰 패널. 폭은 레이아웃의 드래그 핸들로 조절(최소 320px · 최대 창 폭의 40%).
@@ -37,12 +37,12 @@ export default function AiChatPanelHost({ width = 400 }) {
   ];
 
   return (
-    <View accessibilityLabel="덕파트장 AI 레일 패널" style={[s.panel, { width, minWidth: 320, flexShrink: 0 }]}>
+    <View accessibilityLabel="덕반장 AI 레일 패널" style={[s.panel, { width, minWidth: 320, flexShrink: 0 }]}>
       {/* 고정 헤더 — 세션 캡슐 · 맥락 · 새 대화 · 닫기 */}
       <View style={{ minHeight: theme.metrics.topbarHeight, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: theme.divider, backgroundColor: theme.color.card }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, backgroundColor: theme.color.successTint }}>
           <AiLiveDot size={14} />
-          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, fontWeight: '500', color: theme.color.foreground }}>덕파트장 AI</Text>
+          <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, fontWeight: '500', color: theme.color.foreground }}>덕반장 AI</Text>
         </View>
         <Text style={[s.caption, { flex: 1, minWidth: 40 }]} numberOfLines={1}>{contextName}</Text>
         {chat.messages.length ? (

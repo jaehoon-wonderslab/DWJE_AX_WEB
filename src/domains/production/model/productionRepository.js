@@ -82,11 +82,14 @@ export async function loadModelOptions() {
  */
 function equipmentRows(rows, date) {
   return rows.map((x) => {
-    const eqpt = x.eqptNm ? `${x.eqptCd} (${x.eqptNm})` : x.eqptCd;
-    const proc = x.processNm || x.processId || '';
+    const eqpt = x.eqptNm || '';
+    const plant = x.plantNm || '';
+    const proc = (x.processNm || x.processId || '').replace(/\(([^()]*)\)/g, (full, name) =>
+      plant && name.trim() === plant.trim() ? '' : full).trim();
     return {
       date: date || '',
-      period: eqpt,
+      period: eqpt || x.eqptCd || '',
+      equipCd: x.eqptCd || '',
       productNm: x.productNm || x.product || '',
       parentProductNm: x.product || '',
       plantNm: x.plantNm || '',

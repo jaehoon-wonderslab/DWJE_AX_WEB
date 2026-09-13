@@ -13,7 +13,8 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
-import { fixed } from '@shared/utils/formatUtil';
+import { lastDataDate } from '@shared/stores/useAppStore';
+import { fixed, shiftDate } from '@shared/utils/formatUtil';
 import { loadProcessOptions } from '@domains/common/model/dataRangeRepository';
 import { loadAoiPrediction, recalculatePrediction } from '../model/qualityRepository';
 
@@ -72,6 +73,17 @@ export function etaText(etaHours, { current, threshold }) {
   const h = Number(etaHours);
   if (h < 1) return `약 ${Math.max(1, Math.round(h * 60))}분 후`;
   return `약 ${fixed(h, 1)}시간 후`;
+}
+
+/** 기준일(마지막 실적일)과 그 직전 N주 구간 — 서버 정의와 같은 식입니다 */
+function shiftBase(weeks) {
+  const date = lastDataDate();
+  return {
+    date,
+    weeks,
+    from: shiftDate(date, -7 * weeks),
+    to: shiftDate(date, -1),
+  };
 }
 
 export function useAoiPredictionController() {
@@ -199,7 +211,15 @@ export function useAoiPredictionController() {
     driftRange,
     driftOutCnt,
     shift: data?.shift?.items || [],
-    baseWeeks: data?.shift?.baseWeeks ?? 4,
+    baseWeeks: data?.shift?.baseWeeks ?? 1,
+    /**
+     * 「불량 유형 구성 변화」의 기준일과 비교 구간.
+     *
+     * 서버는 `[기준일 − baseWeeks주, 기준일)` 을 씁니다
+     * (QualityRepository.findDefectTypeShift 의 baseFrom = date.minusWeeks(n), 상한은 dayStart).
+     * 화면이 제 나름대로 구간을 적으면 서버 계산과 어긋나므로 같은 식으로 맞춥니다.
+     */
+    shiftBase: shiftBase(data?.shift?.baseWeeks ?? 1),
     basis: data?.basis,
     filters: { target, horizon, trainPeriod },
     processOptions,

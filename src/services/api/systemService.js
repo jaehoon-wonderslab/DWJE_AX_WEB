@@ -41,7 +41,7 @@ export function getSystemUsers(params) {
  * 계정 등록
  *
  * `POST /api/v1/system/users`
- * @param {object} params empNo, name, deptId, pos, state, switchable
+ * @param {object} params empNo, name, deptId, pos, state, switchable, extraMenuIds
  * @returns {Promise<object>} empNo
  * @remarks 검증: 필수값·아이디 중복. 부서 권한 자동 상속
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
@@ -54,7 +54,7 @@ export function postSystemUsers(params) {
  * 계정 수정
  *
  * `PUT /api/v1/system/users/{empNo}`
- * @param {object} params empNo, name, deptId, pos, state, switchable
+ * @param {object} params empNo, name, deptId, pos, state, switchable, extraMenuIds
  * @returns {Promise<object>} success
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */

@@ -21,9 +21,28 @@ export function loadDefectStatus({ from, to, processId, defectTypeCd }) {
  * 이 조회만 유독 느립니다(기간에 따라 60초를 넘고 500 으로 끝나기도 합니다).
  * 같은 묶음에 두면 요약·유형 표가 다 왔는데도 화면 전체가 로딩에 멈춰
  * 사용자는 고장으로 봅니다. 카드 하나만 늦게 채우도록 떼어 냈습니다.
+ *
+ * `topN` 은 서버가 1~100 으로 자릅니다. 화면에서 '상위 5개' 표기를 없애면서
+ * 기본값 대신 넉넉히 받아 설비 전체를 트리로 폅니다.
  */
-export function loadDefectByLine({ from, to, processId, defectTypeCd }) {
-  return unwrap(qualityService.getQualityDefectsByLine({ from, to, processId, defectTypeCd, topN: 5 }), { items: [] });
+export function loadDefectByLine({ from, to, processId, defectTypeCd, topN = 5 }) {
+  return unwrap(qualityService.getQualityDefectsByLine({ from, to, processId, defectTypeCd, topN }), { items: [] });
+}
+
+/**
+ * 불량 상세 분해 트리 — 공정 > 제품 > 설비 > 불량 유형
+ *
+ * 한 번에 전량을 받습니다. 서버가 실측으로 정한 방식입니다
+ * (30일 노드 2,744개 · gzip 40KB · 2.1초. 지연 로딩은 공정×제품만큼 호출이 늘고
+ *  유형 안분이 어차피 라벨 원장 전체를 다시 읽어 서버 비용이 줄지 않습니다).
+ *
+ * 기간이 길어지면 비용이 기간에 비례합니다(90일 7초 · 365일 13초).
+ * 그런 화면이 필요해지면 `levels` 에서 defect 를 빼고 받으면 3배 빠릅니다.
+ *
+ * @param {object} args from, to, processId, levels
+ */
+export function loadDefectTree({ from, to, processId, levels }) {
+  return unwrap(qualityService.getQualityDefectsTree({ from, to, processId, levels }), { items: [], totals: null });
 }
 
 /* ───────── QC-02 AOI 판정 분석·예측 ───────── */
@@ -48,7 +67,7 @@ export function loadAoiPrediction({ target, horizon, trainPeriod }) {
     summary: qualityService.getQualityAoiPredictionSummary(params),
     band: qualityService.getQualityAoiPredictionTrendBand({ target: scope, horizon }),
     lotRisk: qualityService.getQualityAoiPredictionLotRisk({ target: scope }),
-    shift: qualityService.getQualityAoiDefectTypeShift({ date: lastDataDate(), baseWeeks: 4 }),
+    shift: qualityService.getQualityAoiDefectTypeShift({ date: lastDataDate(), baseWeeks: 1 }),
     basis: qualityService.getQualityAoiPredictionBasis({}),
   });
 }
@@ -69,3 +88,7 @@ export const recalculatePrediction = ({ target, horizon, trainPeriod }) =>
  * 보고서 양식 관리(QC-04)는 품질 보고서의 하위 화면이고 그 양식만 다루므로 함께 걷어냈습니다.
  * 서버 API 도 제거 요청했습니다.
  */
+
+export function loadDefectByProduct({ from, to }) {
+  return unwrap(qualityService.getQualityDefectsByProduct({ from, to }), { items: [] });
+}

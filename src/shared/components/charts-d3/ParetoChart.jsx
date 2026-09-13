@@ -11,14 +11,27 @@ import { scaleBand, scaleLinear } from 'd3-scale';
 import { line as d3line } from 'd3-shape';
 import { useTheme } from '@shared/theme/useTheme';
 import { ChartEmpty, num } from '../charts/chartData';
-import { FONT, tokens } from './d3Theme';
+import { tokens } from './d3Theme';
 import Tooltip from './Tooltip';
 import { useChartSize } from './useChartSize';
 
-const PAD = { l: 54, r: 46, t: 26, b: 34 };
-const MIN_COL_WIDTH = 58;
+import { axisLabelWidth } from './axisLabelWidth';
 
-export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
+const PAD = { l: 54, r: 66, t: 38, b: 62 };
+
+/**
+ * 좌측 여백 — 눈금 숫자가 길면 넓힙니다.
+ *
+ * 고정 54px 이면 백만 단위(예: 1,000,000)에서 앞자리가 잘려 「000,000」 처럼 보입니다.
+ * 가장 큰 눈금의 글자 폭을 어림해 그만큼 확보합니다. (숫자·쉼표는 대략 0.62em)
+ */
+function leftPadFor(maxValue, fontSize) {
+  const label = Math.round(maxValue).toLocaleString();
+  return Math.max(PAD.l, Math.ceil(label.length * fontSize * 0.62) + 14);
+}
+
+
+export default function ParetoChart({ data = [], height = 210, unit = 'EA', fontSize = 15 }) {
   const theme = useTheme();
   const { ref, width: containerWidth } = useChartSize(height);
   const svgRef = useRef(null);
@@ -48,18 +61,20 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
   const empty = !items.length || total === 0;
 
   // 가로 스크롤을 위한 콘텐츠 너비 계산
-  const contentWidth = Math.max(containerWidth || 500, items.length * MIN_COL_WIDTH + PAD.l + PAD.r);
+  const contentWidth = Math.max(containerWidth || 500, items.length * axisLabelWidth(items.flatMap(d => [d.l, d.v.toLocaleString()]), fontSize, 110) + leftPadFor(Math.max(1, ...items.map(d => d.v)) * 1.15, fontSize) + PAD.r);
 
   useEffect(() => {
     if (!contentWidth || empty) return;
 
-    const iw = contentWidth - PAD.l - PAD.r;
     const ih = height - PAD.t - PAD.b;
     const c = tokens(theme);
 
     const maxVal = Math.max(...items.map((d) => d.v)) * 1.15 || 1;
+    // 좌측 여백은 눈금 숫자 길이를 따릅니다 — 그림 폭은 그만큼 줄어듭니다
+    const padL = leftPadFor(maxVal, fontSize);
+    const iw = contentWidth - padL - PAD.r;
 
-    const x = scaleBand().domain(items.map((_, i) => i)).range([PAD.l, PAD.l + iw]).padding(0.32);
+    const x = scaleBand().domain(items.map((_, i) => i)).range([padL, padL + iw]).padding(0.32);
     const yLeft = scaleLinear().domain([0, maxVal]).nice().range([PAD.t + ih, PAD.t]);
     const yRight = scaleLinear().domain([0, 100]).range([PAD.t + ih, PAD.t]);
 
@@ -70,25 +85,25 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
     // 1. 그리드 라인 & 좌측 Y축 (수량)
     yLeft.ticks(4).forEach((t) => {
       g.append('line')
-        .attr('x1', PAD.l).attr('x2', PAD.l + iw).attr('y1', yLeft(t)).attr('y2', yLeft(t))
+        .attr('x1', padL).attr('x2', padL + iw).attr('y1', yLeft(t)).attr('y2', yLeft(t))
         .attr('stroke', c.grid).attr('stroke-dasharray', '3 3').attr('stroke-width', 1);
       g.append('text')
-        .attr('x', PAD.l - 6).attr('y', yLeft(t) + 3).attr('text-anchor', 'end')
-        .attr('font-size', FONT.axis).attr('fill', c.axis)
+        .attr('x', padL - 6).attr('y', yLeft(t) + 3).attr('text-anchor', 'end')
+        .attr('font-size', fontSize).attr('fill', c.axis)
         .text(Math.round(t).toLocaleString());
     });
 
     // 좌측 Y축 라벨
     g.append('text')
-      .attr('x', PAD.l - 6).attr('y', PAD.t - 10).attr('text-anchor', 'end')
-      .attr('font-size', 14).attr('fill', c.axis)
+      .attr('x', padL - 6).attr('y', PAD.t - 10).attr('text-anchor', 'end')
+      .attr('font-size', fontSize).attr('fill', c.axis)
       .text(`(${unit})`);
 
     // 2. 우측 Y축 (누적 %)
     [0, 50, 80, 100].forEach((p) => {
       g.append('text')
-        .attr('x', PAD.l + iw + 6).attr('y', yRight(p) + 3).attr('text-anchor', 'start')
-        .attr('font-size', FONT.axis)
+        .attr('x', padL + iw + 6).attr('y', yRight(p) + 3).attr('text-anchor', 'start')
+        .attr('font-size', fontSize)
         .attr('fill', p === 80 ? '#ef4444' : c.axis)
         .attr('font-weight', p === 80 ? 'bold' : 'normal')
         .text(`${p}%`);
@@ -97,11 +112,11 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
     // 3. 80% 파레토 관리 한계선 (빨간색 점선)
     const y80 = yRight(80);
     g.append('line')
-      .attr('x1', PAD.l).attr('x2', PAD.l + iw).attr('y1', y80).attr('y2', y80)
+      .attr('x1', padL).attr('x2', padL + iw).attr('y1', y80).attr('y2', y80)
       .attr('stroke', '#ef4444').attr('stroke-dasharray', '4 3').attr('stroke-width', 1.4);
     g.append('text')
-      .attr('x', PAD.l + iw - 4).attr('y', y80 - 4).attr('text-anchor', 'end')
-      .attr('font-size', 13.5).attr('fill', '#ef4444').attr('font-weight', '600')
+      .attr('x', padL + iw - 4).attr('y', y80 - 4).attr('text-anchor', 'end')
+      .attr('font-size', fontSize).attr('fill', '#ef4444').attr('font-weight', '600')
       .text('80% 집중관리선');
 
     // 4. 세로 막대 (불량 수량)
@@ -122,21 +137,21 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       // 막대 상단 수량 값 라벨 (항상 표시 + halo 효과)
       g.append('text')
         .attr('x', cx).attr('y', yLeft(d.v) - 5).attr('text-anchor', 'middle')
-        .attr('font-size', 14.5).attr('font-weight', '600').attr('fill', c.text)
+        .attr('font-size', fontSize).attr('font-weight', '600').attr('fill', c.text)
         .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
         .text(d.v.toLocaleString());
 
       // 하단 x축 라벨 (순위 + 이름)
-      const labelText = d.l.length > 5 ? `${d.l.slice(0, 4)}…` : d.l;
+      const labelText = d.l;
       g.append('text')
-        .attr('x', cx).attr('y', base + 14).attr('text-anchor', 'middle')
-        .attr('font-size', 15).attr('font-weight', isTop3 ? 'bold' : 'normal')
+        .attr('class', 'x-axis-label').attr('x', cx).attr('y', base + 21).attr('text-anchor', 'middle')
+        .attr('font-size', fontSize).attr('font-weight', isTop3 ? 'bold' : 'normal')
         .attr('fill', isTop3 ? (theme.isDark ? '#38bdf8' : '#0284c7') : c.axis)
         .text(labelText);
 
       g.append('text')
-        .attr('x', cx).attr('y', base + 26).attr('text-anchor', 'middle')
-        .attr('font-size', 13.5).attr('fill', c.axis)
+        .attr('x', cx).attr('y', base + 42).attr('text-anchor', 'middle')
+        .attr('font-size', fontSize).attr('fill', c.axis)
         .text(`${d.share}%`);
     });
 
@@ -162,7 +177,7 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
       // 누적 % 수치 라벨 (halo 효과)
       g.append('text')
         .attr('x', cx).attr('y', cy - 7).attr('text-anchor', 'middle')
-        .attr('font-size', 13.5).attr('font-weight', 'bold').attr('fill', '#ea580c')
+        .attr('font-size', fontSize).attr('font-weight', 'bold').attr('fill', '#ea580c')
         .attr('stroke', theme.isDark ? '#0f172a' : '#ffffff').attr('stroke-width', 2.5).attr('paint-order', 'stroke')
         .text(`${d.cumShare}%`);
     });
@@ -185,18 +200,19 @@ export default function ParetoChart({ data = [], height = 210, unit = 'EA' }) {
         })
         .on('mouseleave', () => setHover(null));
     });
-  }, [items, contentWidth, height, theme, unit, empty]);
+  }, [items, contentWidth, height, theme, unit, empty, fontSize]);
 
   if (empty) return <ChartEmpty height={height} />;
 
   return (
-    <div ref={ref} style={{ width: '100%', position: 'relative' }}>
+    <div ref={ref} style={{ width: '100%', minWidth: 0, position: 'relative' }}>
       {/* 가로 스크롤 컨테이너 */}
       <div
         style={{
           width: '100%',
           overflowX: contentWidth > (containerWidth || 500) ? 'auto' : 'hidden',
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x pan-y',
         }}
       >
         <svg

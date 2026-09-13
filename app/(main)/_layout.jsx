@@ -2,10 +2,10 @@
  * 업무 화면 공통 레이아웃 (CM-01 · CM-03) — 떠 있는 패널 셸
  *
  * 웜 그레이 캔버스 위에 흰 패널이 16px 여백을 두고 놓입니다.
- *   [사이드바 패널] [본문 패널: 상단 헤더 + 화면] [드래그 핸들] [덕파트장 AI 레일 패널]
+ *   [사이드바 패널] [본문 패널: 상단 헤더 + 화면] [드래그 핸들] [덕반장 AI 레일 패널]
  * 셸 자체는 스크롤하지 않고 패널마다 따로 스크롤합니다.
  *
- * 덕파트장 AI 레일 (2026-09-10)
+ * 덕반장 AI 레일 (2026-09-10)
  *  · 자연어 질의 화면(/ai/chat)을 뺀 모든 화면의 오른쪽에 기본으로 열려 있습니다.
  *  · 본문과 레일 사이 핸들을 끌어 폭을 바꿉니다 — 최소 320px, 최대 창 폭의 40%(본문은 480px 이상 남김). 폭은 브라우저에 기억.
  *  · 닫으면 본문 패널 오른쪽 가장자리에 세로 단추가 붙어 다시 열 수 있습니다(단추는 고정, 스크롤 없음).
@@ -67,7 +67,7 @@ export default function MainLayout() {
   // 권한 없는 화면으로 들어오면 기본 화면으로 돌려보냅니다
   useEffect(() => {
     if (!allowed && (hubGroup || currentScreenId !== HOME_SCREEN_ID) && menuPerms?.length) {
-      toast('접근 권한이 없는 화면입니다 — 덕파트장 AI 화면으로 이동합니다');
+      toast('접근 권한이 없는 화면입니다 — 덕반장 AI 화면으로 이동합니다');
       goToScreen(HOME_SCREEN_ID);
     }
   }, [allowed, currentScreenId, hubGroup, menuPerms, goToScreen, toast]);
@@ -104,7 +104,7 @@ export default function MainLayout() {
 
       {/* 본문 패널 */}
       <View style={[s.panel, s.main]}>
-        <Topbar chatAvailable={railAvailable} />
+        <Topbar />
         <View style={{ flex: 1, minHeight: 0, flexDirection: 'row' }}>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             {!allowed ? (
@@ -128,7 +128,7 @@ export default function MainLayout() {
             <Pressable
               onPress={openAiChat}
               accessibilityRole="button"
-              accessibilityLabel="덕파트장 AI 열기"
+              accessibilityLabel="덕반장 AI 열기"
               style={({ hovered }) => ({
                 width: RAIL_TAB_WIDTH,
                 alignSelf: 'stretch',
@@ -145,7 +145,7 @@ export default function MainLayout() {
               </View>
               {/* 세로 글자 — 한 글자씩 쌓아 어느 브라우저에서도 같은 모양 */}
               <View style={{ alignItems: 'center', gap: 1 }}>
-                {['덕', '파', '트', '장', 'AI'].map((ch) => (
+                {['덕', '반', '장', 'AI'].map((ch) => (
                   <Text key={ch} style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, lineHeight: 14, fontWeight: '600', letterSpacing: 0.2, color: theme.color.primary }}>{ch}</Text>
                 ))}
               </View>
@@ -155,7 +155,7 @@ export default function MainLayout() {
         </View>
       </View>
 
-      {/* 드래그 핸들 + 덕파트장 AI 레일 패널 — 본문 옆에 따로 떠 있습니다 */}
+      {/* 드래그 핸들 + 덕반장 AI 레일 패널 — 본문 옆에 따로 떠 있습니다 */}
       {chatOpen ? (
         <>
           <View

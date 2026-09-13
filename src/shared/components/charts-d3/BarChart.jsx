@@ -12,7 +12,9 @@ import { ChartEmpty, num } from '../charts/chartData';
 import { FONT, tokens } from './d3Theme';
 import Tooltip from './Tooltip';
 import { motion, useDataChanged } from './useDataChanged';
-import { labelStride, useChartSize } from './useChartSize';
+import { useChartSize } from './useChartSize';
+
+import { axisLabelWidth } from './axisLabelWidth';
 
 const PAD = { l: 42, r: 16, t: 16, b: 28 };
 const MAX_BAR = 32;
@@ -36,7 +38,7 @@ export default function BarChart({
   const empty = !bars.length || bars.every((d) => d.v === null && d.v2 === null);
 
   const isPercent = unit === '%';
-  const minColW = isPercent || bars.some((d) => String(d.l).length > 6) ? 68 : 40;
+  const minColW = axisLabelWidth(bars.map(d => d.l), FONT.axis, isPercent ? 88 : 72);
   const contentWidth = Math.max(width || 300, bars.length * minColW + PAD.l + PAD.r);
 
   useEffect(() => {
@@ -140,23 +142,13 @@ export default function BarChart({
       }
     });
 
-    // x 라벨 — 먼저 솎아 내고, 그래도 좁으면 눕힙니다.
-    // 눕히기만 하면 라벨이 서로 겹쳐 읽을 수 없습니다 (설비 455대에서 454번 겹쳤습니다).
-    const stride = labelStride(bars.length, iw);
-    const shown = bars.filter((_, i) => i % stride === 0);
-    const gap = iw / Math.max(1, shown.length);
-    const rotate = gap < 44;
+    // 모든 항목을 표시하고 글자 길이만큼 너비를 확보합니다. 초과분은 가로 스크롤합니다.
     bars.forEach((d, i) => {
-      if (i % stride !== 0) return;
       const cx = x(i) + x.bandwidth() / 2;
-      const t = g.append('text')
+      g.append('text').attr('class', 'x-axis-label')
         .attr('font-size', FONT.axis).attr('fill', c.axis)
+        .attr('x', cx).attr('y', height - 8).attr('text-anchor', 'middle')
         .text(String(d.l));
-      if (rotate) {
-        t.attr('transform', `translate(${cx},${height - 10}) rotate(-45)`).attr('text-anchor', 'end');
-      } else {
-        t.attr('x', cx).attr('y', height - 8).attr('text-anchor', 'middle');
-      }
     });
 
     // 툴팁
@@ -181,7 +173,7 @@ export default function BarChart({
   if (empty) return <ChartEmpty height={height} />;
 
   return (
-    <div ref={ref} style={{ width: '100%', position: 'relative' }}>
+    <div ref={ref} style={{ width: '100%', minWidth: 0, position: 'relative' }}>
       <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
         <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="막대 그래프" style={{ cursor: 'default', display: 'block' }} />
       </div>

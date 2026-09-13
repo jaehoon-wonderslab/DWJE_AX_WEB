@@ -16,7 +16,7 @@ export const MENU = [
   {
     group: 'AI 어시스턴트',
     solo: true,
-    items: [{ id: 'ai-chat', name: '덕파트장 AI', path: '/ai/chat', tag: '신규' }],
+    items: [{ id: 'ai-chat', name: '덕반장 AI', path: '/ai/chat', tag: '신규' }],
   },
   {
     group: '대시보드',

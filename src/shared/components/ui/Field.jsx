@@ -83,7 +83,7 @@ export function TextAreaField({ label, value, onChangeText, placeholder, rows = 
  *
  * @param {object} props options 는 문자열 배열이거나 [{value,label}] 배열
  */
-export function SelectField({ label, value, options = [], onChange, style, inputStyle, required, full, error, hint, placeholder = '선택' }) {
+export function SelectField({ label, value, options = [], onChange, style, inputStyle, required, full, error, hint, placeholder = '선택', nativeSelect = false }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -91,7 +91,20 @@ export function SelectField({ label, value, options = [], onChange, style, input
   const items = (options || [])
     .filter((o) => o !== null && o !== undefined)
     .map((o) => (typeof o === 'object' && o !== null ? o : { value: String(o), label: String(o) }));
-  const current = items.find((o) => o && o.value === value);
+  const current = items.find((o) => o && String(o.value) === String(value));
+  // 모달 ScrollView 안의 absolute 팝오버는 잘리거나 백드롭이 선택을 가로챕니다.
+  // 웹 폼에서는 브라우저의 기본 선택창을 사용하여 스크롤/키보드 선택도 보장합니다.
+  if (nativeSelect && Platform.OS === 'web') {
+    return <Field label={label} style={style} required={required} full={full} error={error} hint={hint}>
+      <select aria-label={label || placeholder} value={value == null ? '' : String(value)}
+        onChange={event => onChange?.(items.find(item => String(item.value) === event.target.value)?.value)}
+        style={{ width: '100%', minWidth: 0, minHeight: 38, padding: '8px 12px', font: 'inherit', fontSize: 16,
+          borderRadius: 10, border: `1px solid ${theme.hairlineStrong}`, background: theme.color.popover, color: theme.color.foreground }}>
+        {!items.some(item => String(item.value) === String(value ?? '')) && <option value="" disabled>{placeholder}</option>}
+        {items.map(item => <option key={String(item.value)} value={String(item.value)}>{item.label}</option>)}
+      </select>
+    </Field>;
+  }
   const overrideMinWidth = style?.width != null ? { minWidth: 0, width: '100%' } : (style?.minWidth != null ? { minWidth: style.minWidth } : null);
 
   return (
@@ -158,7 +171,7 @@ export function SelectField({ label, value, options = [], onChange, style, input
           >
             <ScrollView style={{ maxHeight: 280 }}>
               {items.map((o) => {
-                const isSelected = o.value === value;
+                const isSelected = String(o.value) === String(value);
                 return (
                   <TouchableOpacity
                     key={String(o.value)}

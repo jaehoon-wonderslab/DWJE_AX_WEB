@@ -5,13 +5,14 @@
  * - Tabulator 6.x 풀 번들 (TabulatorFull) 연동
  * - Shadcn UI 컬러 컨셉 및 모던 미니멀 디자인 (Slate / Zinc 기반)
  * - 행 Hover 하이라이트 (bg-muted/50)
- * - fitColumns 기반 반응형 100% 카드 폭 레이아웃
+ * - 내용에 맞춘 자동 열 너비 및 카드 내부 가로 스크롤
  * - 숫자 정렬 (tabular-nums) 및 맞춤형 포맷터
  */
 import React, { useEffect, useId, useRef } from 'react';
 import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
+import './tabulatorHeaders.css';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed, minutesText } from '@shared/utils/formatUtil';
 
@@ -21,6 +22,8 @@ export default function TabulatorTable({
   style,
 }) {
   const tableContainerRef = useRef(null);
+  const scrollRailRef = useRef(null);
+  const scrollWidthRef = useRef(null);
   const tabulatorInstanceRef = useRef(null);
   const theme = useTheme();
   const tableId = useId().replace(/:/g, '_');
@@ -134,7 +137,7 @@ export default function TabulatorTable({
             indicator = document.createElement('span');
             indicator.className = 'custom-sort-indicator';
             indicator.style.cssText = 'display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; vertical-align: middle; cursor: pointer;';
-            titleEl.appendChild(indicator);
+            titleEl.parentElement.appendChild(indicator);
           }
 
           if (indicator) {
@@ -159,7 +162,10 @@ export default function TabulatorTable({
     // Tabulator 6.x 초기화 (내장 페이징 및 Tree 뷰 활성화)
     const table = new Tabulator(tableContainerRef.current, {
       data: rows,
-      layout: 'fitColumns',
+      layout: 'fitData',
+      layoutColumnsOnNewData: true,
+      columnDefaults: { resizable: 'header' },
+      resizableColumnFit: false,
       responsiveLayout: false,
       placeholder: emptyText,
       dataTree: true,
@@ -180,7 +186,9 @@ export default function TabulatorTable({
           }
         }
       },
-      pagination: true,
+      // 자식 행을 페이지 제한으로 자르지 않고 동일 표에서 세로 스크롤합니다.
+      height: 560,
+      pagination: false,
       paginationMode: 'local',
       paginationSize: 25,
       paginationSizeSelector: [10, 25, 50, 100],
@@ -211,7 +219,6 @@ export default function TabulatorTable({
         {
           title: '일자',
           field: 'date',
-          width: 175,
           minWidth: 165,
           headerHozAlign: 'left',
           hozAlign: 'left',
@@ -251,7 +258,6 @@ export default function TabulatorTable({
         {
           title: '제품명',
           field: 'productNm',
-          width: 140,
           minWidth: 125,
           headerHozAlign: 'left',
           hozAlign: 'left',
@@ -297,73 +303,41 @@ export default function TabulatorTable({
             return `<span style="color: ${colors.mutedText}; font-size:15.5px; font-weight: 500;">전체 (${childCount ? `${childCount}개 품목` : '일자 합계'})</span>`;
           },
         },
-        {
-          title: '공장·공정·설비',
-          field: 'facility',
-          minWidth: 260,
+        ...[
+          { title: '공장', field: 'plantNm', minWidth: 140 },
+          { title: '공정', field: 'processNm', minWidth: 180 },
+          { title: '설비 코드', field: 'equipCd', minWidth: 140 },
+          { title: '설비명', field: 'equipNm', minWidth: 240 },
+        ].map(({ title, field, minWidth }) => ({
+          title,
+          field,
+          minWidth,
           headerHozAlign: 'left',
           hozAlign: 'left',
           headerSort: false,
           sorter: 'string',
           headerFilter: 'input',
-          headerFilterPlaceholder: '공장·공정·설비 검색',
+          headerFilterPlaceholder: `${title} 검색`,
           headerFilterLiveFilter: true,
+          // 하위 설비가 검색되면 일자·제품 부모 행도 함께 유지합니다.
           headerFilterFunc: (headerValue, rowValue, rowData) => {
-            if (!headerValue) return true;
-            const q = String(headerValue).trim().toLowerCase();
-
-            // Depth 3: 설비명, 공정명, 공장명, facility 문자열 검색
-            const fac = String(rowData?.facility || '').toLowerCase();
-            const equip = String(rowData?.equipNm || rowData?.period || '').toLowerCase();
-            const plant = String(rowData?.plantNm || '').toLowerCase();
-            const proc = String(rowData?.processNm || '').toLowerCase();
-            if (fac.includes(q) || equip.includes(q) || plant.includes(q) || proc.includes(q)) return true;
-
-            // Depth 2: 하위 설비(자식) 중 검색어를 포함하는 것이 있으면 표시
-            if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((child) => {
-                const cf = String(child.facility || child.equipNm || child.period || '').toLowerCase();
-                const cp = String(child.plantNm || '').toLowerCase();
-                const cproc = String(child.processNm || '').toLowerCase();
-                if (cf.includes(q) || cp.includes(q) || cproc.includes(q)) return true;
-                // Depth 1인 경우 손자(설비)까지 탐색
-                if (Array.isArray(child._children)) {
-                  return child._children.some((gc) => {
-                    const gf = String(gc.facility || gc.equipNm || gc.period || '').toLowerCase();
-                    const gp = String(gc.plantNm || '').toLowerCase();
-                    const gproc = String(gc.processNm || '').toLowerCase();
-                    return gf.includes(q) || gp.includes(q) || gproc.includes(q);
-                  });
-                }
-                return false;
-              });
-            }
-
-            return false;
+            const query = String(headerValue || '').trim().toLowerCase();
+            if (!query) return true;
+            const matches = (row) => String(row?.[field] || '').toLowerCase().includes(query)
+              || (row?._children || []).some(matches);
+            return matches(rowData);
           },
           formatter: (cell) => {
-            const rowData = cell.getRow().getData();
-            if (rowData.isGrandChild || rowData.depth === 3) {
-              const isPress = (rowData.processNm || '').includes('프레스');
-              const tagColor = isPress ? colors.warn : colors.violet;
-              const tagBg = isPress ? colors.warnBg : colors.violetBg;
-              // 공장을 모르면 **칸을 아예 안 냅니다** — 없는 값을 '제1공장' 으로 채우던 자리입니다.
-              // 작업장 이름에 공장이 적힌 곳만 서버가 채워 줍니다(2026-09-06 기준 620행 중 126행).
-              const plantText = rowData.plantNm || '';
-              const equipText = rowData.equipNm || rowData.period || '—';
-              return `<span data-depth="3" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 400; font-size:15.5px; color: ${colors.rowText};">
-                ${plantText ? `<span style="font-weight: 500; color: ${colors.info}; background: ${colors.infoBg}; padding: 1px 7px; border-radius: 99px; font-size:14px;">${plantText}</span>` : ''}
-                <span style="font-weight: 500; color: ${tagColor}; background: ${tagBg}; padding: 1px 7px; border-radius: 99px; font-size:14px;">${rowData.processNm || '공정'}</span>
-                <span style="font-weight: 500;">${equipText}</span>
-              </span>`;
-            }
-            if (rowData.isChild || rowData.depth === 2) {
-              return `<span style="color: ${colors.mutedText}; font-size:15px; background: ${colors.subtle}; padding: 1px 8px; border-radius: 99px;">품목별 소계</span>`;
-            }
-            // Depth 1
-            return `<span style="color: ${colors.mutedText}; font-size:15.5px;">—</span>`;
+            const row = cell.getRow().getData();
+            const el = document.createElement('span');
+            // 합계 행은 비워 두고 상세 행에는 서버가 제공한 각 항목만 표시합니다.
+            const value = row.isGrandChild || row.depth === 3 ? String(cell.getValue() || '') : '';
+            el.textContent = value;
+            el.title = value;
+            el.style.cssText = `font-size:15.5px; font-weight:500; color:${colors.rowText};`;
+            return el;
           },
-        },
+        })),
         {
           title: '투입',
           field: 'inputQty',
@@ -372,25 +346,7 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
-          headerFilter: 'input',
-          headerFilterPlaceholder: '>=',
-          headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue, rowData) => {
-            if (!headerValue) return true;
-            const target = Number(String(headerValue).replace(/,/g, ''));
-            if (isNaN(target)) return true;
-            if ((Number(rowValue) || 0) >= target) return true;
-            if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((c) => {
-                if ((Number(c.inputQty) || 0) >= target) return true;
-                if (Array.isArray(c._children)) {
-                  return c._children.some((gc) => (Number(gc.inputQty) || 0) >= target);
-                }
-                return false;
-              });
-            }
-            return false;
-          },
+          headerFilter: false,
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -404,25 +360,7 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
-          headerFilter: 'input',
-          headerFilterPlaceholder: '>=',
-          headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue, rowData) => {
-            if (!headerValue) return true;
-            const target = Number(String(headerValue).replace(/,/g, ''));
-            if (isNaN(target)) return true;
-            if ((Number(rowValue) || 0) >= target) return true;
-            if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((c) => {
-                if ((Number(c.okQty) || 0) >= target) return true;
-                if (Array.isArray(c._children)) {
-                  return c._children.some((gc) => (Number(gc.okQty) || 0) >= target);
-                }
-                return false;
-              });
-            }
-            return false;
-          },
+          headerFilter: false,
           formatter: (cell) => {
             const v = cell.getValue();
             return `<span>${v !== null && v !== undefined ? comma(v) : '—'}</span>`;
@@ -436,25 +374,7 @@ export default function TabulatorTable({
           hozAlign: 'right',
           headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
-          headerFilter: 'input',
-          headerFilterPlaceholder: '>=',
-          headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue, rowData) => {
-            if (!headerValue) return true;
-            const target = Number(String(headerValue).replace(/,/g, ''));
-            if (isNaN(target)) return true;
-            if ((Number(rowValue) || 0) >= target) return true;
-            if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((c) => {
-                if ((Number(c.ngQty) || 0) >= target) return true;
-                if (Array.isArray(c._children)) {
-                  return c._children.some((gc) => (Number(gc.ngQty) || 0) >= target);
-                }
-                return false;
-              });
-            }
-            return false;
-          },
+          headerFilter: false,
           formatter: (cell) => {
             const v = cell.getValue();
             const isDefect = v !== null && v !== undefined && v > 0;
@@ -464,31 +384,12 @@ export default function TabulatorTable({
         {
           title: '불량률',
           field: 'defectRate',
-          width: 95,
           minWidth: 90,
           headerHozAlign: 'right',
           hozAlign: 'right',
           headerSort: false,
           sorter: (a, b) => (Number(a) || 0) - (Number(b) || 0),
-          headerFilter: 'input',
-          headerFilterPlaceholder: '% >=',
-          headerFilterLiveFilter: true,
-          headerFilterFunc: (headerValue, rowValue, rowData) => {
-            if (!headerValue) return true;
-            const target = Number(String(headerValue).replace(/%/g, ''));
-            if (isNaN(target)) return true;
-            if ((Number(rowValue) || 0) >= target) return true;
-            if (Array.isArray(rowData?._children)) {
-              return rowData._children.some((c) => {
-                if ((Number(c.defectRate) || 0) >= target) return true;
-                if (Array.isArray(c._children)) {
-                  return c._children.some((gc) => (Number(gc.defectRate) || 0) >= target);
-                }
-                return false;
-              });
-            }
-            return false;
-          },
+          headerFilter: false,
           formatter: (cell) => {
             const v = cell.getValue();
             const isHigh = v !== null && v !== undefined && Number(v) >= 2.0;
@@ -498,7 +399,6 @@ export default function TabulatorTable({
         {
           title: '가동률',
           field: 'uptimeRate',
-          width: 95,
           minWidth: 90,
           headerHozAlign: 'right',
           hozAlign: 'right',
@@ -513,7 +413,6 @@ export default function TabulatorTable({
         {
           title: '비가동 시간',
           field: 'downtimeMin',
-          width: 110,
           minWidth: 100,
           headerHozAlign: 'right',
           hozAlign: 'right',
@@ -527,6 +426,45 @@ export default function TabulatorTable({
         },
       ],
     });
+
+    // 상단 스크롤바와 Tabulator 본문을 동기화합니다. 긴 표도 아래까지 내릴 필요가 없습니다.
+    const rail = scrollRailRef.current;
+    let holder = null;
+    let scrollFrame = 0;
+    let autoSizeFrame = 0;
+    // 초기 조회·페이지 전환·트리 펼침 때 실제 formatter 결과와 헤더를 다시 측정합니다.
+    // renderComplete/ResizeObserver에서는 호출하지 않아 반복 재그리기를 막습니다.
+    const autoSizeColumns = () => {
+      cancelAnimationFrame(autoSizeFrame);
+      autoSizeFrame = requestAnimationFrame(() => {
+        table.getColumns().forEach(column => column.setWidth(true));
+        syncSize();
+      });
+    };
+    table.on('tableBuilt', autoSizeColumns);
+    table.on('dataProcessed', autoSizeColumns);
+    table.on('dataTreeRowExpanded', autoSizeColumns);
+    table.on('pageLoaded', autoSizeColumns);
+    const syncSize = () => {
+      cancelAnimationFrame(scrollFrame);
+      scrollFrame = requestAnimationFrame(() => {
+        if (!holder || !rail || !scrollWidthRef.current) return;
+        scrollWidthRef.current.style.width = `${rail.clientWidth + Math.max(0, holder.scrollWidth - holder.clientWidth)}px`;
+        rail.scrollLeft = holder.scrollLeft;
+      });
+    };
+    const fromRail = () => { if (holder && holder.scrollLeft !== rail.scrollLeft) holder.scrollLeft = rail.scrollLeft; };
+    const fromTable = () => { if (rail && rail.scrollLeft !== holder.scrollLeft) rail.scrollLeft = holder.scrollLeft; };
+    rail?.addEventListener('scroll', fromRail);
+    table.on('tableBuilt', () => {
+      holder = tableContainerRef.current?.querySelector('.tabulator-tableholder');
+      holder?.addEventListener('scroll', fromTable);
+      syncSize();
+    });
+    table.on('renderComplete', syncSize);
+    table.on('columnResized', syncSize);
+    const scrollObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncSize) : null;
+    if (rail) scrollObserver?.observe(rail);
 
     table.on('sortChanged', (sorters) => {
       updateSortHeadersUI(table, sorters);
@@ -544,6 +482,11 @@ export default function TabulatorTable({
 
     return () => {
       isBuiltRef.current = false;
+      cancelAnimationFrame(scrollFrame);
+      cancelAnimationFrame(autoSizeFrame);
+      scrollObserver?.disconnect();
+      rail?.removeEventListener('scroll', fromRail);
+      holder?.removeEventListener('scroll', fromTable);
       try {
         table.destroy();
       } catch (_) {}
@@ -559,7 +502,7 @@ export default function TabulatorTable({
   }, [rows]);
 
   return (
-    <View style={[{ width: '100%' }, style]}>
+    <View style={[{ width: '100%', minWidth: 0, maxWidth: '100%' }, style]}>
       {/* Shadcn UI 테마 CSS 주입 */}
       <style>{`
         .tabulator-shadcn-${tableId} {
@@ -582,12 +525,26 @@ export default function TabulatorTable({
         }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col {
           background-color: transparent !important;
-          border-right: none !important;
+          border-right: 1px solid ${theme.hairlineStrong} !important;
           padding: 11px 16px !important;
           cursor: pointer !important;
           user-select: none !important;
           transition: background-color 0.15s ease !important;
         }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-resize-handle {
+          width: 10px !important;
+          margin-left: -5px !important;
+          margin-right: -5px !important;
+          cursor: col-resize !important;
+          background: linear-gradient(to right, transparent 4px, ${theme.hairlineStrong} 4px, ${theme.hairlineStrong} 6px, transparent 6px);
+          z-index: 20;
+        }
+        .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-resize-handle:hover {
+          background: ${colors.primary};
+        }
+        .table-scroll-${tableId}::-webkit-scrollbar { height: 12px; }
+        .table-scroll-${tableId}::-webkit-scrollbar-track { background: ${theme.surface}; }
+        .table-scroll-${tableId}::-webkit-scrollbar-thumb { background: ${theme.color.mutedForeground}; border-radius: 6px; }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col:hover {
           background-color: ${colors.rowHover} !important;
         }
@@ -633,6 +590,8 @@ export default function TabulatorTable({
         }
         .tabulator-shadcn-${tableId} .tabulator-tableholder {
           overflow-x: auto !important;
+          touch-action: pan-x pan-y;
+          overscroll-behavior-x: contain;
           background-color: transparent !important;
         }
         /* Tabulator 기본 CSS 의 흰 표 배경·짝수행 회색을 지웁니다 — 캔버스가 그대로 비치게 */
@@ -667,7 +626,7 @@ export default function TabulatorTable({
           cursor: default !important;
         }
         .tabulator-shadcn-${tableId} .tabulator-row .tabulator-cell {
-          border-right: none !important;
+          border-right: 1px solid ${theme.hairlineStrong} !important;
           padding: 12px 16px !important;
           vertical-align: middle !important;
           font-variant-numeric: tabular-nums !important;
@@ -783,6 +742,13 @@ export default function TabulatorTable({
         }
       `}</style>
 
+      <div style={{ fontSize: 14, color: colors.mutedText, marginBottom: 6 }}>
+        열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 가로 스크롤로 오른쪽 열을 확인하세요.
+      </div>
+      <div ref={scrollRailRef} className={`table-scroll-${tableId}`} role="region" aria-label="집계 결과 가로 스크롤" tabIndex={0}
+        style={{ width: '100%', overflowX: 'scroll', overflowY: 'hidden', height: 18, marginBottom: 8, touchAction: 'pan-x', scrollbarWidth: 'auto', scrollbarColor: 'auto' }}>
+        <div ref={scrollWidthRef} style={{ height: 1 }} />
+      </div>
       {/* Tabulator 마운트 컨테이너 */}
       <div
         ref={tableContainerRef}

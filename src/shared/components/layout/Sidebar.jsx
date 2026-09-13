@@ -12,7 +12,7 @@
  * 로그인 계정의 소속 부서 권한으로 필터링해 접근 가능한 항목만 그립니다.
  *
  * 2026-09-10 변경
- *  · 「덕파트장 AI」(자연어 질의) 는 스크롤되는 메뉴 목록 밖, 「메뉴 접기」 아래 **고정 카드 버튼**으로 둡니다.
+ *  · 「덕반장 AI」(자연어 질의) 는 스크롤되는 메뉴 목록 밖, 「메뉴 접기」 아래 **고정 카드 버튼**으로 둡니다.
  *    누를 수 있는 버튼임이 보이도록 채움 배경 + 아이콘 + 캡션("AI를 통해 궁금한 것을 물어보세요").
  *  · 계정 메뉴(현재 계정 · 로그아웃)는 상단바에서 내려와 하단 사용자 카드를 누르면 위로 뜹니다.
  */
@@ -70,7 +70,7 @@ export default function Sidebar({ collapsed = false }) {
   const groups = MENU.filter((g) => !g.hidden && !g.solo)
     .map((g) => ({ ...g, items: g.items.filter((it) => can(it.id)) }))
     .filter((g) => g.items.length);
-  // 고정 카드로 그리는 단독 항목(덕파트장 AI)
+  // 고정 카드로 그리는 단독 항목(덕반장 AI)
   const aiItem = MENU.find((g) => g.solo)?.items.find((it) => can(it.id)) || null;
   const aiOn = aiItem ? aiItem.id === currentId : false;
 
@@ -104,7 +104,7 @@ export default function Sidebar({ collapsed = false }) {
         </Pressable>
       </View>
 
-      {/* 고정 — 덕파트장 AI (스크롤 영향 없음) */}
+      {/* 고정 — 덕반장 AI (스크롤 영향 없음) */}
       {aiItem ? (
         <View style={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 8, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
           <Link href={aiItem.path} asChild>

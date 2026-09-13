@@ -22,6 +22,7 @@ import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma } from '@shared/utils/formatUtil';
+import { failSeqText } from '../../model/failSeqText';
 
 /** 표 높이 — 25행이 기본이라 스크롤로 봅니다 */
 const LIST_HEIGHT = 460;
@@ -42,6 +43,30 @@ const rateOf = (d) => {
   return (ng / all) * 100;
 };
 
+/**
+ * 조회 조건 — 화면 **맨 위**에 놓습니다.
+ *
+ * 예전에는 「불량 목록」 카드 바로 위에 있었는데, 그 위로 분석 카드가 올라오면서
+ * 조회 조건이 화면 중간에 끼어 무엇을 바꾸는 조건인지 알기 어려워졌습니다.
+ * 조건은 이 화면 전체(분석·목록·추이)에 걸리므로 맨 앞에 있어야 합니다.
+ */
+export function AoiDateFilter({ date, setDate, search, applied, autoBackedTo }) {
+  const s = useCommonStyles();
+  return (
+    <Filters>
+      <DateField label="검사일" value={date} onChange={setDate} />
+      <Button label="조회" variant="primary" onPress={search} />
+      <View style={{ justifyContent: 'flex-end', paddingBottom: 9 }}>
+        <Text style={s.caption}>
+          {autoBackedTo
+            ? `${autoBackedTo} 에는 AOI 판정이 없어 최근 판정일(${applied})을 열었습니다`
+            : '하루치만 조회합니다 — 검사 항목(SEQ)이 많아 기간 조회는 무겁습니다'}
+        </Text>
+      </View>
+    </Filters>
+  );
+}
+
 export default function AoiDefectSection({
   loading, items, meta, paging, pageSizes,
   date, setDate, applied, search, autoBackedTo,
@@ -60,38 +85,25 @@ export default function AoiDefectSection({
       return v === null || v === undefined ? '<span class="muted">—</span>' : `<span class="num">${comma(v)}</span>`;
     };
     return [
-      // plant-wc-lot-serial(지금) · wc~eqpt~lot~serial(MSSQL 전환 후) — 길어서 두 줄까지 접힙니다
-      { title: '불량 ID', field: 'defectId', minWidth: 138, widthGrow: 2, formatter: monoFmt },
       {
-        title: '판정 일시',
-        field: 'judgedAt',
-        minWidth: 94,
-        formatter: (cell) => {
-          const [d, t] = String(dash(cell.getValue())).split(' ');
-          return `<span class="mono nowrap">${esc(d)}</span>${t ? `<span class="muted mono nowrap">${esc(t)}</span>` : ''}`;
-        },
+        // DIMENSION 은 `wc~eqpt~lot~serial` 한 덩어리가 키입니다 — 길어서 두 줄까지 접힙니다
+        title: '시리얼 키', field: 'serialKey', minWidth: 150, widthGrow: 2, formatter: monoFmt,
       },
       {
-        title: '작업장',
-        field: 'processNm',
-        minWidth: 104,
-        widthGrow: 1,
+        title: '측정 시각',
+        field: 'firstAt',
+        minWidth: 110,
         formatter: (cell) => {
           const d = cell.getData();
-          const v = cell.getValue() || d.wcCd || d.processId;
-          return `<span class="nowrap" title="${esc(v || '')}">${esc(dash(v))}</span>`;
+          const [day, t] = String(dash(cell.getValue())).split(' ');
+          // 한 시리얼이 1~2시간에 걸쳐 측정됩니다 — 시작과 끝을 함께 보여 줍니다
+          const end = d.lastAt ? String(d.lastAt).split(' ')[1] : '';
+          return `<span class="mono nowrap">${esc(day)}</span><span class="muted mono nowrap">${esc(t || '')}${end ? ` ~ ${esc(end)}` : ''}</span>`;
         },
       },
-      {
-        title: '설비',
-        field: 'eqptCd',
-        minWidth: 118,
-        widthGrow: 1,
-        formatter: (cell) => {
-          const d = cell.getData();
-          return `<span class="nowrap" title="${esc(d.eqptNm || '')}">${esc(dash(cell.getValue()))}</span>${d.eqptNm ? `<span class="muted nowrap">${esc(d.eqptNm)}</span>` : ''}`;
-        },
-      },
+      // DIMENSION 은 코드만 옵니다 — 설비명·작업장명 마스터가 이 원천에 없습니다
+      { title: '작업장', field: 'wcCd', minWidth: 92, formatter: monoFmt },
+      { title: '설비', field: 'eqptCd', minWidth: 104, formatter: monoFmt },
       {
         title: 'LOT · 시리얼',
         field: 'lotNo',
@@ -104,22 +116,14 @@ export default function AoiDefectSection({
           return `<span class="mono nowrap">${esc(dash(cell.getValue()))}</span>${tail}`;
         },
       },
-      {
-        // MES 는 모델, DIMENSION 은 호기(COMMENT, 예 '#7 B') 가 옵니다 — 있는 쪽을 씁니다
-        title: '모델 · 호기',
-        field: 'model',
-        minWidth: 76,
-        formatter: (cell) => {
-          const d = cell.getData();
-          return `<span class="nowrap">${esc(dash(cell.getValue() || d.cavity))}</span>`;
-        },
-      },
-      { title: '검사', field: 'sampleQty', width: 78, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt((d) => d.sampleQty ?? d.seqCnt) },
+      // COMMENT 는 호기(S120 '#7 B')이거나 지그 번호(S110)입니다
+      { title: '호기 · 지그', field: 'cavity', minWidth: 96, formatter: (cell) => `<span class="nowrap">${esc(dash(cell.getValue()))}</span>` },
+      { title: '검사 회차', field: 'seqCnt', width: 96, hozAlign: 'right', headerHozAlign: 'right', sorter: 'number', formatter: qtyFmt((d) => d.seqCnt) },
 
       {
-        title: '불량',
-        field: 'ngQty',
-        width: 74,
+        title: '불량 회차',
+        field: 'failSeqCnt',
+        width: 96,
         hozAlign: 'right',
         headerHozAlign: 'right',
         sorter: 'number',
@@ -161,15 +165,18 @@ export default function AoiDefectSection({
         },
       },
       {
-        title: '사진',
-        field: 'imageCnt',
-        width: 68,
-        hozAlign: 'right',
-        headerHozAlign: 'right',
+        // 7번 요청 — 몇 번째 회차에서 걸렸는지 목록에서 바로 보이게.
+        // 서버가 앞 20개만 주고(failSeqsTop) 잘렸는지는 failSeqsTruncated 로 알려 줍니다.
+        title: '불량 회차 번호',
+        field: 'failSeqs',
+        minWidth: 180,
+        widthGrow: 2,
         headerSort: false,
         formatter: (cell) => {
-          const n = Number(cell.getValue()) || 0;
-          return n ? `<span class="num">${n}장</span>` : '<span class="muted">—</span>';
+          const d = cell.getData();
+          const list = cell.getValue();
+          if (!Array.isArray(list) || !list.length) return '<span class="muted">—</span>';
+          return `<span class="mono">${esc(failSeqText(list, d.failSeqCnt))}</span>`;
         },
       },
     ];
@@ -180,18 +187,6 @@ export default function AoiDefectSection({
 
   return (
     <View>
-      <Filters>
-        <DateField label="검사일" value={date} onChange={setDate} />
-        <Button label="조회" variant="primary" onPress={search} />
-        <View style={{ justifyContent: 'flex-end', paddingBottom: 9 }}>
-          <Text style={s.caption}>
-            {autoBackedTo
-              ? `${autoBackedTo} 에는 AOI 판정이 없어 최근 판정일(${applied})을 열었습니다`
-              : '하루치만 조회합니다 — 검사 항목(SEQ)이 많아 기간 조회는 무겁습니다'}
-          </Text>
-        </View>
-      </Filters>
-
       <Card
         title="불량 목록"
         sub={`${applied} 판정 · 행을 누르면 판정 정보와 NAS 사진을 크게 봅니다 · 검사 항목 중 하나라도 불량이면 그 시리얼은 불량입니다`}

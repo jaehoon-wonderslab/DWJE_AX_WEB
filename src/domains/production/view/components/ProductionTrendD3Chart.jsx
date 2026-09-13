@@ -11,6 +11,7 @@ import { Text, View } from 'react-native';
 import * as d3 from 'd3';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
+import { axisLabelWidth } from '@shared/components/charts-d3/axisLabelWidth';
 import { comma, fixed } from '@shared/utils/formatUtil';
 
 export default function ProductionTrendD3Chart({
@@ -30,8 +31,8 @@ export default function ProductionTrendD3Chart({
   const hasRate = Array.isArray(defectRate) && defectRate.some((v) => v !== null && v !== undefined);
 
   // 차트 너비 및 여백 (컨테이너 가로 폭을 100% 활용하며, 항목이 매우 많으면 가로 스크롤로 여유롭게 확장)
-  const margin = { top: 24, right: 54, bottom: 34, left: 58 };
-  const minItemWidth = 52;
+  const margin = { top: 34, right: 80, bottom: 44, left: 78 };
+  const minItemWidth = axisLabelWidth(labels, 15, 100);
   const calculatedWidth = margin.left + margin.right + labels.length * minItemWidth;
   const availableWidth = containerWidth > 0 ? containerWidth : 800;
   const width = Math.max(availableWidth, calculatedWidth);
@@ -118,7 +119,7 @@ export default function ProductionTrendD3Chart({
 
   const primaryCol = theme.seriesAt(0);
   const secondaryCol = theme.seriesAt(2);
-  const rateCol = theme.color.spark; // 아이리스 막대와 대비되는 앰버 선
+  const rateCol = theme.isDark ? '#fda4af' : '#be123c'; // 명도가 높은 노랑 대신 대비가 뚜렷한 로즈
   const accentCol = theme.color.success;
   const haloCol = theme.color.background; // 글자·점 뒤의 후광 — 캔버스색으로 뚫어 냅니다
 
@@ -218,7 +219,7 @@ export default function ProductionTrendD3Chart({
                 x={margin.left - 8}
                 y={yPos + 3}
                 textAnchor="end"
-                fontSize={9.5}
+                fontSize={15}
                 fill={theme.color.mutedForeground}
                 fontFamily="sans-serif"
               >
@@ -237,7 +238,7 @@ export default function ProductionTrendD3Chart({
               x={width - margin.right + 8}
               y={yPos + 3}
               textAnchor="start"
-              fontSize={9.5}
+              fontSize={15}
               fill={rateCol}
               fontWeight="600"
               fontFamily="sans-serif"
@@ -303,7 +304,7 @@ export default function ProductionTrendD3Chart({
                     x={xPos + bw / 2}
                     y={Math.max(barY - 6, margin.top + 10)}
                     textAnchor="middle"
-                    fontSize={bw > 30 ? 9.5 : 8}
+                    fontSize={15}
                     fontWeight={isHovered ? '700' : '600'}
                     fill={isHovered ? primaryCol : theme.color.foreground}
                     stroke={haloCol}
@@ -318,21 +319,16 @@ export default function ProductionTrendD3Chart({
                 );
               })()}
 
-              {/* X축 라벨 — 라벨이 많으면 적절한 간격으로 분음하여 겹침 방지 */}
+              {/* 확보한 항목 너비 안에서 마지막 날짜까지 빠짐없이 표시합니다. */}
               {(() => {
-                const labelStep = labels.length > 35 ? Math.ceil(labels.length / 10) : (labels.length > 18 ? 2 : 1);
-                const isLast = i === labels.length - 1;
-                const prevStepIndex = Math.floor((labels.length - 1) / labelStep) * labelStep;
-                const tooCloseToPrev = isLast && (i - prevStepIndex < labelStep * 0.6);
-                const shouldShow = (i % labelStep === 0 && (!isLast || !tooCloseToPrev)) || (isLast && !tooCloseToPrev) || isHovered;
-                if (!shouldShow) return null;
                 const txt = String(lbl).length > 10 ? String(lbl).slice(5) : String(lbl);
                 return (
                   <text
+                    className="production-date-label"
                     x={xPos + bw / 2}
-                    y={height - margin.bottom + 16}
+                    y={height - margin.bottom + 24}
                     textAnchor="middle"
-                    fontSize={9}
+                    fontSize={15}
                     fill={isHovered ? theme.color.foreground : theme.color.mutedForeground}
                     fontWeight={isHovered ? '700' : '400'}
                     fontFamily="sans-serif"
@@ -345,7 +341,7 @@ export default function ProductionTrendD3Chart({
           );
         })}
 
-        {/* 4. 불량률 선 & 영역 그래프 (우측 Y축, 막대와 대비되는 오렌지 톤 + 흰색 윤곽선 Halo) */}
+        {/* 4. 불량률 선 & 영역 그래프 (우측 Y축, 막대와 대비되는 로즈 톤 + 흰색 윤곽선 Halo) */}
         {hasRate && (
           <g style={{ pointerEvents: 'none' }}>
             {areaPath ? <path d={areaPath} fill="url(#d3AreaGrad)" style={{ pointerEvents: 'none' }} /> : null}
@@ -376,7 +372,7 @@ export default function ProductionTrendD3Chart({
 
               return (
                 <g key={`pt-${i}`}>
-                  {/* 포인트 서클 — 흰색 배경 + 오렌지 보더 */}
+                  {/* 포인트 서클 — 흰색 배경 + 로즈 보더 */}
                   <circle
                     cx={cx}
                     cy={cy}
@@ -391,7 +387,7 @@ export default function ProductionTrendD3Chart({
                       x={cx}
                       y={textY}
                       textAnchor="middle"
-                      fontSize={9}
+                      fontSize={15}
                       fontWeight="800"
                       fill={rateCol}
                       stroke={haloCol}
@@ -435,18 +431,18 @@ export default function ProductionTrendD3Chart({
       <View style={[s.legend, { marginTop: 8, justifyContent: 'center' }]}>
         <View style={s.rowGap6}>
           <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: primaryCol }} />
-          <Text style={s.legendText}>생산량 (좌측 축)</Text>
+          <Text style={[s.legendText, { fontSize: 16 }]}>생산량 (좌측 축)</Text>
         </View>
         {hasNgQty ? (
           <View style={s.rowGap6}>
             <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: secondaryCol }} />
-            <Text style={s.legendText}>불량 수량</Text>
+            <Text style={[s.legendText, { fontSize: 16 }]}>불량 수량</Text>
           </View>
         ) : null}
         {hasRate ? (
           <View style={s.rowGap6}>
             <View style={{ width: 12, height: 2.5, backgroundColor: rateCol }} />
-            <Text style={s.legendText}>불량률 % (우측 축)</Text>
+            <Text style={[s.legendText, { fontSize: 16 }]}>불량률 % (우측 축)</Text>
           </View>
         ) : null}
       </View>

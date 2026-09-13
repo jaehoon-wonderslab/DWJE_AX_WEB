@@ -197,7 +197,9 @@ export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], r
   }
 
   try {
-    const ExcelJS = await import('exceljs').then((m) => m.default || m);
+    // Metro에서 외부 node_modules 경로의 동적 청크가 404가 되는 것을 방지합니다.
+    const excelModule = require('exceljs');
+    const ExcelJS = excelModule.default || excelModule;
     const wb = new ExcelJS.Workbook();
     wb.creator = '덕우전자 AX 시스템';
     wb.created = new Date();
@@ -303,7 +305,9 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
   }
 
   try {
-    const ExcelJS = await import('exceljs').then((m) => m.default || m);
+    // Metro에서 외부 node_modules 경로의 동적 청크가 404가 되는 것을 방지합니다.
+    const excelModule = require('exceljs');
+    const ExcelJS = excelModule.default || excelModule;
     const wb = new ExcelJS.Workbook();
     wb.creator = '덕우전자 AX 시스템';
     wb.lastModifiedBy = '덕우전자 AX 시스템';
@@ -325,7 +329,8 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
       { header: '제품명', key: 'product', width: 18 },
       { header: '공장', key: 'plant', width: 13 },
       { header: '공정', key: 'process', width: 14 },
-      { header: '설비(기기)', key: 'equipment', width: 26 },
+      { header: '설비 코드', key: 'equipmentCode', width: 16 },
+      { header: '설비명', key: 'equipment', width: 30 },
       { header: '투입 수량', key: 'inputQty', width: 16 },
       { header: '양품 수량', key: 'okQty', width: 16 },
       { header: '불량 수량', key: 'ngQty', width: 16 },
@@ -374,7 +379,8 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
         product: '전체 (일자 합계)',
         plant: '—',
         process: '—',
-        equipment: '—',
+        equipmentCode: '',
+        equipment: '',
         inputQty: numFmt(r1.inputQty),
         okQty: numFmt(r1.okQty),
         ngQty: numFmt(r1.ngQty),
@@ -394,9 +400,9 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
         cell.border = borderStyle;
         cell.alignment = {
           vertical: 'middle',
-          horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
+          horizontal: colNumber <= 4 ? 'center' : colNumber <= 6 ? 'left' : 'right',
         };
-        if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
+        if (colNumber >= 7 && colNumber <= 9 && typeof cell.value === 'number') {
           cell.numFmt = '#,##0';
         }
       });
@@ -410,7 +416,8 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
             product: r2.period,
             plant: '—',
             process: '—',
-            equipment: '제품 소계',
+            equipmentCode: '',
+            equipment: '',
             inputQty: numFmt(r2.inputQty),
             okQty: numFmt(r2.okQty),
             ngQty: numFmt(r2.ngQty),
@@ -430,9 +437,9 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
             cell.border = borderStyle;
             cell.alignment = {
               vertical: 'middle',
-              horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
+              horizontal: colNumber <= 4 ? 'center' : colNumber <= 6 ? 'left' : 'right',
             };
-            if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
+            if (colNumber >= 7 && colNumber <= 9 && typeof cell.value === 'number') {
               cell.numFmt = '#,##0';
             }
           });
@@ -447,7 +454,8 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
                 // 없으면 빈 칸 — '제1공장' 으로 채우던 자리입니다. 공장은 DB 에 축이 없습니다
                 plant: r3.plantNm || '',
                 process: r3.processNm || '',
-                equipment: r3.equipNm || r3.period,
+                equipmentCode: r3.equipCd || '',
+                equipment: r3.equipNm || '',
                 inputQty: numFmt(r3.inputQty),
                 okQty: numFmt(r3.okQty),
                 ngQty: numFmt(r3.ngQty),
@@ -462,9 +470,9 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
                 cell.border = borderStyle;
                 cell.alignment = {
                   vertical: 'middle',
-                  horizontal: colNumber <= 4 ? 'center' : colNumber === 5 ? 'left' : 'right',
+                  horizontal: colNumber <= 4 ? 'center' : colNumber <= 6 ? 'left' : 'right',
                 };
-                if (colNumber >= 6 && colNumber <= 8 && typeof cell.value === 'number') {
+                if (colNumber >= 7 && colNumber <= 9 && typeof cell.value === 'number') {
                   cell.numFmt = '#,##0';
                 }
               });

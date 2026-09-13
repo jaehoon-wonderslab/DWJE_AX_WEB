@@ -23,7 +23,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { withParticle } from '@shared/utils/formatUtil';
 import Button from './Button';
-import { CheckRow, DateField, RadioRow, SelectField, TextAreaField, TextField, Field } from './Field';
+import { CheckRow, DateField, PasswordField, RadioRow, SelectField, TextAreaField, TextField, Field } from './Field';
 
 /** 폼 본문 — 필드 정의를 받아 실제 입력 요소를 그립니다 */
 function FormBody({ fields, initial, note, onReady }) {
@@ -68,8 +68,14 @@ function FormBody({ fields, initial, note, onReady }) {
           const cellStyle = f.full ? { width: '100%' } : { flexGrow: 1, flexBasis: 220, minWidth: 200 };
           // key 는 스프레드에 섞지 않고 각 요소에 직접 줍니다 (React 경고 방지)
           const common = { label: f.label, required: f.required, style: cellStyle, error: errors[f.key] };
+          if (f.type === 'custom') {
+            return <View key={f.key} style={cellStyle}>{f.render({ value: values[f.key], onChange: (v) => set(f.key, v), values })}</View>;
+          }
           if (f.type === 'select') {
-            return <SelectField key={f.key} {...common} value={values[f.key]} options={f.options} onChange={(v) => set(f.key, v)} full />;
+            return <SelectField key={f.key} {...common} value={values[f.key]} options={f.options} onChange={(v) => set(f.key, v)} nativeSelect full />;
+          }
+          if (f.type === 'password') {
+            return <PasswordField key={f.key} {...common} value={values[f.key]} onChangeText={(v) => set(f.key, v)} placeholder={f.placeholder} accessibilityLabel={f.label} autoComplete="new-password" full />;
           }
           if (f.type === 'textarea') {
             return <TextAreaField key={f.key} {...common} value={values[f.key]} rows={f.rows || 3} placeholder={f.placeholder} onChangeText={(v) => set(f.key, v)} full />;
@@ -158,7 +164,7 @@ export function openFormModal(config) {
       const empty = v === null || v === undefined || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length);
       if (empty) errors[f.key] = `${withParticle(f.label, '을')} 입력해 주세요.`;
     });
-    return errors;
+    return { ...errors, ...(config.validate?.(values) || {}) };
   };
 
   return useUiStore.getState().openModal({

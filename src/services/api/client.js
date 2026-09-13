@@ -188,14 +188,15 @@ const EMPTY_FILTERS = new Set(['전체', '전부', '없음', '선택', 'ALL', 'a
  * 값이 비어 있는(=조건 없음) 파라미터를 걸러 냅니다.
  *
  * @param {object} params 요청 파라미터
+ * @param {string[]} preserveEmptyArrays 명시적 해제 의미를 가진 빈 배열 필드
  * @returns {object} 실제로 보낼 파라미터
  */
-function dropEmptyParams(params = {}) {
+function dropEmptyParams(params = {}, preserveEmptyArrays = []) {
   const out = {};
   Object.entries(params).forEach(([k, v]) => {
     if (v === null || v === undefined || v === '') return;
     if (typeof v === 'string' && EMPTY_FILTERS.has(v.trim())) return;
-    if (Array.isArray(v) && !v.length) return;
+    if (Array.isArray(v) && !v.length && !preserveEmptyArrays.includes(k)) return;
     out[k] = v;
   });
   return out;
@@ -238,7 +239,7 @@ export async function request(key, params = {}, options = {}) {
   if (!def) throw new Error(`정의되지 않은 API 키입니다: ${key}`);
 
   const { url, rest: raw } = buildPath(def.path, params);
-  const rest = dropEmptyParams(raw);
+  const rest = dropEmptyParams(raw, def.preserveEmptyArrays);
 
   useUiStore.getState().startApiLoading();
   try {
@@ -252,7 +253,7 @@ export async function request(key, params = {}, options = {}) {
         return { success: true, code: 'SUCCESS', message: `[mock 미구현] ${def.name}`, data: null, masked: [] };
       }
       // 목 핸들러에는 경로 파라미터({defectId} 등)도 함께 넘깁니다 — 실 서버는 URL 에서 읽지만 목은 인자로만 받습니다
-      const data = await handler(dropEmptyParams(params), def);
+      const data = await handler(dropEmptyParams(params, def.preserveEmptyArrays), def);
       if (data && data.success !== undefined) return data; // 핸들러가 전체 응답을 만든 경우
       return { success: true, code: 'SUCCESS', message: `${def.name} 조회가 완료되었습니다.`, data, masked: [] };
     }

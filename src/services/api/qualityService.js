@@ -49,6 +49,35 @@ export function getQualityDefectsByLine(params) {
   return request('getQualityDefectsByLine', params);
 }
 
+/**
+ * 불량 상세 분해 트리 (QC-01-F04)
+ *
+ * 공정 > 제품 > 설비 > 불량 유형. 단계마다 그때까지 확정된 차원 값만 채워 옵니다.
+ * 상위 단계의 수량은 하위 합과 항상 같습니다(라벨 원장 합).
+ *
+ * @param {object} params from, to, processId, levels
+ * @returns {Promise<object>} levels, totals, items[{level,...,children}]
+ * @privateRemarks 접근 권한 상동 · 우선순위 1
+ */
+export function getQualityDefectsTree(params) {
+  return request('getQualityDefectsTree', params);
+}
+
+/**
+ * AOI 시리얼 목록 — DIMENSION(MSSQL) 원천 (QC-02-F05)
+ *
+ * 기존 `getQualityAoiDefects` 는 **MES 라벨** 이고 설비 집합이 달라(VNA-* vs GP-*·MQ-*)
+ * 같은 날짜라도 서로 다른 것을 봅니다. AOI 치수 판정은 이쪽이 원천입니다.
+ */
+export function getQualityAoiDimensionSerials(params) {
+  return request('getQualityAoiDimensionSerials', params);
+}
+
+/** AOI 시리얼 한 건의 회차 상세 — 불량 회차와 벗어난 FAI 번호(violFais) (QC-02-F06) */
+export function getQualityAoiDimensionSerialByKey(params) {
+  return request('getQualityAoiDimensionSerialByKey', params);
+}
+
 /* ───────── AOI 판정 분석·예측 ───────── */
 
 /**
@@ -195,4 +224,9 @@ export function getFilesAoiImagesByImageId(params) {
 /** AOI 설비 목록 — 불량 상세 필터용 */
 export function getQualityAoiDefectsEquipments(params) {
   return request('getQualityAoiDefectsEquipments', params);
+}
+
+/** 제품별 불량 구성과 제품·설비 원장 분모. */
+export function getQualityDefectsByProduct(params) {
+  return request('getQualityDefectsByProduct', params);
 }

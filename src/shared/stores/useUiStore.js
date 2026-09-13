@@ -72,7 +72,7 @@ export const useUiStore = create((set, get) => ({
   openDrawer: (config) => set({ drawer: config }),
   closeDrawer: () => set({ drawer: null }),
 
-  // ── 전역 AI 채팅 패널(덕파트장 AI 레일) ────────────────
+  // ── 전역 AI 채팅 패널(덕반장 AI 레일) ────────────────
   //  · 기본 열림. 폭은 드래그로 조절하며 브라우저에 기억합니다(최소 320px · 최대 창 폭의 40%).
   //  · 예전 3단 크기(compact/medium/full)는 없어졌습니다.
   aiChatOpen: readPref('dwje.ax.aiChatOpen', 'true') !== 'false',

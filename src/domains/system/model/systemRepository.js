@@ -3,6 +3,7 @@
  *
  * 화면 단위로 필요한 API 묶음을 제공합니다.
  */
+import { permRows } from '@shared/constants/menu';
 import * as aiService from '@services/api/aiService';
 import * as systemService from '@services/api/systemService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
@@ -46,27 +47,38 @@ function normalizeDept(d) {
  * 회원가입은 `PENDING` 상태로 쌓이고, 전산팀이 승인해야 로그인할 수 있습니다.
  * 그래서 계정 목록과 함께 승인 대기 목록도 같이 받아 옵니다.
  */
-export async function loadAccounts({ page, size } = {}) {
+export async function loadAccounts() {
   const data = await unwrapAll({
     summary: systemService.getSystemAccountsSummary({}),
-    users: systemService.getSystemUsers({ page, size }),
-    pending: systemService.getSystemUsersPending({}),
-    depts: systemService.getSystemDepts({}),
-    logs: systemService.getSystemPermLogs({ size: 10 }),
+    // 선택지는 표 검색/페이지와 무관하게 전체 부서를 유지합니다.
+    depts: systemService.getSystemDepts({ size: 0 }),
   });
+  return { ...data, depts: (data.depts?.items || []).map(normalizeDept) };
+}
 
-  return {
-    ...data,
-    usersMeta: data.metas?.users,
-    users: (data.users?.items || []).map(normalizeUser),
-    pending: (data.pending?.items || []).map(normalizeUser),
-    depts: (data.depts?.items || []).map(normalizeDept),
-    logs: (data.logs?.items || []).map((l) => ({ ...l, act: l.act || ACT_LABEL[l.actType] || l.actType || '' })),
-  };
+export async function loadAccountUsers(params) {
+  const result = await unwrapPaged(systemService.getSystemUsers(params));
+  return { ...result, items: result.items.map(normalizeUser) };
+}
+export async function loadAccountPending(params) {
+  const result = await unwrapPaged(systemService.getSystemUsersPending(params));
+  return { ...result, items: result.items.map(normalizeUser) };
+}
+export async function loadAccountDepts(params) {
+  const result = await unwrapPaged(systemService.getSystemDepts(params));
+  return { ...result, items: result.items.map(normalizeDept) };
+}
+export async function loadAccountLogs(params) {
+  const result = await unwrapPaged(systemService.getSystemPermLogs(params));
+  return { ...result, items: result.items.map(l => ({ ...l, act: l.act || ACT_LABEL[l.actType] || l.actType || '' })) };
+}
+export async function loadAccountMenuOptions() {
+  const data = await unwrap(systemService.getSystemMenuPerms({}));
+  return { ...data, screens: data.screens?.map(menu => ({ ...menu, name: permRows().find(row => row.id === menu.id)?.name || menu.name })) };
 }
 
 /** 권한 변경 이력 구분 코드 표기 */
-const ACT_LABEL = { ACCOUNT: '계정', DEPT: '부서', MENU: '메뉴 권한', DATA: '데이터 권한' };
+const ACT_LABEL = { USER_MENU_PERM: '계정 추가 메뉴 권한', ACCOUNT: '계정', DEPT: '부서', MENU: '메뉴 권한', DATA: '데이터 권한' };
 
 /**
  * 회원가입 승인 · 반려

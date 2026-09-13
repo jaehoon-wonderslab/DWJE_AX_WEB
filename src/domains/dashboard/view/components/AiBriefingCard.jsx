@@ -12,7 +12,7 @@
  */
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Card, EmptyState, Icon } from '@shared/components/ui';
+import { Card, SparkleSpinner, Icon } from '@shared/components/ui';
 import { EvidenceButton, collectDocs, openEvidenceModal } from './AiEvidenceModal';
 import { downloadBriefingReport } from '../../model/aiReportExport';
 import { Button } from '@shared/components/ui';
@@ -60,7 +60,7 @@ export default function AiBriefingCard({ briefing, loading, period }) {
     <Card
       title="AI 일일 품질·생산 종합 브리핑"
       right={
-        ready ? (
+        ready && !loading ? (
           <>
             <EvidenceButton
               count={lines.length}
@@ -95,7 +95,7 @@ export default function AiBriefingCard({ briefing, loading, period }) {
           이라 적혀 있어, 집계 단위를 바꿔도 안 바뀌는 것처럼 보였습니다.
           모델 추론이라 수십 초 걸리므로 무엇을 보고 있는지 함께 적습니다.
         */
-        <EmptyState text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
+        <SparkleSpinner text={`${rangeText(period)}을 분석하고 있습니다. 수십 초 걸릴 수 있습니다.`} />
       ) : !ready ? (
         <NotReady reason={briefing?.reason} />
       ) : (

@@ -32,6 +32,12 @@ export default function AoiDefectModal({ defect }) {
   const { detail, loading, images, activeImage, activeIndex, showImage, stepImage, copyPath, seqRows, valueCols } =
     useAoiDefectDetail(defect?.defectId);
 
+  /** 불량으로 걸린 회차 번호 — PASSED 가 0/false/'0' 인 행 */
+  const failedSeqs = useMemo(
+    () => seqRows.filter((m) => m.passed === false || m.passed === 0 || m.passed === '0').map((m) => m.seq),
+    [seqRows],
+  );
+
   /** 치수 열은 응답이 준 번호로 만듭니다 — 설비마다 개수가 다릅니다 */
   const measurementColumns = useMemo(
     () => [
@@ -194,9 +200,18 @@ export default function AoiDefectModal({ defect }) {
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
             <Text style={s.heading2xs}>측정 회차 (SEQ)</Text>
             <Text style={s.caption}>
-              {`${comma(seqRows.length)}회차${detail?.seqCnt ? ` / 전체 ${comma(detail.seqCnt)}회차` : ''} · 불량 ${comma(seqRows.filter((m) => m.passed === false || m.passed === 0 || m.passed === '0').length)}회차 · 치수 ${valueCols.length}개`}
+              {`${comma(seqRows.length)}회차${detail?.seqCnt ? ` / 전체 ${comma(detail.seqCnt)}회차` : ''} · 불량 ${comma(failedSeqs.length)}회차 · 치수 ${valueCols.length}개`}
             </Text>
           </View>
+
+          {/* 몇 번째 회차에서 걸렸는지 — 표를 뒤지지 않고 바로 알 수 있어야 합니다.
+              수천 회차 중 불량이 수백 개일 수 있어 앞쪽만 적고 나머지는 수로 말합니다 */}
+          {failedSeqs.length ? (
+            <Text style={[s.body, { marginBottom: 8 }]}>
+              <Text style={{ color: theme.color.destructive, fontWeight: '600' }}>불량 회차 </Text>
+              {failedSeqText(failedSeqs)}
+            </Text>
+          ) : null}
           <TabulatorGrid
             columns={measurementColumns}
             rows={seqRows}
@@ -265,4 +280,24 @@ function kb(bytes) {
   const n = Number(bytes) || 0;
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${Math.round(n / 1024)} KB`;
+}
+
+/**
+ * 불량 회차 번호를 사람이 읽을 수 있게 줄입니다.
+ *
+ * 한 시리얼의 SEQ 가 수천 개라 불량도 수백 개가 될 수 있습니다. 전부 나열하면
+ * 모달이 번호로 뒤덮이므로 앞쪽만 적고 나머지는 수로 말합니다.
+ * 이어지는 번호는 범위로 묶습니다 — 12,13,14 보다 12~14 가 읽기 쉽습니다.
+ */
+function failedSeqText(seqs, head = 12) {
+  const ranges = [];
+  seqs.forEach((n) => {
+    const last = ranges[ranges.length - 1];
+    if (last && n === last[1] + 1) last[1] = n;
+    else ranges.push([n, n]);
+  });
+  const shown = ranges.slice(0, head).map(([a, b]) => (a === b ? `${a}` : `${a}~${b}`));
+  const restRanges = ranges.length - shown.length;
+  const rest = restRanges > 0 ? ` 외 ${comma(seqs.length - shown.reduce((sum, _, i) => sum + (ranges[i][1] - ranges[i][0] + 1), 0))}회차` : '';
+  return `${shown.join(', ')}${rest}`;
 }

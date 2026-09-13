@@ -189,7 +189,7 @@ export function putProductionDowntimesByDowntimeId(params) {
  * 실적 집계 내려받기 (백엔드 구현 확장분)
  *
  * `POST /api/v1/production/results/export`
- * @param {object} params fromDate, toDate, procCd, itemCd, format
+ * @param {object} params from, to, format (화면 전체 다운로드는 exportUtil.downloadFromServer 사용)
  */
 export function postProductionResultsExport(params) {
   return request('postProductionResultsExport', params);

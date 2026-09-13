@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+(async()=>{
+ const {compactDefectTree}=await import('data:text/javascript;base64,'+fs.readFileSync('src/domains/quality/model/compactDefectTree.js').toString('base64'));
+ const leaf={key:'leaf',levelLabel:'공정',ngQty:25,ratio:100,wcNm:'공정 A',plantNm:'공장 A'};
+ const parent={key:'equipment',levelLabel:'라인',ngQty:25,totalQty:200,ratio:12.5,defectRate:12.5,_children:[leaf]};
+ const input=[{_children:[{_children:[parent]}]}],before=JSON.stringify(input);
+ const output=compactDefectTree(input)[0]._children[0]._children[0];
+ assert.equal(output.wcNm,'공정 A');assert.equal(output.plantNm,'공장 A');
+ assert.equal(output.ratio,12.5);assert.equal(output.totalQty,200);assert.equal(output.key,'equipment');
+ assert.equal(output._children,undefined);assert.equal(JSON.stringify(input),before);
+ const two={...parent,_children:[leaf,{...leaf,key:'second'}]};
+ assert.equal(compactDefectTree([two],3)[0]._children.length,2);
+ assert.equal(compactDefectTree([parent],2)[0]._children,undefined);
+ assert.equal(compactDefectTree([parent],1)[0]._children.length,1);
+ assert.equal(compactDefectTree([{...parent,ngQty:26}],3)[0]._children.length,1);
+ const masked={...parent,ngQty:null,_children:[{...leaf,ngQty:null}]};
+ assert.equal(compactDefectTree([masked],3)[0].ngQty,null);
+ const product={key:'D53BPS-YL',itemCd:'D53BPS-YL',ngQty:25,ratio:7,_children:[parent]};
+ const chain=compactDefectTree([{defectNm:'치수불량',_children:[product]}])[0]._children[0];
+ assert.equal(chain._children,undefined);assert.equal(chain.wcNm,'공정 A');assert.equal(chain.ratio,7);
+ console.log('single leaf merge, multi-child retention, parent metrics, null and immutability passed');
+})().catch(e=>{console.error(e);process.exitCode=1});
