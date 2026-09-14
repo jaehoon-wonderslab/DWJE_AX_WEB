@@ -155,7 +155,6 @@ function normalizePermMatrix(data) {
 export async function loadMenuPerms() {
   const data = await unwrapAll({
     matrix: systemService.getSystemMenuPerms({}),
-    status: systemService.getSystemMenuPermsDeptStatus({}),
   });
   return { ...data, matrix: normalizePermMatrix(data.matrix) };
 }
