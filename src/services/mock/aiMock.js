@@ -7,12 +7,19 @@
  *  block.type — text | table | chart | source | actions
  */
 import { nowStamp } from '@shared/utils/formatUtil';
+import { DATA_SCOPE_DEFAULT } from '@shared/constants/dataFields';
 import { mockState } from './state';
 
-/** 의도 분류 — 기능명세서 「권한 정의」 7절 규칙 그대로 */
+/**
+ * 의도 분류 — 기능명세서 「권한 정의」 7절 규칙
+ *
+ * 예전에는 단가·거래처가 들어간 질의를 통째로 막았습니다(`denied`). 지금은 막지 않습니다 —
+ * **답은 정상으로 내고 결과 안의 값만 가립니다**(maskAnswer). 물어본 것 자체를 거절하면
+ * 권한 있는 부분까지 함께 사라져, 쓸 수 있는 답을 못 받습니다.
+ * `denied` 는 데이터 권한이 아닌 다른 사유(업무 범위 밖 등)를 위해 남겨 둡니다.
+ */
 export function classifyIntent(question) {
   const t = String(question).replace(/\s/g, '');
-  if (/단가|원가|매입|거래처|계약금/.test(t)) return 'denied';
   if (/수리이력|금형수리|설비이력|재물조사|외주|세정|도금|도장|작업일지/.test(t)) return 'unknown';
   if (/추이|트렌드|월별|주별|지난주|지난달|변화|비교/.test(t)) return 'trend';
   if (/로트|LOT|이력|추적|어디까지/.test(t)) return 'trace';
@@ -29,27 +36,61 @@ const SUGGESTIONS = [
   { q: '금형 M-2207 수리 이력 보여줘', desc: '수집 범위 밖 응답 예시' },
 ];
 
+/**
+ * 답변 결과에서 **권한 없는 항목의 값만** 가립니다.
+ *
+ * 질의를 막지 않기로 했으므로(classifyIntent 주석 참고) 가리는 일은 전부 결과 쪽에서 합니다.
+ * 문장은 구조를 살리고 값만 바꿉니다 — 「8월 평균 단가는 12,400원입니다」 → 「… 비공개입니다」.
+ * 무엇이 가려졌는지는 `blindFields` 로 함께 알려 줘야 화면이 이유를 말해 줄 수 있습니다.
+ *
+ * [주의] 이건 목(데모)의 근사입니다. 실제로는 서버가 값을 만들 때 가립니다 —
+ * 문장을 정규식으로 훑는 방식은 표현이 바뀌면 놓칠 수 있어 원본에 의존하면 안 됩니다.
+ */
+// Map 으로 둡니다 — 객체 리터럴로 두면 check-mock 이 2칸 들여쓴 `키:` 를 목 핸들러로 셉니다
+const VALUE_PATTERNS = new Map([
+  ['price', /(단가|원가|매입가|가공비|폐기\s*금액|금액)(\s*(?:는|은|이|가|:)?\s*)([\d,.]+\s*(?:원|천원|만원|억원)?)/g],
+  ['customer', /(고객사|거래처)(\s*(?:는|은|이|가|:)?\s*)([A-Za-z가-힣][A-Za-z가-힣0-9]*)/g],
+  ['yield', /(수율|불량률|달성률|LRR)(\s*(?:는|은|이|가|:)?\s*)([\d,.]+\s*(?:%p|%|퍼센트|포인트)?)/g],
+  ['qty', /(수량|투입|양품|불량|출하)(\s*(?:는|은|이|가|:)?\s*)([\d,]+\s*(?:개|EA|ea)?)/g],
+  ['plan', /(출하\s*계획|계획\s*수량)(\s*(?:는|은|이|가|:)?\s*)([\d,]+\s*(?:개|EA|ea)?)/g],
+]);
+
+/** 지금 계정이 못 보는 항목 목록 ('*' 는 전 권한이라 가릴 것이 없습니다) */
+export function blockedFields() {
+  const scope = mockState.dataScope[mockState.currentUser.dept] ?? DATA_SCOPE_DEFAULT[mockState.currentUser.dept] ?? [];
+  if (scope === '*') return [];
+  return [...VALUE_PATTERNS.keys()].filter((key) => !scope.includes(key));
+}
+
+/** 문장 하나에서 권한 없는 값만 「비공개」로 바꿉니다 */
+export function maskText(text, blocked) {
+  let out = String(text ?? '');
+  blocked.forEach((key) => {
+    out = out.replace(VALUE_PATTERNS.get(key), (_m, label, gap, _value) => `${label}${gap}비공개`);
+  });
+  return out;
+}
+
+/**
+ * 답변 전체(문장 블록 · 표 블록)를 훑어 가립니다.
+ * 표는 열 단위라 `blindColumns` 로 화면에 맡기고, 값은 서버가 비웁니다.
+ */
+function maskAnswer(answer) {
+  const blocked = blockedFields();
+  if (!blocked.length) return { ...answer, blindFields: [] };
+
+  const blocks = (answer.blocks || []).map((b) => {
+    if (b.type === 'text' || b.type === 'source') return { ...b, text: maskText(b.text, blocked) };
+    // 표는 열 단위라 서버가 내려준 blindColumns 를 그대로 씁니다 —
+    // 어느 열이 어느 항목인지는 목이 지어낼 수 없습니다(서버가 attr 표를 보고 정합니다)
+    return b;
+  });
+  return { ...answer, blocks, blindFields: blocked };
+}
+
 /** 의도별 응답 생성 */
 function buildAnswer(question) {
   const intent = classifyIntent(question);
-
-  if (intent === 'denied') {
-    return {
-      intent,
-      title: '권한 밖 질의',
-      agents: ['⑦ 보안 필터링'],
-      blocks: [
-        {
-          type: 'text',
-          text:
-            '요청하신 항목에는 단가·거래처가 포함되어 있어 현재 권한으로는 조회할 수 없습니다.\n' +
-            '마스킹된 범위에서만 응답드리며, 원본이 필요하면 권한 요청 후 다시 질의해 주세요.',
-        },
-        { type: 'source', text: '보안 필터링 규칙 적용 · 조회 시도는 감사 로그에 기록됩니다' },
-      ],
-      followups: ['마스킹된 범위로 다시 보여줘', '권한 요청 방법 알려줘'],
-    };
-  }
 
   if (intent === 'unknown') {
     return {
@@ -195,7 +236,8 @@ export const aiMock = {
   postAiChatAsk: ({ question }) => {
     const st = store();
     const started = Date.now();
-    const answer = buildAnswer(question);
+    // 질의는 막지 않고, 만들어진 답에서 권한 없는 값만 가립니다
+    const answer = maskAnswer(buildAnswer(question));
     const messageId = `M-${started}`;
     st.messages.push({ messageId: `${messageId}-q`, who: 'me', text: question, ts: nowStamp() });
     st.messages.push({ messageId, who: 'ai', ts: nowStamp(), ...answer });
@@ -218,6 +260,8 @@ export const aiMock = {
       blocks: answer.blocks,
       agents: answer.agents,
       followups: answer.followups,
+      // 무엇이 가려졌는지 — 화면이 이유를 한 줄로 알려 줍니다
+      blindFields: answer.blindFields || [],
       elapsedMs: 1400 + (started % 900),
       modelVer: mockState.servingModelVer,
     };

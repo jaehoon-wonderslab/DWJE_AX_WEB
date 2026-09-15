@@ -8,7 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LineChart } from '@shared/components/charts';
-import { Badge, BlindValue, Button, Chip, ChipRow, Icon, Table } from '@shared/components/ui';
+import { Badge, BlindNote, BlindValue, Button, Chip, ChipRow, Icon, Table } from '@shared/components/ui';
 import AiThinking from '@shared/components/brand/AiThinking';
 import { DEPTS } from '@shared/constants/dataFields';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -276,6 +276,12 @@ function Message({ message, deptAv, onExport, onRate }) {
           // 블록이 없는 응답 — 서버의 answerHtml(또는 text)을 글로 보여 줍니다
           <Text style={[s.bubbleText, { marginBottom: 8 }]}>{plainText(message.answerHtml || message.text || message.answer) || '응답 내용이 없습니다.'}</Text>
         )}
+
+        {/*
+          가려진 항목 안내 — 질의를 막는 대신 답은 내고 값만 가리므로, 무엇이 빠졌는지
+          말해 주지 않으면 사용자는 그 수치가 원래 없는 것인지 가려진 것인지 알 수 없습니다.
+        */}
+        {message.blindFields?.length ? <BlindNote fields={message.blindFields} /> : null}
 
         {message.sources?.length ? (
           <View style={[s.source, { marginBottom: 4 }]}>

@@ -121,7 +121,8 @@ export default function DataFieldManager() {
             >
               <Button label={f.name} size="sm" variant={picked ? 'primary' : 'ghost'} onPress={() => setSelectedKey(f.key)} />
               <Text style={[s.textXs, s.mono]}>{f.key}</Text>
-              {f.category ? <Badge>{f.category}</Badge> : null}
+              {/* 서버는 코드값(category)과 표시명(categoryNm)을 함께 줍니다 — 사람이 읽을 쪽을 답니다 */}
+              {f.categoryNm || f.category ? <Badge>{f.categoryNm || f.category}</Badge> : null}
               <Text style={[s.textXs, { flex: 1 }]}>{`필드명 ${f.attrs?.length || 0}개`}</Text>
               <Badge tone={on ? 'green' : ''}>{on ? '적용 중' : '미적용'}</Badge>
               <Button

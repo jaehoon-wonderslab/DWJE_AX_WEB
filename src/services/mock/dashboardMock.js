@@ -10,6 +10,7 @@ import {
   KPI_TREND, MANHOUR_BY_DEPT, MASTER_AI, METRIC_HEATMAP,
 } from './data/dashboard';
 import { factOf, LINES, MOLDS, PROC_DEFECT, PROC_TREND, PROCESSES, PRODUCTS } from './data/masters';
+import { blockedFields, maskText } from './aiMock';
 import { addVersion, dataOf, listDocs, uploadStore, versionsOf } from './data/uploads';
 import { mockState } from './state';
 import { nowStamp } from '@shared/utils/formatUtil';
@@ -58,6 +59,27 @@ function uploadMessage(data) {
   const n = data.parsed?.warnings?.length || 0;
   if (data.parseState === 'FAIL') return `v${data.version} 을 저장했지만 읽을 시트가 없습니다 (파싱 실패)`;
   return n ? `v${data.version} 을 업로드했습니다 — 파싱 경고 ${n}건` : `v${data.version} 을 업로드했습니다 — 파싱 완료`;
+}
+
+/**
+ * 브리핑 문장에서 권한 없는 값만 가립니다 — 자연어 질의 답변과 같은 규칙입니다.
+ * 숫자 필드(overallYield 등)도 화면이 그대로 그리므로 함께 비웁니다.
+ */
+function briefingMasked(data) {
+  const blocked = blockedFields();
+  if (!blocked.length) return data;
+  const hide = (key, value) => (blocked.includes(key) ? null : value);
+  return {
+    ...data,
+    overallYield: hide('yield', data.overallYield),
+    overallDefectRate: hide('yield', data.overallDefectRate),
+    targetYield: hide('yield', data.targetYield),
+    targetDefectRate: hide('yield', data.targetDefectRate),
+    todayQty: hide('qty', data.todayQty),
+    planQty: hide('plan', data.planQty),
+    summaryLines: (data.summaryLines || []).map((line) => maskText(line, blocked)),
+    blindFields: blocked,
+  };
 }
 
 export const dashboardMock = {
@@ -141,7 +163,14 @@ export const dashboardMock = {
   getDashboardAiLines: () => ({ lines: LINES }),
   getDashboardAiAlerts: () => ({ alerts: ALERT_SUMMARY }),
   getDashboardAiAgents: () => ({ master: MASTER_AI, agents: AGENTS }),
-  getDashboardAiBriefing: () => ({
+  /**
+   * AI 일일 종합 브리핑
+   *
+   * 문장으로 내려가는 AI 산출물이라 자연어 질의 답변과 같은 필터를 태웁니다.
+   * 이걸 빼면 수율 권한이 없는 부서에도 「평균 수율 97.7%」가 그대로 보입니다 —
+   * 표는 가려지는데 브리핑만 새면 가린 의미가 없습니다.
+   */
+  getDashboardAiBriefing: () => briefingMasked({
     status: 'WARN',
     overallYield: 97.86,
     targetYield: 97.0,

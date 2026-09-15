@@ -3,6 +3,10 @@
  *
  * 홈 화면은 사용자가 질의하기 전에 세 가지 프리셋(불량률 · 공정 현황 · 현재 이슈)을 문장으로 보여 줍니다.
  * 이 파일은 순수 함수만 둡니다 — 값이 없으면 없다고 적고, 만들어 내지 않습니다.
+ *
+ * [가리기] 문장을 여기서 조립하므로 권한 없는 값을 가리는 것도 여기 몫입니다. 표는 열이 통째로
+ * 가려지는데 브리핑만 새면 가린 의미가 없습니다. 다만 순수 함수를 지키려고 권한 판정은 직접 하지
+ * 않고 `can(응답 필드명)` 을 인자로 받습니다 — 부르는 쪽이 넣어 줍니다.
  */
 
 /** 숫자 → '1,234' (null 이면 '—') */
@@ -27,15 +31,22 @@ export function greetingFor(name, now = new Date()) {
  * @param {object} data { summary, processYield, alerts, alertTotal, period:{from,to}, errors }
  * @returns {Array<{ key:string, title:string, tone:'ok'|'warn'|'bad'|'muted', lines:string[], query:string }>}
  */
-export function buildBriefingSections(data = {}) {
+export function buildBriefingSections(data = {}, can = () => true) {
   const { summary, processYield, alerts, alertTotal, period, errors = {} } = data;
   const range = period?.from && period?.to ? `${period.from} ~ ${period.to}` : '최근 기간';
 
-  return [defectSection(summary, range, errors.summary), processSection(processYield, errors.processYield), issueSection(alerts, alertTotal, errors.alerts)];
+  return [
+    defectSection(summary, range, errors.summary, can),
+    processSection(processYield, errors.processYield, can),
+    issueSection(alerts, alertTotal, errors.alerts),
+  ];
 }
 
+/** 권한이 없으면 값 자리에 「비공개」를 넣습니다 — 문장 구조는 그대로 둡니다 */
+const shown = (can, attr, text) => (can(attr) ? text : '비공개');
+
 /* ── 불량률 ─────────────────────────────────────────── */
-function defectSection(summary, range, error) {
+function defectSection(summary, range, error, can) {
   if (error) return { key: 'defect', title: '불량률', tone: 'muted', lines: ['생산 요약을 불러오지 못했습니다. 잠시 후 다시 확인하십시오.'], query: '최근 7일 불량률 추이를 알려줘' };
   if (!summary || summary.defectRate === null || summary.defectRate === undefined) {
     return { key: 'defect', title: '불량률', tone: 'muted', lines: [`${range} 집계된 불량률이 없습니다.`], query: '최근 7일 불량률 추이를 알려줘' };
@@ -44,18 +55,29 @@ function defectSection(summary, range, error) {
   const target = summary.targetDefectRate != null ? Number(summary.targetDefectRate) : 3.0;
   const tone = rate >= target + 1 ? 'bad' : rate >= target ? 'warn' : 'ok';
   const lines = [];
-  lines.push(`${range} 평균 불량률은 ${fixed(rate)}% 입니다. 관리 목표 ${fixed(target, 1)}% 대비 ${rate < target ? `${fixed(target - rate)}%p 낮아 양호합니다` : `${fixed(rate - target)}%p 높아 점검이 필요합니다`}.`);
+  const rateText = shown(can, 'defectRate', `${fixed(rate)}%`);
+  lines.push(
+    `${range} 평균 불량률은 ${rateText} 입니다. 관리 목표 ${fixed(target, 1)}% 대비 ` +
+      `${rate < target ? `${shown(can, 'defectRate', `${fixed(target - rate)}%p`)} 낮아 양호합니다` : `${shown(can, 'defectRate', `${fixed(rate - target)}%p`)} 높아 점검이 필요합니다`}.`
+  );
   if (summary.todayQty != null) {
-    lines.push(`총 생산 ${comma(summary.todayQty)} EA · 양품 ${comma(summary.okQty)} EA · 불량 ${comma(summary.ngQty)} EA 입니다.`);
+    lines.push(
+      `총 생산 ${shown(can, 'todayQty', `${comma(summary.todayQty)} EA`)} · ` +
+        `양품 ${shown(can, 'okQty', `${comma(summary.okQty)} EA`)} · ` +
+        `불량 ${shown(can, 'ngQty', `${comma(summary.ngQty)} EA`)} 입니다.`
+    );
   }
   if (summary.targetQty) {
-    lines.push(`일목표 ${comma(summary.targetQty)} EA 대비 달성률 ${fixed(summary.progressRate ?? 0, 1)}% 입니다.`);
+    lines.push(
+      `일목표 ${shown(can, 'todayQty', `${comma(summary.targetQty)} EA`)} 대비 ` +
+        `달성률 ${shown(can, 'yieldRate', `${fixed(summary.progressRate ?? 0, 1)}%`)} 입니다.`
+    );
   }
   return { key: 'defect', title: '불량률', tone, lines, query: '최근 7일 불량률 추이를 알려줘' };
 }
 
 /* ── 공정 현황 ───────────────────────────────────────── */
-function processSection(processYield, error) {
+function processSection(processYield, error, can) {
   if (error) return { key: 'process', title: '공정 현황', tone: 'muted', lines: ['공정별 수율을 불러오지 못했습니다.'], query: '공정별 수율 현황을 알려줘' };
   const items = (processYield?.items || []).filter((x) => (x.yieldRate ?? x.v) !== null && (x.yieldRate ?? x.v) !== undefined);
   if (!items.length) return { key: 'process', title: '공정 현황', tone: 'muted', lines: ['수율이 집계된 공정이 없습니다.'], query: '공정별 수율 현황을 알려줘' };
@@ -67,12 +89,16 @@ function processSection(processYield, error) {
   const avg = items.reduce((a, x) => a + rateOf(x), 0) / items.length;
   const tone = below.some((x) => rateOf(x) < target - 1.5) ? 'bad' : below.length ? 'warn' : 'ok';
 
-  const lines = [`${items.length}개 공정 평균 수율은 ${fixed(avg)}% 이며, 목표 ${fixed(target, 1)}% 를 ${below.length ? `${below.length}개 공정이 밑돌고 있습니다` : '모든 공정이 충족합니다'}.`];
+  const yieldOf = (x) => shown(can, 'yieldRate', `${fixed(rateOf(x))}%`);
+  const lines = [
+    `${items.length}개 공정 평균 수율은 ${shown(can, 'yieldRate', `${fixed(avg)}%`)} 이며, ` +
+      `목표 ${fixed(target, 1)}% 를 ${below.length ? `${below.length}개 공정이 밑돌고 있습니다` : '모든 공정이 충족합니다'}.`,
+  ];
   if (below.length) {
-    lines.push(`주의 공정: ${below.slice(0, 3).map((x) => `${nameOf(x)} ${fixed(rateOf(x))}%`).join(' · ')}${below.length > 3 ? ` 외 ${below.length - 3}개` : ''}.`);
+    lines.push(`주의 공정: ${below.slice(0, 3).map((x) => `${nameOf(x)} ${yieldOf(x)}`).join(' · ')}${below.length > 3 ? ` 외 ${below.length - 3}개` : ''}.`);
   } else {
     const best = [...items].sort((a, b) => rateOf(b) - rateOf(a))[0];
-    if (best) lines.push(`가장 높은 공정은 ${nameOf(best)} ${fixed(rateOf(best))}% 입니다.`);
+    if (best) lines.push(`가장 높은 공정은 ${nameOf(best)} ${yieldOf(best)} 입니다.`);
   }
   return { key: 'process', title: '공정 현황', tone, lines, query: '공정별 수율 현황을 알려줘' };
 }
