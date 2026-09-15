@@ -68,7 +68,8 @@ function uploadMessage(data) {
 function briefingMasked(data) {
   const blocked = blockedFields();
   if (!blocked.length) return data;
-  const hide = (key, value) => (blocked.includes(key) ? null : value);
+  const keys = blocked.map((f) => f.key);
+  const hide = (key, value) => (keys.includes(key) ? null : value);
   return {
     ...data,
     overallYield: hide('yield', data.overallYield),
@@ -78,7 +79,7 @@ function briefingMasked(data) {
     todayQty: hide('qty', data.todayQty),
     planQty: hide('plan', data.planQty),
     summaryLines: (data.summaryLines || []).map((line) => maskText(line, blocked)),
-    blindFields: blocked,
+    blindFields: keys,
   };
 }
 

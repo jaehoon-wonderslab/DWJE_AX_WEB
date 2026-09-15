@@ -8,6 +8,7 @@
  */
 import { nowStamp } from '@shared/utils/formatUtil';
 import { DATA_SCOPE_DEFAULT } from '@shared/constants/dataFields';
+import { appliedDataFields } from './data/dataFieldStore';
 import { mockState } from './state';
 
 /**
@@ -46,27 +47,56 @@ const SUGGESTIONS = [
  * [주의] 이건 목(데모)의 근사입니다. 실제로는 서버가 값을 만들 때 가립니다 —
  * 문장을 정규식으로 훑는 방식은 표현이 바뀌면 놓칠 수 있어 원본에 의존하면 안 됩니다.
  */
-// Map 으로 둡니다 — 객체 리터럴로 두면 check-mock 이 2칸 들여쓴 `키:` 를 목 핸들러로 셉니다
-const VALUE_PATTERNS = new Map([
-  ['price', /(단가|원가|매입가|가공비|폐기\s*금액|금액)(\s*(?:는|은|이|가|:)?\s*)([\d,.]+\s*(?:원|천원|만원|억원)?)/g],
-  ['customer', /(고객사|거래처)(\s*(?:는|은|이|가|:)?\s*)([A-Za-z가-힣][A-Za-z가-힣0-9]*)/g],
-  ['yield', /(수율|불량률|달성률|LRR)(\s*(?:는|은|이|가|:)?\s*)([\d,.]+\s*(?:%p|%|퍼센트|포인트)?)/g],
-  ['qty', /(수량|투입|양품|불량|출하)(\s*(?:는|은|이|가|:)?\s*)([\d,]+\s*(?:개|EA|ea)?)/g],
-  ['plan', /(출하\s*계획|계획\s*수량)(\s*(?:는|은|이|가|:)?\s*)([\d,]+\s*(?:개|EA|ea)?)/g],
-]);
+/**
+ * 값처럼 보이는 토막 — 숫자+단위, 또는 코드형 식별자(L260824-031 · PR-03).
+ * 사람 이름·제품명 같은 일반 한글 낱말은 일부러 넣지 않습니다. 넣으면 라벨 뒤의 멀쩡한
+ * 낱말까지 집어삼켜 문장이 망가집니다.
+ */
+const VALUE_TOKEN = '([\\d,.]+\\s*(?:%p|%|퍼센트|포인트|원|천원|만원|억원|개|EA|ea|건|초|분|시간|℃|μm)?|[A-Z][A-Za-z0-9]*[-_]?[A-Za-z0-9]+)';
+/** 라벨과 값 사이 — 조사나 콜론 */
+const JOSA = '(\\s*(?:는|은|이|가|:|=)?\\s*)';
 
-/** 지금 계정이 못 보는 항목 목록 ('*' 는 전 권한이라 가릴 것이 없습니다) */
+const escapeRe = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * 한 항목이 문장에서 어떤 말로 나타나는지 — 항목명 조각과 응답 필드명을 모두 씁니다.
+ *
+ * 항목명을 쓰는 이유는 문장이 필드명(`unitPrice`)이 아니라 사람 말(「단가」)로 쓰이기 때문이고,
+ * 필드명도 함께 쓰는 이유는 표를 옮겨 적은 문장에는 필드명이 그대로 박히기도 해서입니다.
+ * 관리자가 등록한 항목에서 뽑으므로 **항목을 늘리거나 이름을 바꾸면 문장 필터도 따라옵니다.**
+ */
+function labelsOf(field) {
+  const fromName = String(field.name || '')
+    .split(/[·,/()]/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2);
+  return [...new Set([...fromName, ...(field.attrs || [])])].filter(Boolean);
+}
+
+/**
+ * 지금 계정이 못 보는 **항목 정의** 목록 ('*' 는 전 권한이라 가릴 것이 없습니다)
+ *
+ * 적용 중인 항목에서 고르므로 관리자가 항목을 추가하면 문장 필터도 배포 없이 함께 넓어집니다.
+ * 고정 목록을 쓰던 때는 새로 등록한 항목이 문장에서 그대로 샜습니다.
+ */
 export function blockedFields() {
   const scope = mockState.dataScope[mockState.currentUser.dept] ?? DATA_SCOPE_DEFAULT[mockState.currentUser.dept] ?? [];
   if (scope === '*') return [];
-  return [...VALUE_PATTERNS.keys()].filter((key) => !scope.includes(key));
+  return appliedDataFields().filter((f) => !scope.includes(f.key));
 }
 
-/** 문장 하나에서 권한 없는 값만 「비공개」로 바꿉니다 */
+/**
+ * 문장에서 권한 없는 값만 「비공개」로 바꿉니다. 라벨은 남겨 두어 무엇이 가려졌는지 보이게 합니다.
+ *
+ * @param {string} text
+ * @param {Array<{key:string,name:string,attrs:string[]}>} blocked 가려야 할 항목 정의
+ */
 export function maskText(text, blocked) {
   let out = String(text ?? '');
-  blocked.forEach((key) => {
-    out = out.replace(VALUE_PATTERNS.get(key), (_m, label, gap, _value) => `${label}${gap}비공개`);
+  blocked.forEach((field) => {
+    labelsOf(field).forEach((label) => {
+      out = out.replace(new RegExp(`(${escapeRe(label)})${JOSA}${VALUE_TOKEN}`, 'g'), (_m, l, gap) => `${l}${gap}비공개`);
+    });
   });
   return out;
 }
@@ -85,7 +115,7 @@ function maskAnswer(answer) {
     // 어느 열이 어느 항목인지는 목이 지어낼 수 없습니다(서버가 attr 표를 보고 정합니다)
     return b;
   });
-  return { ...answer, blocks, blindFields: blocked };
+  return { ...answer, blocks, blindFields: blocked.map((f) => f.key) };
 }
 
 /** 의도별 응답 생성 */
