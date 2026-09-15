@@ -71,6 +71,9 @@ export function useAccountController() {
     downloadXls({
       name: '계정 목록',
       head: ['아이디', '이름', '소속 부서', '직급', '상태', '최근 접속'],
+      // 열마다 값의 출처(응답 필드명)를 알려 주면 downloadXls 가 권한을 보고 알아서 가립니다.
+      // 항목 key 를 여기 적지 않는 것이 요점입니다 — 관리자가 항목을 바꿔도 이 줄은 그대로입니다.
+      attrs: ['empNo', 'name', 'dept', 'posNm', 'stateNm', 'lastLoginAt'],
       rows: users.map((u) => [u.empNo, u.name, u.dept, u.posNm, u.stateNm, u.lastLoginAt || '—']),
     });
   }, [users]);

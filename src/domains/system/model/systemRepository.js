@@ -130,8 +130,10 @@ function normalizePermMatrix(data) {
       ? { id: d, name: d, abbr: d, superAdmin: false }
       : {
           id: d.deptId ?? d.id,
-          name: d.deptNm ?? d.name ?? String(d.deptId ?? ''),
-          abbr: d.abbr ?? d.deptAbbr ?? '',
+          // 이름이 없으면 id 로 돌아갑니다 — 부서 id 자체가 이름인 원천이 있어,
+          // 그대로 두면 권한 표의 열 머리글이 통째로 비어 어느 부서인지 알 수 없습니다
+          name: d.deptNm ?? d.name ?? String(d.deptId ?? d.id ?? ''),
+          abbr: d.abbr ?? d.deptAbbr ?? d.av ?? '',
           desc: d.desc ?? '',
           superAdmin: !!d.superAdmin,
           userCnt: d.userCnt ?? 0,
@@ -205,6 +207,19 @@ export const toggleDataPerm = (deptId, fieldKey) => command(systemService.putSys
  */
 export const setDataPerm = (deptId, fieldKey, allowed) =>
   command(systemService.putSystemDataPerms({ deptId, fieldKey, allowed }));
+
+/**
+ * 데이터 항목 관리 — 관리 화면은 **미적용 항목까지** 봐야 하므로 /system/data-fields 를 따로 읽습니다.
+ * (화면에 실제로 적용되는 목록은 로그인 때 받는 /auth/me 의 dataFields 입니다)
+ */
+export const loadDataFields = () => unwrap(systemService.getSystemDataFields({}), { fields: [] });
+export const createDataField = (v) => command(systemService.postSystemDataFields(v));
+export const updateDataField = (v) => command(systemService.putSystemDataFieldsByFieldKey(v));
+export const removeDataField = (fieldKey) => command(systemService.deleteSystemDataFieldsByFieldKey({ fieldKey }));
+export const addFieldAttr = (fieldKey, attrName) => command(systemService.postSystemDataFieldsByFieldKeyAttrs({ fieldKey, attrName }));
+export const removeFieldAttr = (fieldKey, attrName) =>
+  command(systemService.deleteSystemDataFieldsByFieldKeyAttrsByAttrName({ fieldKey, attrName }));
+export const setDataFieldApplied = (fieldKey, on) => command(systemService.patchSystemDataFieldsByFieldKeyApply({ fieldKey, on }));
 
 /* ═══════ SY-04 이상 알림 발송 조건 ═══════ */
 export async function loadAlertConditions({ severity, enabled, keyword, page, size }) {

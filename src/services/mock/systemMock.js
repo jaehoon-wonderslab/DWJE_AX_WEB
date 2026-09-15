@@ -16,6 +16,7 @@ import {
 } from './data/system';
 import { mockState } from './state';
 import { listDocs, versionsOf } from './data/uploads';
+import { allDataFields, ownerOfAttr } from './data/dataFieldStore';
 
 function store() {
   if (!mockState.store.system) {
@@ -247,12 +248,73 @@ export const systemMock = {
   }),
 
   /* ═══════════ SY-03 데이터 접근 권한 ═══════════ */
-  getSystemDataFields: () => ({ fields: DATA_FIELDS }),
+  /** 관리 화면용 — 미적용 항목까지 보여 줍니다 */
+  getSystemDataFields: () => ({ fields: allDataFields() }),
+
+  postSystemDataFields: ({ key, name, desc, category }) => {
+    if (!key || !name) return fail('E-VALID-001', '항목 key 와 이름은 필수입니다.');
+    if (!/^[a-z][a-z0-9_]{1,29}$/.test(key)) return fail('E-VALID-001', '항목 key 는 영문 소문자로 시작하는 2~30자여야 합니다.');
+    if (allDataFields().some((f) => f.key === key)) return fail('E-DUP-001', `이미 있는 항목 key 입니다 — ${key}`);
+    // 등록만으로는 아무것도 가려지지 않습니다. 부서 허용을 정한 뒤 「적용」을 켜야 걸립니다
+    allDataFields().push({ key, name, desc: desc || '', category: category || '', attrs: [], applyFlg: 'N' });
+    logPerm(name, '항목 등록', `데이터 항목 ${key} 등록 (미적용)`);
+    return ok('데이터 항목을 등록했습니다 — 부서 허용을 정한 뒤 「적용」을 켜세요.', { key });
+  },
+
+  putSystemDataFieldsByFieldKey: ({ fieldKey, name, desc, category }) => {
+    const f = allDataFields().find((x) => x.key === fieldKey);
+    if (!f) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
+    if (name) f.name = name;
+    if (desc !== undefined) f.desc = desc;
+    if (category !== undefined) f.category = category;
+    logPerm(f.name, '항목 수정', `데이터 항목 ${fieldKey} 수정`);
+    return ok('데이터 항목을 수정했습니다.');
+  },
+
+  deleteSystemDataFieldsByFieldKey: ({ fieldKey }) => {
+    const list = allDataFields();
+    const i = list.findIndex((x) => x.key === fieldKey);
+    if (i < 0) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
+    const [gone] = list.splice(i, 1);
+    logPerm(gone.name, '항목 삭제', `데이터 항목 ${fieldKey} 삭제`);
+    return ok('데이터 항목을 삭제했습니다 — 그 항목으로 가려지던 값이 다시 보입니다.');
+  },
+
+  postSystemDataFieldsByFieldKeyAttrs: ({ fieldKey, attrName }) => {
+    const f = allDataFields().find((x) => x.key === fieldKey);
+    if (!f) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
+    const attr = String(attrName || '').trim();
+    if (!attr) return fail('E-VALID-001', '응답 필드명을 입력하세요.');
+    // 한 필드명이 두 항목에 붙으면 어느 쪽 권한으로 판정할지 정할 수 없습니다 (서버는 UNIQUE 로 막습니다)
+    const owner = ownerOfAttr(attr, fieldKey);
+    if (owner) return fail('E-DUP-001', `이미 「${owner.name}」 항목에 등록된 필드명입니다 — ${attr}`);
+    if (!f.attrs.includes(attr)) f.attrs.push(attr);
+    logPerm(f.name, '필드명 등록', `${fieldKey} ← ${attr}`);
+    return ok(`응답 필드명 ${attr} 을(를) 등록했습니다.`);
+  },
+
+  deleteSystemDataFieldsByFieldKeyAttrsByAttrName: ({ fieldKey, attrName }) => {
+    const f = allDataFields().find((x) => x.key === fieldKey);
+    if (!f) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
+    f.attrs = f.attrs.filter((a) => a !== attrName);
+    logPerm(f.name, '필드명 해제', `${fieldKey} ✕ ${attrName}`);
+    return ok(`응답 필드명 ${attrName} 을(를) 해제했습니다.`);
+  },
+
+  patchSystemDataFieldsByFieldKeyApply: ({ fieldKey, on }) => {
+    const f = allDataFields().find((x) => x.key === fieldKey);
+    if (!f) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
+    if (on && !f.attrs.length) return fail('E-RULE-001', '응답 필드명이 하나도 없으면 가릴 값이 없습니다 — 먼저 등록하세요.');
+    f.applyFlg = on ? 'Y' : 'N';
+    logPerm(f.name, '항목 적용', `데이터 항목 ${fieldKey} ${on ? '적용' : '해제'}`);
+    return ok(on ? '적용했습니다 — 다시 로그인하면 화면과 엑셀에 반영됩니다.' : '적용을 해제했습니다.', { applyFlg: f.applyFlg });
+  },
 
   getSystemDataPerms: () => ({
-    fields: DATA_FIELDS,
-    depts: store().depts,
-    matrix: Object.fromEntries(store().depts.map((d) => [d.id, dataScopeOf(d.id) === '*' ? DATA_FIELDS.map((f) => f.key) : dataScopeOf(d.id)])),
+    fields: allDataFields(),
+    // 서버와 같은 모양으로 보냅니다 — 예전에는 { id, av } 를 그대로 보내 이름·약칭이 비었습니다
+    depts: store().depts.map((d) => ({ deptId: d.id, deptNm: d.id, abbr: d.av, desc: d.desc })),
+    matrix: Object.fromEntries(store().depts.map((d) => [d.id, dataScopeOf(d.id) === '*' ? allDataFields().map((f) => f.key) : dataScopeOf(d.id)])),
     adminDepts: store().depts.filter((d) => dataScopeOf(d.id) === '*').map((d) => d.id),
   }),
 

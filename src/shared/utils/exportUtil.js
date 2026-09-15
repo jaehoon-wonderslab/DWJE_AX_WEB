@@ -11,6 +11,7 @@ import { toast } from '@shared/stores/useUiStore';
 import { API_BASE_URL, USE_MOCK } from '@services/api/client';
 import * as systemService from '@services/api/systemService';
 import { useAuthStore } from '@shared/stores/useAuthStore';
+import { maskRows } from '@shared/utils/maskUtil';
 import { HOME_PATH, HOME_SCREEN_ID, screenIdOf } from '@shared/navigation/routes';
 
 const isWeb = Platform.OS === 'web' && typeof document !== 'undefined';
@@ -63,6 +64,22 @@ function currentScreenId() {
  *
  * @param {object} log { reportName, format, rowCount, blindCount, menuId } — menuId 를 안 주면 현재 URL 의 화면으로
  */
+/**
+ * 내보내기 직전 마스킹.
+ *
+ * 가리는 일을 호출부가 아니라 여기서 하는 이유는, 새 화면을 만들면서 빠뜨려도 조용히
+ * 새지 않게 하기 위해서입니다. 어느 값이 어느 항목인지는 서버가 내려준 대응표가 판정하므로
+ * 화면은 「이 열이 어디서 온 값인지」(응답 필드명)만 알려 주면 됩니다.
+ *
+ * @param {(string|number)[][]} rows
+ * @param {string[]} [attrs] 열 순서대로의 응답 필드명
+ * @param {number} given 호출부가 이미 센 비공개 건수 (직접 가린 화면과 이중으로 세지 않습니다)
+ */
+function applyMask(rows, attrs, given) {
+  const out = maskRows(rows, attrs);
+  return { rows: out.rows, blindCount: out.blindCount || given || 0 };
+}
+
 function logDownload({ reportName, format, rowCount, blindCount, menuId }) {
   // 이력 기록은 부가 동작이라 사용자 흐름을 막지 않습니다.
   // 다만 조용히 삼키지는 않습니다 — 그래서 이 버그를 오래 못 봤습니다.
@@ -149,9 +166,12 @@ function filenameOf(res) {
 /**
  * 표 데이터를 CSV 로 내려받습니다.
  *
- * @param {object} config { name, head:string[], rows:(string|number)[][], blindCount }
+ * `attrs` 를 주면 열마다 응답 필드명을 보고 **이 함수가 직접** 값을 가립니다 — 호출부에서
+ * 미리 가릴 필요가 없습니다. 빠뜨리면 원본이 그대로 나가므로 값이 있는 표에는 꼭 넘겨 주세요.
+ *
+ * @param {object} config { name, head:string[], attrs?:string[], rows:(string|number)[][], blindCount }
  */
-export function downloadCsv({ name, head, rows, blindCount = 0 }) {
+export function downloadCsv({ name, head, attrs, rows, blindCount = 0 }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return;
@@ -160,6 +180,7 @@ export function downloadCsv({ name, head, rows, blindCount = 0 }) {
     toast('내려받을 표를 찾을 수 없습니다');
     return;
   }
+  ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
   const lines = [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
   // BOM(﻿) 을 붙여야 엑셀에서 한글이 깨지지 않습니다
   saveBlob(new Blob([`﻿${lines}`], { type: 'text/csv;charset=utf-8;' }), `${name}.csv`);
@@ -171,9 +192,11 @@ export function downloadCsv({ name, head, rows, blindCount = 0 }) {
  * 표 데이터를 엑셀(.xls) 로 내려받습니다.
  * (SpreadsheetML 대신 엑셀이 읽을 수 있는 HTML 표 형식을 씁니다 — 별도 라이브러리 불필요)
  *
- * @param {object} config { name, head, rows, blindCount }
+ * `attrs` 를 주면 열마다 응답 필드명을 보고 이 함수가 직접 값을 가립니다.
+ *
+ * @param {object} config { name, head, attrs?:string[], rows, blindCount }
  */
-export function downloadXls({ name, head, rows, blindCount = 0 }) {
+export function downloadXls({ name, head, attrs, rows, blindCount = 0 }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return;
@@ -182,6 +205,7 @@ export function downloadXls({ name, head, rows, blindCount = 0 }) {
     toast('내려받을 표를 찾을 수 없습니다');
     return;
   }
+  ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
   const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const html =
     `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>` +
@@ -206,7 +230,10 @@ export function downloadXls({ name, head, rows, blindCount = 0 }) {
  *   `head`    표 머리글
  *   기본       본문
  *
- * @param {object} config { name, sheetName, columns[{header,width}], rows, blindCount }
+ * 열에 `attr`(응답 필드명)을 달아 두면 본문 행의 그 칸을 이 함수가 직접 가립니다.
+ * 제목·머리 정보·머리글 줄(`title`·`meta`·`section`·`head`)은 값이 아니라 글이므로 건드리지 않습니다.
+ *
+ * @param {object} config { name, sheetName, columns[{header,width,attr}], rows, blindCount }
  */
 export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], rows = [], blindCount = 0 }) {
   if (!isWeb) {
@@ -216,6 +243,19 @@ export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], r
   if (!rows?.length) {
     toast('내려받을 내용이 없습니다');
     return;
+  }
+
+  // 본문 줄만 골라 가립니다 — 꾸밈 줄에는 가릴 값이 없습니다
+  const attrs = columns.map((c) => c?.attr || '');
+  const body = new Set(['title', 'meta', 'section', 'head']);
+  const maskedBody = maskRows(
+    rows.filter((r) => !body.has(r?.style)).map((r) => r.cells || r),
+    attrs
+  );
+  if (maskedBody.blindCount) {
+    let i = 0;
+    rows = rows.map((r) => (body.has(r?.style) ? r : { ...(r.cells ? r : { cells: r }), cells: maskedBody.rows[i++] }));
+    blindCount = maskedBody.blindCount;
   }
 
   try {
@@ -316,7 +356,7 @@ export function printDocument({ nodeId, title, role }) {
  *
  * @param {object} config { name, head, rows, blindCount }
  */
-export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
+export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0 }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return;
@@ -325,6 +365,7 @@ export async function downloadXlsxTree({ name, head, rows, blindCount = 0 }) {
     toast('내려받을 데이터가 없습니다');
     return;
   }
+  ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
 
   try {
     // Metro에서 외부 node_modules 경로의 동적 청크가 404가 되는 것을 방지합니다.

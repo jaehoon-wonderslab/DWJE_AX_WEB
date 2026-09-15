@@ -11,6 +11,12 @@ import { clearSession, saveSession } from '@shared/utils/authStorage';
  * 실제 판정은 서버가 담당하고 이 스토어는 /auth/me 의 유효 권한을 표시합니다.
  *  · menuPerms — 접근 가능한 화면 ID 배열 ('*' 는 전체)
  *  · dataPerms — 접근 가능한 데이터 항목 key 배열 ('*' 는 전체)
+ *  · dataFields — 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
+ *
+ * dataFields 의 `attrs` 는 그 항목에 해당하는 **API 응답 필드명** 입니다(unitPrice · lotNo …).
+ * 이것으로 「응답 필드명 → 항목」 맵을 만들어 표·엑셀이 스스로 마스킹을 판정합니다.
+ * 관리자가 화면에서 항목·필드명을 추가하면 **배포 없이** 다음 로그인부터 반영됩니다 —
+ * 화면 코드에 항목을 적어 두지 않는 이유가 이것입니다.
  *
  * 로그인 직후 `GET /api/v1/auth/me` 응답으로 두 권한을 한 번에 채웁니다.
  *
@@ -25,6 +31,9 @@ export const useAuthStore = create((set, get) => ({
   refreshToken: '',
   menuPerms: [], // 접근 가능한 화면 ID 목록
   dataPerms: [], // 접근 가능한 데이터 항목 key 목록
+  dataFields: [], // 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
+  /** 응답 필드명 → 항목 key. dataFields 에서 파생합니다 (조회할 때마다 훑지 않으려고 미리 만듭니다) */
+  attrIndex: {},
   servingModelVer: '', // 현재 서비스 중인 AI 모델 버전 (사이드바 표기용)
 
   // ── 2. 상태 변경 함수 ───────────────────────────────────
@@ -59,6 +68,8 @@ export const useAuthStore = create((set, get) => ({
       userInfo: me?.user || null,
       menuPerms: me?.menuPerms || [],
       dataPerms: me?.dataPerms || [],
+      dataFields: me?.dataFields || [],
+      attrIndex: indexAttrs(me?.dataFields),
       servingModelVer: me?.servingModelVer || '',
     }),
 
@@ -89,6 +100,8 @@ export const useAuthStore = create((set, get) => ({
       refreshToken: '',
       menuPerms: [],
       dataPerms: [],
+      dataFields: [],
+      attrIndex: {},
       servingModelVer: '',
     });
   },
@@ -113,6 +126,44 @@ export const useAuthStore = create((set, get) => ({
     return perms === '*' || (Array.isArray(perms) && perms.indexOf(fieldKey) >= 0);
   },
 
+  /**
+   * API 응답 필드명이 어느 데이터 항목에 속하는지 찾습니다.
+   * @param {string} attrName 응답 JSON 필드명 (예: 'unitPrice')
+   * @returns {string|null} 항목 key. 등록되지 않은 필드명이면 null (= 통제 대상 아님)
+   */
+  fieldOfAttr: (attrName) => (attrName ? get().attrIndex[attrName] || null : null),
+
+  /**
+   * 응답 필드명 기준으로 값을 보여 줘도 되는지 판정합니다.
+   *
+   * 등록되지 않은 필드명은 **통제 대상이 아니므로 true** 입니다.
+   * 반대로 하면 항목을 등록하기 전까지 화면 전체가 비공개가 됩니다.
+   *
+   * @param {string} attrName 응답 JSON 필드명
+   */
+  canAttr: (attrName) => {
+    const key = get().fieldOfAttr(attrName);
+    return key ? get().canData(key) : true;
+  },
+
   /** 현재 로그인 계정의 소속 부서 (권한 판정 기준) */
   role: () => get().userInfo?.dept || '',
 }));
+
+/**
+ * dataFields → { 응답 필드명: 항목 key } 맵
+ *
+ * 서버가 `attr_name` 에 전역 UNIQUE 를 걸어 주므로 한 필드명이 두 항목에 붙는 일은 없습니다.
+ * 그래도 값이 어긋난 응답이 올 수 있어 먼저 온 항목을 남깁니다(뒤엣것이 덮어쓰지 않습니다).
+ *
+ * @param {Array<{key:string, attrs:string[]}>} fields
+ */
+function indexAttrs(fields) {
+  const index = {};
+  (Array.isArray(fields) ? fields : []).forEach((f) => {
+    (f?.attrs || []).forEach((attr) => {
+      if (attr && !index[attr]) index[attr] = f.key;
+    });
+  });
+  return index;
+}

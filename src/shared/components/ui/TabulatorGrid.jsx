@@ -30,7 +30,7 @@
  * 클래스를 표 안에 두었습니다 — `.tag .tag-green|red|amber|blue` · `.tbtn .tbtn-primary` · `.mono`.
  * 버튼 동작은 열의 `cellClick` 에서 받습니다.
  */
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
@@ -66,6 +66,7 @@ const KO_LANG = {
 /** 묶음 머리글의 펼침 화살표가 차지하는 폭 — 첫 칸에서 이만큼 뺍니다 */
 export const ARROW_W = 26;
 import { useTheme } from '@shared/theme/useTheme';
+import { useAuthStore } from '@shared/stores/useAuthStore';
 
 export default function TabulatorGrid({
   columns = [],
@@ -122,6 +123,21 @@ export default function TabulatorGrid({
   const hasRowClick = typeof onRowClick === 'function';
   const theme = useTheme();
   const id = useId().replace(/:/g, '_');
+
+  /**
+   * 가려야 하는 열 — 열의 응답 필드명(`field`)이 권한 없는 데이터 항목에 속하는 경우입니다.
+   *
+   * 화면이 열마다 항목을 적어 두지 않는 것이 요점입니다. 관리자가 항목·필드명을 추가하면
+   * 다음 로그인부터 이 판정이 저절로 달라집니다.
+   */
+  const attrIndex = useAuthStore((state) => state.attrIndex);
+  const dataPerms = useAuthStore((state) => state.dataPerms);
+  const blocked = useMemo(() => {
+    const canData = useAuthStore.getState().canData;
+    return new Set(Object.keys(attrIndex).filter((attr) => !canData(attrIndex[attr])));
+  }, [attrIndex, dataPerms]);
+  // 표를 다시 만들 조건에 넣기 위한 값 — Set 은 매번 새 객체라 그대로는 못 씁니다
+  const blockedKey = [...blocked].sort().join(',');
   const isDark = theme.isDark;
   const { color, alpha } = theme;
 
@@ -164,6 +180,24 @@ export default function TabulatorGrid({
         ...definition,
         minWidth: definition.minWidth ?? (typeof definition.width === 'number' ? definition.width : 120),
       };
+      // 권한 없는 항목의 열은 값을 그리지 않습니다.
+      // 정렬·검색도 막습니다 — 가린 값으로 줄을 세우면 순서로 원본을 되짚을 수 있습니다.
+      if (column.field && blocked.has(column.field)) {
+        return {
+          ...column,
+          headerSort: false,
+          headerFilter: false,
+          bottomCalc: undefined,
+          formatter: () => {
+            const badge = document.createElement('span');
+            badge.textContent = '●●●● 비공개';
+            badge.title = '소속 부서에 이 데이터 항목의 접근 권한이 없습니다';
+            badge.setAttribute('aria-label', '비공개 항목');
+            badge.style.cssText = `display:inline-block;padding:1px 9px;border-radius:999px;border:1px dashed ${c.border};color:${c.muted};font-size:12px;white-space:nowrap`;
+            return badge;
+          },
+        };
+      }
       if (!headerFilter || !column?.field || column.headerFilter === false) return column;
       return {
         ...column,
@@ -390,7 +424,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, treeChildIndent, dataTree]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, treeChildIndent, dataTree, blockedKey]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다

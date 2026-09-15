@@ -5,14 +5,28 @@
  * 마스킹은 원칙적으로 API 응답 생성 단계에서 수행되고(응답의 masked 배열로 통보),
  * 프론트는 그 결과를 '비공개' 배지로 렌더링합니다.
  */
+/**
+ * `attrs` 는 그 항목에 해당하는 **API 응답 필드명** 입니다.
+ *
+ * 실제 운영에서는 서버가 `/auth/me` 의 `dataFields` 로 내려주며, 관리자가 화면에서 늘릴 수
+ * 있습니다. 여기 값은 서버가 내려주지 않을 때(목 모드·초기 구동)를 위한 기본값입니다 —
+ * **화면 코드가 아니라 이 한 곳에만** 적어 두는 것이 요점입니다.
+ */
 export const DATA_FIELDS = [
-  { key: 'qty', name: '생산·출하 수량', desc: '투입·양품·불량·출하 수량, 실적 집계' },
-  { key: 'yield', name: '수율·불량률', desc: '제품별 수율, 공정 불량률, 달성률, LRR(%)' },
-  { key: 'price', name: '단가·금액', desc: '품목 단가, 가공비, 폐기 금액, 원가' },
-  { key: 'customer', name: '고객사·거래처', desc: '고객사명, 거래처, 계약 조건' },
-  { key: 'plan', name: '출하 계획', desc: '연간·월별 출하 계획 수량' },
-  { key: 'mold', name: '금형·설비 상세', desc: '금형 이력, 설비 파라미터, 공정 조건' },
-  { key: 'worker', name: '작업자 정보', desc: '사번, 작업자명, 근태·배치' },
+  { key: 'qty', name: '생산·출하 수량', desc: '투입·양품·불량·출하 수량, 실적 집계', category: '수량',
+    attrs: ['qty', 'okQty', 'ngQty', 'inQty', 'outQty', 'shipQty'] },
+  { key: 'yield', name: '수율·불량률', desc: '제품별 수율, 공정 불량률, 달성률, LRR(%)', category: '품질',
+    attrs: ['yield', 'yieldRate', 'defectRate', 'lrr'] },
+  { key: 'price', name: '단가·금액', desc: '품목 단가, 가공비, 폐기 금액, 원가', category: '원가',
+    attrs: ['price', 'unitPrice', 'amount', 'cost', 'unitCost'] },
+  { key: 'customer', name: '고객사·거래처', desc: '고객사명, 거래처, 계약 조건', category: '고객',
+    attrs: ['customer', 'customerNm', 'bpNm'] },
+  { key: 'plan', name: '출하 계획', desc: '연간·월별 출하 계획 수량', category: '계획',
+    attrs: ['planQty', 'monthlyPlan'] },
+  { key: 'mold', name: '금형·설비 상세', desc: '금형 이력, 설비 파라미터, 공정 조건', category: '설비',
+    attrs: ['moldCd', 'moldNm', 'eqptParam'] },
+  { key: 'worker', name: '작업자 정보', desc: '사번, 작업자명, 근태·배치', category: '인사',
+    attrs: ['workerNm', 'workerNo'] },
 ];
 
 /** 부서 정의 및 데이터 권한 기본값 — 「권한 정의」 2절 */

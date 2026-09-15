@@ -258,6 +258,75 @@ export function getSystemDataFields(params) {
 }
 
 /**
+ * 데이터 항목 등록
+ *
+ * `POST /api/v1/system/data-fields`
+ * @param {object} params key, name, desc, category
+ * @returns {Promise<object>} key
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 등록 시 applyFlg = N
+ */
+export function postSystemDataFields(params) {
+  return request('postSystemDataFields', params);
+}
+
+/**
+ * 데이터 항목 수정
+ *
+ * `PUT /api/v1/system/data-fields/{fieldKey}`
+ * @param {object} params fieldKey, name, desc, category
+ * @returns {Promise<object>} success
+ */
+export function putSystemDataFieldsByFieldKey(params) {
+  return request('putSystemDataFieldsByFieldKey', params);
+}
+
+/**
+ * 데이터 항목 삭제
+ *
+ * `DELETE /api/v1/system/data-fields/{fieldKey}`
+ * @param {object} params fieldKey
+ * @returns {Promise<object>} success
+ */
+export function deleteSystemDataFieldsByFieldKey(params) {
+  return request('deleteSystemDataFieldsByFieldKey', params);
+}
+
+/**
+ * 응답 필드명 등록
+ *
+ * `POST /api/v1/system/data-fields/{fieldKey}/attrs`
+ * @param {object} params fieldKey, attrName, remark
+ * @returns {Promise<object>} success
+ * @remarks attrName 은 전역 UNIQUE — 이미 다른 항목에 있으면 409 로 그 항목명을 알려 줍니다
+ */
+export function postSystemDataFieldsByFieldKeyAttrs(params) {
+  return request('postSystemDataFieldsByFieldKeyAttrs', params);
+}
+
+/**
+ * 응답 필드명 해제
+ *
+ * `DELETE /api/v1/system/data-fields/{fieldKey}/attrs/{attrName}`
+ * @param {object} params fieldKey, attrName
+ * @returns {Promise<object>} success
+ */
+export function deleteSystemDataFieldsByFieldKeyAttrsByAttrName(params) {
+  return request('deleteSystemDataFieldsByFieldKeyAttrsByAttrName', params);
+}
+
+/**
+ * 데이터 항목 적용 전환 (2단계 스위치)
+ *
+ * `PATCH /api/v1/system/data-fields/{fieldKey}/apply`
+ * @param {object} params fieldKey, on
+ * @returns {Promise<object>} applyFlg
+ * @remarks 켠 뒤 재로그인부터 화면·엑셀에 마스킹이 걸립니다
+ */
+export function patchSystemDataFieldsByFieldKeyApply(params) {
+  return request('patchSystemDataFieldsByFieldKeyApply', params);
+}
+
+/**
  * 데이터 권한 매트릭스 조회
  *
  * `GET /api/v1/system/data-perms`

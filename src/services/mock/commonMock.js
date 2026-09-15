@@ -3,6 +3,7 @@
  */
 import { DEFAULT_USER, findUser } from '@shared/constants/accounts';
 import { DATA_SCOPE_DEFAULT, MENU_ACCESS_DEFAULT } from '@shared/constants/dataFields';
+import { appliedDataFields } from './data/dataFieldStore';
 import { MENU, permRows } from '@shared/constants/menu';
 import { COMMON_CODES, CUSTOMERS, DEFECT_TYPES, LINES, MOLDS, PROCESSES, PRODUCTS } from './data/masters';
 import { mockState } from './state';
@@ -50,6 +51,8 @@ export const commonMock = {
       dept: user.dept,
       menuPerms: menuPermsOf(user.dept),
       dataPerms: dataPermsOf(user.dept),
+      // 적용 중인 항목 정의 — 화면·엑셀이 이걸로 「응답 필드명 → 항목」 맵을 만듭니다
+      dataFields: appliedDataFields(),
       servingModelVer: mockState.servingModelVer,
     };
   },
