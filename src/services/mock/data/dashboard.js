@@ -12,6 +12,13 @@ export const AI_SUMMARY = {
   uptimeRateSub: '목표 87.2% 까지 3.7%p',
   todayQty: 107680,
   todayQtySub: '계획 대비 96.2%',
+  // 홈 브리핑이 「총 생산 · 양품 · 불량」 을 한 줄로 말합니다 — 셋이 다 있어야 「— EA」 가 되지 않습니다
+  okQty: 104880,
+  ngQty: 2800,
+  targetQty: 112000,
+  // 달성률은 화면이 따로 계산하지 않습니다 — 없으면 「달성률 0.0%」 로 나옵니다
+  progressRate: 96.1,
+  targetDefectRate: 3.0,
   pendingBorderline: { cnt: 12, maxWaitMin: 23 },
 };
 
@@ -52,14 +59,21 @@ export const AI_DEFECT_COMPOSITION = {
   note: 'AOI 판정 로그 자동 집계 · 경계 판정 12건은 미포함',
 };
 
+/**
+ * 공정별 수율.
+ *
+ * 서버 규약의 필드는 **`yield`** 입니다(`items[{process,yield,level}]`).
+ * 화면·브리핑은 `yield` 를 먼저 읽고 없으면 수량으로 계산하므로, `yieldRate` 만 두면
+ * 「수율이 집계된 공정이 없습니다」 로 떨어집니다. 둘 다 두고 수량도 함께 줍니다.
+ */
 export const AI_PROCESS_YIELD = {
   target: 97.0,
   items: [
-    { process: 'Press', yieldRate: 97.4, level: '' },
-    { process: 'A Plating', yieldRate: 98.1, level: '' },
-    { process: 'B Plating', yieldRate: 95.2, level: 'warn' },
-    { process: 'Coating', yieldRate: 98.6, level: '' },
-    { process: '검사·포장', yieldRate: 99.2, level: '' },
+    { process: 'Press', yield: 97.4, yieldRate: 97.4, qty: 31200, okQty: 30389, ngQty: 811, level: '' },
+    { process: 'A Plating', yield: 98.1, yieldRate: 98.1, qty: 24800, okQty: 24329, ngQty: 471, level: '' },
+    { process: 'B Plating', yield: 95.2, yieldRate: 95.2, qty: 21600, okQty: 20563, ngQty: 1037, level: 'warn' },
+    { process: 'Coating', yield: 98.6, yieldRate: 98.6, qty: 17400, okQty: 17156, ngQty: 244, level: '' },
+    { process: '검사·포장', yield: 99.2, yieldRate: 99.2, qty: 12680, okQty: 12579, ngQty: 101, level: '' },
   ],
   note: 'B Plating — 도금조 석출 영향으로 목표 미달, 오전 중 재셋업 예정',
 };

@@ -11,7 +11,22 @@ import React from 'react';
 import { Text } from 'react-native';
 import { Button, FormAlert, PasswordField, TextField } from '@shared/components/ui';
 import AuthCard, { AuthLinks } from '@shared/components/layout/AuthCard';
+import { IS_MOCK_LOGIN } from '@services/api/client';
 import { useCommonStyles } from '@shared/theme/styles';
+
+/**
+ * 데모 사이트에서 쓸 계정 안내.
+ *
+ * 목 인증은 **아무 사번·비밀번호나 받습니다**(모르는 사번은 통합관리자로 들어갑니다).
+ * 그대로 두면 처음 온 사람이 무엇을 쳐야 할지 몰라 멈춥니다 — 부서마다 보이는 화면이 다르므로
+ * 권한이 갈리는 계정을 몇 개 짚어 줍니다.
+ */
+const DEMO_ACCOUNTS = [
+  ['20140901', '통합관리자 — 전 화면'],
+  ['20180412', '품질보증팀 팀장'],
+  ['20170905', '생산관리팀 팀장'],
+  ['20110204', '경영진 — 수량·수율 비공개'],
+];
 
 export default function LoginView({
   loginId,
@@ -78,9 +93,16 @@ export default function LoginView({
         style={{ height: 40, marginTop: 2 }}
       />
 
-      <Text style={[s.caption, { textAlign: 'center' }]}>
-        비밀번호를 5회 잘못 입력하면 계정이 정지됩니다. 정지된 계정은 비밀번호 찾기로 다시 사용할 수 있습니다.
-      </Text>
+      {IS_MOCK_LOGIN ? (
+        <FormAlert tone="info">
+          {`데모 사이트입니다 — 아래 사번 중 하나로 들어가 보십시오. 비밀번호는 아무 값이나 됩니다.\n${
+            DEMO_ACCOUNTS.map(([id, desc]) => `· ${id} — ${desc}`).join('\n')}`}
+        </FormAlert>
+      ) : (
+        <Text style={[s.caption, { textAlign: 'center' }]}>
+          비밀번호를 5회 잘못 입력하면 계정이 정지됩니다. 정지된 계정은 비밀번호 찾기로 다시 사용할 수 있습니다.
+        </Text>
+      )}
     </AuthCard>
   );
 }

@@ -1139,3 +1139,75 @@ function recalcRanks() {
       });
   });
 }
+
+/* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
+
+/** 회원가입 신청 대기 — 승인하면 계정 목록으로 넘어갑니다 */
+const PENDING_SEED = [
+  { empNo: '20260412', name: '한지우', dept: '품질보증팀', deptId: '품질보증팀', pos: '사원', email: 'jiwoo.han@dwje.co.kr', requestedAt: '2026-08-27 14:20' },
+  { empNo: '20260415', name: '오세진', dept: '제조팀', deptId: '제조팀', pos: '주임', email: 'sejin.oh@dwje.co.kr', requestedAt: '2026-08-27 16:05' },
+  { empNo: '20260418', name: '배현우', dept: '생산관리팀', deptId: '생산관리팀', pos: '사원', email: 'hyunwoo.bae@dwje.co.kr', requestedAt: '2026-08-28 09:12' },
+];
+
+function pendingStore() {
+  const st = store();
+  if (!st.pending) st.pending = PENDING_SEED.map((p) => ({ ...p }));
+  return st.pending;
+}
+
+Object.assign(systemMock, {
+  /** 승인 대기 계정 목록 (SY-01-F06) */
+  getSystemUsersPending: ({ keyword, page = 1, size = 50 }) => {
+    let items = pendingStore();
+    if (keyword) items = items.filter((u) => `${u.empNo}${u.name}${u.dept}`.includes(keyword));
+    return { items, meta: { page, size, total: items.length, totalPages: 1 } };
+  },
+
+  /** 회원가입 승인·반려 (SY-01-F07) — 승인하면 PENDING 이 사라지고 계정이 생깁니다 */
+  postSystemUsersByEmpNoApprove: ({ empNo, approve, reason }) => {
+    const list = pendingStore();
+    const i = list.findIndex((u) => u.empNo === String(empNo));
+    if (i < 0) return fail('E-NOTFOUND', '승인 대기 중인 신청을 찾을 수 없습니다.');
+    const [target] = list.splice(i, 1);
+    const yes = approve === true || approve === 'true' || approve === 'Y';
+    if (yes) {
+      store().users.push({
+        empNo: target.empNo, name: target.name, dept: target.deptId, pos: target.pos,
+        state: '사용', lastLoginAt: '—', switchable: false,
+      });
+    }
+    logPerm(`${target.name} (${target.deptId})`, '계정', yes ? '회원가입 승인' : `회원가입 반려 — ${reason || '사유 없음'}`);
+    return ok(yes ? '가입을 승인했습니다.' : '가입을 반려했습니다.', { empNo: target.empNo, state: yes ? 'ACTIVE' : 'REJECTED' });
+  },
+
+  /**
+   * 엔진 실행 이력 (SY-15-F01)
+   *
+   * `jobs` 는 테이블 한 건, `runs` 는 엔진 한 번의 실행입니다.
+   * 표에 닿지도 못하고 끝난 실행은 jobs 에 남지 않으므로 여기서만 보입니다.
+   */
+  getSyncRuns: ({ state, mode, page = 1, size = 25 }) => {
+    let items = SYNC_RUNS;
+    if (state && state !== '전체') items = items.filter((r) => r.stateNm === state || r.state === state);
+    if (mode && mode !== '전체') items = items.filter((r) => r.modeNm === mode || r.mode === mode);
+    const p = Math.max(1, Number(page) || 1);
+    const sz = Math.max(1, Number(size) || 25);
+    return {
+      success: true,
+      code: 'SUCCESS',
+      message: '엔진 실행 이력 조회가 완료되었습니다.',
+      data: { items: items.slice((p - 1) * sz, p * sz) },
+      meta: { page: p, size: sz, total: items.length, totalPages: Math.max(1, Math.ceil(items.length / sz)) },
+      masked: [],
+    };
+  },
+});
+
+/** 엔진 실행 이력 — 성공·실패·중단이 섞여 있어야 화면의 상태 배지를 다 볼 수 있습니다 */
+const SYNC_RUNS = [
+  { runId: 'RUN-260828-02', mode: 'INCR', modeNm: '증분', state: 'RUNNING', stateNm: '진행 중', startedAt: '2026-08-28 09:10:00', endedAt: null, durationSec: null, triggeredByCd: 'SCHEDULE', triggeredBy: '스케줄', options: 'tables=4', dryRun: false, tableCnt: 4, successCnt: 3, failCnt: 0, okRows: 1322730, ngRows: 0, driftOpenCntAtRun: 2, engineVersion: '1.4.2', host: 'ax-mig-01', message: '' },
+  { runId: 'RUN-260828-01', mode: 'INCR', modeNm: '증분', state: 'SUCCESS', stateNm: '완료', startedAt: '2026-08-28 02:00:12', endedAt: '2026-08-28 02:19:52', durationSec: 1180, triggeredByCd: 'SCHEDULE', triggeredBy: '스케줄', options: 'tables=3', dryRun: false, tableCnt: 3, successCnt: 3, failCnt: 0, okRows: 1286562, ngRows: 0, driftOpenCntAtRun: 2, engineVersion: '1.4.2', host: 'ax-mig-01', message: '' },
+  { runId: 'RUN-260827-03', mode: 'INCR', modeNm: '증분', state: 'FAIL', stateNm: '실패', startedAt: '2026-08-27 02:16:55', endedAt: '2026-08-27 02:21:40', durationSec: 285, triggeredByCd: 'SCHEDULE', triggeredBy: '스케줄', options: 'tables=2', dryRun: false, tableCnt: 2, successCnt: 1, failCnt: 1, okRows: 401906, ngRows: 274, driftOpenCntAtRun: 3, engineVersion: '1.4.2', host: 'ax-mig-01', message: '대상 컬럼 judge_code 길이 초과 — 원본 4자 / 대상 3자' },
+  { runId: 'RUN-260827-02', mode: 'FULL', modeNm: '전체', state: 'ABORTED', stateNm: '중단', startedAt: '2026-08-27 01:02:00', endedAt: '2026-08-27 01:02:31', durationSec: 31, triggeredByCd: 'USER', triggeredBy: '관리자 관리자', options: 'dryRun', dryRun: true, tableCnt: 0, successCnt: 0, failCnt: 0, okRows: 0, ngRows: 0, driftOpenCntAtRun: 3, engineVersion: '1.4.2', host: 'ax-mig-02', message: '원본 접속 실패 — 표에 닿지 못하고 끝났습니다' },
+  { runId: 'RUN-260826-01', mode: 'FULL', modeNm: '전체', state: 'SUCCESS', stateNm: '완료', startedAt: '2026-08-26 03:00:00', endedAt: '2026-08-26 03:04:12', durationSec: 252, triggeredByCd: 'USER', triggeredBy: '관리자 관리자', options: 'tables=1', dryRun: false, tableCnt: 1, successCnt: 1, failCnt: 0, okRows: 3418, ngRows: 0, driftOpenCntAtRun: 1, engineVersion: '1.4.1', host: 'ax-mig-01', message: '' },
+];

@@ -35,6 +35,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "build:web": "node scripts/build-deploy.cjs",
+    "build:proto": "node proto/vercel-demo/build.cjs",
     "check": "npm run check:syntax && npm run check:api && npm run check:mock && npm run check:routes",
     "check:syntax": "node scripts/check-syntax.cjs",
     "check:api": "node scripts/check-api.cjs",

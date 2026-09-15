@@ -1,0 +1,10 @@
+node_modules
+.expo
+dist
+source
+archived-web
+index.html
+*-preview.png
+CLAUDE_DESIGN_BRIEF.md
+build-standalone.cjs
+verify-standalone.cjs

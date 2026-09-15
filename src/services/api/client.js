@@ -30,8 +30,20 @@ const MOCK_DELAY = Number(process.env.EXPO_PUBLIC_MOCK_DELAY ?? 180);
  */
 export const LIVE_AUTH = String(process.env.EXPO_PUBLIC_LIVE_AUTH ?? 'true') !== 'false';
 
+/**
+ * 자동 로그인 — 목 인증일 때 로그인 화면을 건너뛸지 여부 (.env 의 EXPO_PUBLIC_DEMO_AUTOLOGIN, 기본 true)
+ *
+ * 개발 중에는 화면을 바로 보는 편이 빨라 기본값이 「건너뜀」 입니다.
+ * 다만 **데모 사이트(proto)** 는 로그인 화면부터 보여 줘야 하므로 false 로 둡니다 —
+ * 인증은 그대로 목으로 처리되고, 화면만 정상 절차대로 지나갑니다.
+ */
+const DEMO_AUTOLOGIN = String(process.env.EXPO_PUBLIC_DEMO_AUTOLOGIN ?? 'true') !== 'false';
+
 /** 데모 인증 모드 — 로그인 화면 없이 기본 계정으로 자동 로그인합니다 */
-export const IS_DEMO_AUTH = USE_MOCK && !LIVE_AUTH;
+export const IS_DEMO_AUTH = USE_MOCK && !LIVE_AUTH && DEMO_AUTOLOGIN;
+
+/** 목 인증으로 로그인 화면을 지나가는 모드 — 데모 사이트에서 안내 문구를 띄웁니다 */
+export const IS_MOCK_LOGIN = USE_MOCK && !LIVE_AUTH && !DEMO_AUTOLOGIN;
 
 /** 이 엔드포인트를 목으로 처리할지 판정합니다 */
 function shouldMock(def) {
@@ -177,12 +189,18 @@ export const ERROR_CODES = {
  * @returns {{url:string, rest:object}} 치환된 URL 과 남은 파라미터
  */
 /**
- * "조건 없음" 을 뜻하는 화면 값 — 서버로 보내지 않고 버립니다.
+ * "조건 없음" 을 뜻하는 **화면 표시값** — 서버로 보내지 않고 버립니다.
  *
  * 선택 목록의 기본값이 '전체' 라서 그대로 보내면 서버가 코드값으로 읽고 400 을 냅니다.
  * (목 모드에서는 목 핸들러가 한글을 받아 줘서 드러나지 않던 문제입니다)
+ *
+ * [주의] **영문 `all`·`ALL` 은 여기 넣지 않습니다.** 2026-09-14 에 그 때문에 버그가 났습니다 —
+ * AOI 상세의 `only=all`(전 회차)과 대시보드 추이의 `topN=all` 이 조용히 사라져, 서버가 기본값
+ * (`only=ng`)으로 답하는데 화면은 전체를 받은 줄 알고 그렸습니다. 「불량 회차만」인 표를 전체인 양
+ * 보여 주니 PASSED 가 뒤집힌 것처럼 읽혔습니다.
+ * `all` 은 여러 API 에서 **뜻이 있는 값**입니다. 걸러야 할 것은 화면이 만들어 낸 한글 표시값뿐입니다.
  */
-const EMPTY_FILTERS = new Set(['전체', '전부', '없음', '선택', 'ALL', 'all']);
+const EMPTY_FILTERS = new Set(['전체', '전부', '없음', '선택']);
 
 /**
  * 값이 비어 있는(=조건 없음) 파라미터를 걸러 냅니다.

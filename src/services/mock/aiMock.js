@@ -8,6 +8,7 @@
  */
 import { nowStamp } from '@shared/utils/formatUtil';
 import { mockState } from './state';
+import { MASK_RULES } from './data/system';
 
 /** 의도 분류 — 기능명세서 「권한 정의」 7절 규칙 그대로 */
 export function classifyIntent(question) {
@@ -261,3 +262,65 @@ export const aiMock = {
 };
 
 export { SUGGESTIONS };
+
+/* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
+
+function maskRuleStore() {
+  if (!mockState.store.aiMaskRules) mockState.store.aiMaskRules = MASK_RULES.map((r) => ({ ...r }));
+  return mockState.store.aiMaskRules;
+}
+
+Object.assign(aiMock, {
+  /** 보안 필터링 패턴 등록 (SY-10-F03) */
+  postAiMaskRules: ({ name, targetFields, action, customerPolicy, useYn }) => {
+    if (!name) return { success: false, code: 'E-VALID-001', message: '패턴 이름은 필수입니다.', data: null };
+    const list = maskRuleStore();
+    const ruleId = `MR${list.length + 1}`;
+    list.push({
+      ruleId,
+      name,
+      fields: Array.isArray(targetFields) ? targetFields.join(', ') : String(targetFields || ''),
+      action: action || '마스킹',
+      policy: customerPolicy || '전체 비공개',
+      enabled: useYn !== 'N',
+    });
+    return { success: true, code: 'SUCCESS', message: '보안 필터링 패턴을 등록했습니다.', data: { ruleId } };
+  },
+
+  /** 같은 등록을 ID 지정으로 — 서버가 PUT 과 함께 열어 둔 별칭입니다 */
+  postAiMaskRulesByRuleId: ({ ruleId, name, targetFields, action, customerPolicy }) => {
+    const list = maskRuleStore();
+    const row = list.find((r) => r.ruleId === ruleId);
+    if (row) {
+      if (name) row.name = name;
+      if (targetFields) row.fields = Array.isArray(targetFields) ? targetFields.join(', ') : String(targetFields);
+      if (action) row.action = action;
+      if (customerPolicy) row.policy = customerPolicy;
+    }
+    return { success: true, code: 'SUCCESS', message: '보안 필터링 패턴을 저장했습니다.', data: { ruleId } };
+  },
+
+  /**
+   * 임베딩 모델 목록 (SY-11-F02)
+   *
+   * `onPrem: false` 는 외부 API 입니다 — 기밀 문서를 보내면 안 되는 모델이라 화면이 구분해 보여 줍니다.
+   */
+  getAiEmbedModels: () => ({
+    items: [
+      { embedModelId: 'EM-1', key: 'bge-m3-ko', name: 'BGE-M3 (한국어 튜닝)', provider: 'ONPREM', providerNm: '사내 GPU', dim: 1024, maxTokens: 8192, onPrem: true, current: true, remark: '현재 색인에 쓰는 모델' },
+      { embedModelId: 'EM-2', key: 'ko-sroberta-multitask', name: 'KoSRoBERTa multitask', provider: 'ONPREM', providerNm: '사내 GPU', dim: 768, maxTokens: 512, onPrem: true, current: false, remark: '짧은 문장 전용 · 색인 속도 우선' },
+      { embedModelId: 'EM-3', key: 'text-embedding-3-large', name: 'OpenAI text-embedding-3-large', provider: 'OPENAI', providerNm: 'OpenAI API', dim: 3072, maxTokens: 8191, onPrem: false, current: false, remark: '외부 전송 — 기밀 문서 금지' },
+    ],
+  }),
+
+  /** 모델 자산 목록 (SY-11-F02) — 파인튜닝을 돌릴 때마다 한 건씩 쌓입니다 */
+  getAiAssets: ({ kind }) => {
+    const items = [
+      { assetId: 'AS-1', kind: 'LLM_BASE', kindNm: '기반 모델', assetKey: 'qwen2.5-14b-instruct', version: '2.5', name: 'Qwen2.5-14B-Instruct', baseModel: null, dim: null, maxTokens: 32768, state: 'READY', stateNm: '사용 가능', onPrem: true, verifiedAt: '2026-08-20 11:02' },
+      { assetId: 'AS-2', kind: 'LORA', kindNm: 'LoRA 어댑터', assetKey: 'dwje-qa-lora', version: 'FT-2026.08-02', name: '덕반장 QA LoRA', baseModel: 'qwen2.5-14b-instruct', dim: null, maxTokens: null, state: 'SERVING', stateNm: '서빙 중', onPrem: true, verifiedAt: '2026-08-25 09:41' },
+      { assetId: 'AS-3', kind: 'EMBED', kindNm: '임베딩', assetKey: 'bge-m3-ko', version: '1.5', name: 'BGE-M3 (한국어 튜닝)', baseModel: null, dim: 1024, maxTokens: 8192, state: 'SERVING', stateNm: '서빙 중', onPrem: true, verifiedAt: '2026-08-26 02:40' },
+      { assetId: 'AS-4', kind: 'RERANK', kindNm: '재순위', assetKey: 'bge-reranker-v2-m3', version: '2.0', name: 'BGE Reranker v2 M3', baseModel: null, dim: null, maxTokens: 8192, state: 'READY', stateNm: '사용 가능', onPrem: true, verifiedAt: '2026-08-18 15:20' },
+    ];
+    return { items: kind ? items.filter((a) => a.kind === kind) : items };
+  },
+});

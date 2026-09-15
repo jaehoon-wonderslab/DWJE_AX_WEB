@@ -295,3 +295,59 @@ export const reportMock = {
 };
 
 export { calcGroups, calcSummary };
+
+/* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
+
+/** 폐기 전표 — 위저드 1단계에서 고르는 MES 원장입니다 */
+const SCRAP_VOUCHERS = (() => {
+  const models = ['KRIOS', 'EOS-S', 'BOI', 'MEM-B', 'CM-01'];
+  const procs = ['프레스 공정', 'B 도금 공정', 'A 도금 공정', '코팅 공정'];
+  const types = ['chip (찍힘)', 'stain (얼룩)', 'bend (변형)', '미도금', 'BURR'];
+  // 발생 구분은 화면(VOUCHER_ORIGIN_TYPES)이 보내는 값과 **같아야** 합니다 — 다르면 거르기에서 0건이 됩니다
+  const origins = ['제조공정 발생', '협력업체 발생', 'IQC 발생'];
+  const remarks = ['치수 Spec Out', '도금 불량', '외관 스크래치', '불용 재고 정리', '초물 폐기'];
+  const out = [];
+  for (let i = 0; i < 46; i += 1) {
+    const day = `2026-08-${String(10 + (i % 19)).padStart(2, '0')}`;
+    out.push({
+      voucherId: `SCR-${day.replace(/-/g, '').slice(2)}-${String(i + 1).padStart(3, '0')}`,
+      occurDate: day,
+      lotNo: `${day.replace(/-/g, '')}-${String(100 + i * 7).padStart(5, '0')}`,
+      model: models[i % models.length],
+      process: procs[i % procs.length],
+      defectType: types[i % types.length],
+      qty: 20 + ((i * 37) % 480),
+      originType: origins[i % origins.length],
+      // 폐기 양식이 「공정불량」과 「그 밖」을 갈라 세웁니다
+      scrapKind: i % 5 === 3 ? 'OTHER' : 'DEFECT',
+      remark: remarks[i % remarks.length],
+      docNo: `PO-2608-${String(200 + i).padStart(4, '0')}`,
+    });
+  }
+  return out.sort((a, b) => (a.occurDate < b.occurDate ? 1 : -1));
+})();
+
+Object.assign(reportMock, {
+  /** MES 폐기 전표 조회 (RP-07-F01) */
+  getReportsScrapMesVouchers: ({ from, to, processId, modelCd, defectTypeCd, originType, page = 1, size = 25 }) => {
+    const items = SCRAP_VOUCHERS.filter((v) => {
+      if (from && v.occurDate < from) return false;
+      if (to && v.occurDate > to) return false;
+      if (processId && processId !== '전체' && !v.process.includes(String(processId))) return false;
+      if (modelCd && modelCd !== '전체' && v.model !== modelCd) return false;
+      if (defectTypeCd && defectTypeCd !== '전체' && !v.defectType.includes(String(defectTypeCd))) return false;
+      if (originType && originType !== '전체' && v.originType !== originType) return false;
+      return true;
+    });
+    const p = Math.max(1, Number(page) || 1);
+    const sz = Math.max(1, Number(size) || 25);
+    return {
+      success: true,
+      code: 'SUCCESS',
+      message: '폐기 전표 조회가 완료되었습니다.',
+      data: { items: items.slice((p - 1) * sz, p * sz) },
+      meta: { page: p, size: sz, total: items.length, totalPages: Math.max(1, Math.ceil(items.length / sz)) },
+      masked: [],
+    };
+  },
+});

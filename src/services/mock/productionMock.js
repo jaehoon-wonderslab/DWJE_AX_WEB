@@ -41,8 +41,15 @@ export const productionMock = {
   },
 
   /* ───────── PR-02 실적 집계·조회 ───────── */
+  /**
+   * 실적 집계 — 조회한 **기간 위에** 표본 실적을 얹어 줍니다.
+   *
+   * 예전에는 8월에 박힌 날짜를 그대로 걸러 내보냈습니다. 화면 기본 조회 기간이 「오늘 -7일 ~ 오늘」이라
+   * 날이 바뀌면 「해당 기간의 실적이 없습니다」 만 나왔습니다(데모에서는 화면이 고장 난 것으로 보입니다).
+   * 표본의 값은 그대로 두고 **날짜만 조회 구간으로 옮깁니다** — 수치의 결은 유지됩니다.
+   */
   getProductionResults: ({ from, to, page = 1, size = 50 }) => {
-    const items = RESULT_ROWS.filter((r) => (!from || r.period >= from) && (!to || r.period <= to));
+    const items = resultRowsIn(from, to);
     const sum = items.reduce(
       (a, r) => ({ inputQty: a.inputQty + r.inputQty, okQty: a.okQty + r.okQty, ngQty: a.ngQty + r.ngQty }),
       { inputQty: 0, okQty: 0, ngQty: 0 }
@@ -59,7 +66,18 @@ export const productionMock = {
     };
   },
 
-  getProductionResultsTrend: () => RESULT_TREND,
+  /** 일별 추이 — 집계 결과와 같은 날짜를 씁니다(표와 그래프가 다른 날을 말하면 안 됩니다) */
+  getProductionResultsTrend: ({ from, to } = {}) => {
+    const rows = [...resultRowsIn(from, to)].reverse();
+    if (!rows.length) return RESULT_TREND;
+    return {
+      labels: rows.map((r) => r.period.slice(5).replace('-', '/')),
+      series: [
+        { name: '생산량 (EA)', data: rows.map((r) => r.inputQty) },
+        { name: '불량 수량 (EA)', data: rows.map((r) => r.ngQty) },
+      ],
+    };
+  },
 
   /* ───────── PR-03 일일 생산현황 보고 ─────────
    *
@@ -131,3 +149,51 @@ export const productionMock = {
     return { success: true, code: 'SUCCESS', message: '비가동 사유를 수정했습니다.', data: { success: true } };
   },
 };
+
+/* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
+
+/**
+ * 실적 집계 내려받기 (PR-02-F08)
+ *
+ * 실제 파일은 서버가 만듭니다 — 화면은 `downloadFromServer` 로 직접 내려받으므로 이 목을 거치지 않습니다.
+ * 목 계층에도 등록해 두는 것은 응답 규약을 문서와 맞춰 두기 위해서입니다.
+ */
+Object.assign(productionMock, {
+  postProductionResultsExport: ({ from, to, format = 'xlsx', scope = 'screen' }) => ({
+    success: true,
+    code: 'SUCCESS',
+    message: '실적 집계 파일을 만들었습니다 (내려받기 이력에 기록됨)',
+    data: { fileName: `실적집계_${scope}_${String(from || '').replace(/-/g, '')}_${String(to || '').replace(/-/g, '')}.${format}` },
+  }),
+});
+
+/**
+ * 표본 실적을 조회 구간의 날짜로 옮깁니다.
+ *
+ * 구간이 표본보다 길면 표본을 돌려 씁니다(7일치를 반복). 짧으면 최근 쪽부터 잘라 씁니다.
+ * 날짜만 바뀌고 수치는 표본 그대로라, 같은 구간을 다시 조회하면 같은 값이 나옵니다.
+ */
+function resultRowsIn(from, to) {
+  const days = daysBetween(from, to);
+  if (!days.length) return RESULT_ROWS;
+  // 최신 날짜가 위로 — 화면 기본 정렬과 같습니다
+  return days
+    .slice(-RESULT_ROWS.length * 4)
+    .map((period, i) => ({ ...RESULT_ROWS[i % RESULT_ROWS.length], period }))
+    .sort((a, b) => (a.period < b.period ? 1 : -1));
+}
+
+/** `from`~`to` 사이의 날짜 목록 (최대 60일) */
+function daysBetween(from, to) {
+  if (!from || !to) return [];
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+  const out = [];
+  const cur = new Date(start);
+  while (cur <= end && out.length < 60) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}

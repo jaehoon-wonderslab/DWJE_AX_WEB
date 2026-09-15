@@ -8,7 +8,7 @@
  */
 import { Platform } from 'react-native';
 import { toast } from '@shared/stores/useUiStore';
-import { API_BASE_URL } from '@services/api/client';
+import { API_BASE_URL, USE_MOCK } from '@services/api/client';
 import * as systemService from '@services/api/systemService';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { HOME_PATH, HOME_SCREEN_ID, screenIdOf } from '@shared/navigation/routes';
@@ -92,6 +92,28 @@ export async function downloadFromServer({ path, body = {}, name = '파일' }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return false;
+  }
+
+  /*
+   * 목(데모) 모드 — 이 내려받기만은 서버가 직접 파일을 만들어 주는 것이라 목 계층을 거치지 않습니다.
+   * 그대로 두면 데모 사이트에서 단추를 누를 때마다 네트워크 오류 토스트가 뜹니다.
+   * 조회 조건을 담은 안내 파일을 내려 주어, 단추가 동작한다는 것과 **실제 값은 서버가 만든다**는 것을
+   * 함께 알립니다. 여기서 가짜 집계를 지어내면 화면의 수와 어긋납니다.
+   */
+  if (USE_MOCK) {
+    await downloadXlsx({
+      name,
+      sheetName: '데모',
+      columns: [{ header: '항목', width: 22 }, { header: '값', width: 60 }],
+      rows: [
+        { cells: [`${name} — 데모`], style: 'title' },
+        { cells: ['이 파일은 데모용입니다', '실제 내려받기는 서버가 조회 전량을 뽑아 만듭니다'], style: 'meta' },
+        { cells: ['항목', '값'], style: 'head' },
+        { cells: ['요청 경로', path] },
+        ...Object.entries(body || {}).map(([k, v]) => ({ cells: [k, Array.isArray(v) ? v.join(', ') : String(v ?? '—')] })),
+      ],
+    });
+    return true;
   }
   try {
     const { accessToken } = useAuthStore.getState();

@@ -4,7 +4,7 @@
  * DB-02 는 선택한 공정·제품에 따라 값을 그때그때 계산합니다.
  */
 import {
-  AGENTS, AI_DEFECT_COMPOSITION, AI_DEFECT_TREND, AI_GOAL_DONUT, AI_PERF_AXES, AI_PERF_GOALS,
+  AGENTS, AI_DEFECT_COMPOSITION, AI_GOAL_DONUT, AI_PERF_AXES, AI_PERF_GOALS,
   AI_PLAN_VS_ACTUAL, AI_PROCESS_YIELD, AI_QUALITY_INDEX, AI_SUMMARY, AI_UPTIME_HEATMAP,
   ALERT_SUMMARY, DEFECT_DISTRIBUTION, DEFECT_MONTHLY, KPI_ACHIEVE_TREND, KPI_BASIS, KPI_CARDS,
   KPI_TREND, MANHOUR_BY_DEPT, MASTER_AI, METRIC_HEATMAP,
@@ -63,7 +63,49 @@ function uploadMessage(data) {
 export const dashboardMock = {
   /* ───────── DB-01 AI 통합 대시보드 ───────── */
   getDashboardAiSummary: () => AI_SUMMARY,
-  getDashboardAiDefectTrend: () => AI_DEFECT_TREND,
+  /**
+   * 구간 단위 불량률 추이 (DB-01)
+   *
+   * 화면은 `slots[{slot, defectRate, inputQty, okQty, ngQty, topDefectNm}]` 과 `bucket` 을 읽습니다
+   * — 예전 목이 주던 `{labels, series}` 로는 「이 기간에는 시간대별로 표시할 실적이 없습니다」 가 됩니다.
+   * 7일 이하는 2시간 칸(HOUR), 그보다 길면 일 단위로 접습니다 — 서버 규칙과 같습니다.
+   */
+  getDashboardAiDefectTrend: ({ from, to } = {}) => {
+    const days = bucketsOf(from, to, 'day');
+    const hourly = days.length <= 7;
+    const hours = ['00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22'];
+    const top = ['chip (찍힘)', 'stain (얼룩)', 'BURR', '치수 이탈', '변형'];
+    const slots = [];
+
+    days.forEach((day, di) => {
+      const list = hourly ? hours : [null];
+      list.forEach((hh, hi) => {
+        // 야간(00~06)은 적게, 주간(08~16)은 많이 — 실제 물량 곡선을 닮게 둡니다
+        const h = hh === null ? 12 : Number(hh);
+        const shape = h >= 8 && h <= 16 ? 1 : h >= 18 ? 0.7 : 0.45;
+        const inputQty = Math.round((hourly ? 1400 : 16800) * shape * (0.85 + ((di * 7 + hi * 13) % 30) / 100));
+        // 칸마다 값이 달라야 매트릭스의 색이 갈립니다 — 두 값만 번갈아 나오면 격자가 줄무늬가 됩니다
+        const noise = ((di * 29 + hi * 11 + ((di + 1) * (hi + 3)) % 13) % 27) / 10;
+        const defectRate = Number((1.3 + (h >= 8 && h <= 16 ? 0.5 : 0) + noise).toFixed(2));
+        const ngQty = Math.round((inputQty * defectRate) / 100);
+        slots.push({
+          slot: hourly ? `${day} ${hh}시` : day,
+          defectRate,
+          inputQty,
+          okQty: inputQty - ngQty,
+          ngQty,
+          topDefectNm: top[(di + hi) % top.length],
+        });
+      });
+    });
+
+    return {
+      period: { from: days[0] || from || null, to: days[days.length - 1] || to || null },
+      bucket: { unit: hourly ? 'HOUR' : 'DAY', size: hourly ? 2 : 1, note: hourly ? null : '8일 이상은 일 단위로 묶어 표시합니다' },
+      target: 3.0,
+      slots,
+    };
+  },
   getDashboardAiDefectTrendSlotDetails: ({ slot = '2026-08-28 08시' } = {}) => ({
     slot,
     totalNgQty: 109,
@@ -318,3 +360,139 @@ export const dashboardMock = {
 };
 
 export { rowsOf, summaryOf };
+
+/* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
+
+/** `2026-08-28` 형태의 날짜 사이를 단위(day|week|month)로 자릅니다 */
+function bucketsOf(from, to, unit) {
+  const start = new Date(`${from || '2026-08-22'}T00:00:00`);
+  const end = new Date(`${to || '2026-08-28'}T00:00:00`);
+  const out = [];
+  const cur = new Date(start);
+  while (cur <= end && out.length < 60) {
+    const iso = cur.toISOString().slice(0, 10);
+    if (unit === 'month') {
+      const label = iso.slice(0, 7);
+      if (!out.includes(label)) out.push(label);
+      cur.setMonth(cur.getMonth() + 1);
+    } else if (unit === 'week') {
+      out.push(iso);
+      cur.setDate(cur.getDate() + 7);
+    } else {
+      out.push(iso);
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  return out.length ? out : [String(to || '2026-08-28')];
+}
+
+Object.assign(dashboardMock, {
+  /**
+   * 공정·제품 기간 집계 (DB-02-F01)
+   *
+   * 화면이 요약·기간 추이·제품 상세·공정 비교를 한 응답으로 받습니다.
+   * 기간 추이의 합은 요약과 맞춥니다 — 카드와 그래프가 다른 수를 말하면 안 됩니다.
+   */
+  getDashboardProcessPeriod: ({ from, to, unit = 'day', processId, productCodes }) => {
+    const proc = processId || 'Press';
+    const codes = Array.isArray(productCodes) ? productCodes : [];
+    const summary = summaryOf(proc, codes);
+    const rows = rowsOf(proc, codes);
+    const labels = bucketsOf(from, to, unit);
+
+    /*
+     * 기간별로 쪼갭니다. 투입량과 불량을 **서로 다른 비중**으로 나눠야 불량률 추이가 움직입니다 —
+     * 같은 비중으로 나누면 모든 칸의 불량률이 똑같아져 추이 선이 일직선이 됩니다(데모에서 고장으로 보입니다).
+     * 마지막 칸이 나머지를 흡수해 합계는 요약과 정확히 맞습니다.
+     */
+    const qtyW = labels.map((_, i) => 0.8 + ((i * 37) % 45) / 100);
+    const ngW = labels.map((_, i) => 0.55 + ((i * 53) % 90) / 100);
+    const qtySum = qtyW.reduce((a, v) => a + v, 0);
+    const ngSum = ngW.reduce((a, v) => a + v, 0);
+
+    let leftQty = summary.qty;
+    let leftNg = summary.ngQty;
+    const periods = labels.map((period, i) => {
+      const last = i === labels.length - 1;
+      const qty = last ? leftQty : Math.round((summary.qty * qtyW[i]) / qtySum);
+      // 불량이 투입을 넘지 않도록 막습니다 — 불량률 120% 같은 값이 나오면 안 됩니다
+      const ngQty = last ? Math.max(0, leftNg) : Math.min(qty, Math.round((summary.ngQty * ngW[i]) / ngSum));
+      leftQty -= qty;
+      leftNg -= ngQty;
+      return {
+        period,
+        qty,
+        okQty: qty - ngQty,
+        ngQty,
+        defectRate: qty ? Number(((ngQty / qty) * 100).toFixed(2)) : 0,
+        yieldRate: qty ? Number((100 - (ngQty / qty) * 100).toFixed(2)) : 0,
+      };
+    });
+
+    const procName = PROCESSES.find((p) => p.id === proc)?.name || proc;
+    return {
+      period: { from: from || null, to: to || null, unit },
+      processId: proc,
+      summary,
+      periods,
+      products: rows.map((r) => ({ ...r, productNm: `${r.code} · ${r.project}`, process: procName, processId: proc })),
+      processes: PROCESSES.map((p) => {
+        const s = summaryOf(p.id, codes);
+        return {
+          processId: p.id,
+          process: p.name,
+          qty: s.qty,
+          okQty: s.okQty,
+          ngQty: s.ngQty,
+          defectRate: s.defectRate,
+          yieldRate: s.yieldRate,
+          targetYield: p.targetYield,
+        };
+      }),
+    };
+  },
+
+  /**
+   * 설비 × 제품 실적 (DB-01-F01) — 실적 집계 조회 3단계(설비별)
+   *
+   * 한 줄이 설비 × 공정 × 제품입니다. 실적이 없는 설비는 응답에 오지 않습니다.
+   */
+  getDashboardAiLineProducts: ({ processId, page = 1, size = 50 }) => {
+    const proc = processId || 'Press';
+    const procNm = PROCESSES.find((p) => p.id === proc)?.name || proc;
+    const rows = rowsOf(proc, []);
+    const lines = [];
+    LINES.forEach((line, li) => {
+      rows.slice(0, 3).forEach((r, ri) => {
+        // 설비마다 물량이 다릅니다 — 같은 값이 열 줄 이어지면 가짜처럼 보입니다
+        const scale = 0.55 + ((li * 7 + ri * 13) % 45) / 100;
+        const qty = Math.round(r.qty * scale);
+        const ngQty = Math.round((qty * (r.defectRate + ((li % 3) - 1) * 0.3)) / 100);
+        lines.push({
+          eqptCd: line.eqptCd,
+          eqptNm: `${line.eqptCd} ${procNm}`,
+          processId: proc,
+          processNm: procNm,
+          product: r.code,
+          productNm: `${r.code} · ${r.project}`,
+          qty,
+          okQty: qty - ngQty,
+          ngQty,
+          defectRate: qty ? Number(((ngQty / qty) * 100).toFixed(2)) : 0,
+          plantNm: '제1공장',
+          plantSource: 'MES',
+        });
+      });
+    });
+    const p = Math.max(1, Number(page) || 1);
+    const sz = Math.max(1, Number(size) || 50);
+    return {
+      success: true,
+      code: 'SUCCESS',
+      message: '설비 × 제품 실적 조회가 완료되었습니다.',
+      data: { processId: proc, lines: lines.slice((p - 1) * sz, p * sz) },
+      meta: { page: p, size: sz, total: lines.length, totalPages: Math.max(1, Math.ceil(lines.length / sz)) },
+      masked: [],
+    };
+  },
+});
