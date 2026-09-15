@@ -185,20 +185,15 @@ export const setMenuGroupPerm = (deptId, groupNm, allowed) =>
 
 /* ═══════ SY-03 데이터 접근 권한 ═══════ */
 /**
- * 데이터 접근 권한 화면
+ * 데이터 접근 권한 화면 — 부서 × 데이터 항목 표 하나만 씁니다.
  *
- * 미리보기는 대상 사번이 있어야 조회합니다(`empNo` 필수).
- * 사번을 고르지 않았으면 호출을 건너뛰고, 없는 사번이면 서버가 404 를 주므로
- * 화면에서 "대상 없음" 으로 표시합니다. (로그아웃 대상이 아닙니다)
+ * 적용 미리보기·계정별 적용 결과·데이터 접근 감사 세 카드를 걷어내면서
+ * 그 카드만 쓰던 조회 3건(preview · by-user · audit)도 함께 뺐습니다.
+ * 서버 API 는 그대로 있습니다 — 이 화면이 부르지 않을 뿐입니다.
  */
-export async function loadDataPerms(empNo, { page, size } = {}) {
-  const data = await unwrapAll({
-    matrix: systemService.getSystemDataPerms({}),
-    ...(empNo ? { preview: systemService.getSystemDataPermsPreview({ empNo }) } : {}),
-    byUser: systemService.getSystemDataPermsByUser({}),
-    audit: systemService.getSystemDataPermsAudit({ page, size }),
-  });
-  return { ...data, matrix: normalizePermMatrix(data.matrix), auditMeta: data.metas?.audit };
+export async function loadDataPerms() {
+  const data = await unwrap(systemService.getSystemDataPerms({}));
+  return normalizePermMatrix(data) || { fields: [], depts: [], matrix: {}, adminDepts: [] };
 }
 export const toggleDataPerm = (deptId, fieldKey) => command(systemService.putSystemDataPerms({ deptId, fieldKey }));
 /**
