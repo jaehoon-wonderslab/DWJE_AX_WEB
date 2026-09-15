@@ -6,7 +6,7 @@
  * 셸 자체는 스크롤하지 않고 패널마다 따로 스크롤합니다.
  *
  * 덕반장 AI 레일 (2026-09-10)
- *  · 자연어 질의 화면(/ai/chat)을 뺀 모든 화면의 오른쪽에 기본으로 열려 있습니다.
+ *  · 자연어 질의 화면(/ai/chat)과 시스템관리를 뺀 모든 화면의 오른쪽에 기본으로 열려 있습니다.
  *  · 본문과 레일 사이 핸들을 끌어 폭을 바꿉니다 — 최소 320px, 최대 창 폭의 40%(본문은 480px 이상 남김). 폭은 브라우저에 기억.
  *  · 닫으면 본문 패널 오른쪽 가장자리에 세로 단추가 붙어 다시 열 수 있습니다(단추는 고정, 스크롤 없음).
  *
@@ -39,6 +39,20 @@ const RAIL_MAX_RATIO = 0.4;
 const CONTENT_MIN = 480;
 /** 닫힘 상태의 세로 단추 폭 */
 const RAIL_TAB_WIDTH = 36;
+
+/**
+ * 덕반장 AI 레일을 아예 내지 않는 대메뉴 그룹.
+ *
+ * 시스템관리는 값을 「보는」 화면이 아니라 설정을 「고치는」 화면입니다 — 레일에 물어볼 실적이
+ * 없는데도 오른쪽 세로 단추가 늘 붙어 본문 폭만 깎고 있었습니다. 허브(/menu/system)와
+ * 하위 화면 모두에 적용합니다. (2026-09-15)
+ */
+const RAIL_OFF_GROUPS = new Set(['시스템관리']);
+
+/** 위 그룹에 속한 화면 ID — 경로가 바뀌어도 따라오도록 메뉴 정의에서 뽑습니다 */
+const RAIL_OFF_SCREEN_IDS = new Set(
+  MENU.filter((group) => RAIL_OFF_GROUPS.has(group.group)).flatMap((group) => group.items.map((item) => item.id)),
+);
 
 export default function MainLayout() {
   const s = useCommonStyles();
@@ -77,7 +91,9 @@ export default function MainLayout() {
   const sidebarWidth = showSidebar ? (collapsed ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth) : 0;
   // 자연어 질의 화면 자체에서는 옆 레일을 따로 열지 않습니다 (같은 대화가 두 번 보입니다)
   const onChatScreen = currentScreenId === 'ai-chat' && !hubGroup;
-  const railAvailable = !onChatScreen && width >= 900;
+  // 시스템관리에서는 레일도 세로 단추도 내지 않습니다
+  const railOff = RAIL_OFF_GROUPS.has(hubGroup) || (!hubGroup && RAIL_OFF_SCREEN_IDS.has(currentScreenId));
+  const railAvailable = !onChatScreen && !railOff && width >= 900;
   const chatOpen = aiChatOpen && railAvailable;
 
   // 레일 폭 한계 — 창 폭의 40% 를 넘지 않고 본문도 최소 폭을 남깁니다
