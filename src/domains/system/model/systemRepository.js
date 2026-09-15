@@ -299,19 +299,6 @@ export async function loadGlossaryByDomain({ keyword, domainCd, page, size }) {
   return { ...data, termsMeta: data.metas?.terms };
 }
 
-/* ═══════ SY-07 제품군 순위 ═══════ */
-export function loadProductRank(topN, { page, size } = {}) {
-  return unwrapAll({
-    families: systemService.getProductsFamilies({}),
-    ranking: systemService.getProductsRanking({ topN }),
-    logs: systemService.getProductsRankLogs({ page, size }),
-  });
-}
-export const loadFamilyProducts = (familyCd) => unwrap(systemService.getProductsFamiliesByFamilyCdProducts({ familyCd }), { items: [] });
-export const moveFamily = (v) => command(systemService.putProductsFamiliesOrder(v));
-export const moveFamilyProduct = (v) => command(systemService.putProductsFamiliesByFamilyCdProductsOrder(v));
-export const resetFamilyOrder = () => command(systemService.postProductsFamiliesOrderReset({}));
-
 /* ═══════ SY-08 자연어 질의 이력 ═══════ */
 export async function loadChatHistory({ from, to, group, page, size }) {
   const data = await unwrapAll({
@@ -341,89 +328,6 @@ export async function loadDeptOptions() {
   const names = (data?.depts || data?.items || []).map((d) => d.deptNm).filter(Boolean);
   return ['전체', ...names];
 }
-
-/* ═══════ SY-10 AI 모델 설정 ═══════ */
-export function loadModelConfig() {
-  return unwrapAll({
-    config: systemService.getAiModelConfig({}),
-    rules: systemService.getAiMaskRules({}),
-  });
-}
-/**
- * AI 모델 설정 저장
- * @param {{ thresholds: Array<{key,value}>, classification: object }} config
- */
-export const saveModelConfig = (config) => command(systemService.putAiModelConfig(config));
-/** 보안 필터링 패턴 저장 — ruleId 가 있으면 수정, 없으면 신규 등록 */
-export const saveMaskRule = (ruleId, v) =>
-  command(ruleId ? systemService.putAiMaskRulesByRuleId({ ruleId, ...v }) : systemService.postAiMaskRules(v));
-
-/* ═══════ SY-11 AI 모델 버전 관리 ═══════ */
-export async function loadModelVersions({ page, size } = {}) {
-  const data = await unwrapAll({
-    // 임베딩 모델은 vec 스키마 기준정보입니다 (모델 자산 표와 별개)
-    embedModels: systemService.getAiEmbedModels({}),
-    assets: systemService.getAiAssets({ kind: 'LLM_BASE' }),
-    summary: systemService.getAiModelReleasesSummary({}),
-    releases: systemService.getAiModelReleases({ page, size }),
-    vectors: systemService.getAiVectorBuilds({}),
-    finetunes: systemService.getAiFinetuneBuilds({}),
-    trend: systemService.getAiModelReleasesPerformanceTrend({}),
-    logs: systemService.getAiModelReleasesDeployLogs({}),
-  });
-  return { ...data, releasesMeta: data.metas?.releases };
-}
-export const fetchApplyPreview = (ver) => unwrap(systemService.getAiModelReleasesByVerApplyPreview({ ver }));
-export const applyRelease = (ver, mode) => command(systemService.postAiModelReleasesByVerApply({ ver, mode }));
-export const rollbackRelease = () => command(systemService.postAiModelReleasesRollback({}));
-export const archiveRelease = (ver) => command(systemService.postAiModelReleasesByVerArchive({ ver }));
-export const createRelease = (v) => command(systemService.postAiModelReleases(v));
-export const runVectorBuild = (v) => command(systemService.postAiVectorBuilds(v));
-export const runFinetune = (v) => command(systemService.postAiFinetuneBuilds(v));
-export const fetchVectorBuild = (vecId) => unwrap(systemService.getAiVectorBuildsByVecId({ vecId }));
-export const fetchFinetuneBuild = (ftId) => unwrap(systemService.getAiFinetuneBuildsByFtId({ ftId }));
-
-/* ═══════ SY-12 Agent 실행 현황 ═══════ */
-/**
- * Agent 실행 현황
- *
- * 실행 이력은 Agent 를 골랐을 때만 조회합니다.
- * 코드가 비면 `/ai/agents//runs` 처럼 빈 경로가 만들어져 404 가 납니다.
- */
-export function loadAgents(agentCd) {
-  return unwrapAll({
-    summary: systemService.getAiAgentsSummary({}),
-    agents: systemService.getAiAgents({}),
-    pipeline: systemService.getAiAgentsPipeline({}),
-    ...(agentCd ? { runs: systemService.getAiAgentsByAgentCdRuns({ agentCd }) } : {}),
-  });
-}
-export const restartAgent = (v) => command(systemService.postAiAgentsByAgentCdRestart(v));
-
-/* ═══════ SY-13 지표 측정 데이터 관리 ═══════ */
-export async function loadMetricStandards({ category, enabled, grade, page, size }) {
-  const data = await unwrapAll({
-    summary: systemService.getMetricsStandardsSummary({}),
-    list: systemService.getMetricsStandards({ category, enabled, grade, page, size }),
-    history: systemService.getMetricsStandardsHistory({ size: 6 }),
-  });
-  return { ...data, listMeta: data.metas?.list };
-}
-export const createMetricStandard = (v) => command(systemService.postMetricsStandards(v));
-/**
- * 지표 기준 수치 수정
- *
- * 서버는 바꿀 항목을 **본문 필드 이름 그대로** 받습니다(normal · warn · critical · window · basis).
- * 예전엔 {field, value} 쌍으로 보내서 200 "수정되었습니다" 만 오고 값은 그대로였습니다.
- *
- * @param {number} stdId
- * @param {'normal'|'warn'|'critical'|'window'|'basis'} field
- * @param {*} value
- */
-export const updateMetricValue = (stdId, field, value) =>
-  command(systemService.putMetricsStandardsByStdId({ stdId, [field]: value }));
-export const toggleMetricState = (stdId) => command(systemService.patchMetricsStandardsByStdIdState({ stdId }));
-export const fetchMetricUsage = (stdId) => unwrap(systemService.getMetricsStandardsByStdIdUsage({ stdId }));
 
 /* ═══════ SY-14 보고서 다운로드 이력 ═══════ */
 export async function loadDownloadLogs(params) {
@@ -472,29 +376,6 @@ export async function loadDeptIdOptions() {
     .filter((d) => (d.deptId ?? d.id) != null && (d.deptNm ?? d.name))
     .map((d) => ({ value: String(d.deptId ?? d.id), label: d.deptNm ?? d.name }));
 }
-
-/**
- * 지표 기준 목록 — 서버 파라미터 이름(applied · level)으로 보냅니다.
- *
- * `loadMetricStandards` 는 enabled · grade 로 보내는데 서버는 그 이름을 몰라 조용히 무시했습니다
- * (적용 상태·판정 필터가 무엇을 골라도 전체가 나왔습니다).
- * @param {{category?:string, applied?:boolean, level?:string, page?:number, size?:number}} p
- */
-export async function loadMetricStandardsFiltered({ category, applied, level, page, size }) {
-  const data = await unwrapAll({
-    summary: systemService.getMetricsStandardsSummary({}),
-    list: systemService.getMetricsStandards({ category, applied, level, page, size }),
-    history: systemService.getMetricsStandardsHistory({ size: 6 }),
-  });
-  return { ...data, listMeta: data.metas?.list };
-}
-
-/**
- * 지표 적용/해제 — 서버 본문은 `on(true|false)` 입니다 (카탈로그의 `applied` 는 E-VALID-001 로 거부됩니다).
- * 본문 없이 보내면 토글되는데, 화면이 보는 값과 어긋날 수 있어 목표 상태를 명시해 보냅니다.
- */
-export const setMetricApplied = (stdId, on) =>
-  command(systemService.patchMetricsStandardsByStdIdState({ stdId, on }));
 
 /**
  * 학습데이터 내보내기 — 서버가 받는 항목은 from · to · yearMonth · scope · format 입니다.

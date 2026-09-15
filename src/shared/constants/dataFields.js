@@ -60,29 +60,15 @@ export const MENU_ACCESS_DEFAULT = {
   ],
   전산팀: [
     'dash-ai', 'dash-ai-upload', 'sys-upload-doc', 'dash-proc', 'ai-chat', 'chat-history',
-    'alert-list', 'sys-gloss', 'sys-rank',
-    'base-model', 'sys-model-ver',
-    'sys-account', 'sys-menu', 'sys-data', 'sys-audit', 'ai-agent', 'sys-metric', 'sys-dl', 'sys-sync',
+    'alert-list', 'sys-gloss',
+    'sys-account', 'sys-menu', 'sys-data', 'sys-audit', 'sys-dl', 'sys-sync',
     'alert-cond', 'sys-recip',
   ],
   경영진: [
     'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
     'prod-result', 'qc-defect',
-    'alert-list', 'sys-gloss', 'sys-rank',
+    'alert-list', 'sys-gloss',
     'rpt-ship-plan', 'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
   ],
   통합관리자: '*',
 };
-
-/** Worker Agent 9종 — 「권한 정의」 3절 */
-export const AGENT_DEFS = [
-  { no: '①', name: '비전 수집', role: 'AOI/비전 이벤트 수집', screens: 'dash-ai, ai-agent' },
-  { no: '②', name: '데이터 분류', role: '수집 데이터 정규화·분류', screens: 'qc-defect, ai-chat' },
-  { no: '③', name: '불량 판정', role: '양품/불량/경계 판정, HITL 대기 큐', screens: 'qc-aoi, alert-list' },
-  { no: '④', name: '원인 분석', role: '공정조건·금형 기여도 분석', screens: 'qc-aoi' },
-  { no: '⑤', name: '이력 추적', role: 'LOT 단계별 이력 추적', screens: 'ai-chat' },
-  { no: '⑥', name: '보고서 생성', role: '보고서 초안 자동 생성', screens: 'prod-daily' },
-  { no: '⑦', name: '보안 필터링', role: '고객사 정책별 마스킹', screens: 'base-model' },
-  { no: '⑧', name: 'KG 구축', role: 'Knowledge Graph 노드/엣지 구축', screens: 'ai-chat' },
-  { no: '⑨', name: '이상 알림', role: '임계 초과·패턴 이상 감지 및 발송', screens: 'alert-list, alert-cond' },
-];

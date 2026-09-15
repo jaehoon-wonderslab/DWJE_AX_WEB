@@ -42,10 +42,6 @@ const TABLES = (f) => [
   ['system/view/ChatHistoryView.jsx', [['/ai/chat/history', { size: 5 }, 'items']]],
   ['production/view/ProductionMonitorView.jsx', [['/production/monitor/equipments', { size: 5 }, 'items']]],
   ['production/view/ProductionResultView.jsx', [['/production/results', { from: f.monthFrom, to: f.monthTo, unit: 'day' }, 'items']]],
-  ['system/view/MetricStdView.jsx', [
-    ['/metrics/standards', { size: 5 }, 'items'],
-    ['/metrics/standards/history', { size: 5 }, 'items'],
-  ]],
   ['system/view/AlertCondView.jsx', [
     ['/alert-conditions', { size: 5 }, 'items'],
     ['/alert-recipient-groups', {}, 'items'],
@@ -117,7 +113,6 @@ const SUMMARIES = [
   ['/download-logs/summary', {}],
   ['/system/accounts/summary', {}],
   ['/glossary/summary', {}],
-  ['/metrics/standards/summary', {}],
   ['/alert-conditions/summary', {}],
   ['/alert-recipients/summary', {}],
   ['/sync/jobs/summary', {}],

@@ -7,18 +7,13 @@
 import { USERS } from '@shared/constants/accounts';
 import { DATA_FIELDS, DEPTS } from '@shared/constants/dataFields';
 import { permRows } from '@shared/constants/menu';
-import { nowStamp, gradeOf } from '@shared/utils/formatUtil';
-import { AGENT_DEFS } from '@shared/constants/dataFields';
+import { nowStamp } from '@shared/utils/formatUtil';
 import {
-  AGENT_PIPELINE, AGENT_RUNS, ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
-  DATA_ACCESS_AUDIT, DATA_PERM_PREVIEW, DEPLOY_LOGS, DOWNLOAD_LOGS, DUTIES, ESCALATION_RULES,
-  FAMILY_RANK_LOGS, FINETUNE_BUILDS, GLOSSARY, GLOSSARY_DOMAINS, MASK_RULES, METRIC_HISTORY,
-  METRIC_STANDARDS, MODEL_CONFIG, MODEL_RELEASES, PERFORMANCE_TREND, PERM_LOGS, RECIPIENT_GROUPS,
+  ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
+  DATA_ACCESS_AUDIT, DATA_PERM_PREVIEW, DOWNLOAD_LOGS, DUTIES, ESCALATION_RULES,
+  GLOSSARY, GLOSSARY_DOMAINS, PERM_LOGS, RECIPIENT_GROUPS,
   RECIPIENTS, RETENTION_POLICY, SYNC_DRIFTS, SYNC_FAIL_REASON, SYNC_JOBS, SYNC_MAPS, SYNC_POLICY,
-  VECTOR_BUILDS,
 } from './data/system';
-import { AGENTS } from './data/dashboard';
-import { FAMILY_ORDER_DEFAULT, PRODUCTS } from './data/masters';
 import { mockState } from './state';
 import { listDocs, versionsOf } from './data/uploads';
 
@@ -34,17 +29,7 @@ function store() {
       duties: JSON.parse(JSON.stringify(DUTIES)),
       escalation: JSON.parse(JSON.stringify(ESCALATION_RULES)),
       glossary: JSON.parse(JSON.stringify(GLOSSARY)),
-      products: JSON.parse(JSON.stringify(PRODUCTS)),
-      rankLogs: [...FAMILY_RANK_LOGS],
       chatHistory: [...CHAT_HISTORY_SEED],
-      modelConfig: JSON.parse(JSON.stringify(MODEL_CONFIG)),
-      maskRules: JSON.parse(JSON.stringify(MASK_RULES)),
-      releases: JSON.parse(JSON.stringify(MODEL_RELEASES)),
-      vectorBuilds: JSON.parse(JSON.stringify(VECTOR_BUILDS)),
-      finetuneBuilds: JSON.parse(JSON.stringify(FINETUNE_BUILDS)),
-      deployLogs: [...DEPLOY_LOGS],
-      metrics: JSON.parse(JSON.stringify(METRIC_STANDARDS)),
-      metricHistory: [...METRIC_HISTORY],
       downloadLogs: [...DOWNLOAD_LOGS],
       syncJobs: JSON.parse(JSON.stringify(SYNC_JOBS)),
       syncDrifts: JSON.parse(JSON.stringify(SYNC_DRIFTS)),
@@ -615,68 +600,6 @@ export const systemMock = {
 
   postGlossaryReindex: () => ok('용어 임베딩 재생성을 시작했습니다 — 완료 시 알림이 발송됩니다.', { jobId: `GLS-${Date.now()}` }),
 
-  /* ═══════════ SY-07 제품군 순위 관리 ═══════════ */
-  getProductsFamilies: () => {
-    const order = mockState.familyOrder;
-    return {
-      items: order.map((family, i) => ({
-        familyCd: family,
-        name: family,
-        rank: i + 1,
-        productCnt: store().products.filter((p) => p.family === family).length,
-      })),
-      isDefault: JSON.stringify(order) === JSON.stringify(FAMILY_ORDER_DEFAULT),
-    };
-  },
-
-  putProductsFamiliesOrder: ({ order, familyCd, direction, toRank }) => {
-    let list = [...mockState.familyOrder];
-    if (order) list = order;
-    else if (familyCd) {
-      const i = list.indexOf(familyCd);
-      if (i < 0) return fail('E-NOTFOUND', '대상 제품군을 찾을 수 없습니다.');
-      let target = toRank !== undefined ? toRank - 1 : direction === 'up' ? i - 1 : i + 1;
-      target = Math.max(0, Math.min(list.length - 1, target));
-      list.splice(i, 1);
-      list.splice(target, 0, familyCd);
-    }
-    mockState.familyOrder = list;
-    recalcRanks();
-    store().rankLogs.unshift({ ts: nowStamp(), act: '제품군 순위', detail: familyCd ? `${familyCd} 순위 변경` : '제품군 순위 일괄 변경', by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok('제품군 순위를 변경했습니다 — 대시보드 주력 제품 Top N 도 함께 바뀝니다.', { order: list });
-  },
-
-  getProductsFamiliesByFamilyCdProducts: ({ familyCd }) => ({
-    items: store().products.filter((p) => p.family === familyCd).sort((a, b) => a.seq - b.seq),
-  }),
-
-  putProductsFamiliesByFamilyCdProductsOrder: ({ familyCd, code, direction }) => {
-    const list = store().products.filter((p) => p.family === familyCd).sort((a, b) => a.seq - b.seq);
-    const i = list.findIndex((p) => p.code === code);
-    if (i < 0) return fail('E-NOTFOUND', '대상 제품을 찾을 수 없습니다.');
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (j < 0 || j >= list.length) return fail('E-VALID-001', '더 이동할 수 없습니다.');
-    const tmp = list[i].seq;
-    list[i].seq = list[j].seq;
-    list[j].seq = tmp;
-    recalcRanks();
-    return ok(`${code} 제품 순서를 변경했습니다.`);
-  },
-
-  postProductsFamiliesOrderReset: () => {
-    mockState.familyOrder = [...FAMILY_ORDER_DEFAULT];
-    store().products.forEach((p, i) => {
-      p.seq = PRODUCTS[i].seq;
-    });
-    recalcRanks();
-    store().rankLogs.unshift({ ts: nowStamp(), act: '제품군 순위', detail: '기본 순서로 복원', by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok('기본 순서로 복원했습니다.');
-  },
-
-  getProductsRanking: ({ topN = 10 }) => ({ items: [...store().products].sort((a, b) => a.rank - b.rank).slice(0, Number(topN)) }),
-
-  getProductsRankLogs: () => ({ items: store().rankLogs }),
-
   /* ═══════════ SY-08 자연어 질의 이력 ═══════════ */
   getAiChatHistorySummary: () => CHAT_HISTORY_SUMMARY,
 
@@ -707,248 +630,6 @@ export const systemMock = {
     if (type && type !== '전체') items = items.filter((x) => x.type === type);
     if (group && group !== '전체') items = items.filter((x) => x.group === group);
     return { items, meta: { page, size, total: items.length } };
-  },
-
-  /* ═══════════ SY-10 AI 모델 설정 ═══════════ */
-  getAiModelConfig: () => store().modelConfig,
-
-  putAiModelConfig: ({ anomaly, classify }) => {
-    const st = store();
-    if (anomaly) st.modelConfig.anomaly = { ...st.modelConfig.anomaly, ...anomaly };
-    if (classify) st.modelConfig.classify = { ...st.modelConfig.classify, ...classify };
-    logPerm('AI 모델 설정', '설정', '이상 탐지 임계치 · 분류 기준 저장');
-    return ok('설정을 저장했습니다.');
-  },
-
-  getAiMaskRules: () => ({ items: store().maskRules }),
-
-  putAiMaskRulesByRuleId: ({ ruleId, ...body }) => {
-    const st = store();
-    if (!ruleId) {
-      const newId = `MR${st.maskRules.length + 1}`;
-      st.maskRules.push({ ruleId: newId, enabled: true, ...body });
-      logPerm(body.name, '보안 필터링', '패턴 등록');
-      return ok('보안 필터링 패턴을 등록했습니다.', { ruleId: newId });
-    }
-    const r = st.maskRules.find((x) => x.ruleId === ruleId);
-    if (!r) return fail('E-NOTFOUND', '대상 패턴을 찾을 수 없습니다.');
-    Object.assign(r, body);
-    logPerm(r.name, '보안 필터링', '패턴 수정');
-    return ok('보안 필터링 패턴을 수정했습니다.');
-  },
-
-  /* ═══════════ SY-11 AI 모델 버전 관리 ═══════════ */
-  getAiModelReleasesSummary: () => {
-    const st = store();
-    const serving = st.releases.find((r) => r.state === '서비스 중') || st.releases[0];
-    const ft = st.finetuneBuilds.find((f) => f.ftId === serving?.ftId);
-    return {
-      servingVer: serving?.ver,
-      servingSince: serving?.ts,
-      releaseCnt: st.releases.length,
-      vectorCnt: st.vectorBuilds.filter((v) => v.state === '완료').length,
-      finetuneCnt: st.finetuneBuilds.filter((f) => f.state === '완료').length,
-      evaluation: ft?.evaluation || { intent: 0, cite: 0, refuse: 0, halluc: 0 },
-    };
-  },
-
-  getAiModelReleases: () => ({ items: store().releases }),
-
-  postAiModelReleases: ({ ver, vecId, ftId, note, applyNow }) => {
-    const st = store();
-    if (!ver) return fail('E-VALID-001', '버전을 입력하세요.');
-    if (st.releases.some((r) => r.ver === ver)) return fail('E-VALID-002', '이미 등록된 버전입니다.');
-    if (applyNow) st.releases.forEach((r) => { if (r.state === '서비스 중') r.state = '대기'; });
-    st.releases.unshift({ ver, vecId, ftId, ts: nowStamp(), by: `${mockState.currentUser.name} (${mockState.currentUser.dept})`, state: applyNow ? '서비스 중' : '대기', mode: '즉시 전환', note: note || '—' });
-    if (applyNow) mockState.servingModelVer = ver;
-    st.deployLogs.unshift({ ts: nowStamp(), act: '릴리스 등록', detail: `${ver} · ${vecId} + ${ftId}${applyNow ? ' · 즉시 서비스 전환' : ''}`, by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok(`${ver} 릴리스를 등록했습니다${applyNow ? ' — 서비스 전환 완료' : ''}.`, { ver });
-  },
-
-  getAiModelReleasesByVerApplyPreview: ({ ver }) => {
-    const st = store();
-    const target = st.releases.find((r) => r.ver === ver);
-    const current = st.releases.find((r) => r.state === '서비스 중');
-    const evalOf = (rel) => st.finetuneBuilds.find((f) => f.ftId === rel?.ftId)?.evaluation || { intent: 0, cite: 0, refuse: 0, halluc: 0 };
-    const a = evalOf(current);
-    const b = evalOf(target);
-    return {
-      current: { ver: current?.ver, ...a },
-      target: { ver: target?.ver, ...b },
-      diff: [
-        { label: '의도 파악 정확도', before: a.intent, after: b.intent, lowerIsBetter: false },
-        { label: '근거 인용률', before: a.cite, after: b.cite, lowerIsBetter: false },
-        { label: '권한 밖 질의 거부 정확도', before: a.refuse, after: b.refuse, lowerIsBetter: false },
-        { label: '환각률 (낮을수록 좋음)', before: a.halluc, after: b.halluc, lowerIsBetter: true },
-      ],
-      rollbackOptions: st.releases.filter((r) => r.ver !== ver).map((r) => r.ver),
-    };
-  },
-
-  postAiModelReleasesByVerApply: ({ ver, mode, reason }) => {
-    const st = store();
-    const target = st.releases.find((r) => r.ver === ver);
-    if (!target) return fail('E-NOTFOUND', '대상 버전을 찾을 수 없습니다.');
-    if (target.state === '서비스 중') return fail('E-RULE-001', `${ver} 은(는) 이미 서비스 중입니다.`);
-    const current = st.releases.find((r) => r.state === '서비스 중');
-    st.releases.forEach((r) => { if (r.state === '서비스 중') r.state = '대기'; });
-    target.state = '서비스 중';
-    target.mode = mode || '즉시 전환';
-    target.ts = nowStamp();
-    target.by = `${mockState.currentUser.name} (${mockState.currentUser.dept})`;
-    if (reason) target.note = reason;
-    mockState.servingModelVer = ver;
-    st.deployLogs.unshift({ ts: nowStamp(), act: '서비스 전환', detail: `${current?.ver} → ${ver} (${target.mode})`, by: target.by });
-    return ok(`${ver} 로 전환했습니다 — 자연어 질의가 새 버전으로 응답합니다.`, { ver });
-  },
-
-  postAiModelReleasesRollback: () => {
-    const st = store();
-    const current = st.releases.find((r) => r.state === '서비스 중');
-    const prev = st.releases.find((r) => r.state === '대기');
-    if (!prev) return fail('E-RULE-001', '되돌릴 대기 버전이 없습니다.');
-    st.releases.forEach((r) => { if (r.state === '서비스 중') r.state = '대기'; });
-    prev.state = '서비스 중';
-    mockState.servingModelVer = prev.ver;
-    st.deployLogs.unshift({ ts: nowStamp(), act: '롤백', detail: `${current?.ver} → ${prev.ver} 로 되돌림`, by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok(`${prev.ver} 로 되돌렸습니다.`, { ver: prev.ver });
-  },
-
-  postAiModelReleasesByVerArchive: ({ ver }) => {
-    const r = store().releases.find((x) => x.ver === ver);
-    if (!r) return fail('E-NOTFOUND', '대상 버전을 찾을 수 없습니다.');
-    if (r.state === '서비스 중') return fail('E-RULE-001', '서비스 중인 버전은 보관할 수 없습니다.');
-    r.state = r.state === '보관' ? '대기' : '보관';
-    return ok(`${ver} 을(를) ${r.state === '보관' ? '보관 처리' : '대기로 복원'}했습니다.`, { state: r.state });
-  },
-
-  getAiVectorBuilds: () => ({ items: store().vectorBuilds }),
-
-  postAiVectorBuilds: ({ mode, embedding, runNow }) => {
-    store().deployLogs.unshift({ ts: nowStamp(), act: '벡터 색인', detail: `${mode || '증분 색인'} 요청 · ${embedding || 'bge-m3-ko'}`, by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok(runNow ? '벡터 재색인을 시작했습니다 — 완료 시 알림이 발송됩니다.' : '다음 배치에 재색인을 예약했습니다.', { jobId: `VEC-${Date.now()}` });
-  },
-
-  getAiVectorBuildsByVecId: ({ vecId }) => store().vectorBuilds.find((v) => v.vecId === vecId) || null,
-
-  getAiFinetuneBuilds: () => ({ items: store().finetuneBuilds }),
-
-  postAiFinetuneBuilds: ({ method, epoch, runNow }) => {
-    // r=64 이상은 과거 OOM 으로 실패한 이력이 있어 사전에 막습니다
-    if (String(method).indexOf('r=64') >= 0) {
-      return fail('E-RULE-001', 'r=64 는 이전 실행에서 OOM 으로 실패했습니다 — 학습 방식을 다시 확인하세요.');
-    }
-    store().deployLogs.unshift({ ts: nowStamp(), act: '파인튜닝', detail: `${method} · epoch ${epoch} 학습 요청`, by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok(runNow ? '파인튜닝 작업을 시작했습니다 — 완료까지 6시간 내외 소요됩니다.' : '파인튜닝 작업을 예약했습니다 — 완료까지 6시간 내외 소요됩니다.', { jobId: `FT-${Date.now()}` });
-  },
-
-  getAiFinetuneBuildsByFtId: ({ ftId }) => store().finetuneBuilds.find((f) => f.ftId === ftId) || null,
-
-  getAiModelReleasesPerformanceTrend: () => PERFORMANCE_TREND,
-
-  getAiModelReleasesDeployLogs: () => ({ items: store().deployLogs }),
-
-  /* ═══════════ SY-12 Agent 실행 현황 ═══════════ */
-  getAiAgentsSummary: () => ({
-    master: { state: '정상', mode: 'Active-Standby 이중화' },
-    agentCnt: AGENTS.length,
-    allNormal: AGENTS.every((a) => a.state !== '오류'),
-    eventsPerMin: 1204,
-    avgResponseSec: 1.8,
-  }),
-
-  getAiAgents: () => ({ items: AGENTS.map((a) => ({ ...a, role: AGENT_DEFS.find((d) => d.no === a.no)?.role || '', screens: AGENT_DEFS.find((d) => d.no === a.no)?.screens || '' })) }),
-
-  getAiAgentsPipeline: () => ({ stages: AGENT_PIPELINE }),
-
-  postAiAgentsByAgentCdRestart: ({ agentCd, reason }) => {
-    const a = AGENTS.find((x) => x.no === agentCd);
-    return ok(`${a ? a.name : agentCd} Agent 를 재시작했습니다.${reason ? ` (${reason})` : ''}`, { agentCd, restartedAt: nowStamp() });
-  },
-
-  getAiAgentsByAgentCdRuns: ({ agentCd }) => ({ items: agentCd ? AGENT_RUNS.filter((r) => r.agentCd === agentCd) : AGENT_RUNS }),
-
-  /* ═══════════ SY-13 지표 측정 데이터 관리 ═══════════ */
-  getMetricsStandardsSummary: () => {
-    const items = store().metrics;
-    const graded = items.filter((m) => m.enabled).map((m) => gradeOf(m.current, m));
-    return {
-      total: items.length,
-      enabled: items.filter((m) => m.enabled).length,
-      disabled: items.filter((m) => !m.enabled).length,
-      badCnt: graded.filter((g) => g === 'bad').length,
-      warnCnt: graded.filter((g) => g === 'warn').length,
-      lastUpdatedAt: '2026-08-25',
-      lastUpdatedBy: '한도현 (전산팀)',
-    };
-  },
-
-  getMetricsStandards: ({ category, enabled, grade, page = 1, size = 100 }) => {
-    let items = store().metrics.map((m) => ({ ...m, grade: gradeOf(m.current, m) }));
-    if (category && category !== '전체') items = items.filter((m) => m.category === category);
-    if (enabled === '적용') items = items.filter((m) => m.enabled);
-    if (enabled === '미적용') items = items.filter((m) => !m.enabled);
-    if (grade && grade !== '전체') {
-      const map = { 정상: 'ok', 주의: 'warn', 위험: 'bad' };
-      items = items.filter((m) => m.grade === map[grade]);
-    }
-    return { items, meta: { page, size, total: items.length } };
-  },
-
-  postMetricsStandards: (body) => {
-    const st = store();
-    if (!body.name) return fail('E-VALID-001', '지표명은 필수입니다.');
-    if (st.metrics.some((m) => m.name === body.name)) return fail('E-VALID-002', '이미 등록된 지표명입니다.');
-    const stdId = `M${st.metrics.length + 1}`;
-    st.metrics.push({
-      stdId,
-      current: 0,
-      enabled: true,
-      lowerIsBetter: Number(body.bad) >= Number(body.warn),
-      updatedAt: nowStamp().slice(0, 10),
-      updatedBy: mockState.currentUser.name,
-      ...body,
-      ok: Number(body.ok),
-      warn: Number(body.warn),
-      bad: Number(body.bad),
-    });
-    logPerm(body.name, '지표 기준', '지표 기준 등록');
-    return ok('지표 기준을 등록했습니다.', { stdId });
-  },
-
-  putMetricsStandardsByStdId: ({ stdId, field, value }) => {
-    const m = store().metrics.find((x) => x.stdId === stdId);
-    if (!m) return fail('E-NOTFOUND', '대상 지표를 찾을 수 없습니다.');
-    const num = parseFloat(value);
-    if (Number.isNaN(num)) return fail('E-VALID-001', '숫자를 입력하세요.');
-    const labels = { ok: '정상 기준', warn: '주의 임계', bad: '위험 임계' };
-    const before = m[field];
-    m[field] = num;
-    m.updatedAt = nowStamp().slice(0, 10);
-    m.updatedBy = mockState.currentUser.name;
-    store().metricHistory.unshift({ ts: nowStamp(), metric: m.name, field: labels[field] || field, before: String(before), after: String(num), by: `${mockState.currentUser.name} (${mockState.currentUser.dept})` });
-    return ok(`${m.name} · ${labels[field] || field} ${before} → ${num} 로 변경했습니다.`, { stdId });
-  },
-
-  patchMetricsStandardsByStdIdState: ({ stdId }) => {
-    const m = store().metrics.find((x) => x.stdId === stdId);
-    if (!m) return fail('E-NOTFOUND', '대상 지표를 찾을 수 없습니다.');
-    m.enabled = !m.enabled;
-    return ok(`${m.name} 기준을 ${m.enabled ? '적용' : '해제'}했습니다.`, { enabled: m.enabled });
-  },
-
-  getMetricsStandardsHistory: ({ page = 1, size = 20 }) => ({ items: store().metricHistory.slice(0, size), meta: { page, size, total: store().metricHistory.length } }),
-
-  getMetricsStandardsByStdIdUsage: ({ stdId }) => {
-    const m = store().metrics.find((x) => x.stdId === stdId);
-    return {
-      metric: m?.name,
-      usages: [
-        { area: '이상 알림 발송 조건', detail: store().conditions.filter((c) => c.metric.includes(m?.name || '')).map((c) => c.name).join(' · ') || '연결된 조건 없음' },
-        { area: '대시보드 목표선', detail: 'AI 통합 대시보드 · 공정 및 제품 대시보드' },
-        { area: '보고서 신호등', detail: '아침회의 자료 · 제품별 수율' },
-      ],
-    };
   },
 
   /* ═══════════ SY-14 보고서 다운로드 이력 ═══════════ */
@@ -1124,21 +805,6 @@ export const systemMock = {
     return ok('드리프트를 해소 처리했습니다.', { driftId, resolved: true });
   },
 };
-
-/** 제품군 순서 · 제품군 내 순서로 전체 rank 를 다시 매깁니다 */
-function recalcRanks() {
-  const st = store();
-  let rank = 0;
-  mockState.familyOrder.forEach((family) => {
-    st.products
-      .filter((p) => p.family === family)
-      .sort((a, b) => a.seq - b.seq)
-      .forEach((p) => {
-        rank += 1;
-        p.rank = rank;
-      });
-  });
-}
 
 /* ───────── 명세 외 · 백엔드 구현분 목 ───────── */
 

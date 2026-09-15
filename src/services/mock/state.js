@@ -7,7 +7,6 @@
  */
 import { DEFAULT_USER } from '@shared/constants/accounts';
 import { DATA_SCOPE_DEFAULT, MENU_ACCESS_DEFAULT } from '@shared/constants/dataFields';
-import { FAMILY_ORDER_DEFAULT } from './data/masters';
 
 export const mockState = {
   /** 현재 로그인(또는 전환된) 계정 */
@@ -19,10 +18,8 @@ export const mockState = {
   /** 부서별 데이터 접근 권한 (SY-03 에서 변경) */
   dataScope: JSON.parse(JSON.stringify(DATA_SCOPE_DEFAULT)),
 
-  /** 제품군 순위 (SY-07 에서 변경) */
-  familyOrder: [...FAMILY_ORDER_DEFAULT],
 
-  /** 서비스 중인 AI 모델 버전 (SY-11 에서 변경) */
+  /** 서비스 중인 AI 모델 버전 — /auth/me 응답과 사이드바 표기용 */
   servingModelVer: 'v1.4.0',
 
   /** 화면에서 추가·수정한 레코드를 담는 임시 저장소 (도메인별 목 파일이 채웁니다) */
@@ -34,7 +31,6 @@ export function resetMockState() {
   mockState.currentUser = DEFAULT_USER;
   mockState.menuAccess = JSON.parse(JSON.stringify(MENU_ACCESS_DEFAULT));
   mockState.dataScope = JSON.parse(JSON.stringify(DATA_SCOPE_DEFAULT));
-  mockState.familyOrder = [...FAMILY_ORDER_DEFAULT];
   mockState.servingModelVer = 'v1.4.0';
   mockState.store = {};
 }

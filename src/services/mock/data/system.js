@@ -129,12 +129,6 @@ export const GLOSSARY_DOMAINS = [
   '불량유형', '원자재', '조직/부서', '지역/법인', '문서양식', '식별/바코드', '수치기준', '위치부위', '포장/물류', '치수관리', '구분/언어',
 ];
 
-/* ───────── SY-07 제품군 순위 변경 이력 ───────── */
-export const FAMILY_RANK_LOGS = [
-  { ts: '2026-08-23 14:22', act: '제품군 순위', detail: 'Camera Module 2순위 → 6순위 조정', by: '최영도 (경영진)' },
-  { ts: '2026-08-15 09:40', act: '제품군 순위', detail: 'Shield · 차폐 커버 신규 등록 · 3순위', by: '한도현 (전산팀)' },
-];
-
 /* ───────── SY-08 자연어 질의 이력 ───────── */
 export const CHAT_HISTORY_SEED = [
   { messageId: 'H01', ts: '09:24', question: '오늘 chip 불량 가장 많은 라인 어디야?', intentLabel: '불량 집계 조회', agents: '② ⑤', elapsedMs: 1600, rating: '유용', user: '김선영', dept: '품질보증팀' },
@@ -153,98 +147,6 @@ export const AUDIT_LOGS = [
   { ts: '08:41:03', type: '마스킹 해제 요청', target: 'L260824-031', group: '품질', result: '반려', note: '권한 없음' },
   { ts: '08:22:55', type: '권한 변경', target: '현장 그룹 · 비가동 관리', group: '관리자', result: '입력 권한 부여', note: '—' },
   { ts: '07:10:00', type: '자동 생성', target: '일일 생산현황 보고서', group: '시스템', result: '마스킹 1건', note: '수율' },
-];
-
-/* ───────── SY-10 AI 모델 설정 ───────── */
-export const MODEL_CONFIG = {
-  anomaly: { defectThreshold: 3.0, targetGapThreshold: 15, interval: '수시 (실시간)', scope: '모델별·공정별' },
-  classify: { okConfidenceLow: 0.05, ngConfidenceHigh: 0.6, borderlinePolicy: 'HITL 플래깅 (담당자 검토)', defectTags: 'chip, bend, welding, stain' },
-};
-
-export const MASK_RULES = [
-  { ruleId: 'MR1', name: '단가', fields: 'item_price, unit_cost', action: '마스킹', policy: '전체 비공개', enabled: true },
-  { ruleId: 'MR2', name: '수율', fields: 'yield_rate', action: '마스킹', policy: '고객사 A 비공개', enabled: true },
-  { ruleId: 'MR3', name: '거래처', fields: 'customer_nm, bp_nm', action: '마스킹', policy: '전체 비공개', enabled: true },
-  { ruleId: 'MR4', name: 'LOT 식별자', fields: 'lot_no', action: '부분 마스킹', policy: '고객사 A 비공개', enabled: true },
-];
-
-/* ───────── SY-11 AI 모델 버전 관리 ───────── */
-export const VECTOR_BUILDS = [
-  { vecId: 'VEC-2026.08-03', ts: '2026-08-26 02:40', duration: '42분', state: '완료', source: 'MES 문서 · 보고서 양식 · 용어 사전 v2 · 8D 이력', docs: 18420, chunks: 214800, embedding: 'bge-m3-ko', dim: 1024, size: '3.2 GB' },
-  { vecId: 'VEC-2026.08-02', ts: '2026-08-19 02:40', duration: '38분', state: '완료', source: 'MES 문서 · 보고서 양식 · 8D 이력', docs: 17960, chunks: 208400, embedding: 'bge-m3-ko', dim: 1024, size: '3.1 GB' },
-  { vecId: 'VEC-2026.07-04', ts: '2026-07-29 02:40', duration: '35분', state: '완료', source: 'MES 문서 · 보고서 양식', docs: 16240, chunks: 191200, embedding: 'bge-m3-ko', dim: 1024, size: '2.8 GB' },
-  { vecId: 'VEC-2026.08-04', ts: '2026-08-28 02:40', duration: '진행 12분', state: '진행 중', source: 'MES 문서 · 보고서 양식 · 용어 사전 v2 · 8D 이력 · 폐기 전표', docs: 19120, chunks: 0, embedding: 'bge-m3-ko', dim: 1024, size: '—' },
-];
-
-export const FINETUNE_BUILDS = [
-  { ftId: 'FT-2026.08-02', ts: '2026-08-25 03:10', duration: '6시간 12분', state: '완료', base: 'Qwen2.5-14B-Instruct', method: 'LoRA r=32 · α=64', samples: 12480, epoch: 3, vram: '48 GB', evaluation: { intent: 86.4, cite: 91.2, refuse: 97.0, halluc: 2.1 } },
-  { ftId: 'FT-2026.08-01', ts: '2026-08-11 03:10', duration: '5시간 48분', state: '완료', base: 'Qwen2.5-14B-Instruct', method: 'LoRA r=16 · α=32', samples: 10240, epoch: 3, vram: '40 GB', evaluation: { intent: 82.6, cite: 88.4, refuse: 95.2, halluc: 3.4 } },
-  { ftId: 'FT-2026.07-02', ts: '2026-07-24 03:10', duration: '5시간 20분', state: '완료', base: 'Qwen2.5-14B-Instruct', method: 'LoRA r=16 · α=32', samples: 8960, epoch: 2, vram: '40 GB', evaluation: { intent: 79.1, cite: 84.0, refuse: 93.8, halluc: 4.8 } },
-  { ftId: 'FT-2026.08-03', ts: '2026-08-27 03:10', duration: '2시간 04분', state: '실패', base: 'Qwen2.5-14B-Instruct', method: 'LoRA r=64 · α=128', samples: 12480, epoch: 4, vram: 'OOM', evaluation: null },
-];
-
-export const MODEL_RELEASES = [
-  { ver: 'v1.4.0', vecId: 'VEC-2026.08-03', ftId: 'FT-2026.08-02', ts: '2026-08-26 09:20', by: '한도현 (전산팀)', state: '서비스 중', mode: '즉시 전환', note: '용어 사전 v2 반영 · 현장 표현 정규화 개선' },
-  { ver: 'v1.3.2', vecId: 'VEC-2026.08-02', ftId: 'FT-2026.08-01', ts: '2026-08-12 10:05', by: '서지안 (전산팀)', state: '대기', mode: '즉시 전환', note: 'LoRA r=16 기준 · 직전 서비스 버전' },
-  { ver: 'v1.3.0', vecId: 'VEC-2026.07-04', ftId: 'FT-2026.07-02', ts: '2026-07-25 11:40', by: '한도현 (전산팀)', state: '보관', mode: '즉시 전환', note: '파일럿 최초 배포 버전' },
-];
-
-export const DEPLOY_LOGS = [
-  { ts: '2026-08-26 09:20', act: '서비스 전환', detail: 'v1.3.2 → v1.4.0 (즉시 전환)', by: '한도현 (전산팀)' },
-  { ts: '2026-08-26 09:02', act: '릴리스 등록', detail: 'v1.4.0 · VEC-2026.08-03 + FT-2026.08-02', by: '한도현 (전산팀)' },
-  { ts: '2026-08-26 03:22', act: '벡터 색인', detail: 'VEC-2026.08-03 빌드 완료 · 214,800 청크', by: '시스템 (배치)' },
-  { ts: '2026-08-25 09:30', act: '파인튜닝', detail: 'FT-2026.08-02 학습 완료 · 6시간 12분', by: '시스템 (배치)' },
-];
-
-export const PERFORMANCE_TREND = {
-  labels: ['v1.3.0', 'v1.3.2', 'v1.4.0'],
-  series: [
-    { name: '의도 파악 (%)', data: [79.1, 82.6, 86.4] },
-    { name: '근거 인용률 (%)', data: [84.0, 88.4, 91.2] },
-    { name: '환각률 (%)', data: [4.8, 3.4, 2.1] },
-  ],
-};
-
-/* ───────── SY-12 Agent 실행 현황 ───────── */
-export const AGENT_PIPELINE = [
-  { name: 'Semantic Parser', desc: '의도 해석', highlight: true },
-  { name: 'Task Planner', desc: '실행 계획' },
-  { name: 'DAG Publisher', desc: '순서·의존관계' },
-  { name: 'Agent Bus', desc: '메시지 중계' },
-  { name: 'Result Evaluator', desc: '산출물 검증·통합' },
-];
-
-export const AGENT_RUNS = [
-  { ts: '2026-08-28 09:12:04', agentCd: '④', detail: 'PR-03 원인 분석 · 각도 편차 기여도 산출', elapsedMs: 3200, result: '성공' },
-  { ts: '2026-08-28 09:11:58', agentCd: '③', detail: 'AOI-03 판정 배치 1,204건', elapsedMs: 880, result: '성공' },
-  { ts: '2026-08-28 09:11:40', agentCd: '②', detail: '수집 데이터 정규화 318건', elapsedMs: 410, result: '성공' },
-  { ts: '2026-08-28 09:04:00', agentCd: '⑨', detail: 'PR-03 불량률 임계 초과 감지 · 알림 발송', elapsedMs: 620, result: '성공' },
-  { ts: '2026-08-28 07:10:00', agentCd: '⑥', detail: '일일 생산현황 보고서 초안 생성', elapsedMs: 12400, result: '성공' },
-];
-
-/* ───────── SY-13 지표 기준 수치 ───────── */
-export const METRIC_STANDARDS = [
-  { stdId: 'M01', category: '불량', name: '공정 불량률', unit: '%', current: 2.6, ok: 2.0, warn: 3.0, bad: 3.5, lowerIsBetter: true, window: '10분 이동', basis: 'MES 생산 이력 · AOI 판정 로그', enabled: true, updatedAt: '2026-08-25', updatedBy: '한도현' },
-  { stdId: 'M02', category: '불량', name: '일 수율', unit: '%', current: 97.4, ok: 97.0, warn: 96.0, bad: 95.0, lowerIsBetter: false, window: '일 마감', basis: 'MES 투입·양품 실적', enabled: true, updatedAt: '2026-08-22', updatedBy: '김선영' },
-  { stdId: 'M03', category: '불량', name: '경계 판정 누적', unit: '건', current: 12, ok: 5, warn: 10, bad: 20, lowerIsBetter: true, window: '즉시', basis: 'AOI 판정 로그', enabled: true, updatedAt: '2026-08-20', updatedBy: '김선영' },
-  { stdId: 'M04', category: '불량', name: '고객사 LRR', unit: '%', current: 0.12, ok: 0.1, warn: 0.3, bad: 0.5, lowerIsBetter: true, window: '월 누계', basis: '고객사 통보 · 출하 실적', enabled: true, updatedAt: '2026-08-11', updatedBy: '김선영' },
-  { stdId: 'M05', category: '설비 장애', name: '설비 가동률', unit: '%', current: 83.5, ok: 87.0, warn: 82.0, bad: 75.0, lowerIsBetter: false, window: '2시간 이동', basis: '프레스 IoT · 비가동 등록', enabled: true, updatedAt: '2026-08-24', updatedBy: '정우진' },
-  { stdId: 'M06', category: '설비 장애', name: '비가동 지속 시간', unit: '분', current: 34, ok: 10, warn: 30, bad: 60, lowerIsBetter: true, window: '즉시', basis: '설비 정지 신호', enabled: true, updatedAt: '2026-08-14', updatedBy: '정우진' },
-  { stdId: 'M07', category: '설비 장애', name: '금형 잔여 타발수', unit: '천타', current: 6.2, ok: 20.0, warn: 10.0, bad: 5.0, lowerIsBetter: false, window: '즉시', basis: '금형 이력 · 타발 카운터', enabled: true, updatedAt: '2026-08-09', updatedBy: '강민석' },
-  { stdId: 'M08', category: '생산', name: '일목표 달성률', unit: '%', current: 106.5, ok: 100.0, warn: 95.0, bad: 85.0, lowerIsBetter: false, window: '일 마감', basis: 'MES 생산 실적 · 생산 계획', enabled: true, updatedAt: '2026-08-06', updatedBy: '정우진' },
-  { stdId: 'M09', category: '데이터 수집', name: 'IoT 수신 지연', unit: '초', current: 12, ok: 60, warn: 120, bad: 300, lowerIsBetter: true, window: '5분 연속', basis: '프레스 IoT 수신 타임스탬프', enabled: true, updatedAt: '2026-08-23', updatedBy: '서지안' },
-  { stdId: 'M10', category: '데이터 수집', name: '이관 실패율', unit: '%', current: 0.0, ok: 0.5, warn: 2.0, bad: 5.0, lowerIsBetter: true, window: '배치별', basis: 'MSSQL→PostgreSQL 이관 결과', enabled: true, updatedAt: '2026-08-25', updatedBy: '서지안' },
-  { stdId: 'M11', category: '원가', name: '월 누적 폐기 금액', unit: '백만원', current: 644.8, ok: 300.0, warn: 400.0, bad: 500.0, lowerIsBetter: true, window: '월 누계', basis: '폐기 전표 · 원가 기준정보', enabled: true, updatedAt: '2026-08-18', updatedBy: '최영도' },
-  { stdId: 'M12', category: '생산', name: '재공 체류 시간', unit: '시간', current: 5.4, ok: 6.0, warn: 12.0, bad: 24.0, lowerIsBetter: true, window: '일 평균', basis: 'MES 공정 이동 이력', enabled: false, updatedAt: '2026-07-28', updatedBy: '정우진' },
-];
-
-export const METRIC_HISTORY = [
-  { ts: '2026-08-25 09:02', metric: '공정 불량률', field: '위험 임계', before: '4.0', after: '3.5', by: '한도현 (전산팀)' },
-  { ts: '2026-08-24 15:20', metric: '설비 가동률', field: '주의 임계', before: '80.0', after: '82.0', by: '정우진 (생산관리팀)' },
-  { ts: '2026-08-23 10:44', metric: 'IoT 수신 지연', field: '위험 임계', before: '600', after: '300', by: '서지안 (전산팀)' },
-  { ts: '2026-08-22 11:05', metric: '일 수율', field: '정상 기준', before: '96.5', after: '97.0', by: '김선영 (품질보증팀)' },
-  { ts: '2026-08-18 16:32', metric: '월 누적 폐기 금액', field: '위험 임계', before: '450.0', after: '500.0', by: '최영도 (경영진)' },
-  { ts: '2026-08-14 09:18', metric: '비가동 지속 시간', field: '주의 임계', before: '20', after: '30', by: '정우진 (생산관리팀)' },
 ];
 
 /* ───────── SY-14 보고서 다운로드 이력 ───────── */

@@ -468,14 +468,4 @@ suite('화면 값 ↔ API 값', () => {
       await b.browser.close();
     }
   });
-
-  test('제품군 순위 관리 — 순위 이동 셀렉트와 제품 순서 버튼이 겹치지 않는다', async () => {
-    await visit(ctx.page, '/system/product-rank');
-    const select = await ctx.page.locator('div[tabindex="0"], [role="button"]').filter({ hasText: /^1$/ }).first().boundingBox();
-    const detail = await ctx.page.locator('text=제품 순서').first().boundingBox();
-    ok(select, '순위 셀렉트가 있어야 합니다');
-    ok(detail, '제품 순서 버튼이 있어야 합니다');
-    const gap = detail.x - (select.x + select.width);
-    ok(gap >= 8, `순위 셀렉트 우측(${select.x + select.width})과 제품 순서 버튼(${detail.x}) 사이에 여백이 있어야 합니다 (현재: ${gap}px)`);
-  });
 });

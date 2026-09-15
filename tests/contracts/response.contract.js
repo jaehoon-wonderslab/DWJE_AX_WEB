@@ -121,6 +121,4 @@ module.exports = (f) => ({
   '/system/data-perms': { fields: ['fields[].key', 'fields[].name', 'depts[].deptId', 'matrix'] },
   '/system/data-perms/by-user': { fields: ['items[].empNo', 'items[].allowedFields'] },
   '/system/perm-logs': { params: { size: 5 }, fields: ['items[].ts', 'items[].target', 'items[].detail'] },
-  '/ai/model-config': { fields: ['thresholds', 'classification'] },
-  '/ai/mask-rules': { fields: ['items'] },
 });
