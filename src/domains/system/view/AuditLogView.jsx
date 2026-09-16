@@ -59,6 +59,7 @@ export default function AuditLogView({
           <Loading />
         ) : (
           <Table
+            inset
             minWidth={900}
             keyExtractor={(r, i) => `${r.ts}-${i}`}
             emptyText="조회 조건에 맞는 감사 기록이 없습니다."

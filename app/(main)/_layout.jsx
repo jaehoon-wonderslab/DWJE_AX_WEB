@@ -6,7 +6,7 @@
  * 셸 자체는 스크롤하지 않고 패널마다 따로 스크롤합니다.
  *
  * 덕반장 AI 레일 (2026-09-10)
- *  · 자연어 질의 화면(/ai/chat)과 시스템관리를 뺀 모든 화면의 오른쪽에 기본으로 열려 있습니다.
+ *  · 자연어 질의 화면(/ai/chat) · 대메뉴 선택 · 시스템관리를 뺀 모든 화면의 오른쪽에 기본으로 열려 있습니다.
  *  · 본문과 레일 사이 핸들을 끌어 폭을 바꿉니다 — 최소 320px, 최대 창 폭의 40%(본문은 480px 이상 남김). 폭은 브라우저에 기억.
  *  · 닫으면 본문 패널 오른쪽 가장자리에 세로 단추가 붙어 다시 열 수 있습니다(단추는 고정, 스크롤 없음).
  *
@@ -29,6 +29,7 @@ import AiChatPanelHost from '@shared/components/layout/AiChatPanelHost';
 import { Icon, Loading, NoAccess } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { BRAND } from '@shared/theme/colors';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
@@ -38,14 +39,18 @@ const RAIL_MAX_RATIO = 0.4;
 /** 본문 패널이 최소한 남겨야 하는 폭 */
 const CONTENT_MIN = 480;
 /** 닫힘 상태의 세로 단추 폭 */
-const RAIL_TAB_WIDTH = 36;
+const RAIL_TAB_WIDTH = 32;
 
 /**
  * 덕반장 AI 레일을 아예 내지 않는 대메뉴 그룹.
  *
  * 시스템관리는 값을 「보는」 화면이 아니라 설정을 「고치는」 화면입니다 — 레일에 물어볼 실적이
- * 없는데도 오른쪽 세로 단추가 늘 붙어 본문 폭만 깎고 있었습니다. 허브(/menu/system)와
- * 하위 화면 모두에 적용합니다. (2026-09-15)
+ * 없는데도 오른쪽 세로 단추가 늘 붙어 본문 폭만 깎고 있었습니다. 하위 화면 전부에 적용합니다.
+ * (2026-09-15)
+ *
+ * 대메뉴 선택 화면(/menu/*)도 마찬가지입니다 — 화면을 고르는 길목일 뿐이라 물어볼 데이터가
+ * 아직 없습니다. 이쪽은 그룹을 가리지 않고 허브면 무조건 내리므로 아래 집합에 넣지 않습니다.
+ * (2026-09-16)
  */
 const RAIL_OFF_GROUPS = new Set(['시스템관리']);
 
@@ -91,8 +96,8 @@ export default function MainLayout() {
   const sidebarWidth = showSidebar ? (collapsed ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth) : 0;
   // 자연어 질의 화면 자체에서는 옆 레일을 따로 열지 않습니다 (같은 대화가 두 번 보입니다)
   const onChatScreen = currentScreenId === 'ai-chat' && !hubGroup;
-  // 시스템관리에서는 레일도 세로 단추도 내지 않습니다
-  const railOff = RAIL_OFF_GROUPS.has(hubGroup) || (!hubGroup && RAIL_OFF_SCREEN_IDS.has(currentScreenId));
+  // 대메뉴 선택 화면과 시스템관리에서는 레일도 세로 단추도 내지 않습니다
+  const railOff = !!hubGroup || RAIL_OFF_SCREEN_IDS.has(currentScreenId);
   const railAvailable = !onChatScreen && !railOff && width >= 900;
   const chatOpen = aiChatOpen && railAvailable;
 
@@ -139,34 +144,38 @@ export default function MainLayout() {
             )}
           </View>
 
-          {/* 레일이 닫혔을 때 — 본문 오른쪽 가장자리의 세로 단추 (고정 · 스크롤 없음) */}
+          {/* 레일이 닫혔을 때 — 본문 오른쪽 가장자리에 붙는 덕우 블루 세로 손잡이 (고정 · 스크롤 없음) */}
           {railAvailable && !chatOpen ? (
-            <Pressable
-              onPress={openAiChat}
-              accessibilityRole="button"
-              accessibilityLabel="덕반장 AI 열기"
-              style={({ hovered }) => ({
-                width: RAIL_TAB_WIDTH,
-                alignSelf: 'stretch',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                borderLeftWidth: 1,
-                borderLeftColor: theme.divider,
-                backgroundColor: hovered ? theme.alpha('primary', 0.1) : theme.alpha('primary', 0.05),
-              })}
-            >
-              <View style={{ width: 24, height: 24, borderRadius: 99, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="sparkles" size={13} color="#fff" />
-              </View>
-              {/* 세로 글자 — 한 글자씩 쌓아 어느 브라우저에서도 같은 모양 */}
-              <View style={{ alignItems: 'center', gap: 1 }}>
-                {['덕', '반', '장', 'AI'].map((ch) => (
-                  <Text key={ch} style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, lineHeight: 14, fontWeight: '600', letterSpacing: 0.2, color: theme.color.primary }}>{ch}</Text>
-                ))}
-              </View>
-              <Icon name="chevronLeft" size={13} color={theme.color.mutedForeground} />
-            </Pressable>
+            <View style={{ width: RAIL_TAB_WIDTH, alignSelf: 'stretch', justifyContent: 'center' }}>
+              <Pressable
+                onPress={openAiChat}
+                accessibilityRole="button"
+                accessibilityLabel="덕반장 AI 열기"
+                style={({ hovered }) => ({
+                  width: RAIL_TAB_WIDTH,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingTop: 14,
+                  paddingBottom: 16,
+                  borderTopLeftRadius: 10,
+                  borderBottomLeftRadius: 10,
+                  backgroundColor: hovered ? BRAND.deokwooBlueHover : BRAND.deokwooBlue,
+                  shadowColor: BRAND.deokwooBlue,
+                  shadowOpacity: hovered ? 0.4 : 0.25,
+                  shadowRadius: hovered ? 20 : 8,
+                  shadowOffset: { width: hovered ? -8 : 0, height: 2 },
+                })}
+              >
+                <Icon name="chevronLeft" size={15} color="#fff" />
+                {/* 세로 글자 — 한 글자씩 쌓아 어느 브라우저에서도 같은 모양 */}
+                <View style={{ alignItems: 'center', gap: 2 }}>
+                  {['덕', '반', '장', 'AI'].map((ch) => (
+                    <Text key={ch} style={{ fontFamily: FONT_FAMILY, fontSize: 14.5, lineHeight: 15, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{ch}</Text>
+                  ))}
+                </View>
+              </Pressable>
+            </View>
           ) : null}
         </View>
       </View>

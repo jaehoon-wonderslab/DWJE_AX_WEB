@@ -21,7 +21,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { createPortal } from 'react-dom';
-import TabulatorGrid from './TabulatorGrid';
+import TabulatorGrid, { GRID_INSET } from './TabulatorGrid';
 
 let cellSeq = 0;
 
@@ -36,6 +36,12 @@ export default function Table({
   filterable = false,
   height,
   bordered = false,
+  /**
+   * 카드 벽에 붙지 않도록 표 둘레에 여백을 줍니다 — `<Card tight>` 안에 표만 놓을 때 씁니다.
+   * 여백은 가로 스크롤 상자 **바깥**에 둡니다. 안쪽에 두면 옆으로 밀었을 때 여백까지 함께 밀려
+   * 표가 다시 카드 벽에 닿습니다.
+   */
+  inset = false,
   // 고정 높이 표에서는 Tabulator 내부 스크롤 하나로 헤더/본문을 함께 이동합니다.
   contained = false,
   pageSize,
@@ -199,11 +205,14 @@ export default function Table({
     minWidth || 0,
     columns.reduce((sum, col) => sum + (col.width || col.minWidth || 120), 0)
   );
+  const scroller = (
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: contained ? 'hidden' : 'auto', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
+      <div style={{ width: '100%', minWidth: contained ? 0 : tableMinWidth }}>{grid}</div>
+    </div>
+  );
   return (
     <>
-      <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: contained ? 'hidden' : 'auto', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
-        <div style={{ width: '100%', minWidth: contained ? 0 : tableMinWidth }}>{grid}</div>
-      </div>
+      {inset ? <View style={GRID_INSET}>{scroller}</View> : scroller}
       {portals}
     </>
   );

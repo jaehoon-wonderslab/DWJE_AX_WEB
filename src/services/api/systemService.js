@@ -483,7 +483,7 @@ export function postAlertConditionsByCondIdTestSend(params) {
  *
  * `GET /api/v1/alert-recipients/summary`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} groupCnt, recipientCnt{receiving,absent}, nightCnt, activeDutyCnt
+ * @returns {Promise<object>} groupCnt, recipientCnt{receiving,absent}, nightCnt
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
  */
 export function getAlertRecipientsSummary(params) {
@@ -543,7 +543,7 @@ export function postAlertRecipientGroupsByGroupIdTestSend(params) {
  *
  * `GET /api/v1/alert-recipients`
  * @param {object} params state, page, size
- * @returns {Promise<object>} items[{empNo,name,dept,pos,mail,hp,messenger,night,state}], meta
+ * @returns {Promise<object>} items[{empNo,name,dept,pos,posNm,mail,hp,messenger,night,state,stateNm,groups[]}], meta
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function getAlertRecipients(params) {
@@ -588,53 +588,10 @@ export function patchAlertRecipientsByRecipientIdState(params) {
 }
 
 /**
- * 당번·대리 목록
- *
- * `GET /api/v1/alert-duties`
- * @param {object} params from, to, groupId
- * @returns {Promise<object>} items[{dutyId,from,to,group,main,sub,reason}]
- * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
- */
-export function getAlertDuties(params) {
-  return request('getAlertDuties', params);
-}
-
-/**
- * 당번 등록
- *
- * `POST /api/v1/alert-duties`
- * @param {object} params from, to, groupId, mainEmpNo, subEmpNo, reason
- * @returns {Promise<object>} dutyId
- * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
- */
-export function postAlertDuties(params) {
-  return request('postAlertDuties', params);
-}
-
-/**
- * 당번 수정·삭제
- *
- * `PUT/DELETE /api/v1/alert-duties/{dutyId}`
- * @param {object} params 동일
- * @returns {Promise<object>} success
- * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
- */
-export function putAlertDutiesByDutyId(params) {
-  return request('putAlertDutiesByDutyId', params);
-}
-
-/**
- * 당번 삭제
- *
- * `DELETE /api/v1/alert-duties/{dutyId}`
- * @param {object} params dutyId
- */
-export function deleteAlertDutiesByDutyId(params) {
-  return request('deleteAlertDutiesByDutyId', params);
-}
-
-/**
  * 승격 규칙 조회·수정
+ *
+ * 수신자 관리(SY-05) 화면에서는 걷어냈습니다(2026-09-16). 규칙은 [알림 현황] 의
+ * 「승격 대상」이 그대로 읽으므로 서버 API 와 이 함수는 남겨 둡니다.
  *
  * `GET/PUT /api/v1/alert-escalation-rules`
  * @param {object} params stages[{stage,waitMin,targetGroupId}]

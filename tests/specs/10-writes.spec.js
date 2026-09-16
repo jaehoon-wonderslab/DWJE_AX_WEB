@@ -237,7 +237,7 @@ suite('쓰기 — 안전장치', () => {
     ['부서 등록', 'POST', '/system/depts', 'deptNm'],
     ['계정 등록', 'POST', '/system/users', 'empNo'],
     ['용어 등록', 'POST', '/glossary/terms', 'term'],
-    ['당번 등록', 'POST', '/alert-duties', 'groupId'],
+    ['수신자 등록', 'POST', '/alert-recipients', 'empNo'],
   ];
 
   test('토큰 없이 부르면 401 이다', async () => {
@@ -270,7 +270,6 @@ suite('쓰기 — 안전장치', () => {
       // 없는 대상인데 소유권부터 따지면 "본인 것만 삭제할 수 있다" 로 안내됩니다 — 존재 확인이 먼저여야 합니다
       ['유사어 삭제', 'DELETE', '/glossary/variants/999999', null],
       ['용어 삭제', 'DELETE', '/glossary/terms/999999', null],
-      ['당번 삭제', 'DELETE', '/alert-duties/999999', null],
     ];
     for (const [name, method, path, body] of cases) {
       const r = await api.send(method, path, body);

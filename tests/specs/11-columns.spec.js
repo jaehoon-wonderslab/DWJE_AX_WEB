@@ -49,8 +49,6 @@ const TABLES = (f) => [
   ['system/view/RecipientView.jsx', [
     ['/alert-recipients', { size: 5 }, 'items'],
     ['/alert-recipient-groups', {}, 'items'],
-    ['/alert-duties', {}, 'items'],
-    ['/alert-escalation-rules', {}, 'items'],
   ]],
   ['system/view/SyncHistoryView.jsx', [
     ['/sync/jobs', { size: 5 }, 'items'],

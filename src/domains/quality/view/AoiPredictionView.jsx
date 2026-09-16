@@ -262,6 +262,7 @@ export default function AoiPredictionView({
             tight
           >
             <TabulatorGrid
+              inset
               columns={shiftColumns}
               rows={shift}
               pageSize={SHIFT_PAGE_SIZE}

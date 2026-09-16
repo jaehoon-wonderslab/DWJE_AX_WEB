@@ -154,6 +154,7 @@ export default function AlertCondView({
 
       <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건`} tight>
         <Table
+          inset
           minWidth={1400}
           keyExtractor={(r) => r.condId}
           emptyText="등록된 발송 조건이 없습니다. '조건 등록' 으로 첫 조건을 만드세요."

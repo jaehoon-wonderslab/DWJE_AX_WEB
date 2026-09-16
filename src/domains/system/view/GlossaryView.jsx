@@ -210,6 +210,7 @@ export default function GlossaryView({
 
       <Card title="용어 · 유사어" sub={`${itemsMeta?.total ?? terms.length}건${filters.mineOnly ? ' · 내가 등록한 유사어가 있는 용어만' : ''}`} tight>
         <TabulatorGrid
+          inset
           columns={columns}
           rows={terms}
           rowKey="termId"

@@ -158,6 +158,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
         <Card title="고객사 누계" sub="출하수량 대비 LRR 비율" tight>
           {byCustomer.length ? (
             <Table
+              inset
               minWidth={760}
               keyExtractor={(r) => r.customer || '—'}
               columns={[

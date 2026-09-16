@@ -188,11 +188,12 @@ export default function AoiDefectSection({
           <Loading compact />
         ) : (
           <View nativeID="aoiDefectGrid">
+            {/* 표는 카드 안쪽 여백을 두고 제 테두리를 그대로 씁니다 — 호버 색만 덧입힙니다 */}
             <style>{`
-              #aoiDefectGrid .tabulator { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; border-top: 0 !important; }
               #aoiDefectGrid .tabulator .tabulator-row:hover { background: ${theme.alpha('primary', 0.05)} !important; }
             `}</style>
             <TabulatorGrid
+              inset
               columns={columns}
               rows={items}
               height={items.length > 8 ? LIST_HEIGHT : undefined}

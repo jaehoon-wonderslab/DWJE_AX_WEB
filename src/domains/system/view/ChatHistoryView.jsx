@@ -146,6 +146,7 @@ export default function ChatHistoryView({
 
       <Card title="질의 이력" sub={`${comma(total)}건 · 행을 누르면 상세와 평가를 볼 수 있습니다`} tight>
         <Table
+          inset
           minWidth={1000}
           keyExtractor={(r) => r.messageId}
           onRowPress={showDetail}

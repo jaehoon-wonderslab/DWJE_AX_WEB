@@ -12,7 +12,7 @@ export { default as Badge, StateBadge, Dot } from './Badge';
 export { default as BlindValue, BlindNote } from './BlindValue';
 export { default as Table } from './Table';
 export { default as TabulatorTable } from './TabulatorTable';
-export { default as TabulatorGrid } from './TabulatorGrid';
+export { default as TabulatorGrid, GRID_INSET } from './TabulatorGrid';
 export { default as Pagination } from './Pagination';
 export { default as XlsTable, XlsLegend } from './XlsTable';
 export { default as PermMatrix } from './PermMatrix';

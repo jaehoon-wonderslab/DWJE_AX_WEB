@@ -253,13 +253,17 @@ export async function loadAlertConditionsByState({ severity, state, keyword, pag
 }
 
 /* ═══════ SY-05 알림 수신자 관리 ═══════ */
+/**
+ * 수신자 관리 화면
+ *
+ * 당번·승격은 이 화면에서 걷어냈습니다(2026-09-16). 그래서 당번 목록·승격 규칙은
+ * 받아 오지 않습니다 — 승격 규칙은 [알림 현황] 의 「승격 대상」이 계속 씁니다.
+ */
 export async function loadRecipients({ groupId, state, page, size }) {
   const data = await unwrapAll({
     summary: systemService.getAlertRecipientsSummary({}),
     groups: systemService.getAlertRecipientGroups({}),
     recipients: systemService.getAlertRecipients({ groupId, state, page, size }),
-    duties: systemService.getAlertDuties({}),
-    escalation: systemService.getAlertEscalationRules({}),
   });
   return { ...data, recipientsMeta: data.metas?.recipients };
 }
@@ -269,10 +273,6 @@ export const testGroup = (groupId) => command(systemService.postAlertRecipientGr
 export const createRecipient = (v) => command(systemService.postAlertRecipients(v));
 export const updateRecipient = (recipientId, v) => command(systemService.putAlertRecipientsByRecipientId({ recipientId, ...v }));
 export const toggleRecipientState = (recipientId) => command(systemService.patchAlertRecipientsByRecipientIdState({ recipientId }));
-export const createDuty = (v) => command(systemService.postAlertDuties(v));
-export const updateDuty = (dutyId, v) => command(systemService.putAlertDutiesByDutyId({ dutyId, ...v }));
-export const deleteDuty = (dutyId) => command(systemService.deleteAlertDutiesByDutyId({ dutyId }));
-export const updateEscalationRules = (stages) => command(systemService.putAlertEscalationRules({ stages }));
 
 /* ═══════ SY-06 용어 사전 ═══════ */
 export async function loadGlossary({ keyword, domain, mineOnly, page, size }) {

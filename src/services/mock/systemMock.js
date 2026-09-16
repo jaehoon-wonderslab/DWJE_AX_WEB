@@ -10,7 +10,7 @@ import { permRows } from '@shared/constants/menu';
 import { nowStamp } from '@shared/utils/formatUtil';
 import {
   ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
-  DATA_ACCESS_AUDIT, DATA_PERM_PREVIEW, DOWNLOAD_LOGS, DUTIES, ESCALATION_RULES,
+  DATA_ACCESS_AUDIT, DATA_PERM_PREVIEW, DOWNLOAD_LOGS, ESCALATION_RULES,
   GLOSSARY, GLOSSARY_DOMAINS, PERM_LOGS, RECIPIENT_GROUPS,
   RECIPIENTS, RETENTION_POLICY, SYNC_DRIFTS, SYNC_FAIL_REASON, SYNC_JOBS, SYNC_MAPS, SYNC_POLICY,
 } from './data/system';
@@ -27,7 +27,6 @@ function store() {
       conditions: JSON.parse(JSON.stringify(ALERT_CONDITIONS)),
       recipients: JSON.parse(JSON.stringify(RECIPIENTS)),
       groups: JSON.parse(JSON.stringify(RECIPIENT_GROUPS)),
-      duties: JSON.parse(JSON.stringify(DUTIES)),
       escalation: JSON.parse(JSON.stringify(ESCALATION_RULES)),
       glossary: JSON.parse(JSON.stringify(GLOSSARY)),
       chatHistory: [...CHAT_HISTORY_SEED],
@@ -426,7 +425,6 @@ export const systemMock = {
       recipientCnt: st.recipients.length,
       absentCnt: st.recipients.filter((r) => r.state !== '수신').length,
       nightCnt: st.recipients.filter((r) => r.night).length,
-      dutyCnt: st.duties.length,
     };
   },
 
@@ -466,7 +464,11 @@ export const systemMock = {
     const st = store();
     let items = st.recipients.map((r) => {
       const u = st.users.find((x) => x.empNo === r.empNo) || { name: r.empNo, dept: '—', pos: '—' };
-      return { ...r, name: u.name, dept: u.dept, pos: u.pos, groups: st.groups.filter((g) => g.members.includes(r.empNo)).map((g) => g.name) };
+      // 실 서버 응답 키에 맞춥니다 — 휴대전화는 hp, 직급·상태는 표기값(posNm · stateNm)도 함께 옵니다
+      return {
+        ...r, name: u.name, dept: u.dept, pos: u.pos, posNm: u.pos, hp: r.phone, stateNm: r.state,
+        groups: st.groups.filter((g) => g.members.includes(r.empNo)).map((g) => g.name),
+      };
     });
     if (groupId && groupId !== '전체') items = items.filter((r) => r.groups.includes(groupId));
     if (state && state !== '전체') items = items.filter((r) => r.state === state);
@@ -492,30 +494,6 @@ export const systemMock = {
     if (!r) return fail('E-NOTFOUND', '대상 수신자를 찾을 수 없습니다.');
     r.state = r.state === '수신' ? '부재' : '수신';
     return ok(`수신 상태를 '${r.state}' 로 바꿨습니다.`, { state: r.state });
-  },
-
-  getAlertDuties: () => ({ items: store().duties }),
-
-  postAlertDuties: (body) => {
-    const st = store();
-    st.duties.unshift({ dutyId: `D${st.duties.length + 1}`, ...body });
-    return ok('당번을 등록했습니다.');
-  },
-
-  putAlertDutiesByDutyId: ({ dutyId, ...body }) => {
-    const st = store();
-    const d = st.duties.find((x) => x.dutyId === dutyId);
-    if (!d) return fail('E-NOTFOUND', '대상 당번을 찾을 수 없습니다.');
-    Object.assign(d, body);
-    return ok('당번 정보를 수정했습니다.');
-  },
-
-  deleteAlertDutiesByDutyId: ({ dutyId }) => {
-    const st = store();
-    const idx = st.duties.findIndex((d) => d.dutyId === dutyId);
-    if (idx === -1) return fail('E-NOTFOUND', '대상 당번을 찾을 수 없습니다.');
-    st.duties.splice(idx, 1);
-    return ok('당번을 삭제했습니다.');
   },
 
   getAlertEscalationRules: () => ({ items: store().escalation }),

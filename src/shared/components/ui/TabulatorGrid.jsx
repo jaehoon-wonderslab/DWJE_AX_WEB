@@ -8,6 +8,13 @@
  * 정렬·열 크기 조절·긴 셀 줄바꿈을 사람이 직접 다룰 수 있어야 하는 표에 씁니다.
  * 단순 나열이면 `Table` · `XlsTable` 이 더 가볍습니다.
  *
+ * ■ 열 너비
+ * 기본은 가용 폭을 열끼리 나눠 갖습니다(`fitColumns`). `autoWidth` 를 주면 **내용에 맞춰**
+ * 잡고(`fitData`), 합이 카드보다 넓으면 표 안에서 가로로 스크롤합니다 — 값 길이가 열마다
+ * 크게 다른 표(연락처·이름 묶음)에서 짧은 열이 헛폭을 먹지 않습니다.
+ * `bordered` 를 함께 주면 칸 경계가 그어져 어느 값이 어느 열인지 눈으로 갈립니다.
+ * 어느 쪽이든 머리글 경계를 끌어 폭을 직접 바꿀 수 있습니다.
+ *
  * ■ 행 묶음
  * `groupBy` 를 주면 같은 값끼리 묶어 머리글을 답니다 — 한 대상에 여러 줄이 붙는 표에서
  * 어느 줄이 어느 대상 것인지 눈으로 갈립니다.
@@ -65,6 +72,15 @@ const KO_LANG = {
 
 /** 묶음 머리글의 펼침 화살표가 차지하는 폭 — 첫 칸에서 이만큼 뺍니다 */
 export const ARROW_W = 26;
+
+/**
+ * 카드 안쪽 여백 — `<Card tight>` 처럼 본문 여백이 없는 카드에 표만 놓을 때 씁니다.
+ *
+ * 표가 카드 벽에 딱 붙으면 표의 테두리와 카드 테두리가 두 줄로 겹쳐 보이고,
+ * 가로로 넘치는 표에서는 첫 칸·마지막 칸이 잘린 것처럼 읽힙니다.
+ * 값은 쪽 이동(Pagination)의 좌우 여백과 같은 16 으로 맞춰 아래위가 한 줄로 섭니다.
+ */
+export const GRID_INSET = { padding: 16 };
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 
@@ -100,17 +116,29 @@ export default function TabulatorGrid({
   pageSize,
   /** 칸마다 세로 줄을 그립니다 — 열이 많아 눈이 미끄러지는 표에서 씁니다 */
   bordered = false,
+  /**
+   * 열 너비를 **내용에 맞춰** 잡습니다 (Tabulator `layout:'fitData'`).
+   *
+   * 기본값은 가용 폭을 열끼리 나눠 갖는 `fitColumns` 입니다. 값 길이가 열마다 크게 다른 표
+   * (연락처 · 그룹 이름처럼)에서는 짧은 열이 헛폭을 먹고 긴 열이 잘립니다.
+   * 이 옵션을 켜면 각 열이 제 내용만큼만 차지하고, 합이 카드보다 넓으면 표 안에서 가로로 스크롤합니다
+   * (열을 숨기거나 압축해 맞추지 않습니다 — 표 UI 작업 기준).
+   * 머리글 경계를 끌어 사람이 직접 폭을 바꾸는 것은 이 옵션과 무관하게 항상 됩니다.
+   */
+  autoWidth = false,
   productionStyle = false,
   /** 접었다 펴는 트리 — 자식 행은 각 행의 `childField` 배열에 담습니다 */
   dataTree = false,
   childField = '_children',
   treeStartExpanded = false,
   treeChildIndent = 14,
+  /** 카드 벽에 붙지 않도록 표 둘레에 여백을 줍니다 (GRID_INSET) — style 로 개별 값을 덮을 수 있습니다 */
+  inset = false,
 }) {
   const ref = useRef(null);
-  const railRef = useRef(null);
-  const railWidthRef = useRef(null);
   const instance = useRef(null);
+  /** 내용에 맞춘 열 너비 — 실적 화면(productionStyle)은 예전부터 이 방식이었습니다 */
+  const fitData = autoWidth || productionStyle;
   /** 최신 값을 콜백 안에서 읽기 위한 통로 — 이것 때문에 표를 새로 만들지는 않습니다 */
   const selectedRef = useRef(selected);
   const onSelectedRef = useRef(onSelectedChange);
@@ -236,8 +264,8 @@ export default function TabulatorGrid({
     const table = new Tabulator(ref.current, {
       data: rows,
       columns: cols,
-      layout: productionStyle ? 'fitData' : 'fitColumns',
-      layoutColumnsOnNewData: productionStyle,
+      layout: fitData ? 'fitData' : 'fitColumns',
+      layoutColumnsOnNewData: fitData,
       columnDefaults: { resizable: 'header' },
       resizableColumnFit: false,
       responsiveLayout: false,
@@ -331,34 +359,16 @@ export default function TabulatorGrid({
       tooltipFrame = requestAnimationFrame(updateTreeTooltips);
     }));
 
-    let sizeFrame = 0, railFrame = 0, holder;
-    const rail = railRef.current;
-    const syncRail = () => {
-      cancelAnimationFrame(railFrame);
-      railFrame = requestAnimationFrame(() => {
-        if (!holder || !rail || !railWidthRef.current) return;
-        railWidthRef.current.style.width = (rail.clientWidth + Math.max(0, holder.scrollWidth - holder.clientWidth)) + 'px';
-        rail.scrollLeft = holder.scrollLeft;
-      });
-    };
-    const fromRail = () => { if (holder && holder.scrollLeft !== rail.scrollLeft) holder.scrollLeft = rail.scrollLeft; };
-    const fromTable = () => { if (rail && rail.scrollLeft !== holder.scrollLeft) rail.scrollLeft = holder.scrollLeft; };
+    // 가로 스크롤은 표 아래 한 줄만 둡니다 — 표 높이가 정해져 있어 막대가 카드 안에 그대로 머뭅니다.
+    let sizeFrame = 0;
     const autoSize = () => {
       cancelAnimationFrame(sizeFrame);
       sizeFrame = requestAnimationFrame(() => {
         table.getColumns().forEach(column => column.setWidth(true));
-        syncRail();
       });
     };
-    if (productionStyle) {
-      rail?.addEventListener('scroll', fromRail);
-      table.on('tableBuilt', () => {
-        holder = ref.current?.querySelector('.tabulator-tableholder');
-        holder?.addEventListener('scroll', fromTable);
-        autoSize();
-      });
-      ['dataProcessed', 'dataTreeRowExpanded', 'pageLoaded'].forEach(event => table.on(event, autoSize));
-      ['renderComplete', 'columnResized'].forEach(event => table.on(event, syncRail));
+    if (fitData) {
+      ['tableBuilt', 'dataProcessed', 'dataTreeRowExpanded', 'pageLoaded'].forEach(event => table.on(event, autoSize));
     }
     if (selectable) {
       table.on('rowSelectionChanged', (data) => {
@@ -410,9 +420,6 @@ export default function TabulatorGrid({
       ref.current?.removeEventListener('compositionend', applyHeaderInput);
       cancelAnimationFrame(sizeFrame);
       cancelAnimationFrame(tooltipFrame);
-      cancelAnimationFrame(railFrame);
-      rail?.removeEventListener('scroll', fromRail);
-      holder?.removeEventListener('scroll', fromTable);
       cancelAnimationFrame(raf);
       try {
         table.destroy();
@@ -424,7 +431,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, treeChildIndent, dataTree, blockedKey]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, autoWidth, treeChildIndent, dataTree, blockedKey]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -497,7 +504,7 @@ export default function TabulatorGrid({
   }, [headerFilters]);
 
   return (
-    <View style={[{ minWidth: 0, width: '100%', maxWidth: '100%' }, style]} nativeID={`grid_${id}`}>
+    <View style={[{ minWidth: 0, width: '100%', maxWidth: '100%' }, inset ? GRID_INSET : null, style]} nativeID={`grid_${id}`}>
       <style>{`
         #grid_${id} .tabulator {
           width: 100%;
@@ -763,6 +770,15 @@ export default function TabulatorGrid({
           #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle { width:10px; margin-left:-5px; margin-right:-5px; cursor:col-resize; background:linear-gradient(to right, transparent 4px, ${theme.hairlineStrong} 4px, ${theme.hairlineStrong} 6px, transparent 6px); }
           #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle:hover { background:${color.primary}; }
         ` : ''}
+        ${fitData ? `
+          /* 내용에 맞춘 폭이라 표가 카드보다 넓어질 수 있습니다 — 가로 막대를 눈에 띄게 그립니다 */
+          #grid_${id} .tabulator .tabulator-tableholder::-webkit-scrollbar { height:12px; }
+          #grid_${id} .tabulator .tabulator-tableholder::-webkit-scrollbar-track { background:${theme.surface}; }
+          #grid_${id} .tabulator .tabulator-tableholder::-webkit-scrollbar-thumb { background:${color.mutedForeground}; border-radius:6px; }
+          /* 폭 손잡이 — 끌어서 줄일 수 있다는 것이 보여야 합니다 */
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle { width:10px; margin-left:-5px; margin-right:-5px; cursor:col-resize; background:linear-gradient(to right, transparent 4px, ${theme.hairlineStrong} 4px, ${theme.hairlineStrong} 6px, transparent 6px); }
+          #grid_${id} .tabulator .tabulator-header .tabulator-col-resize-handle:hover { background:${color.primary}; }
+        ` : ''}
         ${productionStyle ? `
           #grid_${id} .tabulator { font-size:17px; font-weight:400; }
           #grid_${id} .tabulator .tabulator-header .tabulator-col { padding:11px 16px; border-right:1px solid ${theme.hairlineStrong}; }
@@ -779,12 +795,9 @@ export default function TabulatorGrid({
           #grid_${id} .tabulator .tabulator-page.active { background:${color.primary}; color:${color.primaryForeground}; }
         ` : ''}
       `}</style>
-      {productionStyle && <>
-        <div style={{ fontSize:14, color:c.muted, marginBottom:6 }}>열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 가로 스크롤로 오른쪽 열을 확인하세요.</div>
-        <div ref={railRef} role="region" aria-label="표 가로 스크롤" tabIndex={0} style={{ width:'100%', overflowX:'scroll', height:18, marginBottom:8, touchAction:'pan-x pan-y' }}>
-          <div ref={railWidthRef} style={{ height:1 }} />
-        </div>
-      </>}
+      {fitData ? (
+        <div style={{ fontSize:14, color:c.muted, marginBottom:8 }}>열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 표 아래 가로 스크롤로 오른쪽 열을 확인하세요.</div>
+      ) : null}
       <div ref={ref} style={{ width: '100%', minWidth: 0 }} />
     </View>
   );

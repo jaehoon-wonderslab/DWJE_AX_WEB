@@ -7,7 +7,7 @@ import { ParetoChart } from '@shared/components/charts-d3';
 import ZoomableSunburst from '@shared/components/charts-d3/ZoomableSunburst';
 import Grid from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Button, Card, CardBody, DateField, Filters, Loading, StatCard, TabulatorGrid } from '@shared/components/ui';
+import { Button, Card, CardBody, DateField, Filters, GRID_INSET, Loading, StatCard, TabulatorGrid } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
@@ -26,7 +26,7 @@ const PAGE_SIZE = 10;
  */
 const TYPE_SORT = [{ column: 'value', dir: 'desc' }];
 
-const GRID_STYLE = { padding: 16, paddingTop: 0 };
+const GRID_STYLE = { ...GRID_INSET, paddingTop: 0 };
 
 // 계층은 들여쓰기와 펼침 버튼으로 표시합니다.
 const TREE_COLUMNS = [{

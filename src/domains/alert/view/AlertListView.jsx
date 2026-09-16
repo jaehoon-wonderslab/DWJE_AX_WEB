@@ -141,6 +141,7 @@ export default function AlertListView({
           <Loading />
         ) : (
           <Table
+            inset
             minWidth={940}
             keyExtractor={(r) => r.alertId}
             onRowPress={openDetail}
@@ -223,6 +224,7 @@ export default function AlertListView({
 
       <Card title="승격 대기" sub="미확인 상태가 지속되면 아래 순서로 상위 담당에게 전달됩니다" tight>
         <Table
+          inset
           minWidth={760}
           keyExtractor={(r, i) => r.escRuleId ?? r.stage ?? i}
           emptyText="승격 규칙이 없습니다."
@@ -260,6 +262,7 @@ export default function AlertListView({
           <Gap />
           <Card title="알림 발송 로그" sub="최근 발송 내역 (전산팀·통합관리자 전용)" tight>
             <Table
+              inset
               minWidth={860}
               keyExtractor={(r, i) => r.sendId ?? `${r.ts}-${i}`}
               emptyText="발송 내역이 없습니다."

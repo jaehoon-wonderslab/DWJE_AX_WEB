@@ -129,6 +129,7 @@ export default function KpiDashboardView({
 
       <Card title="AI 성능 목표" sub="검증 결과 · 월 단위 갱신" tight>
         <Table
+          inset
           minWidth={860}
           columns={[
             { key: 'item', title: '항목', flex: 1, minWidth: 240 },

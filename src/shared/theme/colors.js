@@ -70,6 +70,8 @@ const LIGHT_SERIES = ['#0B1440', '#1E2A78', '#3F3AA8', '#F2C14E', '#B4B8CC', '#2
 /** 브랜드 고정색 — 로고 그라디언트(CI) 와 파티클 성좌 팔레트에만 씁니다 */
 export const BRAND = {
   deokwooBlue: '#0033a0',
+  /** 덕우 블루 호버 — 채움 버튼(덕반장 AI)에서 눌림·호버 상태 */
+  deokwooBlueHover: '#0b47c4',
   skyBlue: '#00aeef',
   ink: '#0B1440',
   iris: '#8052ff',

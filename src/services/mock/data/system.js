@@ -73,14 +73,6 @@ export const RECIPIENT_GROUPS = [
   { groupId: 'G6', name: '현장 반장', channels: ['시스템 팝업'], window: '06:00 ~ 18:00', night: false, members: ['20230201'] },
 ];
 
-/** 당번 · 부재 시 대리 수신 */
-export const DUTIES = [
-  { dutyId: 'D1', from: '2026-08-25', to: '2026-08-29', group: '제조팀 파트장', main: '강민석', sub: '오세훈', reason: '주간 정기 당번' },
-  { dutyId: 'D2', from: '2026-08-24', to: '2026-08-26', group: '품질보증팀', main: '이수민', sub: '박지훈', reason: '연차' },
-  { dutyId: 'D3', from: '2026-08-22', to: '2026-08-24', group: '전산팀', main: '서지안', sub: '한도현', reason: '외부 교육' },
-  { dutyId: 'D4', from: '2026-09-01', to: '2026-09-05', group: '생산관리팀', main: '정우진', sub: '최민아', reason: '출장' },
-];
-
 /** 미확인 건 승격 단계 */
 export const ESCALATION_RULES = [
   { level: '1차', after: '30분', to: '제조팀 파트장', channels: ['메일', 'SMS'], note: '담당자가 확인하지 않은 경우' },

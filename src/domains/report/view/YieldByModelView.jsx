@@ -188,6 +188,7 @@ export default function YieldByModelView({
 
         <Card title="불량 유형별 Loss 비중" sub={`${yearMonth} 누계 Loss ${canData('qty') ? comma(lossTotal) : '비공개'} EA 기준`} tight>
           <Table
+            inset
             minWidth={680}
             keyExtractor={(r) => r.label}
             columns={[

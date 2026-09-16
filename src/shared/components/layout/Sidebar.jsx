@@ -12,9 +12,14 @@
  * 로그인 계정의 소속 부서 권한으로 필터링해 접근 가능한 항목만 그립니다.
  *
  * 2026-09-10 변경
- *  · 「덕반장 AI」(자연어 질의) 는 스크롤되는 메뉴 목록 밖, 「메뉴 접기」 아래 **고정 카드 버튼**으로 둡니다.
+ *  · 「덕반장 AI」(자연어 질의) 는 스크롤되는 메뉴 목록 밖, 로고 블록 아래 **고정 카드 버튼**으로 둡니다.
  *    누를 수 있는 버튼임이 보이도록 채움 배경 + 아이콘 + 캡션("AI를 통해 궁금한 것을 물어보세요").
  *  · 계정 메뉴(현재 계정 · 로그아웃)는 상단바에서 내려와 하단 사용자 카드를 누르면 위로 뜹니다.
+ *
+ * 2026-09-16 변경 (화면설계 v03)
+ *  · 「메뉴 접기」는 로고와 같은 줄의 36×32 네모 단추입니다. 접히면 로고 아래로 내려가
+ *    덕우 블루 틴트로 채워지고, 화살표가 뒤집혀 「펼치기」임을 보여 줍니다.
+ *  · 「덕반장 AI」는 덕우 블루(#0033a0) 채움 버튼 — 흰 글자 · 반투명 아이콘 타일 · 스카이블루 생존 점.
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -26,6 +31,7 @@ import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { hubGroupOf } from '@shared/navigation/routes';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { BRAND } from '@shared/theme/colors';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { LogoLockup, LogoMark } from '../brand/Logo';
@@ -79,62 +85,77 @@ export default function Sidebar({ collapsed = false }) {
 
   return (
     <View style={[s.panel, { width, flexShrink: 0 }]}>
-      {/* 로고 블록 + 접기 단추 */}
-      <View style={{ paddingTop: 18, paddingBottom: 12, paddingHorizontal: collapsed ? 0 : 18, alignItems: collapsed ? 'center' : 'flex-start', gap: 12 }}>
-        {collapsed ? <LogoMark size={30} /> : <LogoLockup size={30} />}
+      {/* 로고 블록 + 메뉴 접기 단추 — 펼침일 때는 로고 오른쪽, 접힘일 때는 로고 아래 */}
+      <View style={{ paddingTop: 18, paddingBottom: 12, paddingHorizontal: 12, flexDirection: collapsed ? 'column' : 'row', alignItems: 'center', gap: 9 }}>
+        {collapsed ? (
+          <LogoMark size={30} />
+        ) : (
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <LogoLockup size={30} compact />
+          </View>
+        )}
         <Pressable
           onPress={toggleSidebar}
           accessibilityRole="button"
           accessibilityLabel={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+          // 접히면 파란 틴트로 채워 "여기를 누르면 다시 펼쳐진다"를 남겨 둡니다
           style={({ hovered }) => ({
-            height: 30,
-            width: collapsed ? 30 : undefined,
-            alignSelf: collapsed ? 'center' : 'stretch',
-            paddingHorizontal: collapsed ? 0 : 10,
+            width: 36,
+            height: 32,
+            flexShrink: 0,
             borderRadius: theme.metrics.radiusSm,
-            backgroundColor: hovered ? theme.surfaceHover : theme.surface,
-            flexDirection: 'row',
+            borderWidth: 1,
+            borderColor: hovered ? BRAND.deokwooBlue : collapsed ? 'rgba(0,51,160,0.28)' : theme.hairlineStrong,
+            backgroundColor: collapsed ? 'rgba(0,51,160,0.08)' : theme.color.card,
             alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'space-between',
-            gap: 8,
+            justifyContent: 'center',
+            ...(collapsed
+              ? { shadowColor: BRAND.deokwooBlue, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }
+              : null),
           })}
         >
-          {!collapsed ? <Text style={[s.caption, { color: theme.color.secondaryForeground }]}>메뉴 접기</Text> : null}
-          <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={14} color={theme.color.secondaryForeground} />
+          {/* 화살표는 하나만 두고 방향만 뒤집습니다 — 펼침이면 왼쪽(접기), 접힘이면 오른쪽(펼치기) */}
+          <View style={{ transform: [{ scaleX: collapsed ? 1 : -1 }] }}>
+            <Icon name="logout" size={16} color={collapsed ? BRAND.deokwooBlue : theme.color.secondaryForeground} />
+          </View>
         </Pressable>
       </View>
 
       {/* 고정 — 덕반장 AI (스크롤 영향 없음) */}
       {aiItem ? (
-        <View style={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 8, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+        <View style={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 10, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
           <Link href={aiItem.path} asChild>
             <Hoverable
               accessibilityLabel={`${aiItem.name} — AI를 통해 궁금한 것을 물어보세요`}
+              // 덕우 블루 채움 — 사이드바에서 유일한 채움 버튼이라 "여기부터 물어보면 된다"가 바로 읽힙니다
               hoverStyle={({ hovered, pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: collapsed ? 'center' : 'flex-start',
                 gap: 10,
-                height: collapsed ? 40 : undefined,
-                paddingVertical: collapsed ? 0 : 9,
-                paddingHorizontal: collapsed ? 0 : 10,
-                borderRadius: theme.metrics.radiusSm,
+                height: 44,
+                paddingHorizontal: collapsed ? 0 : 12,
+                borderRadius: 10,
                 borderWidth: 1,
-                borderColor: aiOn ? theme.color.primary : hovered ? theme.alpha('primary', 0.28) : theme.alpha('primary', 0.14),
-                backgroundColor: aiOn ? theme.color.primary : hovered || pressed ? theme.alpha('primary', 0.1) : theme.alpha('primary', 0.05),
-                ...(theme.panelShadow && !collapsed ? { shadowColor: '#0B1440', shadowOpacity: hovered ? 0.1 : 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } } : {}),
+                borderColor: aiOn ? 'rgba(255,255,255,0.55)' : 'transparent',
+                backgroundColor: aiOn || hovered || pressed ? BRAND.deokwooBlueHover : BRAND.deokwooBlue,
               })}
             >
-              <View style={{ width: 26, height: 26, borderRadius: 99, alignItems: 'center', justifyContent: 'center', backgroundColor: aiOn ? '#fff' : theme.color.primary }}>
-                <Icon name="sparkles" size={14} color={aiOn ? theme.color.primary : '#fff'} />
+              <View style={{ width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' }}>
+                <Icon name="sparkles" size={15} color="#fff" />
               </View>
               {!collapsed ? (
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 17, fontWeight: '600', color: aiOn ? '#fff' : theme.color.primary }} numberOfLines={1}>{aiItem.name}</Text>
-                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14.5, lineHeight: 14, fontWeight: '500', color: aiOn ? 'rgba(255,255,255,0.72)' : theme.color.mutedForeground }} numberOfLines={1}>AI를 통해 궁금한 것을 물어보세요</Text>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 18, fontWeight: '600', letterSpacing: -0.2, color: '#fff' }} numberOfLines={1}>{aiItem.name}</Text>
+                  <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12.5, lineHeight: 15, fontWeight: '500', color: 'rgba(255,255,255,0.72)' }} numberOfLines={1}>AI를 통해 궁금한 것을 물어보세요</Text>
                 </View>
               ) : null}
-              {!collapsed ? <Icon name="chevronRight" size={13} color={aiOn ? 'rgba(255,255,255,0.7)' : theme.color.mutedForeground} /> : null}
+              {/* 살아 있는 세션 점 — 스카이블루에 옅은 링 */}
+              {!collapsed ? (
+                <View style={{ width: 13, height: 13, borderRadius: 99, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,174,239,0.25)' }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 99, backgroundColor: BRAND.skyBlue }} />
+                </View>
+              ) : null}
             </Hoverable>
           </Link>
         </View>
@@ -143,7 +164,7 @@ export default function Sidebar({ collapsed = false }) {
       {/* 아코디언 내비 */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 16, gap: 2 }}
+        contentContainerStyle={{ paddingHorizontal: collapsed ? 14 : 10, paddingBottom: 16, gap: 2 }}
         showsVerticalScrollIndicator={false}
         nativeID="ax-sidebar-scroll"
       >

@@ -22,8 +22,6 @@ export default function TabulatorTable({
   style,
 }) {
   const tableContainerRef = useRef(null);
-  const scrollRailRef = useRef(null);
-  const scrollWidthRef = useRef(null);
   const tabulatorInstanceRef = useRef(null);
   const theme = useTheme();
   const tableId = useId().replace(/:/g, '_');
@@ -427,10 +425,8 @@ export default function TabulatorTable({
       ],
     });
 
-    // 상단 스크롤바와 Tabulator 본문을 동기화합니다. 긴 표도 아래까지 내릴 필요가 없습니다.
-    const rail = scrollRailRef.current;
-    let holder = null;
-    let scrollFrame = 0;
+    // 가로 스크롤은 표 아래 한 줄만 둡니다. 표 높이가 560px 로 고정돼 있어
+    // 행이 많아도 스크롤 막대가 카드 안에 그대로 머뭅니다 — 위에 따로 둘 이유가 없습니다.
     let autoSizeFrame = 0;
     // 초기 조회·페이지 전환·트리 펼침 때 실제 formatter 결과와 헤더를 다시 측정합니다.
     // renderComplete/ResizeObserver에서는 호출하지 않아 반복 재그리기를 막습니다.
@@ -438,33 +434,12 @@ export default function TabulatorTable({
       cancelAnimationFrame(autoSizeFrame);
       autoSizeFrame = requestAnimationFrame(() => {
         table.getColumns().forEach(column => column.setWidth(true));
-        syncSize();
       });
     };
     table.on('tableBuilt', autoSizeColumns);
     table.on('dataProcessed', autoSizeColumns);
     table.on('dataTreeRowExpanded', autoSizeColumns);
     table.on('pageLoaded', autoSizeColumns);
-    const syncSize = () => {
-      cancelAnimationFrame(scrollFrame);
-      scrollFrame = requestAnimationFrame(() => {
-        if (!holder || !rail || !scrollWidthRef.current) return;
-        scrollWidthRef.current.style.width = `${rail.clientWidth + Math.max(0, holder.scrollWidth - holder.clientWidth)}px`;
-        rail.scrollLeft = holder.scrollLeft;
-      });
-    };
-    const fromRail = () => { if (holder && holder.scrollLeft !== rail.scrollLeft) holder.scrollLeft = rail.scrollLeft; };
-    const fromTable = () => { if (rail && rail.scrollLeft !== holder.scrollLeft) rail.scrollLeft = holder.scrollLeft; };
-    rail?.addEventListener('scroll', fromRail);
-    table.on('tableBuilt', () => {
-      holder = tableContainerRef.current?.querySelector('.tabulator-tableholder');
-      holder?.addEventListener('scroll', fromTable);
-      syncSize();
-    });
-    table.on('renderComplete', syncSize);
-    table.on('columnResized', syncSize);
-    const scrollObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncSize) : null;
-    if (rail) scrollObserver?.observe(rail);
 
     table.on('sortChanged', (sorters) => {
       updateSortHeadersUI(table, sorters);
@@ -482,11 +457,7 @@ export default function TabulatorTable({
 
     return () => {
       isBuiltRef.current = false;
-      cancelAnimationFrame(scrollFrame);
       cancelAnimationFrame(autoSizeFrame);
-      scrollObserver?.disconnect();
-      rail?.removeEventListener('scroll', fromRail);
-      holder?.removeEventListener('scroll', fromTable);
       try {
         table.destroy();
       } catch (_) {}
@@ -542,9 +513,10 @@ export default function TabulatorTable({
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col-resize-handle:hover {
           background: ${colors.primary};
         }
-        .table-scroll-${tableId}::-webkit-scrollbar { height: 12px; }
-        .table-scroll-${tableId}::-webkit-scrollbar-track { background: ${theme.surface}; }
-        .table-scroll-${tableId}::-webkit-scrollbar-thumb { background: ${theme.color.mutedForeground}; border-radius: 6px; }
+        /* 표 아래 가로 스크롤 막대 — 눈에 띄도록 굵게 그립니다 */
+        .tabulator-shadcn-${tableId} .tabulator-tableholder::-webkit-scrollbar { height: 12px; }
+        .tabulator-shadcn-${tableId} .tabulator-tableholder::-webkit-scrollbar-track { background: ${theme.surface}; }
+        .tabulator-shadcn-${tableId} .tabulator-tableholder::-webkit-scrollbar-thumb { background: ${theme.color.mutedForeground}; border-radius: 6px; }
         .tabulator-shadcn-${tableId} .tabulator-header .tabulator-col:hover {
           background-color: ${colors.rowHover} !important;
         }
@@ -742,12 +714,8 @@ export default function TabulatorTable({
         }
       `}</style>
 
-      <div style={{ fontSize: 14, color: colors.mutedText, marginBottom: 6 }}>
-        열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 가로 스크롤로 오른쪽 열을 확인하세요.
-      </div>
-      <div ref={scrollRailRef} className={`table-scroll-${tableId}`} role="region" aria-label="집계 결과 가로 스크롤" tabIndex={0}
-        style={{ width: '100%', overflowX: 'scroll', overflowY: 'hidden', height: 18, marginBottom: 8, touchAction: 'pan-x', scrollbarWidth: 'auto', scrollbarColor: 'auto' }}>
-        <div ref={scrollWidthRef} style={{ height: 1 }} />
+      <div style={{ fontSize: 14, color: colors.mutedText, marginBottom: 8 }}>
+        열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 표 아래 가로 스크롤로 오른쪽 열을 확인하세요.
       </div>
       {/* Tabulator 마운트 컨테이너 */}
       <div

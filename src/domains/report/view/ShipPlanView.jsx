@@ -167,6 +167,7 @@ export default function ShipPlanView({
 
           <Card title="모델별 계획 비중" sub="총합계 기준 모델 구성비" tight>
             <Table
+              inset
               minWidth={700}
               keyExtractor={(r) => r.model}
               columns={[
