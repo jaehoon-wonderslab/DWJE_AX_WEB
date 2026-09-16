@@ -8,6 +8,7 @@ import { getCommonMastersProcesses } from '@services/api/commonService';
 import { unwrap } from '@services/api/request';
 import { loadProcessPeriod } from '../model/processPeriodRepository';
 import { metricText, validatePeriod } from '../model/processPeriodModel';
+import { normalizeRange } from '@shared/constants/period';
 
 const defaults = () => ({ ...unitRange('일별'), unit: '일별', models: [], processId: '' });
 export function useProcessDashboardController() {
@@ -17,7 +18,11 @@ export function useProcessDashboardController() {
   const toast = useUiStore((s) => s.toast);
   const masters = useAsync(() => unwrap(getCommonMastersProcesses({})), []);
   const result = useAsync(() => loadProcessPeriod(applied), [applied, revision], { silent: true });
-  const edit = (patch) => setFilters((f) => ({ ...f, ...patch }));
+  // 같은 날을 고르면 구간이 비므로 시작일을 하루 앞당깁니다.
+  const edit = (patch) => setFilters((f) => {
+    const next = { ...f, ...patch };
+    return { ...next, ...normalizeRange(next.from, next.to) };
+  });
   const apply = (next) => {
     try { validatePeriod(next.from, next.to); }
     catch (e) { toast(e.message); return; }
@@ -27,7 +32,8 @@ export function useProcessDashboardController() {
   const setUnit = (unit) => {
     try { validatePeriod(filters.to, filters.to); }
     catch (e) { toast(e.message); return; }
-    const next = { ...filters, unit, ...(unit === '기간선택' ? {} : unitRange(unit, filters.to)) };
+    const quick = unit === '기간선택' ? {} : unitRange(unit, filters.to);
+    const next = { ...filters, unit, ...quick, ...(quick.from ? normalizeRange(quick.from, quick.to) : {}) };
     setFilters(next);
     apply(next);
   };

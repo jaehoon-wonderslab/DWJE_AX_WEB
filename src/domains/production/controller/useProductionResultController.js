@@ -6,6 +6,7 @@ import { downloadFromServer, downloadXlsxTree } from '@shared/utils/exportUtil';
 import { today, shiftDate } from '@shared/utils/formatUtil';
 import { loadResults, trendSeriesOf } from '../model/productionRepository';
 import { rangeError } from '@domains/dashboard/model/aiDashboardFilterModel';
+import { normalizeRange } from '@shared/constants/period';
 
 export function useProductionResultController() {
   const toast = useUiStore((state) => state.toast);
@@ -13,8 +14,11 @@ export function useProductionResultController() {
     const to = today();
     return { from: shiftDate(to, -7), to };
   });
-  const [from, setFrom] = useState(initialRange.from);
-  const [to, setTo] = useState(initialRange.to);
+  const [from, setFromRaw] = useState(initialRange.from);
+  const [to, setToRaw] = useState(initialRange.to);
+  // 같은 날을 고르면 구간이 비므로 시작일을 하루 앞당깁니다.
+  const setFrom = (next) => { const r = normalizeRange(next, to); setFromRaw(r.from); };
+  const setTo = (next) => { const r = normalizeRange(from, next); setFromRaw(r.from); setToRaw(r.to); };
   const [applied, setApplied] = useState(initialRange);
   const [exportingGrid, setExportingGrid] = useState(false);
   const [exportingScreen, setExportingScreen] = useState(false);

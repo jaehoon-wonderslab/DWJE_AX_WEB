@@ -14,6 +14,7 @@ import { downloadFromServer } from '@shared/utils/exportUtil';
 import { shiftDate, today } from '@shared/utils/formatUtil';
 import { compositionOf } from '@domains/common/model/metricModel';
 import { loadDefectStatus, loadDefectTree, loadDefectByProduct } from '../model/qualityRepository';
+import { normalizeRange } from '@shared/constants/period';
 
 /** 공정·불량 유형은 화면에서 고르지 않습니다 — 서버 규약상 값은 보내야 해서 '전체' 로 둡니다 */
 const ALL = '전체';
@@ -28,8 +29,11 @@ const LEVEL_LABEL = { wc: '공정', item: '제품', eqpt: '라인', defect: '불
 export function useDefectStatusController() {
   const toast = useUiStore((state) => state.toast);
 
-  const [from, setFrom] = useState(() => shiftDate(today(), -7));
-  const [to, setTo] = useState(() => today());
+  const [from, setFromRaw] = useState(() => shiftDate(today(), -7));
+  const [to, setToRaw] = useState(() => today());
+  // 같은 날을 고르면 구간이 비므로 시작일을 하루 앞당깁니다.
+  const setFrom = (next) => { const r = normalizeRange(next, to); setFromRaw(r.from); };
+  const setTo = (next) => { const r = normalizeRange(from, next); setFromRaw(r.from); setToRaw(r.to); };
 
   const { data, loading, reload } = useAsync(
     () => loadDefectStatus({ from, to, processId: ALL, defectTypeCd: ALL }),

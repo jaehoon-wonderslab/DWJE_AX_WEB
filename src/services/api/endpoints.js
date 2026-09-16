@@ -806,7 +806,7 @@ export const ENDPOINTS = {
     response: 'targetDate, periodFrom, periodTo, weekFrom, weekDays, reportId, processId, processCds[], rows[{product,productNm,processId,processNm,qty,okQty,ngQty,weekQty,eqptCnt,targetQty,weekTargetQty,decision,dri,due}]',
     roles: '생산관리팀·통합관리자', blind: ['qty', 'yield'], priority: 1,
     tables: 'mes.tb_pop_defect_hist, ax.tb_prod_item_map, mes.tb_md_eqpt',
-    note: '전일 20:00~당일 08:00 · processId 없으면 프레스 작업장 전부 · targetQty 는 제품별 목표가 없어 항상 null',
+    note: '전일 08:00~당일 08:00 · processId 없으면 프레스 작업장 전부 · targetQty 는 제품별 목표가 없어 항상 null',
     live: true,
   },
   postProductionDailyReportsRows: {

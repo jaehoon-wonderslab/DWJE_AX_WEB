@@ -4,7 +4,7 @@
  * 「생산관리팀 (PRESS) 아침회의자료」 양식을 그대로 옮긴 화면입니다.
  * 한 행 = 한 제품이고, 양식의 「이슈 항목」 자리에 제품명이 들어갑니다.
  *
- * 집계 구간은 전날 20:00 ~ 당일 08:00(야간 근무분)이며, 대상일은 화면에서 고릅니다.
+ * 집계 구간은 전날 08:00 ~ 당일 08:00(하루 전체)이며, 대상일은 화면에서 고릅니다.
  * 회의 결과(일목표·결정항목·DRI·기한)는 「행 저장」으로 남깁니다 — 키는 (대상일, 제품).
  *
  * 2026-09-04 — 서버에서 보고서 문서·결재 모형이 걷혀 초안·확정·반려·생성 이력을 덜어냈습니다.
@@ -110,7 +110,7 @@ export default function DailyReportView({
     <View>
       <PageHead
         title="일일 생산현황 보고"
-        desc="전날 20:00 부터 당일 08:00 까지의 야간 근무 실적을 조간회의 자료 양식으로 정리합니다."
+        desc="전날 08:00 부터 당일 08:00 까지의 하루 실적을 조간회의 자료 양식으로 정리합니다."
         actions={
           <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} disabled={!rows.length} />
         }
@@ -187,7 +187,7 @@ export default function DailyReportView({
           나와 보고서로 쓸 수 없습니다. 입력칸의 회색 숫자는 {baseline || '—'}이며, 참고하시라고 깔아 둔 밑값입니다.
         </Text>
         <Text style={[s.textXs, { marginTop: 3 }]}>
-          주간실적은 그 주 첫 보고 구간부터 대상일까지, 같은 야간 구간만 더한 값입니다.
+          주간실적은 그 주 첫 보고 구간부터 대상일까지, 같은 08:00~08:00 구간을 더한 값입니다.
         </Text>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>

@@ -4,6 +4,7 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { unitRange } from '@shared/stores/useAppStore';
 import { fetchAiBriefing, fetchAiCausePrescription, fetchAiDefectTrendSlotDetails, fetchEquipmentDetail, loadAiDashboard } from '../model/dashboardRepository';
 import { RANGE_OPTIONS, rangeError } from '../model/aiDashboardFilterModel';
+import { normalizeRange } from '@shared/constants/period';
 
 export const AGG_UNITS = RANGE_OPTIONS;
 export const PLANT_OPTIONS = [{ value: '1공장', label: '제1공장' }, { value: '2공장', label: '제2공장' }, { value: '3공장', label: '제3공장' }];
@@ -12,7 +13,10 @@ const unavailable = { ready: false, reason: 'ANALYSIS_UNAVAILABLE' };
 const notRequested = { ready: false, reason: 'NOT_REQUESTED' };
 
 export function useAiDashboardController() {
-  const [filters, setFilters] = useState(() => ({ ...unitRange('일별'), unit: '일별', plant: '1공장' }));
+  const [filters, setFilters] = useState(() => {
+    const r = unitRange('일별');
+    return { ...normalizeRange(r.from, r.to), unit: '일별', plant: '1공장' };
+  });
   const [applied, setApplied] = useState(filters);
   const [revision, setRevision] = useState(0);
   const [validationError, setValidationError] = useState('');
@@ -25,13 +29,20 @@ export function useAiDashboardController() {
   const data = loading || result.error || !current ? null : result.data;
   const invalidateAI = () => { aiGeneration.current++; setAI(idleAI()); };
   const editDate = (patch) => {
-    setFilters((f) => ({ ...f, ...patch, unit: '기간선택' }));
+    // 같은 날을 고르면 구간이 비므로 시작일을 하루 앞당깁니다.
+    setFilters((f) => {
+      const next = { ...f, ...patch };
+      return { ...next, ...normalizeRange(next.from, next.to), unit: '기간선택' };
+    });
     setValidationError('');
   };
   const changeUnit = (unit) => {
     if (unit === '기간선택') { setFilters((f) => ({ ...f, unit })); return; }
     // 빠른 기간은 마지막 실적일 기준. 입력 중인 날짜를 파싱하거나 조용히 보정하지 않습니다.
-    setFilters((f) => ({ ...f, ...unitRange(unit), unit }));
+    setFilters((f) => {
+      const r = unitRange(unit);
+      return { ...f, ...normalizeRange(r.from, r.to), unit };
+    });
     setValidationError('');
   };
   const search = () => {

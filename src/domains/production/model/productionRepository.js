@@ -255,11 +255,11 @@ export async function loadEquipmentOptions() {
  * 결재 기능을 되살릴지는 사용자 판단으로 남겨 두었습니다.
  */
 
-/** 조간회의 자료가 보는 야간 근무 구간 */
-export const SHIFT_FROM = '20:00';
+/** 조간회의 자료가 보는 하루 구간 (전날 08:00 ~ 당일 08:00) */
+export const SHIFT_FROM = '08:00';
 export const SHIFT_TO = '08:00';
 
-/** 대상일의 집계 구간 — 전날 20:00 ~ 당일 08:00 (서버가 못 줄 때의 표기용) */
+/** 대상일의 집계 구간 — 전날 08:00 ~ 당일 08:00 (서버가 못 줄 때의 표기용) */
 export function shiftWindow(targetDate) {
   return { from: `${shiftDate(targetDate, -1)} ${SHIFT_FROM}`, to: `${targetDate} ${SHIFT_TO}` };
 }

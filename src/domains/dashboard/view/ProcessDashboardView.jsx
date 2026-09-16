@@ -8,6 +8,7 @@ import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { metricText, missingQuantity, numeric, processInsights } from '../model/processPeriodModel';
+import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 const UNITS = ['일별', '주별', '월별', '기간선택'];
 const EMPTY = [];
@@ -86,6 +87,7 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
       <DateField label="종료일" value={filters.to} onChange={(to) => edit({ to })} />
       <Button label="조회" icon="search" variant="primary" onPress={search} />
     </Filters>
+    <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
     {dirty && <FormAlert tone="info">조회 조건이 변경되었습니다. 조회 버튼을 누르면 새 조건으로 집계합니다.</FormAlert>}
     {masterError && <FormAlert tone="error">공정 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요.</FormAlert>}
     {loading ? <Loading text="생산 실적과 우선 확인할 항목을 집계하고 있습니다…" /> : error ?

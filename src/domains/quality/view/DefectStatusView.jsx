@@ -7,10 +7,11 @@ import { ParetoChart } from '@shared/components/charts-d3';
 import ZoomableSunburst from '@shared/components/charts-d3/ZoomableSunburst';
 import Grid from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Button, Card, CardBody, DateField, Filters, GRID_INSET, Loading, StatCard, TabulatorGrid } from '@shared/components/ui';
+import { Button, Card, CardBody, DateField, Filters, GRID_INSET, Loading, StatCard, TabulatorGrid, SourceNote } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
+import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 
 /** 표 한 쪽에 보일 행 수 */
@@ -162,6 +163,7 @@ export default function DefectStatusView({
         <DateField label="종료일" value={filters.to} onChange={setTo} />
         <Button label="조회" variant="primary" onPress={search} />
       </Filters>
+      <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
 
       {loading ? (
         <Loading />

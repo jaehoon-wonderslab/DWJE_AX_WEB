@@ -8,12 +8,13 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { BlindValue, Button, Card, DateField, Filters, Loading, TabulatorTable } from '@shared/components/ui';
+import { BlindValue, Button, Card, DateField, Filters, Loading, TabulatorTable, SourceNote } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed, minutesText } from '@shared/utils/formatUtil';
 import { saveChartAsPng } from '@shared/utils/exportUtil';
 import ProductionTrendD3Chart from './components/ProductionTrendD3Chart';
+import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 
 /** 값이 없으면 '—' (0 으로 채우면 측정값과 구분되지 않습니다) */
@@ -62,6 +63,7 @@ export default function ProductionResultView({
           />
         </View>
       </Filters>
+      <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
 
       <Card
         title={`${filters.unit} 생산·불량 추이`}

@@ -35,6 +35,7 @@ import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
+import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 export default function AiDashboardView({
   loading,
@@ -176,6 +177,7 @@ export default function AiDashboardView({
       {validationError ? <FormAlert tone="error">{validationError}</FormAlert> : null}
       {pendingChanges ? <FormAlert tone="info">기간이 변경되었습니다. 조회 버튼을 눌러 적용해 주세요.</FormAlert> : null}
       <SourceNote>{`조회된 기간: ${period?.from} ~ ${period?.to} · 차트 간격은 조회 기간에 맞춰 자동 조정됩니다.`}</SourceNote>
+      <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
       <Gap size={16} />
 
       {/* 2. 로딩 / 콘텐츠 영역 */}

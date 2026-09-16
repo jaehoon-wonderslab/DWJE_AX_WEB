@@ -69,7 +69,7 @@ export function getProductionResultsTrend(params) {
 /**
  * 조간회의 자료 본문 — 제품별 한 행
  *
- * 집계 구간은 서버가 대상일로 정합니다(전일 20:00 ~ 당일 08:00).
+ * 집계 구간은 서버가 대상일로 정합니다(전일 08:00 ~ 당일 08:00).
  * `processId` 를 빼면 프레스 작업장 전부입니다.
  *
  * @param {object} params targetDate, processId
