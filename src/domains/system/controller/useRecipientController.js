@@ -89,9 +89,15 @@ export function useRecipientController() {
     setStateFilter,
     reload,
     exportExcel,
-    /** 수신 그룹 등록·수정 — 본문은 name · channels[] · validWindow · night · memberEmpNos[] */
+    /**
+     * 수신 그룹 등록·수정 — 본문은 name · channels[] · validWindow · night · memberEmpNos[]
+     *
+     * 발송 채널은 **메일 하나로 고정**합니다 (2026-09-16 결정). 화면에서 고르지 않으므로
+     * 여기서 넣습니다 — 빈 배열로 보내면 등록된 그룹에 보낼 길이 하나도 없는 상태가 됩니다.
+     * 공통코드 ALM_CHANNEL 의 POPUP · SMS · MSG 는 발송 조건(SY-04)이 함께 쓰므로 그대로 둡니다.
+     */
     submitGroup: (groupId, v) => {
-      const body = { name: v.name, channels: v.channels || [], validWindow: v.validWindow, night: !!v.night, memberEmpNos: v.memberEmpNos || [] };
+      const body = { name: v.name, channels: ['MAIL'], validWindow: v.validWindow, night: !!v.night, memberEmpNos: v.memberEmpNos || [] };
       return run(() => (groupId ? repo.updateGroup(groupId, body) : repo.createGroup(body)));
     },
     /** 수신자 등록(empNo 포함)·수정(mail · hp · messenger · night 만) */
@@ -99,7 +105,6 @@ export function useRecipientController() {
       const body = { mail: v.mail, hp: v.hp, messenger: v.messenger, night: !!v.night };
       return run(() => (recipientId ? repo.updateRecipient(recipientId, body) : repo.createRecipient({ empNo: v.empNo, ...body })));
     },
-    toggleRecipient: (recipientId) => run(() => repo.toggleRecipientState(recipientId)),
     testGroup: async (groupId) => toast((await repo.testGroup(groupId)).message),
   };
 }

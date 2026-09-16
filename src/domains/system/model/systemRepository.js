@@ -272,6 +272,10 @@ export const updateGroup = (groupId, v) => command(systemService.putAlertRecipie
 export const testGroup = (groupId) => command(systemService.postAlertRecipientGroupsByGroupIdTestSend({ groupId }));
 export const createRecipient = (v) => command(systemService.postAlertRecipients(v));
 export const updateRecipient = (recipientId, v) => command(systemService.putAlertRecipientsByRecipientId({ recipientId, ...v }));
+/**
+ * 수신/부재 토글 — 화면의 '부재' 버튼은 2026-09-16 에 걷어냈습니다.
+ * 서버 API(No.165)와 상태 필터는 그대로라 함수는 남겨 둡니다.
+ */
 export const toggleRecipientState = (recipientId) => command(systemService.patchAlertRecipientsByRecipientIdState({ recipientId }));
 
 /* ═══════ SY-06 용어 사전 ═══════ */

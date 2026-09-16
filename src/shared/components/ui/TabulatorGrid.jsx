@@ -204,10 +204,16 @@ export default function TabulatorGrid({
         return { ...definition, columns: definition.columns.map(prepare) };
       }
       // 가용 폭이 좁아져도 열을 계속 압축하지 않고 표 내부 가로 스크롤로 넘깁니다.
-      const column = {
-        ...definition,
-        minWidth: definition.minWidth ?? (typeof definition.width === 'number' ? definition.width : 120),
-      };
+      //
+      // `autoWidth` 표는 폭을 내용이 정합니다. 여기서 기본 최소폭(120)을 끼워 넣으면
+      // '야간'·'멤버' 같은 짧은 열이 내용보다 넓게 벌어져 자동 조정이 무의미해집니다 —
+      // 열이 스스로 적어 둔 minWidth 만 존중하고, 없으면 그대로 둡니다.
+      const column = autoWidth
+        ? { ...definition }
+        : {
+            ...definition,
+            minWidth: definition.minWidth ?? (typeof definition.width === 'number' ? definition.width : 120),
+          };
       // 권한 없는 항목의 열은 값을 그리지 않습니다.
       // 정렬·검색도 막습니다 — 가린 값으로 줄을 세우면 순서로 원본을 되짚을 수 있습니다.
       if (column.field && blocked.has(column.field)) {

@@ -40,7 +40,7 @@ const empNoOf = (m) => (m && typeof m === 'object' ? m.empNo ?? m.name : m);
 export default function RecipientView({
   loading, codes, summary, groups, recipients, tab, setTab, filters,
   setGroupFilter, setStateFilter, reload, exportExcel,
-  submitGroup, submitRecipient, toggleRecipient, testGroup, paging, itemsMeta,
+  submitGroup, submitRecipient, testGroup, paging, itemsMeta,
 }) {
   const { goToScreen } = useAppNavigation();
   const canData = useAuthStore((state) => state.canData);
@@ -61,20 +61,21 @@ export default function RecipientView({
       title: row ? '수신 그룹 편집' : '수신 그룹 등록',
       sub: '발송 조건(SY-04)은 이 그룹 이름을 참조합니다',
       wide: true,
-      // 폼 키는 서버 요청 본문(name · channels[] · validWindow · night · memberEmpNos[])과 같습니다
+      // 폼 키는 서버 요청 본문(name · validWindow · night · memberEmpNos[])과 같습니다.
+      // 발송 채널은 고르지 않습니다 — 메일 하나만 쓰기로 해서 컨트롤러가 MAIL 로 고정해 보냅니다.
       initial: row
-        ? { name: row.name, channels: row.channels || [], validWindow: row.validWindow, night: !!row.night, memberEmpNos: (row.memberEmpNos || row.members || []).map(empNoOf) }
-        : { channels: chan[0] ? [chan[0].value] : [], validWindow: win[0]?.value, night: false, memberEmpNos: [] },
+        ? { name: row.name, validWindow: row.validWindow, night: !!row.night, memberEmpNos: (row.memberEmpNos || row.members || []).map(empNoOf) }
+        : { validWindow: win[0]?.value, night: false, memberEmpNos: [] },
       fields: [
-        { key: 'name', label: '그룹명', required: true, placeholder: '예) 품질보증팀' },
+        { key: 'name', label: '그룹명', required: true, placeholder: '예) 엔진 가동' },
         { key: 'validWindow', label: '유효 시간대', type: 'select', options: win },
-        { key: 'channels', label: '발송 채널', type: 'check', options: chan, full: true },
+        { key: 'channelNote', label: '발송 채널', type: 'static', value: `${labelOf(chan, 'MAIL') || '메일'} (고정)` },
         { key: 'night', label: '야간 발송', type: 'radio', options: [{ value: true, label: '야간에도 발송' }, { value: false, label: '야간 제외' }], full: true },
         recipientOptions.length
           ? { key: 'memberEmpNos', label: '그룹 멤버', type: 'check', options: recipientOptions, full: true }
           : { key: 'memberNote', label: '그룹 멤버', type: 'static', full: true, value: '등록된 수신자가 없습니다. 수신자 탭에서 먼저 등록한 뒤 멤버를 지정하세요.' },
       ],
-      note: '그룹 멤버는 수신자 목록에 등록된 계정에서 고릅니다. 야간 수신 여부는 수신자별로도 관리됩니다.',
+      note: '알림은 메일로만 나갑니다. 그룹 멤버는 수신자 목록에 등록된 계정에서 고르며, 야간 수신 여부는 수신자별로도 관리됩니다.',
       submitLabel: row ? '수정' : '등록',
       onSubmit: async (v) => (await submitGroup(row?.groupId, v)).ok,
     });
@@ -124,31 +125,31 @@ export default function RecipientView({
   );
 
   const groupColumns = useMemo(() => [
-    { title: '그룹명', field: 'name', minWidth: 120, formatter: (c) => `<span class="strong">${esc(c.getValue())}</span>` },
+    { title: '그룹명', field: 'name', formatter: (c) => `<span class="strong">${esc(c.getValue())}</span>` },
     {
-      title: '발송 채널', field: 'channelNames', minWidth: 130, headerSort: false,
+      title: '발송 채널', field: 'channelNames', headerSort: false,
       formatter: (c) => {
         const list = String(c.getValue() || '').split(' · ').filter(Boolean);
         return list.length ? `<span class="chips">${list.map((n) => `<span class="tag tag-blue">${esc(n)}</span>`).join('')}</span>` : '<span class="muted">—</span>';
       },
     },
-    { title: '유효 시간대', field: 'windowNm', minWidth: 110, formatter: (c) => dash(c.getValue()) },
+    { title: '유효 시간대', field: 'windowNm', formatter: (c) => dash(c.getValue()) },
     {
-      title: '야간', field: 'night', minWidth: 68, hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
+      title: '야간', field: 'night', hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
       formatter: (c) => (c.getValue() ? '<span class="tag tag-green">발송</span>' : '<span class="tag">제외</span>'),
     },
     {
-      title: '멤버', field: 'memberCnt', minWidth: 68, hozAlign: 'right', headerHozAlign: 'right', headerFilter: false, sorter: 'number',
+      title: '멤버', field: 'memberCnt', hozAlign: 'right', headerHozAlign: 'right', headerFilter: false, sorter: 'number',
       formatter: (c) => `<span class="num">${esc(c.getValue() ?? 0)}</span>`,
     },
     {
-      title: '구성원', field: 'memberNames', minWidth: 180, maxWidth: 360,
+      title: '구성원', field: 'memberNames',
       formatter: (c) => (showWorker
         ? (c.getValue() ? `<span class="nowrap" title="${esc(c.getValue())}">${esc(c.getValue())}</span>` : '<span class="muted">멤버 없음</span>')
         : BLIND_HTML),
     },
     {
-      title: '관리', minWidth: 170, headerSort: false, headerFilter: false,
+      title: '관리', headerSort: false, headerFilter: false,
       formatter: () => '<button class="tbtn" data-act="edit">편집</button> <button class="tbtn" data-act="test">테스트 발송</button>',
       cellClick: (e, c) => {
         const act = e.target.closest('[data-act]')?.dataset.act;
@@ -160,38 +161,33 @@ export default function RecipientView({
   ], [showWorker]);
 
   const recipientColumns = useMemo(() => [
-    { title: '이름', field: 'name', minWidth: 90, formatter: (c) => (showWorker ? `<span class="strong">${dash(c.getValue())}</span>` : BLIND_HTML) },
-    { title: '부서', field: 'dept', minWidth: 100, formatter: (c) => dash(c.getValue()) },
-    { title: '직급', field: 'posLabel', minWidth: 78, formatter: (c) => dash(c.getValue()) },
-    { title: '메일', field: 'mail', minWidth: 170, formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
-    { title: '휴대전화', field: 'hp', minWidth: 130, formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
-    { title: '메신저', field: 'messenger', minWidth: 100, formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
+    // 어느 그룹으로 알림을 받는 사람인지가 이 표를 읽는 첫 기준이라 맨 앞에 둡니다
     {
-      title: '야간', field: 'night', minWidth: 68, hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
+      title: '수신 그룹', field: 'groupNames',
+      formatter: (c) => (c.getValue() ? `<span class="nowrap" title="${esc(c.getValue())}">${esc(c.getValue())}</span>` : '<span class="muted">—</span>'),
+    },
+    { title: '이름', field: 'name', formatter: (c) => (showWorker ? `<span class="strong">${dash(c.getValue())}</span>` : BLIND_HTML) },
+    { title: '부서', field: 'dept', formatter: (c) => dash(c.getValue()) },
+    { title: '직급', field: 'posLabel', formatter: (c) => dash(c.getValue()) },
+    { title: '메일', field: 'mail', formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
+    { title: '휴대전화', field: 'hp', formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
+    { title: '메신저', field: 'messenger', formatter: (c) => (showWorker ? `<span class="mono nowrap">${dash(c.getValue())}</span>` : BLIND_HTML) },
+    {
+      title: '야간', field: 'night', hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
       formatter: (c) => (c.getValue() ? '<span class="tag tag-green">수신</span>' : '<span class="tag">미수신</span>'),
     },
     {
-      title: '소속 그룹', field: 'groupNames', minWidth: 150, maxWidth: 320,
-      formatter: (c) => (c.getValue() ? `<span class="nowrap" title="${esc(c.getValue())}">${esc(c.getValue())}</span>` : '<span class="muted">—</span>'),
-    },
-    {
-      title: '상태', field: 'stateLabel', minWidth: 78, hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
+      title: '상태', field: 'stateLabel', hozAlign: 'center', headerHozAlign: 'center', headerFilter: false,
       formatter: (c) => {
         const row = c.getRow().getData();
         return `<span class="tag ${row.receiving ? 'tag-green' : 'tag-amber'}">${esc(c.getValue())}</span>`;
       },
     },
     {
-      title: '관리', minWidth: 150, headerSort: false, headerFilter: false,
-      formatter: (c) => {
-        const row = c.getRow().getData();
-        return `<button class="tbtn" data-act="edit">편집</button> <button class="tbtn" data-act="toggle">${row.receiving ? '부재' : '수신'}</button>`;
-      },
+      title: '관리', headerSort: false, headerFilter: false,
+      formatter: () => '<button class="tbtn" data-act="edit">편집</button>',
       cellClick: (e, c) => {
-        const act = e.target.closest('[data-act]')?.dataset.act;
-        const row = c.getRow().getData();
-        if (act === 'edit') handlers.current.openRecipForm(row);
-        else if (act === 'toggle') handlers.current.toggleRecipient(row.recipientId ?? row.empNo);
+        if (e.target.closest('[data-act]')?.dataset.act === 'edit') handlers.current.openRecipForm(c.getRow().getData());
       },
     },
   ], [showWorker]);
@@ -199,7 +195,7 @@ export default function RecipientView({
   if (loading) return <Loading />;
 
   // 최신 핸들러를 표 클릭에서 읽을 수 있게 매 렌더마다 갱신 (훅 아님)
-  handlers.current = { openGroupForm, openRecipForm, testGroup, toggleRecipient };
+  handlers.current = { openGroupForm, openRecipForm, testGroup };
 
   return (
     <View>
