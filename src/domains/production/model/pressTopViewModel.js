@@ -11,9 +11,9 @@ export const PRESS_STATUS = {
 
 const pressId = (index) => `PR-${String(index + 1).padStart(2, '0')}`;
 // 실제 공장 도면 좌표로 교체할 수 있는 상대 좌표(%)입니다.
+// 중앙 통로 위쪽(1공장 상단)은 아직 센서가 없는 자리라 세로 더미로만 표시합니다.
 const TOP_DUMMY_POSITIONS = [
-  { x: 2, y: 7 }, { x: 21, y: 7 }, { x: 40, y: 7 }, { x: 59, y: 7 }, { x: 78, y: 7 },
-  { x: 2, y: 28 }, { x: 21, y: 28 }, { x: 40, y: 28 }, { x: 59, y: 28 }, { x: 78, y: 28 },
+  { x: 3, y: 7 }, { x: 22, y: 7 }, { x: 41, y: 7 }, { x: 60, y: 7 }, { x: 79, y: 7 },
 ];
 const REAL_POSITIONS = [
   { x: 2, y: 57 }, { x: 11, y: 57 }, { x: 20, y: 57 }, { x: 29, y: 57 }, { x: 38, y: 57 },
@@ -30,7 +30,7 @@ export function makePressTopView(items = []) {
   const dummy = TOP_DUMMY_POSITIONS.map((position, index) => ({
     id: `DUMMY-${String(index + 1).padStart(2, '0')}`,
     name: `레이아웃 더미-${String(index + 1).padStart(2, '0')}`,
-    status: 'DUMMY', isDummy: true, position,
+    status: 'DUMMY', isDummy: true, position, layoutWidth: 12,
     qty: null, defectQty: null, strokeCount: null, yieldRate: null, lastUpdated: '—', condition: '—',
   }));
   const real = Array.from({ length: 10 }, (_, index) => {

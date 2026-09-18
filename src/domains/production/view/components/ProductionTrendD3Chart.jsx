@@ -36,7 +36,6 @@ export default function ProductionTrendD3Chart({
   const calculatedWidth = margin.left + margin.right + labels.length * minItemWidth;
   const availableWidth = containerWidth > 0 ? containerWidth : 800;
   const width = Math.max(availableWidth, calculatedWidth);
-  const isScrollable = calculatedWidth > availableWidth;
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
@@ -169,10 +168,6 @@ export default function ProductionTrendD3Chart({
               </View>
             ) : null}
           </View>
-        ) : isScrollable ? (
-          <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>
-            출력 일자가 많습니다. 차트를 좌우로 스크롤하여 전체 {labels.length}개 일자의 추이를 확인할 수 있습니다.
-          </Text>
         ) : (
           <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>차트의 막대에 마우스를 올리면 상세 수치가 표시됩니다.</Text>
         )}

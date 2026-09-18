@@ -153,9 +153,6 @@ export default function HourlyDetailModalContent({ cell, target = 3.0, loadDefec
           <Text style={[styles.actionText, { color: theme.color.danger }]}>{details.error}</Text>
         ) : (
           <>
-            <Text style={[styles.metricSubText, { color: theme.color.textMuted }]}>
-              {`불량 유형 ${defectRows.length}종 · 불량 수량 ${num(details.data?.totalNgQty ?? cell.ngQty)} EA`}
-            </Text>
             <TabulatorGrid
               columns={defectColumns}
               rows={defectRows}
@@ -165,9 +162,6 @@ export default function HourlyDetailModalContent({ cell, target = 3.0, loadDefec
             />
           </>
         )}
-        <Text style={[styles.metricSubText, { color: theme.color.textMuted }]}>
-          유형 코드·수량·구간 비중은 선택한 시간 구간의 실측입니다. 원인과 조치는 「AI 공정 원인 분석 및 처방 권고」 카드에서 확인합니다.
-        </Text>
       </View>
     </View>
   );

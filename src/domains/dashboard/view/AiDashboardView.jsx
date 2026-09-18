@@ -35,7 +35,6 @@ import AiBriefingCard from './components/AiBriefingCard';
 import AiCausePrescriptionCard from './components/AiCausePrescriptionCard';
 import HourlyDefectPivotMatrix from './components/HourlyDefectPivotMatrix';
 import HourlyDetailModalContent from './components/HourlyDetailModalContent';
-import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 export default function AiDashboardView({
   loading,
@@ -113,7 +112,6 @@ export default function AiDashboardView({
       // 'AI 정밀 진단' 이라 부르던 것을 걷어냈습니다 — 여기서 보여 주는 건 그 구간의 실측입니다.
       // sub 에 있던 '프레스 10대 · AOI 10대' 도 없앴습니다. 설비 마스터에 PR- 로 시작하는 코드가 없습니다.
       title: `${cell.date} [${cell.slotLabel} ~ ${cell.nextSlot}] 생산·품질 실적`,
-      sub: '2시간 구간 실측입니다.',
       wide: true,
       render: () => (
         <HourlyDetailModalContent
@@ -132,7 +130,6 @@ export default function AiDashboardView({
     <View>
       <PageHead
         title="AI 통합 대시보드"
-        desc="생산·품질 현황과 AI 분석을 한 화면에서 확인합니다."
         actions={
           <Button label="새로고침" size="sm" variant="primary" icon="refresh" onPress={refresh} />
         }
@@ -176,8 +173,6 @@ export default function AiDashboardView({
       </Filters>
       {validationError ? <FormAlert tone="error">{validationError}</FormAlert> : null}
       {pendingChanges ? <FormAlert tone="info">기간이 변경되었습니다. 조회 버튼을 눌러 적용해 주세요.</FormAlert> : null}
-      <SourceNote>{`조회된 기간: ${period?.from} ~ ${period?.to} · 차트 간격은 조회 기간에 맞춰 자동 조정됩니다.`}</SourceNote>
-      <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
       <Gap size={16} />
 
       {/* 2. 로딩 / 콘텐츠 영역 */}
@@ -310,7 +305,7 @@ export default function AiDashboardView({
 
           {/* 2. 유형별 불량 수량 추이 (1행 전체, 가로 스크롤 연속 시계열) */}
           <Card
-            title="유형별 불량 수량 추이" sub={`${intervalLabel} 단위 실측`}
+            title="유형별 불량 수량 추이"
             nativeID="chart-card-hourly-ng-count"
             right={
               <Button
@@ -330,20 +325,23 @@ export default function AiDashboardView({
               />
             }
           >
+            {/*
+              불량 유형이 40종 넘게 나오는 기간이 있습니다. 전부 겹쳐 그리면 한 줄도 못 읽고,
+              계열색도 6개뿐이라 그 위로는 같은 색이 됩니다 — 범례를 체크 목록으로 바꿔
+              보고 싶은 유형만 켜서 봅니다(기본은 앞 5종).
+            */}
             <LineChart
               labels={trend?.labels || []}
               series={trend?.countSeries || []}
               unit="EA"
               height={200}
+              selectableSeries
             />
-            <SourceNote>
-              {`조회 기간에 발생한 불량 유형 ${trend?.countSeries?.length || 0}종을 모두 표시합니다. 총 불량 수량은 시간대별 실측을 기준으로 확인합니다.`}
-            </SourceNote>
           </Card>
 
           {/* 3. 생산 계획 대비 실적 (1행 전체) */}
           <Card
-            title="생산 계획 대비 실적" sub={`${bucketLabel(planActual?.bucket)} 단위 · 조회 기간 누계`}
+            title="생산 계획 대비 실적"
             nativeID="chart-card-plan-actual"
             right={
               <Button
@@ -387,11 +385,6 @@ export default function AiDashboardView({
                 <Text style={s.legendText}>실적 (EA)</Text>
               </View>
             </View>
-            <SourceNote>
-              {hasPlan
-                ? `누계 계획 ${comma(planActual.cumPlan)}EA 대비 실적 ${comma(planActual.cumActual)}EA · 달성률 ${fixed(planActual.rate)}%`
-                : `실적 누계 ${comma(planActual?.cumActual ?? 0)}EA. 등록된 생산 계획이 없어 달성률은 내지 못합니다.`}
-            </SourceNote>
           </Card>
 
           {/* 4. 불량 유형 구성 (1행 전체) */}
@@ -417,7 +410,6 @@ export default function AiDashboardView({
             }
           >
             <ParetoChart data={composition?.segments || []} height={230} unit="EA" />
-            <SourceNote>{composition?.note || '불량 수량 내림차순(막대) 및 누적 점유율(주황 꺾은선)을 분석합니다.'}</SourceNote>
           </Card>
 
 

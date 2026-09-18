@@ -8,8 +8,8 @@
  * d3 스케일에 null 을 넣으면 NaN 좌표가 되어 path 가 통째로 사라집니다.
  * `d3.line().defined()` 로 그 구간만 건너뜁니다.
  */
-import React, { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { select } from 'd3-selection';
 import { scaleLinear, scalePoint } from 'd3-scale';
 import { area as d3area, line as d3line } from 'd3-shape';
@@ -27,8 +27,21 @@ const PAD = { l: 38, r: 12, t: 14, b: 24 };
 /** 포인트 수치 라벨이 서로 닿지 않는 최소 간격(px) — 이보다 좁으면 건너뛰며 씁니다 */
 const VALUE_LABEL_MIN_PX = 42;
 
+/**
+ * 계열이 이 수를 넘으면 범례를 **체크 목록**으로 바꿉니다.
+ * 불량 유형처럼 계열이 수십 개인 추이는 전부 겹쳐 그리면 한 줄도 못 읽습니다.
+ * 계열색(LIGHT_SERIES)도 6개뿐이라 그 위로는 같은 색이 되어 구분이 안 됩니다 —
+ * 그래서 **켜져 있는 순서대로** 색을 배정합니다(체크를 바꾸면 색도 다시 배정됩니다).
+ */
+const SERIES_TOGGLE_MIN = 5;
+
 export default function LineChart({
   labels = [], series = [], height = 170, min, max, target, unit = '', showLegend = true,
+  /**
+   * true 면 계열이 SERIES_TOGGLE_MIN 개를 넘을 때 범례가 체크 목록이 되어
+   * 보고 싶은 계열만 골라 그릴 수 있습니다. 기본은 처음 SERIES_TOGGLE_MIN 개만 켭니다.
+   */
+  selectableSeries = false,
   /**
    * 점 하나가 차지하는 최소 폭(px). 축 글자가 더 길면 글자에 맞춰 늘립니다.
    * 전체 너비가 카드보다 넓으면 가로로 스크롤됩니다.
@@ -41,17 +54,47 @@ export default function LineChart({
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
 
-  const lines = series.map((se) => ({
-    ...se,
-    points: (se.data || []).map((v, i) => ({ i, v: num(v) })),
-  }));
+  const canToggle = selectableSeries && series.length > SERIES_TOGGLE_MIN;
+
+  /** 계열 구성이 바뀌면(조회 기간 변경 등) 선택을 처음 상태로 되돌립니다 */
+  const seriesKey = useMemo(
+    () => series.map((se, i) => se.name || `계열 ${i + 1}`).join('\u0001'),
+    [series],
+  );
+  const [hidden, setHidden] = useState(() => new Set());
+  useEffect(() => {
+    setHidden(canToggle
+      ? new Set(series.map((_, i) => i).filter((i) => i >= SERIES_TOGGLE_MIN))
+      : new Set());
+    // seriesKey 로만 반응합니다 — series 배열은 렌더마다 새로 만들어져 매번 초기화됩니다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesKey, canToggle]);
+
+  /**
+   * `si` 는 켜져 있는 것들 사이의 순번입니다 — 색은 이 순번으로 뽑습니다.
+   * 원래 인덱스(`oi`)로 뽑으면 7번째부터 전부 같은 색이 되어 골라 봐도 구분이 안 됩니다.
+   */
+  const lines = series
+    .map((se, oi) => ({ ...se, oi }))
+    .filter((se) => !hidden.has(se.oi))
+    .map((se, si) => ({
+      ...se,
+      si,
+      points: (se.data || []).map((v, i) => ({ i, v: num(v) })),
+    }));
+  /** 원래 인덱스 → 배정된 색. 범례 표식이 차트와 같은 색을 쓰도록 합니다 */
+  const colorOf = new Map(lines.map((se) => [se.oi, theme.seriesAt(se.si)]));
   const all = lines.flatMap((se) => se.points.map((p) => p.v)).filter((v) => v !== null);
 
   const minPointW = axisLabelWidth(labels, FONT.axis, minPointWidth);
   const contentWidth = Math.max(width || 300, labels.length * minPointW + PAD.l + PAD.r);
 
   useEffect(() => {
-    if (!width || !all.length) return;
+    if (!width || !all.length) {
+      // 전부 체크 해제하면 남아 있던 선을 지웁니다
+      if (svgRef.current) select(svgRef.current).selectAll('*').remove();
+      return;
+    }
     const iw = Math.max(10, contentWidth - PAD.l - PAD.r);
     const ih = Math.max(10, height - PAD.t - PAD.b);
     const c = tokens(theme);
@@ -103,10 +146,10 @@ export default function LineChart({
     const path = d3line().defined(defined).x((d) => x(d.i)).y((d) => y(d.v));
     const fill = d3area().defined(defined).x((d) => x(d.i)).y0(PAD.t + ih).y1((d) => y(d.v));
 
-    lines.forEach((se, si) => {
-      const col = c.series(si);
+    lines.forEach((se) => {
+      const col = c.series(se.si);
       if (!se.points.some(defined)) return;
-      if (si === 0) {
+      if (se.si === 0) {
         g.append('path').attr('d', fill(se.points)).attr('fill', col).attr('fill-opacity', 0.1);
       }
       g.append('path')
@@ -157,31 +200,92 @@ export default function LineChart({
           if (d < best) { best = d; near = i; }
         });
         const rows = lines
-          .map((se, si) => ({ name: se.name || `계열 ${si + 1}`, v: se.points[near]?.v, color: c.series(si) }))
+          .map((se) => ({ name: se.name || `계열 ${se.oi + 1}`, v: se.points[near]?.v, color: c.series(se.si) }))
           .filter((r) => r.v !== null && r.v !== undefined)
           .map((r) => ({ name: r.name, value: `${r.v}${unit}`, color: r.color }));
         if (!rows.length) { setHover(null); return; }
         setHover({ at: { x: x(near), y: PAD.t }, title: String(labels[near] ?? ''), rows });
       })
       .on('mouseleave', () => setHover(null));
-  }, [labels, series, width, height, theme, min, max, target, unit, contentWidth]);
+  }, [labels, series, hidden, width, height, theme, min, max, target, unit, contentWidth]);
 
-  if (!all.length) return <ChartEmpty height={height} />;
+  // 체크 목록이 아닐 때만 통째로 비웁니다 — 목록이 있으면 다시 켤 수단을 남겨야 합니다
+  if (!all.length && !canToggle) return <ChartEmpty height={height} />;
+
+  const toggle = (i) => setHidden((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
 
   return (
     <View>
       <div ref={ref} style={{ width: '100%', minWidth: 0, position: 'relative' }}>
-        <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
-          <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
-        </div>
+        {all.length ? (
+          <div style={{ width: '100%', overflowX: contentWidth > (width || 300) ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
+            <svg ref={svgRef} width={contentWidth} height={height} role="img" aria-label="추이 그래프" style={{ cursor: 'default', display: 'block' }} />
+          </div>
+        ) : (
+          <ChartEmpty height={height} text="아래에서 볼 항목을 체크해 주세요." />
+        )}
         <Tooltip {...(hover || {})} />
       </div>
 
-      {showLegend && series.length > 1 ? (
+      {canToggle ? (
+        <View style={{ marginTop: 10, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <Text style={s.legendText}>{`표시 중 ${series.length - hidden.size} / ${series.length}개`}</Text>
+            <Pressable onPress={() => setHidden(new Set())}>
+              <Text style={[s.legendText, { color: theme.color.primary }]}>전체 선택</Text>
+            </Pressable>
+            <Pressable onPress={() => setHidden(new Set(series.map((_, i) => i)))}>
+              <Text style={[s.legendText, { color: theme.color.primary }]}>전체 해제</Text>
+            </Pressable>
+          </View>
+          <View style={[s.legend, { gap: 8 }]}>
+            {series.map((se, i) => {
+              const on = !hidden.has(i);
+              const col = colorOf.get(i) || theme.color.mutedForeground;
+              return (
+                <Pressable
+                  key={se.name || i}
+                  onPress={() => toggle(i)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingVertical: 3,
+                    paddingHorizontal: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: on ? col : theme.divider,
+                    backgroundColor: on ? theme.surface : 'transparent',
+                  }}
+                >
+                  <View style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 3,
+                    borderWidth: on ? 0 : 1.5,
+                    borderColor: theme.divider,
+                    backgroundColor: on ? col : 'transparent',
+                  }}
+                  />
+                  <Text style={[s.legendText, { color: on ? theme.color.foreground : theme.color.mutedForeground }]}>
+                    {se.name || `계열 ${i + 1}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : showLegend && series.length > 1 ? (
         <View style={[s.legend, { marginTop: 6 }]}>
           {series.map((se, i) => (
             <View key={se.name || i} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={[s.legendLine, { backgroundColor: theme.seriesAt(i) }]} />
+              <View style={[s.legendLine, { backgroundColor: colorOf.get(i) || theme.seriesAt(i) }]} />
               <Text style={s.legendText}>{se.name}</Text>
             </View>
           ))}

@@ -49,7 +49,7 @@ export default function HourlyDefectPivotMatrix({
 
   if (!pivotMatrix?.rows?.length) return null;
 
-  const { slots = [], rows = [], filledSlots = 0 } = pivotMatrix;
+  const { slots = [], rows = [] } = pivotMatrix;
 
   /** 값이 없으면 '—' — 0 으로 채우면 안 만든 시간대가 잘 만든 시간대처럼 보입니다 */
   const num = (v, suffix = '') => (v === null || v === undefined ? '—' : `${comma(v)}${suffix}`);
@@ -88,10 +88,6 @@ export default function HourlyDefectPivotMatrix({
           <Icon name="grid" size={15} color={theme.color.primary} />
           <Text style={[styles.matrixTitle, { color: theme.color.foreground, fontWeight: '500' }]}>
             일자 × 시간대별 불량률 매트릭스
-          </Text>
-          <Text style={[styles.matrixSub, { color: theme.color.mutedForeground }]}>
-            {/* 12칸을 곱해 적던 것을 걷어냈습니다 — 실적이 없는 시간대는 서버가 주지 않아 빈 칸입니다 */}
-            실적이 있는 {rows.length}일 · 2시간 간격 {comma(filledSlots)}칸
           </Text>
         </View>
 
@@ -346,9 +342,6 @@ const styles = StyleSheet.create({
   },
   matrixTitle: {
     fontSize: 17,
-  },
-  matrixSub: {
-    fontSize: 15,
   },
   legendRow: {
     flexDirection: 'row',
