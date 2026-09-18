@@ -22,7 +22,7 @@ export { default as ProgressBar } from './ProgressBar';
 export { default as Steps } from './Steps';
 export { default as ListRow } from './ListRow';
 export { default as Pred, ConfTag, Drift } from './Pred';
-export { Hint, NoteText, EmptyState, Loading, NoAccess, FormAlert } from './Feedback';
+export { Hint, HelpTip, NoteText, EmptyState, Loading, NoAccess, FormAlert } from './Feedback';
 export { Chip, SourceChip, SelectChip, ChipRow } from './Chip';
 export { Field, TextField, TextAreaField, SelectField, DateField, PasswordField, CheckRow, RadioRow, Filters } from './Field';
 export { openFormModal, openConfirmModal } from './FormModal';

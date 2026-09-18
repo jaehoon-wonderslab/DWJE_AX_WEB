@@ -2,19 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Button, Card, DateField, Filters, FormAlert, Loading, SelectField, SourceNote, TabulatorGrid } from '@shared/components/ui';
+import { Button, Card, DateField, Filters, FormAlert, HelpTip, Loading, SelectField, SourceNote, TabulatorGrid } from '@shared/components/ui';
 import { BarChart, GroupedBarChart, HBarChart, LineChart } from '@shared/components/charts-d3';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { metricText, missingQuantity, numeric, processInsights } from '../model/processPeriodModel';
-import { BUSINESS_DAY_NOTE } from '@shared/constants/period';
 
 const UNITS = ['일별', '주별', '월별', '기간선택'];
 const EMPTY = [];
 const numberText = (value) => Number(value).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
 
-export default function ProcessDashboardView({ filters, applied, edit, setUnit, reset, inspectProcess, exportExcel, search, loading, error, data, processes, masterError }) {
+export default function ProcessDashboardView({ filters, applied, edit, setUnit, reset, inspectProcess, exportExcel, search, loading, error, data, masterError }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const canData = useAuthStore((state) => state.canData);
@@ -31,8 +30,6 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
   const insights = useMemo(() => processInsights(data), [data]);
   const largest = insights.byDefects[0];
   const worstProcess = insights.byRate[0];
-  const selectedProcess = processes.find((p) => p.id === applied.processId);
-  const processName = selectedProcess?.name || (applied.processId ? '선택 공정' : '전체 공정');
   const dirty = JSON.stringify(filters) !== JSON.stringify(applied);
   const noProduction = summary.qty === 0;
   const periodLabel = (period) => applied.unit === '월별' ? period.slice(0, 7) : period.slice(5);
@@ -79,15 +76,15 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
     : noProduction ? '선택한 기간에 생산 실적이 없습니다.' : '집계에 필요한 자료가 부족합니다. 실적 등록 상태를 확인해 주세요.';
 
   return <View style={{ width: '100%' }}>
-    <PageHead title="공정 및 제품 대시보드" desc="생산 현황과 불량이 집중된 곳을 확인하고, 우선 점검할 제품·공정을 찾아보세요."
+    <PageHead title="공정 및 제품 대시보드"
       actions={<><Button label="엑셀 다운로드" icon="download" size="sm" disabled={loading || !!error || !products.length} onPress={exportExcel} /><Button label="기본값 복원" icon="refresh" size="sm" onPress={reset} /></>} />
     <Filters>
       <SelectField label="집계 단위" value={filters.unit} options={UNITS} onChange={setUnit} />
       <DateField label="시작일" value={filters.from} onChange={(from) => edit({ from })} />
       <DateField label="종료일" value={filters.to} onChange={(to) => edit({ to })} />
       <Button label="조회" icon="search" variant="primary" onPress={search} />
+      <HelpTip text="시작일 오전 8시부터 종료일 오전 8시까지 시간을 검색합니다." />
     </Filters>
-    <SourceNote>{BUSINESS_DAY_NOTE}</SourceNote>
     {dirty && <FormAlert tone="info">조회 조건이 변경되었습니다. 조회 버튼을 누르면 새 조건으로 집계합니다.</FormAlert>}
     {masterError && <FormAlert tone="error">공정 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요.</FormAlert>}
     {loading ? <Loading text="생산 실적과 우선 확인할 항목을 집계하고 있습니다…" /> : error ?
@@ -102,9 +99,8 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
           <Metric name="불량률" row={summary} metric="defectRate" allowed={showYield} unit="%" />
         </Grid><Gap size={20} />
 
-        <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+        <View style={{ marginBottom: 12 }}>
           <Text style={[s.textSm, { fontSize: 22, fontWeight: '700' }]}>먼저 확인해 주세요</Text>
-          <Text style={s.textXs}>조회 기간의 실제 실적에서 찾은 확인 항목</Text>
         </View>
         <Grid cols={3}>
           <Issue eyebrow="01 · 불량 수량 집중" title={showQty && largest ? largest.code : showQty ? '집계된 불량 제품 없음' : '조회 권한 필요'}
@@ -127,7 +123,6 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
           </Card>
           <Card title="불량률은 어떻게 변했나요?" sub={`${applied.unit} 불량률 · 단위: %`}>
             {showYield && periods.some((p) => numeric(p.defectRate)) ? <LineChart labels={periods.map((p) => periodLabel(p.period))} series={[{ name: '불량률', data: periods.map((p) => p.defectRate ?? null) }]} unit="%" min={0} height={220} /> : <ChartMessage text={chartMessage('defectRate')} />}
-            <SourceNote>생산이 없거나 산출 자료가 부족한 구간은 선을 연결하지 않습니다. 첫·마지막 구간은 선택한 날짜까지만 집계합니다.</SourceNote>
           </Card>
         </Grid><Gap />
         <Grid cols={2}>
@@ -138,7 +133,7 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
             {showQty && showYield && insights.byRate.length ? <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}><View style={{ minWidth: 510, flex: 1 }}><HBarChart data={insights.byRate.slice(0, 8).map((p) => ({ l: p.process || '공정명 미등록', v: p.defectRate }))} unit="%" format={numberText} labelWidth={230} /></View></ScrollView> : <ChartMessage text={!showQty || !showYield ? '공정의 수량·품질 조회 권한이 필요합니다.' : '비교할 수 있는 공정 실적이 없습니다.'} />}
           </Card>
         </Grid><Gap size={20} />
-        <Card title="공정별 비교" sub="같은 기간·제품의 전체 공정 · 행을 여러 개 선택해 그래프로 비교할 수 있습니다.">
+        <Card title="공정별 비교" sub="행을 여러 개 선택해 그래프로 비교할 수 있습니다.">
           <SelectionComparison
             rows={processRows}
             selected={selectedProcesses}
@@ -149,10 +144,9 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
           />
           <TabulatorGrid columns={processColumns} rows={processRows} height={360} emptyText="비교할 공정 실적이 없습니다."
             selectable maxSelectable={10} rowKey="compareKey" selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
-          <SourceNote>수량 미집계: 실적에 필요한 수량이 아직 모이지 않았습니다. 산출 자료 부족: 비율을 계산할 수량이 부족합니다.</SourceNote>
         </Card><Gap />
         <View nativeID="process-product-detail" style={{ scrollMarginTop: 70 }}>
-          <Card title="제품별 상세 실적" sub={`${processName} · 제품 ${products.length}종 · 행을 여러 개 선택해 그래프로 비교할 수 있습니다`}>
+          <Card title="제품별 상세 실적" sub="행을 여러 개 선택해 그래프로 비교할 수 있습니다.">
             <SelectionComparison
               rows={detailRows}
               selected={selectedProducts}
@@ -163,21 +157,54 @@ export default function ProcessDashboardView({ filters, applied, edit, setUnit, 
             />
             <TabulatorGrid columns={columns} rows={detailRows} height={440} emptyText="현재 조건에 해당하는 제품이 없습니다. 상세 필터를 해제하거나 조회 대상을 바꿔 주세요."
               selectable maxSelectable={10} rowKey="code" selected={selectedProducts} onSelectedChange={setSelectedProducts} headerFilters={productHeaderFilters} />
-            <SourceNote>제품 정보가 연결되지 않은 실적과 미집계 수량이 있으면 제품별 합과 전체 합이 다를 수 있습니다. 전체 합계는 상단 요약을 확인해 주세요.</SourceNote>
           </Card>
         </View>
       </> : null}
   </View>;
 }
 
+/** 값과 단위 사이 간격 */
+const METRIC_GAP = 5;
+/** 값 글자 크기 — 자리가 넉넉하면 크게, 좁으면 줄이되 이 아래로는 내려가지 않습니다 */
+const METRIC_MAX = 31;
+const METRIC_MAX_SHORT = 23;
+const METRIC_MIN = 16;
+
 function Metric({ name, row, metric, allowed, unit, note }) {
   const s = useCommonStyles();
   const measured = allowed && numeric(row[metric]);
+  /*
+   * 값이 길어지면(투입 1억 EA = 쉼표까지 열한 자리) 31px 로는 카드 밖으로 넘쳐 잘립니다.
+   * 카드 폭은 사이드바·AI 레일을 여닫을 때마다 달라지므로 글자 수로 미리 정할 수 없습니다.
+   *
+   * 그래서 **글꼴 1px 당 글자 폭(perPx)** 을 실제로 재어 두고, 남은 폭에 맞는 크기를 되짚어 구합니다.
+   * perPx 는 크기와 무관한 값이라 한 번 재면 그대로 쓰이고, 카드 폭이 바뀌면 크기만 다시 계산됩니다.
+   * 글꼴이 바뀌어도 따로 손볼 것이 없습니다 — 재어서 쓰기 때문입니다.
+   */
+  const [rowWidth, setRowWidth] = useState(0);
+  const [unitWidth, setUnitWidth] = useState(0);
+  const [perPx, setPerPx] = useState(0);
+  const max = measured ? METRIC_MAX : METRIC_MAX_SHORT;
+  const box = Math.max(0, rowWidth - (measured ? unitWidth + METRIC_GAP : 0));
+  const size = box > 0 && perPx > 0 ? Math.max(METRIC_MIN, Math.min(max, Math.floor(box / perPx))) : max;
+  const remember = (event) => {
+    const width = event.nativeEvent.layout.width;
+    if (!width) return;
+    const next = width / size;
+    // 잰 값이 사실상 같으면 상태를 건드리지 않습니다 — 렌더가 서로를 부르며 도는 것을 막습니다
+    setPerPx((prev) => (prev && Math.abs(prev - next) / next < 0.02 ? prev : next));
+  };
   return <View style={[s.card, { padding: 18, minHeight: 100 }]}>
     <Text style={[s.textSm, { fontWeight: '600' }]}>{name}</Text>
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 10 }}>
-      <Text style={[s.textSm, { fontSize: measured ? 31 : 23, fontWeight: '700' }]}>{metricText(row, metric, allowed)}</Text>
-      {measured && <Text style={s.textXs}>{unit}</Text>}
+    <View
+      style={{ flexDirection: 'row', alignItems: 'baseline', gap: METRIC_GAP, marginTop: 10 }}
+      onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}
+    >
+      <Text
+        style={[s.textSm, { fontSize: size, lineHeight: Math.round(size * 1.18), fontWeight: '700' }]}
+        onLayout={remember}
+      >{metricText(row, metric, allowed)}</Text>
+      {measured && <Text style={s.textXs} onLayout={(event) => setUnitWidth(event.nativeEvent.layout.width)}>{unit}</Text>}
     </View>
     {note ? <Text style={[s.textXs, { marginTop: 9 }]}>{note}</Text> : null}
   </View>;

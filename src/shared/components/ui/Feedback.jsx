@@ -1,7 +1,7 @@
 /**
  * 안내 · 빈 상태 · 로딩 표시 (CM-05)
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Text, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -27,6 +27,67 @@ export function Hint({ children, style, icon = 'info' }) {
  *
  * @param {object} props tone 은 error | success | info
  */
+/**
+ * 도움말 표시 — 물음표에 마우스를 올리면 설명이 뜹니다.
+ *
+ * 누를 일이 없는 안내라 **클릭 동작을 두지 않습니다.** 그래서 Pressable(버튼)이 아니라 View 로 그립니다 —
+ * 눌러도 아무 일이 없는 버튼은 "눌러 보라"는 거짓 신호가 됩니다.
+ * 대신 설명을 accessibilityLabel 로도 실어, 마우스를 못 쓰는 사람도 같은 내용을 듣습니다.
+ *
+ * @param {string} text 띄울 설명
+ * @param {number} [size] 물음표 단추 한 변 (옆 버튼 높이에 맞춥니다)
+ */
+export function HelpTip({ text, size = 34, style }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const [open, setOpen] = useState(false);
+  const show = () => setOpen(true);
+  const hide = () => setOpen(false);
+  return (
+    <View style={[{ position: 'relative' }, style]}>
+      <View
+        accessibilityLabel={text}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: 99,
+          borderWidth: 1,
+          borderColor: open ? theme.color.primary : theme.hairlineStrong,
+          backgroundColor: open ? theme.surfaceHover : theme.color.card,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...(Platform.OS === 'web' ? { cursor: 'help' } : null),
+        }}
+      >
+        <Icon name="help" size={17} color={open ? theme.color.primary : theme.color.mutedForeground} />
+      </View>
+      {open ? (
+        // 말풍선은 아래로 펼치고 오른쪽 끝을 맞춥니다 — 조회 줄 오른편에 붙어 화면 밖으로 나가지 않습니다
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: size + 8,
+            right: 0,
+            zIndex: 200,
+            minWidth: 220,
+            maxWidth: 340,
+            paddingVertical: 10,
+            paddingHorizontal: 13,
+            borderRadius: theme.metrics.radiusSm,
+            backgroundColor: theme.color.primary,
+            ...theme.shadow,
+          }}
+        >
+          <Text style={[s.textSm, { color: theme.color.primaryForeground, lineHeight: 21 }]}>{text}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function FormAlert({ children, tone = 'error', style }) {
   const s = useCommonStyles();
   const theme = useTheme();
