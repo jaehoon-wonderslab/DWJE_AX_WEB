@@ -205,8 +205,11 @@ export default function Table({
     minWidth || 0,
     columns.reduce((sum, col) => sum + (col.width || col.minWidth || 120), 0)
   );
+  // 가로 스크롤은 이 바깥 상자가 맡습니다. 안쪽 Tabulator 스크롤 영역은 넘치지 않는데도 가로 휠을 붙잡아
+  // 트랙패드로 옆으로 밀어도 움직이지 않았습니다 — ax-table-scroller 안에서는 휠을 이 상자로 넘깁니다
+  // (tabulatorHeaders.css). 뒤로 가기 스와이프로 번지지 않게 막는 것은 이 상자의 contain 이 합니다.
   const scroller = (
-    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: contained ? 'hidden' : 'auto', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
+    <div className={contained ? undefined : 'ax-table-scroller'} style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: contained ? 'hidden' : 'auto', touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' }}>
       <div style={{ width: '100%', minWidth: contained ? 0 : tableMinWidth }}>{grid}</div>
     </div>
   );

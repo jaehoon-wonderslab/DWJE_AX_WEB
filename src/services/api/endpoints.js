@@ -1383,6 +1383,15 @@ export const ENDPOINTS = {
     tables: 'ax.tb_log_audit',
     note: 'blind 열람 시도 이력',
   },
+  getAlertConditionMetrics: {
+    no: 323, domain: '시스템관리', comp: 'SY-04', screen: '이상 알림 발송 조건 관리', funcId: 'SY-04-F08',
+    name: '발송 조건 감지 지표 목록', method: 'GET', path: '/api/v1/metrics/standards',
+    params: 'page, size',
+    response: 'items[{stdId,category,name,unit,normal,warn,critical,direction,applied}], meta',
+    roles: '전산팀·통합관리자', blind: [], priority: 1,
+    tables: 'ax.tb_met_metric_std',
+    note: '지표 측정 데이터 관리(SY-13) 화면은 없어졌지만 발송 조건의 감지 지표 선택지는 이 목록에서 받습니다',
+  },
   getAlertConditionsSummary: {
     no: 151, domain: '시스템관리', comp: 'SY-04', screen: '이상 알림 발송 조건 관리', funcId: 'SY-04-F07',
     name: '발송 조건 요약', method: 'GET', path: '/api/v1/alert-conditions/summary',

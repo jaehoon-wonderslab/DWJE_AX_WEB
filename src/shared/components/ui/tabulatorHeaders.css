@@ -19,3 +19,9 @@
   margin: 0 !important;
   min-width: 18px;
 }
+
+/* Table(CM-05)의 바깥 가로 스크롤 상자 안에서는 안쪽 스크롤 영역이 가로 휠을 붙잡지 않고 바깥으로 넘깁니다.
+   (TabulatorGrid 는 tableholder 에 overscroll-behavior-x: contain 을 줍니다 — 표가 스스로 스크롤할 때를 위한 것) */
+.ax-table-scroller .tabulator .tabulator-tableholder {
+  overscroll-behavior-x: auto !important;
+}

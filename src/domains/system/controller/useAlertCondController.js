@@ -91,7 +91,7 @@ export function useAlertCondController() {
     summary,
     codes,
     groupOptions: groups.map((g) => ({ value: g.groupId, label: g.name })),
-    metricOptions: (stds?.list?.items || []).map((m) => ({ value: m.stdId, label: `${m.name} (${m.metricCd})` })),
+    metricOptions: (stds?.list?.items || []).map((m) => ({ value: m.stdId, label: [m.name, m.category].filter(Boolean).join(' · ') + (m.unit ? ` (${m.unit})` : '') })),
     filters: { severity, enabled, keyword },
     paging,
     itemsMeta: data?.listMeta,

@@ -391,6 +391,18 @@ export function getSystemDataPermsAudit(params) {
 /* ───────── 이상 알림 발송 조건 관리 ───────── */
 
 /**
+ * 발송 조건 감지 지표 목록
+ *
+ * `GET /api/v1/metrics/standards`
+ * @param {object} params page, size
+ * @returns {Promise<object>} items[{stdId,category,name,unit,normal,warn,critical,direction,applied}], meta
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
+ */
+export function getAlertConditionMetrics(params) {
+  return request('getAlertConditionMetrics', params);
+}
+
+/**
  * 발송 조건 요약
  *
  * `GET /api/v1/alert-conditions/summary`
