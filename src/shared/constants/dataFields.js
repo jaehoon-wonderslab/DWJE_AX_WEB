@@ -39,50 +39,49 @@ export const DEPTS = [
   { id: '통합관리자', av: 'MA', desc: '전체 메뉴 접근' },
 ];
 
-/** 부서별 데이터 접근 권한 기본값 ('*' 는 전체 허용) */
+/**
+ * 부서별 데이터 접근 권한 — **목(mock) 모드 전용 기본값** ('*' 는 전체 허용)
+ *
+ * 실 서버 모드의 기준은 DB `ax.tb_sys_dept_data_perm` 이고 `/auth/me` 의 dataPerms 로 내려옵니다.
+ * 목 화면이 실제와 같은 이야기를 하도록 2026-09-23 DB 값 그대로 옮겨 두었습니다.
+ */
 export const DATA_SCOPE_DEFAULT = {
   품질보증팀: ['qty', 'yield', 'customer', 'mold'],
-  생산관리팀: ['qty', 'yield', 'plan', 'customer', 'mold', 'worker'],
+  생산관리팀: ['qty', 'yield', 'customer', 'plan', 'mold', 'worker'],
   제조팀: ['qty', 'mold', 'worker'],
   전산팀: ['qty', 'worker'],
-  경영진: ['qty', 'yield', 'price', 'customer', 'plan'],
+  경영진: ['qty', 'yield', 'price', 'customer', 'plan', 'mold', 'worker'],
   통합관리자: '*',
 };
 
-/** 부서별 메뉴 접근 권한 기본값 — 「권한 정의」 4절 */
+/**
+ * 부서별 메뉴 접근 권한 — **목(mock) 모드 전용 기본값**
+ *
+ * 실 서버 모드의 기준은 DB `ax.tb_sys_dept_menu_perm`([시스템관리 > 메뉴 접근 권한] 화면)이고
+ * `/auth/me` 의 menuPerms 로 내려옵니다. 2026-09-23 DB 값 그대로 옮겨 두었습니다.
+ */
 export const MENU_ACCESS_DEFAULT = {
   품질보증팀: [
-    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
-    'prod-monitor', 'prod-result',
-    'qc-defect', 'qc-aoi',
-    'alert-list', 'sys-gloss',
-    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
+    'ai-chat', 'prod-result', 'qc-defect', 'qc-aoi', 'rpt-yield-model', 'rpt-lrr-customer',
+    'rpt-scrap', 'alert-list', 'sys-gloss', 'chat-history',
   ],
   생산관리팀: [
-    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
-    'prod-monitor', 'prod-result', 'prod-daily', 'daily-history',
-    'qc-defect', 'qc-aoi',
-    'alert-list', 'sys-gloss',
-    'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap',
+    'ai-chat', 'dash-ai', 'dash-proc', 'prod-monitor', 'prod-result', 'qc-defect', 'qc-aoi',
+    'prod-daily', 'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap',
+    'daily-history', 'alert-list', 'sys-gloss', 'chat-history',
   ],
   제조팀: [
-    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
-    'prod-monitor',
-    'qc-defect', 'qc-aoi',
-    'alert-list', 'sys-gloss',
-    'rpt-press-morning', 'rpt-plating-morning',
+    'ai-chat', 'dash-ai', 'dash-proc', 'prod-monitor', 'qc-defect', 'qc-aoi', 'rpt-press-morning',
+    'rpt-plating-morning', 'alert-list', 'sys-gloss', 'chat-history',
   ],
   전산팀: [
-    'dash-ai', 'dash-ai-upload', 'sys-upload-doc', 'dash-proc', 'ai-chat', 'chat-history',
-    'alert-list', 'sys-gloss',
-    'sys-account', 'sys-menu', 'sys-data', 'sys-audit', 'sys-dl', 'sys-sync',
-    'alert-cond', 'sys-recip',
+    'ai-chat', 'dash-ai', 'dash-proc', 'dash-ai-upload', 'alert-list', 'sys-account', 'sys-menu',
+    'sys-data', 'alert-cond', 'sys-recip', 'sys-gloss', 'chat-history', 'sys-audit', 'sys-dl',
+    'sys-upload-doc', 'sys-sync',
   ],
   경영진: [
-    'dash-ai', 'dash-proc', 'ai-chat', 'chat-history',
-    'prod-result', 'qc-defect',
-    'alert-list', 'sys-gloss',
-    'rpt-ship-plan', 'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap',
+    'ai-chat', 'dash-ai', 'dash-proc', 'prod-result', 'qc-defect', 'rpt-ship-plan',
+    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap', 'alert-list', 'sys-gloss', 'chat-history',
   ],
   통합관리자: '*',
 };

@@ -232,14 +232,6 @@ export const ENDPOINTS = {
     roles: '전 부서', blind: ['customer'], priority: 1,
     tables: 'ax.tb_prod_customer',
   },
-  getCommonMastersDefectTypes: {
-    no: 12, domain: '인증·공통', comp: 'CM-05', screen: '공통', funcId: '',
-    name: '불량 유형 목록 조회', method: 'GET', path: '/api/v1/common/masters/defect-types',
-    params: 'targetDate(YYYY-MM-DD), processId',
-    response: 'defectTypes[{code,name,category}]',
-    roles: '전 부서', blind: [], priority: 1,
-    tables: 'mes.tb_md_defect, mes.tb_md_defect_by_item, ax.tb_ai_defect_tag',
-  },
   getCommonMastersMolds: {
     no: 13, domain: '인증·공통', comp: 'CM-05', screen: '공통', funcId: '',
     name: '금형 목록 조회', method: 'GET', path: '/api/v1/common/masters/molds',
@@ -247,25 +239,6 @@ export const ENDPOINTS = {
     response: 'molds[{moldCd,moldNm,shotCnt,remainShot}]',
     roles: '전 부서', blind: ['mold'], priority: 2,
     tables: 'mes.tb_md_mold, mes.tb_md_mold_by_eqpt',
-  },
-
-  getUsersMeFavorites: {
-    no: 4.1, domain: '인증·공통', comp: 'CM-01', screen: '공통', funcId: 'CM-01-F04',
-    name: '내 즐겨찾기 화면 조회', method: 'GET', path: '/api/v1/users/me/favorites',
-    params: '',
-    response: 'items[{screenId,sortOrder}]',
-    roles: '전 부서', blind: [], priority: 2,
-    tables: 'ax.tb_sys_user_favorite',
-    note: '보고서 센터(D안)용으로 2026-09-09 API 팀이 구현(docs/requests). 현재 화면에서는 호출하지 않음 — 자주 쓰는 보고서는 /reports/usage 로 대체',
-  },
-  putUsersMeFavorites: {
-    no: 4.2, domain: '인증·공통', comp: 'CM-01', screen: '공통', funcId: 'CM-01-F04',
-    name: '내 즐겨찾기 화면 저장', method: 'PUT', path: '/api/v1/users/me/favorites',
-    params: 'screenIds[]',
-    response: 'items[{screenId,sortOrder}]',
-    roles: '전 부서', blind: [], priority: 2,
-    tables: 'ax.tb_sys_user_favorite',
-    note: '목록 전체를 순서대로 교체(멱등)',
   },
 
   /* ═══ AI 질의 ═══ */
@@ -968,15 +941,6 @@ export const ENDPOINTS = {
     roles: '상동', blind: ['qty', 'yield'], priority: 2,
     tables: 'mes.tb_pop_defect_hist',
   },
-  getQualityAoiDefects: {
-    no: 118.5, domain: '품질관리', comp: 'QC-03', screen: 'AOI 판정 분석', funcId: 'QC-03-F10',
-    name: 'AOI 불량 목록', method: 'GET', path: '/api/v1/quality/aoi/defects',
-    params: 'from, to, eqptCd, defectTypeCd, lotNo, model, page, size',
-    response: 'from, to, items[{defectId(plant-wc-lot-serial),judgedAt,plantCd,processId,processNm,eqptCd,eqptNm,lotNo,serialNo,itemCd,model,modelNm,moldCd,cavity,okQty,ngQty,sampleQty,grade,remark,defectTypeCd(대개 null),defectTypeNm,defectTypeCnt,imageCnt}], meta',
-    roles: 'qc-aoi 권한', blind: ['qty'], priority: 1,
-    tables: 'mes.tb_pop_defect_hist(확인 필요), ax.tb_aoi_defect_image',
-    note: 'MES 불량 판정 원본을 id·날짜로 분류. 요청 REQ_20260910 B3',
-  },
   getQualityAoiDefectsEquipments: {
     no: 118.55, domain: '품질관리', comp: 'QC-03', screen: 'AOI 판정 분석', funcId: 'QC-03-F10',
     name: 'AOI 설비 목록 (불량 상세 필터)', method: 'GET', path: '/api/v1/quality/aoi/defects/equipments',
@@ -985,24 +949,6 @@ export const ENDPOINTS = {
     roles: 'qc-aoi 권한', blind: [], priority: 2,
     tables: 'mes.tb_md_eqpt',
     note: 'API 회신 2026-09-10: AOI 설비 32대 · 필터용',
-  },
-  getQualityAoiDefectsByDefectId: {
-    no: 118.6, domain: '품질관리', comp: 'QC-03', screen: 'AOI 판정 분석', funcId: 'QC-03-F11',
-    name: 'AOI 불량 상세·이미지', method: 'GET', path: '/api/v1/quality/aoi/defects/{defectId}',
-    params: 'defectId',
-    response: '목록 항목 + defects[], imageUrlTtlSec, images[{imageId,seq,defectCd,nasPath,capturedAt,sizeBytes,available,url(?token= 서명 15분),thumbUrl}]',
-    roles: 'qc-aoi 권한', blind: [], priority: 2,
-    tables: 'ax.tb_aoi_defect_image',
-    note: 'url 은 /files/aoi-images/{imageId} 프록시 주소. NAS 경로 규칙 문서 대기',
-  },
-  getFilesAoiImagesByImageId: {
-    no: 118.7, domain: '품질관리', comp: 'QC-03', screen: 'AOI 판정 분석', funcId: 'QC-03-F11',
-    name: 'AOI 불량 이미지 스트림 (NAS 프록시)', method: 'GET', path: '/api/v1/files/aoi-images/{imageId}',
-    params: 'imageId, token(서명 토큰 — 상세 응답 url 에 포함), w(32~800 썸네일 폭, 선택)',
-    response: 'file(binary image/*) — url 을 그대로 <img src> 에 넣음. 토큰 없음/만료 401',
-    roles: 'qc-aoi 권한', blind: [], priority: 2,
-    tables: 'NAS (경로 화이트리스트)',
-    note: '브라우저는 NAS 를 직접 읽지 못하므로 API 가 인증 후 스트림',
   },
   getQualityAoiInspectorDrift: {
     no: 81, domain: '품질관리', comp: 'QC-02', screen: 'AOI 판정 분석·예측', funcId: 'QC-02-F07',
@@ -1144,25 +1090,6 @@ export const ENDPOINTS = {
     response: 'items[{voucherId,occurDate,lotNo,model,process,defectType,qty,originType,docNo}], meta',
     roles: '상동', blind: ['qty'], priority: 1,
     tables: 'mes.tb_pop_stock_hist, mes.tb_pop_defect_hist',
-  },
-
-  getReportsStatus: {
-    no: 115.5, domain: '보고서', comp: 'RP-00', screen: '보고서 센터', funcId: 'RP-00-F01',
-    name: '보고서 작성 상태 조회', method: 'GET', path: '/api/v1/reports/status',
-    params: 'baseDate',
-    response: 'baseDate, items[{screenId,state(NONE|DRAFT|SUBMITTED|APPROVED),source(DERIVED|RECORDED),updatedAt,updatedBy,updatedByName}]',
-    roles: '전 부서 (메뉴 권한 있는 화면만 항목으로)', blind: [], priority: 2,
-    tables: 'ax.tb_rpt_write_state, ax.tb_prod_daily_decision',
-    note: '허브 상단 "오늘 작성할 보고서" 띠. 판정 = max(파생, 기록). API 회신 2026-09-09 (docs/requests). 실패하면 웹은 목록만 그립니다',
-  },
-  putReportsStatus: {
-    no: 115.6, domain: '보고서', comp: 'RP-00', screen: '보고서 센터', funcId: 'RP-00-F02',
-    name: '보고서 작성 상태 기록', method: 'PUT', path: '/api/v1/reports/status',
-    params: 'screenId, baseDate, state(DRAFT|SUBMITTED|APPROVED)',
-    response: 'screenId, state, source(RECORDED), updatedAt, updatedBy, updatedByName',
-    roles: '해당 화면 메뉴 권한', blind: [], priority: 2,
-    tables: 'ax.tb_rpt_write_state',
-    note: '대상 4화면(prod-daily · rpt-press-morning · rpt-plating-morning · rpt-scrap) 머리말의 작성 상태 컨트롤이 호출. 결재선·반려 없음',
   },
 
   getReportsUsage: {

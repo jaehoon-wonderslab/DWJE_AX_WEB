@@ -5,7 +5,7 @@ import { DEFAULT_USER, findUser } from '@shared/constants/accounts';
 import { DATA_SCOPE_DEFAULT, MENU_ACCESS_DEFAULT } from '@shared/constants/dataFields';
 import { appliedDataFields } from './data/dataFieldStore';
 import { MENU, permRows } from '@shared/constants/menu';
-import { COMMON_CODES, CUSTOMERS, DEFECT_TYPES, LINES, MOLDS, PROCESSES, PRODUCTS } from './data/masters';
+import { COMMON_CODES, CUSTOMERS, LINES, MOLDS, PROCESSES, PRODUCTS } from './data/masters';
 import { mockState } from './state';
 
 /** 부서 권한을 화면 접근 목록으로 풀어 줍니다 ('*' 는 전 화면) */
@@ -20,15 +20,6 @@ function dataPermsOf(dept) {
 }
 
 export const commonMock = {
-  /* ── 내 즐겨찾기 화면 (보고서 센터) — 세션 안에서만 유지 ── */
-  getUsersMeFavorites: () => {
-    if (!mockState.store.favorites) mockState.store.favorites = ['prod-daily', 'rpt-press-morning'];
-    return { items: mockState.store.favorites.map((screenId, i) => ({ screenId, sortOrder: i + 1 })) };
-  },
-  putUsersMeFavorites: ({ screenIds = [] }) => {
-    mockState.store.favorites = [...new Set(screenIds)].slice(0, 8);
-    return { items: mockState.store.favorites.map((screenId, i) => ({ screenId, sortOrder: i + 1 })) };
-  },
 
   postAuthLogin: ({ loginId }) => {
     const user = findUser(loginId) || DEFAULT_USER;
@@ -118,8 +109,6 @@ export const commonMock = {
   },
 
   getCommonMastersCustomers: () => ({ customers: CUSTOMERS }),
-
-  getCommonMastersDefectTypes: () => ({ defectTypes: DEFECT_TYPES }),
 
   getCommonMastersMolds: ({ eqptCd }) => ({ molds: eqptCd ? MOLDS.filter((m) => m.eqptCd === eqptCd) : MOLDS }),
 };

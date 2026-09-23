@@ -13,26 +13,6 @@ import { request } from './client';
 
 /* ───────── 내 즐겨찾기 화면 (보고서 센터) ───────── */
 
-/**
- * 내 즐겨찾기 화면 조회
- *
- * `GET /api/v1/users/me/favorites`
- * @returns {Promise<object>} items[{screenId,sortOrder}]
- */
-export function getUsersMeFavorites(params) {
-  return request('getUsersMeFavorites', params);
-}
-
-/**
- * 내 즐겨찾기 화면 저장 — 목록 전체를 순서대로 교체합니다
- *
- * `PUT /api/v1/users/me/favorites`
- * @param {object} params screenIds[]
- */
-export function putUsersMeFavorites(params) {
-  return request('putUsersMeFavorites', params);
-}
-
 /* ───────── 공통 ───────── */
 
 /**
@@ -289,18 +269,6 @@ export function getCommonMastersProducts(params) {
  */
 export function getCommonMastersCustomers(params) {
   return request('getCommonMastersCustomers', params);
-}
-
-/**
- * 불량 유형 목록 조회
- *
- * `GET /api/v1/common/masters/defect-types`
- * @param {object} params processId
- * @returns {Promise<object>} defectTypes[{code,name,category}]
- * @privateRemarks 접근 권한 전 부서 · 우선순위 1
- */
-export function getCommonMastersDefectTypes(params) {
-  return request('getCommonMastersDefectTypes', params);
 }
 
 /**
