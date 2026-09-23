@@ -325,7 +325,10 @@ export async function fetchAiCausePrescription(param, eqptCd) {
   const processId = isObj ? param.processId : undefined;
   // 구간을 그대로 넘깁니다 — 종료일만 보내면 한 달을 골라도 그 하루만 분석됩니다
   const range = from && to ? { from, to } : { date: to || (isObj ? param.date : param) };
-  return unwrap(dashboardService.getDashboardAiCausePrescription({ ...range, processId, eqptCd: code }), null).catch(() => null);
+  // 응답의 masked 를 함께 넘깁니다 — 수율 권한이 없으면 원인이 비어 오는데, 화면이 그 이유를 적어야 합니다
+  const res = await dashboardService.getDashboardAiCausePrescription({ ...range, processId, eqptCd: code }).catch(() => null);
+  if (!res?.success || !res.data) return null;
+  return { ...res.data, masked: res.masked || [] };
 }
 
 /**

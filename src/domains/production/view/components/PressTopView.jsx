@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Icon } from '@shared/components/ui';
+import { BlindValue, Icon } from '@shared/components/ui';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, fixed } from '@shared/utils/formatUtil';
 import { PRESS_STATUS } from '../../model/pressTopViewModel';
@@ -36,10 +36,11 @@ function PressMachine({ press, active, onSelect }) {
       <Text numberOfLines={1} ellipsizeMode="tail" style={{ marginTop: 9, flexShrink: 1, fontSize: 17, fontWeight: '500', letterSpacing: -0.2, color: theme.color.foreground }}>{press.name}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 }}><View style={{ width: 7, height: 7, borderRadius: 9, backgroundColor: meta.color }} /><Text numberOfLines={1} style={{ fontSize: 15, color: meta.color, fontWeight: '600' }}>{meta.label}</Text></View>
       {!dummy && <View style={{ marginTop: 8, paddingTop: 7, borderTopWidth: 1, borderTopColor: theme.hairline }}>
-        <Detail label="생산량" value={number(press.qty)} />
-        <Detail label="불량" value={number(press.defectQty)} />
+        {/* 권한 없는 부서에는 서버가 값을 null 로 가립니다 — 「—」 가 아니라 「비공개」 로 보여 줍니다 */}
+        <Detail label="생산량" value={<BlindValue field="qty" value={number(press.qty)} />} />
+        <Detail label="불량" value={<BlindValue field="yield" value={number(press.defectQty)} />} />
         <Detail label="타발 수" value={number(press.strokeCount)} />
-        <Detail label="양품률" value={press.yieldRate === null ? '—' : `${fixed(press.yieldRate)}%`} />
+        <Detail label="양품률" value={<BlindValue field="yield" value={press.yieldRate === null ? '—' : `${fixed(press.yieldRate)}%`} />} />
         <Detail label="업데이트" value={press.lastUpdated} />
       </View>}
     </Pressable>

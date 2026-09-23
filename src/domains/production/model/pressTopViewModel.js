@@ -36,8 +36,11 @@ export function makePressTopView(items = []) {
   const real = Array.from({ length: 10 }, (_, index) => {
     const raw = byCode.get(pressId(index)) || pressItems[index];
     const status = STATUS[raw?.state] || (raw ? 'MAINTENANCE' : 'MAINTENANCE');
-    const qty = Number(raw?.qty);
-    const defectRate = Number(raw?.defectRate);
+    // 값이 없으면(권한이 없어 서버가 null 로 가린 경우 포함) 0 으로 읽지 않습니다 —
+    // Number(null) 은 0 이라, 수율을 가린 부서에 「양품률 100% · 불량 0」 이 보였습니다.
+    const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+    const qty = num(raw?.qty);
+    const defectRate = num(raw?.defectRate);
     const defectQty = Number.isFinite(qty) && Number.isFinite(defectRate) ? Math.round(qty * defectRate / 100) : null;
     return {
       id: pressId(index),

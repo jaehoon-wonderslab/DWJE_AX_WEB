@@ -36,7 +36,7 @@
     "ios": "expo start --ios",
     "build:web": "node scripts/build-deploy.cjs",
     "build:proto": "node proto/vercel-demo/build.cjs",
-    "check": "npm run check:syntax && npm run check:api && npm run check:mock && npm run check:routes",
+    "check": "npm run check:syntax && npm run check:api && npm run check:mock && npm run check:routes && npm run check:columns",
     "check:syntax": "node scripts/check-syntax.cjs",
     "check:api": "node scripts/check-api.cjs",
     "check:mock": "node scripts/check-mock.cjs",
@@ -45,7 +45,9 @@
     "test": "node tests/run.js",
     "test:api": "NO_BROWSER=1 node tests/run.js",
     "test:screens": "SPEC=06 node tests/run.js",
-    "test:values": "SPEC=07 node tests/run.js"
+    "test:values": "SPEC=07 node tests/run.js",
+    "gen:columns": "node scripts/build-screen-columns.cjs",
+    "check:columns": "node scripts/build-screen-columns.cjs --check"
   },
   "private": true,
   "description": "덕우전자 AX — AI 의사결정 지원 계층 (React Native for Web / Expo)",

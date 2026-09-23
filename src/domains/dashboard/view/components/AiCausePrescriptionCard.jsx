@@ -83,7 +83,11 @@ function basisHtml(line, inline) {
  *
  * 수가 다르면 짧은 쪽을 비웁니다. 억지로 채우면 없는 대응이 있는 것처럼 보입니다.
  */
-export function pairRows(targets = [], threshold) {
+/** 수율 권한이 없으면 서버가 원인을 비워 보냅니다(불량률을 되살릴 수 있어서) — 빈 칸 대신 이유를 적습니다 */
+const NO_YIELD_CAUSE = '<span class="muted">수율 열람 권한이 없어 원인 지표를 표시하지 않습니다</span>';
+
+export function pairRows(targets = [], threshold, masked = []) {
+  const noYield = (masked || []).includes('yield');
   return targets.map((t) => {
     /** 공장 — 서버가 못 주면 빈 칸. '—' 조차 적지 않습니다(모르는 것이지 없는 것이 아닙니다) */
     const plant = t.plantNm || '';
@@ -117,7 +121,7 @@ export function pairRows(targets = [], threshold) {
       eqpt,
       product,
       standard,
-      cause: listHtml(t.contributions),
+      cause: !t.contributions?.length && noYield ? NO_YIELD_CAUSE : listHtml(t.contributions),
       action: listHtml(t.prescriptions),
       basis: basisListHtml(t.prescriptions),
     };
@@ -183,7 +187,9 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
 
   const causes = targets.flatMap((t) => t.contributions);
   const actions = targets.flatMap((t) => t.prescriptions);
-  const ready = !!cp?.modelVer && targets.length > 0 && (causes.length || actions.length);
+  // 수율 권한이 없으면 원인이 늘 비어 옵니다 — 대상 표와 그 이유는 보여 줍니다
+  const noYield = (cp?.masked || []).includes('yield');
+  const ready = !!cp?.modelVer && targets.length > 0 && (causes.length || actions.length || noYield);
 
   return (
     <Card
@@ -206,7 +212,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
               icon="download"
               // 화면 표와 **같은 행**을 넘깁니다 — 열이 다르면 받아 본 사람이 대조할 수 없습니다
               onPress={() => downloadCauseReport({
-                rows: pairRows(targets, cp.threshold),
+                rows: pairRows(targets, cp.threshold, cp.masked),
                 targetCnt: targets.length,
                 docs: collectDocs(SECTIONS(causes, actions)),
                 droppedCnt: cp.droppedCnt,
@@ -266,7 +272,7 @@ export default function AiCausePrescriptionCard({ causePrescription, loading, wa
           <TabulatorGrid
             groupBy="group"
             columns={CAUSE_COLUMNS}
-            rows={pairRows(targets, cp.threshold)}
+            rows={pairRows(targets, cp.threshold, cp.masked)}
             groupStartOpen={false}
             /* 높이를 박으면 접힌 상태에서 아래가 크게 빕니다 — 펼친 만큼만 자라게 둡니다 */
             emptyText="근거가 확인된 분석 결과가 없습니다."

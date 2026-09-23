@@ -14,7 +14,6 @@ import * as repo from '../model/systemRepository';
 export function useDataPermController() {
   const toast = useUiStore((state) => state.toast);
   const setMe = useAuthStore((state) => state.setMe);
-  const me = useAuthStore((state) => state.userInfo);
 
   const { data, loading, reload } = useAsync(() => repo.loadDataPerms(), []);
 
@@ -48,13 +47,12 @@ export function useDataPermController() {
 
   return {
     loading,
-    me,
     fields,
     depts,
     matrix,
     adminDepts: data?.adminDepts || [],
     toggle,
     exportExcel,
-    notifySaved: () => toast('데이터 접근 권한을 저장했습니다 — 변경 이력은 감사 로그에 기록됩니다'),
+    reload,
   };
 }

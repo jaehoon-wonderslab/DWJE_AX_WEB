@@ -213,10 +213,18 @@ export const setDataPerm = (deptId, fieldKey, allowed) =>
  * (화면에 실제로 적용되는 목록은 로그인 때 받는 /auth/me 의 dataFields 입니다)
  */
 export const loadDataFields = () => unwrap(systemService.getSystemDataFields({}), { fields: [] });
-export const createDataField = (v) => command(systemService.postSystemDataFields(v));
+/**
+ * 데이터 항목(종류) 등록 — 서버 본문은 `fieldKey · name · desc · category` 입니다.
+ * 화면은 `key` 로 들고 있어 이름을 바꿔 보냅니다(예전에는 `key` 를 그대로 보내 서버가 400 으로 거절했습니다).
+ */
+export const createDataField = ({ key, fieldKey, name, desc, category } = {}) =>
+  command(systemService.postSystemDataFields({ fieldKey: fieldKey || key, name, desc, category }));
 export const updateDataField = (v) => command(systemService.putSystemDataFieldsByFieldKey(v));
 export const removeDataField = (fieldKey) => command(systemService.deleteSystemDataFieldsByFieldKey({ fieldKey }));
-export const addFieldAttr = (fieldKey, attrName) => command(systemService.postSystemDataFieldsByFieldKeyAttrs({ fieldKey, attrName }));
+/** 응답 필드명 등록 — remark 에 그 이름의 뜻(DB 컬럼 설명)을 남겨 두면 나중에 무엇을 가렸는지 읽을 수 있습니다 */
+export const addFieldAttr = (fieldKey, attrName, remark) =>
+  command(systemService.postSystemDataFieldsByFieldKeyAttrs({ fieldKey, attrName, remark: remark ? String(remark).slice(0, 200) : undefined }));
+
 export const removeFieldAttr = (fieldKey, attrName) =>
   command(systemService.deleteSystemDataFieldsByFieldKeyAttrsByAttrName({ fieldKey, attrName }));
 export const setDataFieldApplied = (fieldKey, on) => command(systemService.patchSystemDataFieldsByFieldKeyApply({ fieldKey, on }));
@@ -229,6 +237,15 @@ export async function loadAlertConditions({ severity, enabled, keyword, page, si
     groups: systemService.getAlertRecipientGroups({}),
   });
   return { ...data, listMeta: data.metas?.list };
+}
+/**
+ * 감지 지표 선택지 — 지표 기준(ax.tb_met_metric_std) 목록
+ *
+ * 지표 측정 데이터 관리(SY-13) 화면을 걷어 낼 때(6f66c46) 이 조회까지 함께 지워져
+ * 발송 조건 폼의 '감지 지표' 가 비었고, 필수값을 못 채워 등록이 아예 나가지 않았습니다.
+ */
+export async function loadMetricStandards({ page = 1, size = 200 } = {}) {
+  return unwrapAll({ list: systemService.getAlertConditionMetrics({ page, size }) });
 }
 export const createAlertCondition = (v) => command(systemService.postAlertConditions(v));
 export const updateAlertCondition = (condId, v) => command(systemService.putAlertConditionsByCondId({ condId, ...v }));

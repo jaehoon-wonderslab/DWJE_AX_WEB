@@ -18,6 +18,9 @@ import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { TabulatorGrid } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
+
+/** HTML 셀에 넣는 글자 — 서버 값(설비명·공정명)에 < & 가 있어도 태그로 읽히지 않게 */
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 import { comma, fixed } from '@shared/utils/formatUtil';
 
 /** 불량률 구간별 색 — 아침회의 자료와 같은 기준선(3%)을 씁니다 */
@@ -48,7 +51,9 @@ export default function EquipmentMatrix({ data, loading }) {
   const rows = useMemo(
     () =>
       items.map((e) => ({
-        eqpt: `${e.eqptNm}<span class="muted"> ${e.eqptCd}</span><div class="muted">${e.processNm}</div>`,
+        // 설비명은 데이터 항목으로 가려질 수 있습니다(서버가 null) — 「null」 글자 대신 코드와 함께 「이름 비공개」 로.
+        // formatter:'html' 이라 DB 글자는 이스케이프합니다
+        eqpt: `${e.eqptNm ? esc(e.eqptNm) : '<span class="muted">이름 비공개</span>'}<span class="muted"> ${esc(e.eqptCd)}</span><div class="muted">${esc(e.processNm)}</div>`,
         product: dash(e.product ? `${e.product}${e.productEtcCnt ? ` 외 ${comma(e.productEtcCnt)}종` : ''}` : ''),
         rate: `${rateHtml(e.defectRate)}<div class="muted num">${comma(e.ngQty)} / ${comma(e.qty)} EA</div>`,
       })),
