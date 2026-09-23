@@ -95,8 +95,14 @@ export const useUiStore = create((set, get) => ({
   endApiLoading: () => set((state) => ({ apiLoadingCount: Math.max(0, state.apiLoadingCount - 1) })),
 
   // ── 사이드바 ────────────────────────────────────────────
+  //  · sidebarCollapsed : 넓은 화면에서 64px 레일로 접는 상태
+  //  · navDrawerOpen    : 좁은 화면(860px 이하)에서 메뉴를 덮개로 띄우는 상태.
+  //    좁은 화면에는 사이드바를 놓을 자리가 없어 본문 위로 밀어 올립니다.
   sidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  navDrawerOpen: false,
+  openNavDrawer: () => set({ navDrawerOpen: true }),
+  closeNavDrawer: () => set({ navDrawerOpen: false }),
 }));
 
 /** 컴포넌트 밖(서비스 함수 등)에서도 토스트를 띄울 수 있게 한 단축 함수 */

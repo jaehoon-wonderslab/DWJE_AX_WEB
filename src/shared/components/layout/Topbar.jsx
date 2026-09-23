@@ -10,6 +10,7 @@
  */
 import React from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
+import { NARROW_MAX } from '@shared/constants/layout';
 import { pageGroup, pageName } from '@shared/constants/menu';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -26,7 +27,7 @@ export default function Topbar() {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const { currentScreenId, pathname } = useAppNavigation();
-  const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+  const openNavDrawer = useUiStore((state) => state.openNavDrawer);
   const can = useAuthStore((state) => state.can);
 
   const hubGroup = hubGroupOf(pathname);
@@ -48,7 +49,7 @@ export default function Topbar() {
         zIndex: 20,
       }}
     >
-      {width <= 860 ? <IconButton name="menu" onPress={toggleSidebar} title="메뉴" /> : null}
+      {width <= NARROW_MAX ? <IconButton name="menu" onPress={openNavDrawer} title="메뉴 열기" /> : null}
 
       {/* 브레드크럼 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>

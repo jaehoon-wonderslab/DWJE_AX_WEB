@@ -29,6 +29,7 @@ import AiChatPanelHost from '@shared/components/layout/AiChatPanelHost';
 import { Icon, Loading, NoAccess } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { NARROW_MAX } from '@shared/constants/layout';
 import { BRAND } from '@shared/theme/colors';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -72,6 +73,8 @@ export default function MainLayout() {
   const menuPerms = useAuthStore((state) => state.menuPerms);
   const dept = useAuthStore((state) => state.userInfo?.dept);
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
+  const navDrawerOpen = useUiStore((state) => state.navDrawerOpen);
+  const closeNavDrawer = useUiStore((state) => state.closeNavDrawer);
   const aiChatOpen = useUiStore((state) => state.aiChatOpen);
   const aiChatWidth = useUiStore((state) => state.aiChatWidth);
   const setAiChatWidth = useUiStore((state) => state.setAiChatWidth);
@@ -91,9 +94,23 @@ export default function MainLayout() {
     }
   }, [allowed, currentScreenId, hubGroup, menuPerms, goToScreen, toast]);
 
-  // 좁은 화면(태블릿 세로 이하)에서는 사이드바를 숨깁니다. 그 위로는 접힘(64px 레일) 상태로 남습니다
-  const showSidebar = width > 860;
+  // 좁은 화면(태블릿 세로 이하)에서는 사이드바를 옆에 두지 않고, 상단바의 햄버거로 여는 덮개(서랍)로 띄웁니다
+  const narrow = width <= NARROW_MAX;
+  const showSidebar = !narrow;
   const sidebarWidth = showSidebar ? (collapsed ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth) : 0;
+  const drawerOpen = narrow && navDrawerOpen;
+
+  // 메뉴를 고르면 서랍은 할 일을 마칩니다. 창이 넓어져 사이드바가 제자리로 돌아올 때도 닫습니다
+  useEffect(() => { closeNavDrawer(); }, [pathname, narrow, closeNavDrawer]);
+
+  // Esc 로도 닫습니다 (웹)
+  useEffect(() => {
+    if (!drawerOpen || Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') closeNavDrawer(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen, closeNavDrawer]);
+
   // 자연어 질의 화면 자체에서는 옆 레일을 따로 열지 않습니다 (같은 대화가 두 번 보입니다)
   const onChatScreen = currentScreenId === 'ai-chat' && !hubGroup;
   // 대메뉴 선택 화면과 시스템관리에서는 레일도 세로 단추도 내지 않습니다
@@ -196,6 +213,24 @@ export default function MainLayout() {
             <View style={{ width: 4, height: 44, borderRadius: 99, backgroundColor: theme.hairlineStrong }} />
           </View>
           <AiChatPanelHost width={railWidth} />
+        </>
+      ) : null}
+
+      {/* 좁은 화면의 메뉴 서랍 — 덮개를 누르거나 Esc 로 닫습니다 */}
+      {drawerOpen ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="메뉴 닫기"
+            onPress={closeNavDrawer}
+            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1350, backgroundColor: 'rgba(11,20,64,0.45)' }}
+          />
+          <View
+            // 가로 방향 상자로 두어야 안의 사이드바가 위아래로 꽉 찹니다
+            style={{ position: 'absolute', top: gutter, bottom: gutter, left: gutter, zIndex: 1400, flexDirection: 'row', maxWidth: width - gutter * 2 }}
+          >
+            <Sidebar onClose={closeNavDrawer} />
+          </View>
         </>
       ) : null}
     </View>

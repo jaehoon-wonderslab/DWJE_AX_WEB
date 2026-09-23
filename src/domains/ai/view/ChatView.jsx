@@ -70,6 +70,9 @@ export default function ChatView({
           flexDirection: 'row',
           alignItems: 'center',
           gap: 8,
+          // 좁은 화면에서는 줄을 바꿔 담습니다 — 한 줄로 두면 「추천 질의」가 패널 밖으로 잘려 누를 수 없습니다
+          flexWrap: 'wrap',
+          rowGap: 8,
           paddingBottom: 12,
           borderBottomWidth: 1,
           borderBottomColor: theme.divider,
@@ -83,7 +86,7 @@ export default function ChatView({
           <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: theme.color.success }} />
           <Text style={{ fontFamily: FONT_FAMILY, fontSize: 15.5, fontWeight: '500', color: theme.color.foreground }}>질의 세션 활성</Text>
         </View>
-        <Text style={[s.caption, { flexShrink: 1 }]} numberOfLines={1}>
+        <Text style={[s.caption, { flexShrink: 1, minWidth: 0 }]} numberOfLines={1}>
           {`${askedCount ? `질의 ${askedCount}건 · 세션 맥락 유지 중` : '새 대화 · 온프레미스 처리'} · 모델 ${servingModelVer || '—'}`}
         </Text>
         <View style={s.spacer} />

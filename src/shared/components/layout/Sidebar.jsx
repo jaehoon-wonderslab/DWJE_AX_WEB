@@ -31,6 +31,7 @@ import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { hubGroupOf } from '@shared/navigation/routes';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { NAV_DRAWER_WIDTH } from '@shared/constants/layout';
 import { BRAND } from '@shared/theme/colors';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -49,7 +50,7 @@ const GROUP_ICON = {
   시스템관리: 'settings',
 };
 
-export default function Sidebar({ collapsed = false }) {
+export default function Sidebar({ collapsed = false, onClose }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const can = useAuthStore((state) => state.can);
@@ -81,13 +82,16 @@ export default function Sidebar({ collapsed = false }) {
   const aiOn = aiItem ? aiItem.id === currentId : false;
 
   const dept = DEPTS.find((d) => d.id === userInfo?.dept);
-  const width = collapsed ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth;
+  // 서랍으로 띄울 때는 접을 자리가 없으므로 언제나 펼친 모습입니다
+  const drawer = typeof onClose === 'function';
+  const shrunk = collapsed && !drawer;
+  const width = drawer ? NAV_DRAWER_WIDTH : shrunk ? theme.metrics.sidebarCollapsedWidth : theme.metrics.sidebarWidth;
 
   return (
     <View style={[s.panel, { width, flexShrink: 0 }]}>
       {/* 로고 블록 + 메뉴 접기 단추 — 펼침일 때는 로고 오른쪽, 접힘일 때는 로고 아래 */}
-      <View style={{ paddingTop: 18, paddingBottom: 12, paddingHorizontal: 12, flexDirection: collapsed ? 'column' : 'row', alignItems: 'center', gap: 9 }}>
-        {collapsed ? (
+      <View style={{ paddingTop: 18, paddingBottom: 12, paddingHorizontal: 12, flexDirection: shrunk ? 'column' : 'row', alignItems: 'center', gap: 9 }}>
+        {shrunk ? (
           <LogoMark size={30} />
         ) : (
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -95,9 +99,9 @@ export default function Sidebar({ collapsed = false }) {
           </View>
         )}
         <Pressable
-          onPress={toggleSidebar}
+          onPress={drawer ? onClose : toggleSidebar}
           accessibilityRole="button"
-          accessibilityLabel={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+          accessibilityLabel={drawer ? '메뉴 닫기' : shrunk ? '메뉴 펼치기' : '메뉴 접기'}
           // 접히면 파란 틴트로 채워 "여기를 누르면 다시 펼쳐진다"를 남겨 둡니다
           style={({ hovered }) => ({
             width: 36,
@@ -105,25 +109,29 @@ export default function Sidebar({ collapsed = false }) {
             flexShrink: 0,
             borderRadius: theme.metrics.radiusSm,
             borderWidth: 1,
-            borderColor: hovered ? BRAND.deokwooBlue : collapsed ? 'rgba(0,51,160,0.28)' : theme.hairlineStrong,
-            backgroundColor: collapsed ? 'rgba(0,51,160,0.08)' : theme.color.card,
+            borderColor: hovered ? BRAND.deokwooBlue : shrunk ? 'rgba(0,51,160,0.28)' : theme.hairlineStrong,
+            backgroundColor: shrunk ? 'rgba(0,51,160,0.08)' : theme.color.card,
             alignItems: 'center',
             justifyContent: 'center',
-            ...(collapsed
+            ...(shrunk
               ? { shadowColor: BRAND.deokwooBlue, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }
               : null),
           })}
         >
-          {/* 화살표는 하나만 두고 방향만 뒤집습니다 — 펼침이면 왼쪽(접기), 접힘이면 오른쪽(펼치기) */}
-          <View style={{ transform: [{ scaleX: collapsed ? 1 : -1 }] }}>
-            <Icon name="logout" size={16} color={collapsed ? BRAND.deokwooBlue : theme.color.secondaryForeground} />
-          </View>
+          {drawer ? (
+            <Icon name="close" size={17} color={theme.color.secondaryForeground} />
+          ) : (
+            // 화살표는 하나만 두고 방향만 뒤집습니다 — 펼침이면 왼쪽(접기), 접힘이면 오른쪽(펼치기)
+            <View style={{ transform: [{ scaleX: shrunk ? 1 : -1 }] }}>
+              <Icon name="logout" size={16} color={shrunk ? BRAND.deokwooBlue : theme.color.secondaryForeground} />
+            </View>
+          )}
         </Pressable>
       </View>
 
       {/* 고정 — 덕반장 AI (스크롤 영향 없음) */}
       {aiItem ? (
-        <View style={{ paddingHorizontal: collapsed ? 12 : 10, paddingBottom: 10, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+        <View style={{ paddingHorizontal: shrunk ? 12 : 10, paddingBottom: 10, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
           <Link href={aiItem.path} asChild>
             <Hoverable
               accessibilityLabel={`${aiItem.name} — AI를 통해 궁금한 것을 물어보세요`}
@@ -131,10 +139,10 @@ export default function Sidebar({ collapsed = false }) {
               hoverStyle={({ hovered, pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                justifyContent: shrunk ? 'center' : 'flex-start',
                 gap: 10,
                 height: 44,
-                paddingHorizontal: collapsed ? 0 : 12,
+                paddingHorizontal: shrunk ? 0 : 12,
                 borderRadius: 10,
                 borderWidth: 1,
                 borderColor: aiOn ? 'rgba(255,255,255,0.55)' : 'transparent',
@@ -144,14 +152,14 @@ export default function Sidebar({ collapsed = false }) {
               <View style={{ width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' }}>
                 <Icon name="sparkles" size={15} color="#fff" />
               </View>
-              {!collapsed ? (
+              {!shrunk ? (
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 18, fontWeight: '600', letterSpacing: -0.2, color: '#fff' }} numberOfLines={1}>{aiItem.name}</Text>
                   <Text style={{ fontFamily: FONT_FAMILY, fontSize: 12.5, lineHeight: 15, fontWeight: '500', color: 'rgba(255,255,255,0.72)' }} numberOfLines={1}>AI를 통해 궁금한 것을 물어보세요</Text>
                 </View>
               ) : null}
               {/* 살아 있는 세션 점 — 스카이블루에 옅은 링 */}
-              {!collapsed ? (
+              {!shrunk ? (
                 <View style={{ width: 13, height: 13, borderRadius: 99, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,174,239,0.25)' }}>
                   <View style={{ width: 7, height: 7, borderRadius: 99, backgroundColor: BRAND.skyBlue }} />
                 </View>
@@ -164,7 +172,7 @@ export default function Sidebar({ collapsed = false }) {
       {/* 아코디언 내비 */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: collapsed ? 14 : 10, paddingBottom: 16, gap: 2 }}
+        contentContainerStyle={{ paddingHorizontal: shrunk ? 14 : 10, paddingBottom: 16, gap: 2 }}
         showsVerticalScrollIndicator={false}
         nativeID="ax-sidebar-scroll"
       >
@@ -176,26 +184,26 @@ export default function Sidebar({ collapsed = false }) {
           if (g.single) {
             return (
               <Link key={g.group} href={g.hubPath} asChild>
-                <Hoverable hoverStyle={({ hovered }) => navRow(theme, { on: hasActive, hovered, collapsed })} accessibilityLabel={g.group}>
+                <Hoverable hoverStyle={({ hovered }) => navRow(theme, { on: hasActive, hovered, shrunk })} accessibilityLabel={g.group}>
                   <Icon name={icon} size={16} color={hasActive ? theme.color.primary : theme.color.secondaryForeground} />
-                  {!collapsed ? <Text style={[navLabel(theme, hasActive), { flex: 1 }]} numberOfLines={1}>{g.group}</Text> : null}
+                  {!shrunk ? <Text style={[navLabel(theme, hasActive), { flex: 1 }]} numberOfLines={1}>{g.group}</Text> : null}
                 </Hoverable>
               </Link>
             );
           }
 
-          const open = !!openGroups[g.group] && !collapsed;
+          const open = !!openGroups[g.group] && !shrunk;
           return (
             <View key={g.group}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Link href={g.hubPath} asChild>
-                  <Hoverable hoverStyle={({ hovered }) => ({ ...navRow(theme, { on: hasActive, hovered, collapsed }), flex: 1 })} accessibilityLabel={g.group}>
+                  <Hoverable hoverStyle={({ hovered }) => ({ ...navRow(theme, { on: hasActive, hovered, shrunk }), flex: 1 })} accessibilityLabel={g.group}>
                     <Icon name={icon} size={16} color={hasActive ? theme.color.primary : theme.color.secondaryForeground} />
-                    {!collapsed ? <Text style={[navLabel(theme, hasActive), { flex: 1 }]} numberOfLines={1}>{g.group}</Text> : null}
-                    {!collapsed ? <Text style={[s.caption, { fontVariant: ['tabular-nums'] }]}>{g.items.length}</Text> : null}
+                    {!shrunk ? <Text style={[navLabel(theme, hasActive), { flex: 1 }]} numberOfLines={1}>{g.group}</Text> : null}
+                    {!shrunk ? <Text style={[s.caption, { fontVariant: ['tabular-nums'] }]}>{g.items.length}</Text> : null}
                   </Hoverable>
                 </Link>
-                {!collapsed ? (
+                {!shrunk ? (
                   <Pressable
                     accessibilityLabel={`${g.group} 하위 메뉴 ${open ? '접기' : '펼치기'}`}
                     onPress={() => setOpenGroups((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
@@ -250,12 +258,12 @@ export default function Sidebar({ collapsed = false }) {
           onPress={() => setMenuOpen((v) => !v)}
           accessibilityRole="button"
           accessibilityLabel="계정 메뉴"
-          style={({ hovered }) => ({ padding: collapsed ? 8 : 12, borderRadius: theme.metrics.radius, backgroundColor: menuOpen || hovered ? theme.surfaceHover : theme.surface, borderWidth: 1, borderColor: menuOpen ? theme.hairlineStrong : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: collapsed ? 'center' : 'flex-start' })}
+          style={({ hovered }) => ({ padding: shrunk ? 8 : 12, borderRadius: theme.metrics.radius, backgroundColor: menuOpen || hovered ? theme.surfaceHover : theme.surface, borderWidth: 1, borderColor: menuOpen ? theme.hairlineStrong : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: shrunk ? 'center' : 'flex-start' })}
         >
           <View style={{ width: 30, height: 30, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
           </View>
-          {!collapsed ? (
+          {!shrunk ? (
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>
                 {userInfo?.name || '게스트'} <Text style={{ fontWeight: '500', color: theme.color.mutedForeground }}>{positionLabel(userInfo?.pos)}</Text>
@@ -265,7 +273,7 @@ export default function Sidebar({ collapsed = false }) {
               </Text>
             </View>
           ) : null}
-          {!collapsed ? <Icon name={menuOpen ? 'chevronDown' : 'chevronUp'} size={13} color={theme.color.mutedForeground} /> : null}
+          {!shrunk ? <Icon name={menuOpen ? 'chevronDown' : 'chevronUp'} size={13} color={theme.color.mutedForeground} /> : null}
         </Pressable>
         {menuOpen ? <UserMenu placement="up" onClose={() => setMenuOpen(false)} /> : null}
       </View>
@@ -274,15 +282,15 @@ export default function Sidebar({ collapsed = false }) {
 }
 
 /** 내비 행 스타일 */
-function navRow(theme, { on, hovered, collapsed }) {
+function navRow(theme, { on, hovered, shrunk }) {
   return {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: collapsed ? 'center' : 'flex-start',
+    justifyContent: shrunk ? 'center' : 'flex-start',
     gap: 10,
     paddingVertical: 9,
-    paddingHorizontal: collapsed ? 0 : 10,
-    height: collapsed ? 38 : undefined,
+    paddingHorizontal: shrunk ? 0 : 10,
+    height: shrunk ? 38 : undefined,
     borderRadius: theme.metrics.radiusSm,
     backgroundColor: on || hovered ? theme.surface : 'transparent',
   };
