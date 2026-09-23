@@ -132,39 +132,49 @@ function shouldTryRefresh(error) {
   return !!useAuthStore.getState().accessToken;
 }
 
+/**
+ * 토큰을 한 번 갱신하고 새 accessToken 을 돌려줍니다. 실패하면 세션을 끝내고 null.
+ *
+ * axios 를 거치지 않는 요청(LLM 스트리밍 — services/api/llmStream.js)도 401 에서 이것을 씁니다.
+ * 동시에 여러 요청이 401 을 받아도 갱신은 한 번만 수행합니다.
+ */
+export async function refreshAccessToken() {
+  const { refreshToken, setTokens, setLogout } = useAuthStore.getState();
+  if (!refreshToken) {
+    expireSession(setLogout);
+    return null;
+  }
+  if (!refreshing) {
+    refreshing = axios
+      .post(`${API_BASE_URL}/api/v1/auth/refresh`, { refreshToken })
+      .then((r) => r.data?.data?.accessToken)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  try {
+    const accessToken = await refreshing;
+    if (!accessToken) throw new Error('no token');
+    setTokens({ accessToken, refreshToken });
+    return accessToken;
+  } catch {
+    expireSession(setLogout);
+    return null;
+  }
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const { config } = error;
     if (!shouldTryRefresh(error)) return Promise.reject(error);
 
-    const { refreshToken, setTokens, setLogout } = useAuthStore.getState();
-    if (!refreshToken) {
-      expireSession(setLogout);
-      return Promise.reject(error);
-    }
-
-    // 동시에 여러 요청이 401 을 받아도 갱신은 한 번만 수행합니다
-    if (!refreshing) {
-      refreshing = axios
-        .post(`${API_BASE_URL}/api/v1/auth/refresh`, { refreshToken })
-        .then((r) => r.data?.data?.accessToken)
-        .finally(() => {
-          refreshing = null;
-        });
-    }
-
-    try {
-      const accessToken = await refreshing;
-      if (!accessToken) throw new Error('no token');
-      setTokens({ accessToken, refreshToken });
-      config._retried = true;
-      config.headers.Authorization = `Bearer ${accessToken}`;
-      return apiClient(config);
-    } catch (e) {
-      expireSession(setLogout);
-      return Promise.reject(error);
-    }
+    // 갱신에 실패하면 refreshAccessToken 이 세션을 끝내고 안내합니다
+    const accessToken = await refreshAccessToken();
+    if (!accessToken) return Promise.reject(error);
+    config._retried = true;
+    config.headers.Authorization = `Bearer ${accessToken}`;
+    return apiClient(config);
   }
 );
 

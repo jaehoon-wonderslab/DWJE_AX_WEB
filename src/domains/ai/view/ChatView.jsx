@@ -2,13 +2,14 @@
  * [View] AI-01 자연어 질의 (경로: /ai/chat)
  *
  * 생산 실적 · 불량 현황 · 로트 이력 · 설비 가동 상태를 자연어로 조회합니다.
- * 응답은 blocks 배열(text · table · chart · source · actions)을 종류별 컴포넌트로 그립니다.
- * 사용 API 6건 — /api/v1/ai/chat/*
+ * 사내 LLM 답은 스트리밍으로 점진 표시하고 마크다운으로 그립니다(Markdown — HTML 을 해석하지 않습니다).
+ * 예전 검색 요약 답(이력 복원)은 blocks 배열(text · table · chart · source · actions)을 종류별로 그립니다.
+ * 사용 API — /api/v1/ai/chat/* · /api/ai/chat(스트리밍)
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LineChart } from '@shared/components/charts';
-import { Badge, BlindNote, BlindValue, Button, Chip, ChipRow, Icon, Table } from '@shared/components/ui';
+import { Badge, BlindNote, BlindValue, Button, Chip, ChipRow, Icon, Markdown, Table } from '@shared/components/ui';
 import AiThinking from '@shared/components/brand/AiThinking';
 import { DEPTS } from '@shared/constants/dataFields';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -19,7 +20,7 @@ import { useTheme } from '@shared/theme/useTheme';
 import ChatHome from './ChatHome';
 
 export default function ChatView({
-  messages, followups, input, setInput, pending, suggestions, servingModelVer, askedCount,
+  messages, followups, input, setInput, pending, phase = 'idle', context = '', setContext, stop, suggestions, servingModelVer, askedCount,
   send, newSession, exportAnswer, rate, requestVoice, compact = false, briefing = null,
 }) {
   const s = useCommonStyles();
@@ -28,12 +29,22 @@ export default function ChatView({
   const closeDrawer = useUiStore((state) => state.closeDrawer);
   const userInfo = useAuthStore((state) => state.userInfo);
   const scrollRef = useRef(null);
+  const [contextOpen, setContextOpen] = useState(false);
 
-  // 새 메시지가 붙으면 아래로 스크롤합니다
+  // 새 메시지가 붙거나 답이 자라면 아래로 스크롤합니다
+  const lastLen = String(messages[messages.length - 1]?.text || '').length;
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     return () => clearTimeout(timer);
-  }, [messages.length, pending]);
+  }, [messages.length, pending, lastLen]);
+
+  /** Enter 로 보내고 Shift+Enter 로 줄을 바꿉니다 (한글 조합 중 Enter 는 글자 확정이라 보내지 않습니다) */
+  const onKeyPress = (e) => {
+    const ne = e?.nativeEvent || {};
+    if (ne.key !== 'Enter' || ne.shiftKey || ne.isComposing) return;
+    e.preventDefault?.();
+    if (!pending) send(input);
+  };
 
   const showSuggestions = () =>
     openDrawer({
@@ -108,7 +119,11 @@ export default function ChatView({
             messages.map((m, i) => <Message key={`${m.messageId ?? 'm'}-${m.who}-${i}`} message={m} deptAv={deptAv} onExport={exportAnswer} onRate={rate} />)
           )}
           {/* 조건부 마운트가 아닙니다 — 답이 도착한 뒤 입자가 한 점으로 수렴하는 동안 스스로 남아 있습니다 */}
-          <AiThinking active={pending} compact={compact} text="응답을 생성하는 중입니다…" />
+          <AiThinking
+            active={phase === 'searching' || phase === 'waiting'}
+            compact={compact}
+            text={phase === 'searching' ? '사내 문서에서 근거를 찾는 중입니다…' : '모델 준비 중… (첫 호출은 20초가량 걸릴 수 있습니다)'}
+          />
         </View>
       </ScrollView>
 
@@ -134,52 +149,90 @@ export default function ChatView({
           }}
         >
           <TextInput
-            style={[s.text, { fontSize: 17, lineHeight: 20, paddingBottom: 10, outlineStyle: 'none' }]}
+            style={[s.text, { fontSize: 17, lineHeight: 22, paddingBottom: 10, outlineStyle: 'none', minHeight: 24, maxHeight: 160 }]}
             placeholder="생산 실적 · 불량 현황 · 로트 이력을 질의하십시오"
+            accessibilityHint="Enter 로 보내고 Shift+Enter 로 줄을 바꿉니다"
             placeholderTextColor={theme.color.mutedForeground}
             value={input}
             onChangeText={setInput}
-            onSubmitEditing={() => send(input)}
-            returnKeyType="send"
+            onKeyPress={onKeyPress}
+            multiline
+            numberOfLines={input.includes('\n') ? Math.min(6, input.split('\n').length) : 1}
           />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {contextOpen ? (
+            <View style={{ marginBottom: 10 }}>
+              <TextInput
+                style={[s.text, { fontSize: 15.5, lineHeight: 21, minHeight: 96, maxHeight: 220, padding: 10, borderWidth: 1, borderColor: theme.divider, borderRadius: theme.metrics.radiusXs, backgroundColor: theme.surface, outlineStyle: 'none' }]}
+                placeholder={'근거로 쓸 문서 내용을 붙여 넣으세요. 예) [1] 버(burr): 타발 시 절단면에 생기는 날카로운 돌기.\n비워 두면 사내 문서 검색 결과를 근거로 씁니다.'}
+                placeholderTextColor={theme.color.mutedForeground}
+                value={context}
+                onChangeText={setContext}
+                multiline
+                accessibilityLabel="근거 문서"
+              />
+              <Text style={[s.caption, { marginTop: 4 }]}>
+                {context.trim() ? `근거 문서 ${context.trim().length.toLocaleString()}자 — 질문마다 함께 보냅니다 (질문·근거 합쳐 약 2만 자까지)` : '비워 두면 사내 문서 검색 결과를 근거로 씁니다.'}
+              </Text>
+            </View>
+          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <MiniButton icon="sparkles" label="추천 질의" onPress={showSuggestions} />
-            <MiniButton icon="mic" label="음성" onPress={requestVoice} />
+            <MiniButton
+              icon="file"
+              label={context.trim() ? '근거 문서 ●' : '근거 문서'}
+              onPress={() => setContextOpen((v) => !v)}
+              active={contextOpen}
+            />
+            {!compact ? <MiniButton icon="mic" label="음성" onPress={requestVoice} /> : null}
             <View style={s.spacer} />
-            <TouchableOpacity
-              onPress={() => send(input)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="질의 보내기"
-              style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-            >
-              <Icon name="sparkles" size={14} color={theme.color.primaryForeground} />
-              <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
-            </TouchableOpacity>
+            {pending ? (
+              <TouchableOpacity
+                onPress={stop}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="생성 중단"
+                style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.color.card, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.color.foreground }} />
+                <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.foreground }}>중단</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => send(input)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="질의 보내기"
+                style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name="sparkles" size={14} color={theme.color.primaryForeground} />
+                <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
         {!compact && messages.length ? <Text style={[s.caption, { textAlign: 'center', marginTop: 8 }]}>
-          조회 대상 데이터는 질문 의도에 따라 AI 가 자동으로 판단합니다. 답변에는 원천 화면·기간·LOT 근거가 함께 표시되며, 권한 범위를 벗어난 항목은 마스킹됩니다.
+          답변은 실적 DB 집계 · 사내 문서 검색 결과(또는 붙여 넣은 근거 문서)만 근거로 합니다. 답의 [1] 은 아래 근거 목록의 번호이며, 권한 범위를 벗어난 발췌는 근거로 쓰지 않습니다.
         </Text> : null}
       </View>
     </View>
   );
 }
 
-function MiniButton({ icon, label, onPress }) {
+function MiniButton({ icon, label, onPress, active = false }) {
   const s = useCommonStyles();
   const theme = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityState={{ expanded: active }}
       style={{
         height: 30,
         paddingHorizontal: 11,
         borderRadius: 99,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.07)',
+        borderColor: active ? theme.color.info : 'rgba(0,0,0,0.07)',
         backgroundColor: theme.color.card,
         flexDirection: 'row',
         alignItems: 'center',
@@ -252,6 +305,8 @@ function Message({ message, deptAv, onExport, onRate }) {
     );
   }
 
+  if (message.llm) return <LlmMessage message={message} />;
+
   const denied = message.intent === 'denied';
   const unknown = message.intent === 'unknown';
   const plain = !denied && !unknown;
@@ -303,6 +358,87 @@ function Message({ message, deptAv, onExport, onRate }) {
       </View>
     </View>
   );
+}
+
+/**
+ * 사내 LLM 답 말풍선 — 스트리밍 중에는 글이 자라고, 끝나면 근거 목록·소요 시간을 붙입니다.
+ * 첫 조각 전(waiting)에는 그리지 않습니다 — 그동안은 아래 AiThinking 이 「모델 준비 중」을 보여 줍니다.
+ */
+function LlmMessage({ message }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const { status, text } = message;
+  if (status === 'waiting' && !text) return null;
+
+  const error = status === 'error';
+  return (
+    <View style={s.msg}>
+      <View style={s.avatarSm}>
+        <Text style={s.avatarSmText}>AI</Text>
+      </View>
+      <View style={[s.bubble, error ? s.bubbleDeny : { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 }, { flex: 1 }]}>
+        {error ? (
+          <Text style={s.bubbleText}>{text}</Text>
+        ) : text ? (
+          <Markdown text={status === 'streaming' ? `${text} ▍` : text} />
+        ) : (
+          <Text style={[s.bubbleText, { color: theme.color.mutedForeground }]}>(생성을 중단했습니다)</Text>
+        )}
+
+        {message.blindFields?.length && !error ? <BlindNote fields={message.blindFields} /> : null}
+
+        {message.sources?.length && !error ? (
+          <View style={[s.source, { marginTop: 10, marginBottom: 4, gap: 2 }]}>
+            {message.sources.map((x, i) => (
+              <Text key={`${x.kind || 'doc'}-${x.chunkId ?? x.docId ?? i}`} style={s.sourceText}>
+                {x.kind === 'data'
+                  ? `[${i + 1}] ${x.title} (실적 DB)`
+                  : `[${i + 1}] ${x.title || '문서'}${x.page ? ` · ${x.page}쪽` : ''}${x.docDate ? ` · ${x.docDate}` : ''}`}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {!error && status !== 'streaming' ? (
+          <View style={[s.chips, { marginTop: 10 }]}>
+            <Badge>{evidenceLabel(message)}</Badge>
+            {status === 'aborted' ? <Badge tone="amber">중단함</Badge> : null}
+            {status === 'interrupted' ? <Badge tone="amber">응답 끊김</Badge> : null}
+            {strayCitations(message).length ? <Badge tone="red">{`근거에 없는 번호 ${strayCitations(message).map((n) => `[${n}]`).join(' ')}`}</Badge> : null}
+            {message.elapsedMs ? <Badge>{`${(message.elapsedMs / 1000).toFixed(1)}초`}</Badge> : null}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * 보낸 근거 목록에 없는 `[n]` — 모델은 확률적으로 동작하므로 화면에서도 한 겹 더 봅니다(LLM 담당 권고).
+ * 붙여 넣은 근거는 번호를 셀 수 없어 보지 않습니다.
+ */
+function strayCitations(message) {
+  if (message.manualContext || message.status !== 'done') return [];
+  const max = (message.sources || []).length;
+  const cited = new Set();
+  String(message.text || '').replace(/\[(\d+(?:\s*[,\-–]\s*\d+)*)\]/g, (_, g) => {
+    g.split(/\s*,\s*/).forEach((part) => {
+      const [a, b] = part.split(/\s*[-–]\s*/).map(Number);
+      for (let n = a; n <= (b || a); n++) cited.add(n);
+    });
+    return _;
+  });
+  return [...cited].filter((n) => n < 1 || n > max).sort((x, y) => x - y);
+}
+
+/** 근거 배지 — 실적 집계 k건 · 사내 문서 n건 */
+function evidenceLabel(message) {
+  if (message.manualContext) return '붙여 넣은 근거';
+  const list = message.sources || [];
+  const data = list.filter((x) => x.kind === 'data').length;
+  const docs = list.length - data;
+  const parts = [data ? `실적 집계 ${data}건` : '', docs ? `사내 문서 ${docs}건` : ''].filter(Boolean);
+  return parts.length ? `${parts.join(' · ')} 근거` : '근거 없음';
 }
 
 /**

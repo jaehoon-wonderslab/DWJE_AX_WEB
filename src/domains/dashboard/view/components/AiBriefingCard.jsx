@@ -255,16 +255,16 @@ export function formatEvidence(value, unit, item) {
 /** 모델이 아직 붙지 않았을 때 — 지어낸 값 대신 상태를 밝힙니다 */
 export function NotReady({ reason }) {
   const s = useCommonStyles();
-  const idle = reason === 'NOT_REQUESTED';
   const busy = reason === 'MODEL_BUSY';
   return (
     <View style={{ gap: 6, paddingVertical: 10 }}>
       <Text style={[s.textSm, { fontWeight: '600' }]}>
-        {idle ? 'AI 분석을 요청하지 않았습니다.' : busy ? '다른 AI 분석이 진행 중입니다.' : '현재 AI 분석 결과가 없습니다.'}
+        {busy ? '다른 AI 분석이 진행 중입니다.' : '현재 AI 분석 결과가 없습니다.'}
       </Text>
       <Text style={s.textXs}>
-        {idle ? '필요할 때 「AI 분석 요청」을 눌러 조회된 기간을 분석할 수 있습니다.'
-          : 'AI 분석 서비스가 꺼져 있거나 결과가 준비되지 않은 상태일 수 있습니다. 생산·품질 실적은 계속 확인할 수 있으며, 서비스가 준비되면 「AI 분석 다시 요청」을 눌러 주세요.'}
+        {busy
+          ? 'AI 서버가 한 번에 한 건씩 처리합니다. 잠시 뒤 「새로고침」하면 다시 분석합니다.'
+          : 'AI 분석 서비스가 꺼져 있거나 결과가 준비되지 않은 상태일 수 있습니다. 생산·품질 실적은 계속 확인할 수 있으며, 잠시 뒤 「새로고침」하면 다시 분석합니다.'}
       </Text>
     </View>
   );

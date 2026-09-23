@@ -39,7 +39,7 @@ import HourlyDetailModalContent from './components/HourlyDetailModalContent';
 export default function AiDashboardView({
   loading,
   period,
-  pendingChanges, validationError, loadError, partialErrors = {}, requestAI, aiRequested,
+  pendingChanges, validationError, loadError, partialErrors = {},
   from,
   setFrom,
   to,
@@ -220,10 +220,6 @@ export default function AiDashboardView({
             />
           </Grid>
 
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <Text style={s.textSm}>AI 분석은 필요할 때 요청할 수 있습니다. 분석 서비스가 꺼져 있어도 생산·품질 조회는 이용할 수 있습니다.</Text>
-            <Button label={aiRequested ? 'AI 분석 다시 요청' : 'AI 분석 요청'} size="sm" onPress={requestAI} disabled={briefingLoading || causeLoading} />
-          </View>
           {/* AI 종합 브리핑 카드 */}
           <AiBriefingCard briefing={briefing} loading={briefingLoading} period={period} />
 
