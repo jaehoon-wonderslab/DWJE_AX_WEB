@@ -251,6 +251,16 @@ export const ENDPOINTS = {
     tables: 'vec.tb_query_log, vec.tb_query_hit, vec.tb_doc_chunk, ax.tb_ai_chat_log, ax.tb_gls_term, ax.tb_ai_mask_rule',
     note: 'denied 분기 시 감사 로그 기록. unknown 분기는 답을 추정하지 않고 자료 소재 안내',
   },
+  postAiFollowups: {
+    no: 14.1, domain: 'AI 질의', comp: 'AI-01', screen: '자연어 질의', funcId: 'AI-01-F02',
+    name: '후속 질의 만들기 (사내 LLM)', method: 'POST', path: '/api/ai/followups',
+    params: 'question, answer',
+    response: 'questions[], reason(null|MODEL_BUSY|MODEL_NOT_READY)',
+    roles: '전 부서', blind: [], priority: 2,
+    tables: '',
+    timeoutMs: 120000, // 사내 LLM 추론 — 한 번에 한 건씩 처리해 앞 요청을 기다릴 수 있습니다
+    note: '답을 본 dwje-ax 가 2~3개를 씁니다. 의도별 고정 문장을 쓰지 않습니다. 모델이 없으면 빈 목록',
+  },
   getAiChatSessionsBySessionId: {
     no: 15, domain: 'AI 질의', comp: 'AI-01', screen: '자연어 질의', funcId: 'AI-01-F07',
     name: '세션 대화 조회', method: 'GET', path: '/api/v1/ai/chat/sessions/{sessionId}',

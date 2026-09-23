@@ -44,6 +44,12 @@ export const loadSuggestions = () => unwrap(aiService.getAiChatSuggestions({}), 
  */
 export const ask = (sessionId, question) => command(aiService.postAiChatAsk({ sessionId, question }));
 
+/** 후속 질의 — 답을 본 사내 LLM 이 만듭니다. 실패하면 빈 목록 */
+export const loadFollowups = (question, answer) =>
+  unwrap(aiService.postAiFollowups({ question, answer }), { questions: [] })
+    .then((r) => (r?.questions || []).filter(Boolean))
+    .catch(() => []);
+
 /** 새 대화 시작 (세션 맥락 초기화) */
 export const startNewSession = (sessionId) => command(aiService.deleteAiChatSessionsBySessionId({ sessionId }));
 

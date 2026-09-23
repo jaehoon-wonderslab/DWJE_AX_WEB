@@ -3,7 +3,7 @@
  *
  * 한 줄 척추(최대 720px) 위에 순서대로 놓입니다.
  *  1. 인사말 — "000님, 좋은 아침입니다."  + 오늘 날짜·소속
- *  2. 브리핑 카드 — 프리셋 3종(불량률 · 공정 현황 · 현재 이슈)을 문장으로. 각 문단은 눌러서 바로 질의할 수 있습니다.
+ *  2. 브리핑 카드 — 「AI 브리핑」(사내 LLM 문장 그대로) · 「현재 이슈」(미확인 알림). 각 문단은 눌러서 바로 질의할 수 있습니다.
  *  3. 빠른 질의 칩 — 서버가 준 추천 질의
  *
  * 브리핑 카드는 참조의 Briefing Card 규격(#FAFAFA · #DFE1E7 테두리 · 16px 반지름 · ai 스파클 머리글)입니다.
@@ -21,7 +21,7 @@ const TONE_DOT = { ok: 'success', warn: 'warning', bad: 'destructive', muted: 'b
 export default function ChatHome({ briefing, suggestions = [], onAsk }) {
   const s = useCommonStyles();
   const theme = useTheme();
-  const { greeting, dept, sections, loading, period, generatedAt } = briefing || {};
+  const { greeting, dept, sections, loading, period, generatedAt, modelVer } = briefing || {};
   const today = new Date();
   const dateLabel = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 ${['일', '월', '화', '수', '목', '금', '토'][today.getDay()]}요일`;
 
@@ -49,7 +49,8 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
           <Text style={s.heading2xs}>AI 브리핑</Text>
           <Text style={[s.caption, { marginLeft: 2 }]}>{period?.from && period?.to ? `${period.from} ~ ${period.to}` : ''}</Text>
           <View style={s.spacer} />
-          <Text style={s.caption}>{generatedAt ? `${String(generatedAt.getHours()).padStart(2, '0')}:${String(generatedAt.getMinutes()).padStart(2, '0')} 기준` : loading ? '불러오는 중' : ''}</Text>
+          {/* 서버가 브리핑을 만든 시각과 모델 — 화면이 받은 시각이 아닙니다 */}
+          <Text style={s.caption}>{generatedAt ? `${String(generatedAt).slice(11, 16)} 생성${modelVer ? ` · ${modelVer}` : ''}` : loading ? '불러오는 중' : ''}</Text>
         </View>
 
         {loading && !sections?.length ? (

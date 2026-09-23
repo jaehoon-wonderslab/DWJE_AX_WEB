@@ -1,52 +1,34 @@
 /**
  * [Model] 자연어 질의 홈 브리핑 리포지토리
  *
- * 홈 화면의 프리셋 3종(불량률 · 공정 현황 · 현재 이슈)에 필요한 API 를 한 번에 부릅니다.
- *  · 생산 요약      GET /dashboard/ai/summary
- *  · 공정별 수율    GET /dashboard/ai/process-yield
- *  · 미확인 알림    GET /alerts?ackState=OPEN&period=7d
- * 대시보드 묶음(12건)을 그대로 부르지 않고 필요한 3건만 부릅니다.
+ * 홈 화면의 「AI 브리핑」은 사내 LLM(dwje-ax)이 쓴 문장입니다 — AI 대시보드의 종합 브리핑과 같은 결과입니다.
+ *  · AI 브리핑   GET /dashboard/ai/briefing  (서버가 기본 기간 최근 7일을 미리 계산해 두어 대개 곧바로 옵니다)
+ *  · 미확인 알림 GET /alerts?ackState=OPEN&period=7d  (알림 목록 — 문장을 만들지 않고 그대로 보여 줍니다)
+ *
+ * 예전에는 요약 지표를 받아 **화면이 문장을 조립**했습니다("평균 불량률은 …% 입니다. 관리 목표 3.0% 대비 …").
+ * AI 결과로 보이는 자리에 코드로 만든 문장과 박힌 목표값을 두지 않습니다.
  * 한 건이 실패해도 나머지는 그립니다 (errors 로 어느 것이 빠졌는지 알려 줍니다).
  */
 import * as dashboardService from '@services/api/dashboardService';
 import * as alertService from '@services/api/alertService';
 import { unwrapAll } from '@services/api/request';
-import { fillRates } from '@domains/common/model/metricModel';
 
 /**
- * @param {{from:string,to:string,plant?:string}} period 조회 기간 (기본 최근 7일)
+ * @param {{from:string,to:string}} period 조회 기간 (기본 최근 7일 — AI 대시보드 기본 기간과 같아야 미리 계산한 결과를 받습니다)
  */
 export async function loadHomeBriefing(period) {
-  const baseParams = { date: period.to, from: period.from, to: period.to, plant: period.plant };
   const data = await unwrapAll({
-    summary: dashboardService.getDashboardAiSummary(baseParams),
-    processYield: dashboardService.getDashboardAiProcessYield(baseParams),
+    briefing: dashboardService.getDashboardAiBriefing({ from: period.from, to: period.to }),
     alerts: alertService.getAlerts({ ackState: 'OPEN', period: '7d', page: 1, size: 5 }),
   });
 
-  // 공정 수율 — 대시보드와 같은 규칙으로 정규화 (서버 yield 가 비면 양품/투입으로 계산)
-  let processYield = data.processYield;
-  if (processYield?.items?.length) {
-    const target = Number(processYield.target) || 97.0;
-    processYield = {
-      ...processYield,
-      target,
-      items: processYield.items.map((x) => {
-        const qty = Number(x.qty) || Number(x.okQty || 0) + Number(x.ngQty || 0);
-        const ok = Number(x.okQty) || Math.max(0, qty - Number(x.ngQty || 0));
-        const yieldRate = x.yield != null ? Number(x.yield) : qty > 0 ? Number(((ok / qty) * 100).toFixed(2)) : null;
-        return { ...x, process: x.process || x.processNm || x.processId, yieldRate };
-      }),
-    };
-  }
-
   return {
     period,
-    summary: data.summary ? fillRates(data.summary) : null,
-    processYield,
+    briefing: data.briefing || null,
     alerts: data.alerts?.items || [],
     alertTotal: data.metas?.alerts?.total ?? (data.alerts?.items?.length || 0),
     errors: data.errors,
-    generatedAt: new Date(),
+    // 시각은 서버가 브리핑을 만든 때입니다 — 화면이 받은 때가 아닙니다
+    generatedAt: data.briefing?.generatedAt || null,
   };
 }

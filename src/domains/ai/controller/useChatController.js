@@ -14,7 +14,7 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { streamLlmChat, LLM_ERRORS } from '@services/api/llmStream';
-import { ask, exportMessage, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import { ask, exportMessage, loadFollowups, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
 
 /** 대화 세션 ID 보관 — 새로고침해도 직전 대화를 이어 볼 수 있게 합니다 */
 const SESSION_KEY = 'dwje.ax.chatSession';
@@ -132,9 +132,8 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       // 1. 근거 — 검색·권한·이력 기록. 실패해도 질문은 모델로 보냅니다(근거 없이 답하게 됩니다)
       const res = await ask(sessionId, question);
       const meta = res.ok ? res.data || {} : {};
+      setFollowups([]);
       if (res.ok) {
-        // 후속 질의는 문자열 또는 { q } 객체로 옵니다 — 화면은 문자열만 받습니다
-        setFollowups((meta.followups || []).map((f) => (typeof f === 'string' ? f : f?.q || f?.question || f?.text || '')).filter(Boolean));
         setSessionId(meta.sessionId);
         rememberSessionId(meta.sessionId);
       } else if (!manual) {
@@ -188,6 +187,15 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       if (abortRef.current === abort) abortRef.current = null;
       setPending(false);
       setPhase('idle');
+
+      // 후속 질의 — 답을 본 사내 LLM 이 만듭니다(고정 문장 없음). 입력을 막지 않도록 뒤에서 받습니다.
+      if (result.status === 'done' && result.text) {
+        const key = localKey;
+        loadFollowups(question, result.text).then((qs) => {
+          // 그 사이 다른 질문을 보냈으면 늦게 온 후속 질의는 버립니다
+          if (messagesRef.current[messagesRef.current.length - 1]?.localKey === key) setFollowups(qs);
+        });
+      }
     },
     [context, patchMessage, pending, sessionId, toast]
   );

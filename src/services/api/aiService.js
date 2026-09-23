@@ -27,6 +27,18 @@ export function postAiChatAsk(params) {
 }
 
 /**
+ * 후속 질의 만들기 (사내 LLM)
+ *
+ * `POST /api/ai/followups`
+ * @param {object} params question, answer
+ * @returns {Promise<object>} questions[], reason
+ * @remarks 답을 본 dwje-ax 가 2~3개를 씁니다. 모델이 없으면 빈 목록
+ */
+export function postAiFollowups(params) {
+  return request('postAiFollowups', params);
+}
+
+/**
  * 세션 대화 조회
  *
  * `GET /api/v1/ai/chat/sessions/{sessionId}`
