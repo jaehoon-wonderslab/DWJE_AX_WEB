@@ -31,7 +31,7 @@ export async function unwrap(promise, fallback = null) {
  */
 export async function command(promise) {
   const res = await promise;
-  return { ok: !!res?.success, data: res?.data ?? null, message: res?.message || '', code: res?.code };
+  return { ok: !!res?.success, data: res?.data ?? null, message: res?.message || '', code: res?.code, httpStatus: res?.httpStatus };
 }
 
 /**

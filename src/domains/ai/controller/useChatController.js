@@ -9,7 +9,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useAsync } from '@shared/hooks/useAsync';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { ask, askGeneral, exportMessage, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import { ask, askWithEvidence, exportMessage, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import llmAnswerTools from '../model/llmAnswer.cjs';
 import smallTalkReply from '../model/smallTalk.cjs';
 
 /** 대화 세션 ID 보관 — 새로고침해도 직전 대화를 이어 볼 수 있게 합니다 */
@@ -69,36 +70,42 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       const question = String(text ?? '').trim();
       if (!question || pending) return;
       setInput('');
-      setPending(true);
-      setMessages((prev) => [...prev, { messageId: `local-${Date.now()}`, who: 'me', text: question }]);
-
       const smallTalk = smallTalkReply(question);
       if (smallTalk) {
-        setMessages((prev) => [...prev, {
-          messageId: `local-reply-${Date.now()}`,
-          who: 'ai',
-          intent: 'smalltalk',
-          text: smallTalk,
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          { messageId: `local-${Date.now()}`, who: 'me', text: question },
+          { messageId: `local-reply-${Date.now()}`, who: 'ai', intent: 'smalltalk', text: smallTalk },
+        ]);
         setFollowups([]);
-        setPending(false);
         return;
       }
+      setPending(true);
+      setMessages((prev) => [...prev, { messageId: `local-${Date.now()}`, who: 'me', text: question }]);
 
       let res;
       try {
         res = await ask(sessionId, question);
-        if (res.ok && res.data?.intent === 'unknown') {
-          const answer = await askGeneral(question, messages, res.data.messageId);
-          if (answer) res.data = { ...res.data, answerHtml: answer };
+        let llmAnswer = '';
+        let generationWarning = '';
+        if (res.ok && llmAnswerTools.shouldGenerateAnswer(res.data?.intent)) {
+          try {
+            llmAnswer = await askWithEvidence(question, messages, res.data.messageId, res.data);
+            if (!llmAnswer) generationWarning = '답변을 생성하지 못했습니다. 확인된 근거를 아래에 표시합니다.';
+          } catch (error) {
+            generationWarning = `${llmAnswerTools.formatChatError(error)} 확인된 검색 근거는 아래에 표시합니다.`;
+          }
+          res.data = llmAnswerTools.mergeAssistantResponse(res.data, llmAnswer, generationWarning);
         }
       } catch (error) {
-        res = { ok: false, message: error?.response?.data?.message || error?.message };
+        res = { ok: false, code: error?.code, httpStatus: error?.status || error?.response?.status, message: error?.message };
       } finally {
         setPending(false);
       }
       if (!res.ok) {
-        toast(res.message || '질의 처리 중 오류가 발생했습니다');
+        const message = llmAnswerTools.formatChatError(res);
+        setMessages((prev) => [...prev, { messageId: `local-error-${Date.now()}`, who: 'ai', generationWarning: message }]);
+        toast(message);
         return;
       }
       setMessages((prev) => [...prev, { who: 'ai', ...res.data }]);

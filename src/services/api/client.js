@@ -292,7 +292,7 @@ export async function request(key, params = {}, options = {}) {
       return res.data;
     } catch (error) {
       // 서버가 표준 포맷으로 에러를 내려준 경우 그대로 전달합니다
-      if (error.response?.data?.success !== undefined) return error.response.data;
+      if (error.response?.data?.success !== undefined) return { ...error.response.data, httpStatus: error.response.status };
 
       // 제한 시간 초과 — 서버 오류와 구분해 안내합니다
       if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
@@ -305,10 +305,12 @@ export async function request(key, params = {}, options = {}) {
         };
       }
 
-      const code = error.response?.data?.error?.code || 'E-SERVER';
+      const status = error.response?.status;
+      const code = error.response?.data?.error?.code || (status === 401 ? 'E-AUTH-001' : status === 403 ? 'E-AUTH-002' : 'E-SERVER');
       return {
         success: false,
         code,
+        httpStatus: status,
         message: ERROR_CODES[code] || '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
         data: null,
         error: { code, message: error.message },

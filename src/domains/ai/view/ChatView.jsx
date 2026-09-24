@@ -17,6 +17,7 @@ import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
 import ChatHome from './ChatHome';
+import llmAnswerTools from '../model/llmAnswer.cjs';
 
 export default function ChatView({
   messages, followups, input, setInput, pending, suggestions, servingModelVer, askedCount,
@@ -255,6 +256,7 @@ function Message({ message, deptAv, onExport, onRate }) {
   const denied = message.intent === 'denied';
   const unknown = message.intent === 'unknown';
   const plain = !denied && !unknown;
+  const citationSources = llmAnswerTools.formatCitationSources(message);
 
   return (
     <View style={s.msg}>
@@ -271,14 +273,22 @@ function Message({ message, deptAv, onExport, onRate }) {
           { flex: 1 },
         ]}
       >
+        {message.llmAnswer ? (
+          <Text style={[s.bubbleText, { marginBottom: 8 }]}>{message.llmAnswer}</Text>
+        ) : null}
+
+        {message.generationWarning ? (
+          <Text style={[s.bubbleText, { marginBottom: 8, color: theme.color.mutedForeground }]}>{message.generationWarning}</Text>
+        ) : null}
+
         {(message.blocks || []).length ? (
           (message.blocks || []).map((b, i) => (
             <Block key={i} block={b} messageId={message.messageId} onExport={onExport} onRate={onRate} />
           ))
-        ) : (
+        ) : !message.llmAnswer && !message.generationWarning ? (
           // 블록이 없는 응답 — 서버의 answerHtml(또는 text)을 글로 보여 줍니다
           <Text style={[s.bubbleText, { marginBottom: 8 }]}>{plainText(message.answerHtml || message.text || message.answer) || '응답 내용이 없습니다.'}</Text>
-        )}
+        ) : null}
 
         {/*
           가려진 항목 안내 — 질의를 막는 대신 답은 내고 값만 가리므로, 무엇이 빠졌는지
@@ -286,9 +296,14 @@ function Message({ message, deptAv, onExport, onRate }) {
         */}
         {message.blindFields?.length ? <BlindNote fields={message.blindFields} /> : null}
 
-        {message.sources?.length ? (
+        {citationSources.length ? (
           <View style={[s.source, { marginBottom: 4 }]}>
-            <Text style={s.sourceText}>근거: {message.sources.map(labelOf).filter(Boolean).join(' · ')}</Text>
+            <Text style={s.sourceText}>출처</Text>
+            {citationSources.map((source) => (
+              <Text key={source.number} style={s.sourceText}>
+                [{source.number}] {source.title}{source.detail ? ` · ${source.detail}` : ''}
+              </Text>
+            ))}
           </View>
         ) : null}
 
