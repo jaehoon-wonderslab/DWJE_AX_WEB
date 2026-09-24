@@ -26,6 +26,11 @@ export function postAiChatAsk(params) {
   return request('postAiChatAsk', params);
 }
 
+/** OpenAI 호환 LLM 프록시 스트림 — 브라우저에서 직접 LLM 서버를 호출하지 않습니다. */
+export function postLlmChat(params) {
+  return request('postLlmChat', params, { responseType: 'text', headers: { Accept: 'text/event-stream' } });
+}
+
 /**
  * 세션 대화 조회
  *

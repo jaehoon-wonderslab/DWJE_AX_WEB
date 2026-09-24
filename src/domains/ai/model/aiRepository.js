@@ -22,6 +22,34 @@ export const loadSuggestions = () => unwrap(aiService.getAiChatSuggestions({}), 
 /** 자연어 질의 요청 */
 export const ask = (sessionId, question) => command(aiService.postAiChatAsk({ sessionId, question }));
 
+/** 근거가 없는 일반 대화는 API 서버의 LLM 프록시로 보내 답변 텍스트를 반환합니다. */
+export async function askGeneral(question, priorMessages = [], messageId = null) {
+  const response = await aiService.postLlmChat({
+    messages: [
+      ...priorMessages.slice(-10).map((message) => ({
+        role: message.who === 'me' ? 'user' : 'assistant',
+        content: message.text || message.answerHtml || message.answer || '',
+      })),
+      { role: 'user', content: question },
+    ],
+    context: '일반 대화 요청입니다. 업무 데이터나 문서 근거가 없는 인사와 일상 대화에는 자연스럽게 응답하세요. 확인되지 않은 업무 수치나 사실은 만들지 마세요.',
+    messageId,
+  });
+  const chunks = [];
+  for (const line of String(response || '').split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === '[DONE]') continue;
+    try {
+      const text = JSON.parse(data)?.choices?.[0]?.delta?.content;
+      if (typeof text === 'string') chunks.push(text);
+    } catch {
+      // SSE keepalive 또는 비 JSON 이벤트는 건너뜁니다.
+    }
+  }
+  return chunks.join('').trim();
+}
+
 /** 새 대화 시작 (세션 맥락 초기화) */
 export const startNewSession = (sessionId) => command(aiService.deleteAiChatSessionsBySessionId({ sessionId }));
 

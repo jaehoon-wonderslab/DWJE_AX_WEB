@@ -9,7 +9,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useAsync } from '@shared/hooks/useAsync';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { ask, exportMessage, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import { ask, askGeneral, exportMessage, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import smallTalkReply from '../model/smallTalk.cjs';
 
 /** 대화 세션 ID 보관 — 새로고침해도 직전 대화를 이어 볼 수 있게 합니다 */
 const SESSION_KEY = 'dwje.ax.chatSession';
@@ -71,8 +72,31 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       setPending(true);
       setMessages((prev) => [...prev, { messageId: `local-${Date.now()}`, who: 'me', text: question }]);
 
-      const res = await ask(sessionId, question);
-      setPending(false);
+      const smallTalk = smallTalkReply(question);
+      if (smallTalk) {
+        setMessages((prev) => [...prev, {
+          messageId: `local-reply-${Date.now()}`,
+          who: 'ai',
+          intent: 'smalltalk',
+          text: smallTalk,
+        }]);
+        setFollowups([]);
+        setPending(false);
+        return;
+      }
+
+      let res;
+      try {
+        res = await ask(sessionId, question);
+        if (res.ok && res.data?.intent === 'unknown') {
+          const answer = await askGeneral(question, messages, res.data.messageId);
+          if (answer) res.data = { ...res.data, answerHtml: answer };
+        }
+      } catch (error) {
+        res = { ok: false, message: error?.response?.data?.message || error?.message };
+      } finally {
+        setPending(false);
+      }
       if (!res.ok) {
         toast(res.message || '질의 처리 중 오류가 발생했습니다');
         return;
@@ -83,7 +107,7 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       setSessionId(res.data.sessionId);
       rememberSessionId(res.data.sessionId);
     },
-    [pending, sessionId, toast]
+    [messages, pending, sessionId, toast]
   );
 
   // 상단 통합 검색에서 넘어온 질문을 자동으로 던집니다

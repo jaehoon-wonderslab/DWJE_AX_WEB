@@ -278,6 +278,14 @@ export const ENDPOINTS = {
     tables: 'vec.tb_query_log, vec.tb_query_hit, vec.tb_doc_chunk, ax.tb_ai_chat_log, ax.tb_gls_term, ax.tb_ai_mask_rule',
     note: 'denied 분기 시 감사 로그 기록. unknown 분기는 답을 추정하지 않고 자료 소재 안내',
   },
+  postLlmChat: {
+    no: null, domain: 'AI 질의', comp: 'AI-01', screen: '자연어 질의', funcId: 'AI-01-F01',
+    name: '일반 대화 LLM 프록시', method: 'POST', path: '/api/ai/chat',
+    params: 'messages[], context, messageId', response: 'text/event-stream (SSE)',
+    roles: '전 부서', blind: '*', priority: 1, live: true, timeoutMs: 240000,
+    tables: 'ax.tb_ai_chat_log',
+    note: '업무 근거가 없는 일반 대화용. API 서버가 LLM OpenAI 호환 스트림을 중계',
+  },
   getAiChatSessionsBySessionId: {
     no: 15, domain: 'AI 질의', comp: 'AI-01', screen: '자연어 질의', funcId: 'AI-01-F07',
     name: '세션 대화 조회', method: 'GET', path: '/api/v1/ai/chat/sessions/{sessionId}',
