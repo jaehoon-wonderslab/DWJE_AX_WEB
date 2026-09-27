@@ -4,9 +4,11 @@
  * 다른 API 는 모두 client.js 의 `request()`(axios)를 거치지만, 이것만은 `fetch` 를 씁니다.
  * axios 는 브라우저에서 응답 본문을 조각으로 읽지 못해(다 받은 뒤에야 돌려줌) 점진 표시가 안 됩니다.
  *
- * 브라우저는 LLM 서버(wddg.ddns.net:11435)를 직접 부르지 않습니다. 반드시 우리 API 를 거칩니다.
- *  · LLM 서버의 CORS 는 localhost 만 허용하고, http 라 https 화면에서는 mixed content 로 막힙니다
- *  · 인증 없는 서버 주소를 번들에 넣지 않습니다
+ * 기본 경로에서 브라우저는 우리 API 를 거칩니다.
+ * 로컬 개발에서만 EXPO_PUBLIC_LLM_API_URL 로 loopback gateway proxy 를 선택할 수 있습니다.
+ *  · proxy 가 DWJE_GATEWAY_API_KEY 를 서버 프로세스에서 읽어 원격 gateway 에 전달합니다
+ *  · API key 는 Expo 환경변수(EXPO_PUBLIC_*)나 브라우저에 두지 않습니다
+ *  · 배포 빌드에서는 직접 주소를 비워 둡니다
  *
  * 응답은 SSE 입니다 — `data: {...}` 줄마다 `choices[0].delta.content` 에 글 조각이 들어 있고
  * 마지막 줄이 `data: [DONE]` 입니다. `[DONE]` 없이 끝나면 중간에 끊긴 것입니다.
@@ -18,6 +20,8 @@ import { API_BASE_URL, USE_MOCK, refreshAccessToken } from './client';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 
 export const LLM_CHAT_PATH = '/api/ai/chat';
+const DIRECT_LLM_BASE_URL = process.env.EXPO_PUBLIC_LLM_API_URL || '';
+const DIRECT_LLM_MODEL = process.env.EXPO_PUBLIC_LLM_MODEL || 'dwje-ax';
 
 /** 오류 문구 — LLM 연동 명세 「오류 처리」 */
 export const LLM_ERRORS = {
@@ -32,26 +36,28 @@ export const LLM_ERRORS = {
  * @param {object} args
  * @param {{role:'user'|'assistant', content:string}[]} args.messages 오래된 것부터. 서버가 최근 10턴만 씁니다
  * @param {string} [args.context]   근거 문서
- * @param {number} [args.messageId] `/ai/chat/ask` 의 질의 이력 ID — 주면 서버가 받은 답을 이력에 저장합니다
+ * @param {number} [args.messageId] `/ai/chat/ask` 의 질의 이력 ID
+ * @param {string} [args.sessionId] 대화 세션 ID
  * @param {AbortSignal} [args.signal] 생성 중단
  * @param {(text:string, delta:string) => void} [args.onDelta] 조각이 올 때마다 — 지금까지 모인 전체 글과 이번 조각
  * @returns {Promise<{status:'done'|'aborted'|'interrupted'|'error', text:string, message?:string}>}
  *   던지지 않습니다. `error` 면 `message` 가 사용자에게 보여 줄 문구입니다.
  */
-export async function streamLlmChat({ messages, context, messageId, signal, onDelta }) {
+export async function streamLlmChat({ messages, context, messageId, sessionId, signal, onDelta }) {
   if (USE_MOCK) return mockStream({ signal, onDelta });
 
   const body = JSON.stringify({
     messages: (messages || []).filter((m) => m.role === 'user' || m.role === 'assistant'),
     ...(context && context.trim() ? { context } : null),
     ...(messageId ? { messageId } : null),
+    ...(sessionId ? { sessionId } : null),
   });
 
   let res;
   try {
     res = await post(body, signal);
     // 세션 만료 — 토큰을 한 번 갱신하고 다시 보냅니다
-    if (res.status === 401 && (await refreshAccessToken())) res = await post(body, signal);
+    if (!DIRECT_LLM_BASE_URL && res.status === 401 && (await refreshAccessToken())) res = await post(body, signal);
   } catch (e) {
     if (signal?.aborted) return { status: 'aborted', text: '' };
     return { status: 'error', text: '', message: LLM_ERRORS.unreachable };
@@ -103,16 +109,45 @@ export async function streamLlmChat({ messages, context, messageId, signal, onDe
 
 function post(body, signal) {
   const token = useAuthStore.getState().accessToken;
-  return fetch(`${API_BASE_URL}${LLM_CHAT_PATH}`, {
+  const direct = !!DIRECT_LLM_BASE_URL;
+  return fetch(direct
+    ? `${DIRECT_LLM_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`
+    : `${API_BASE_URL}${LLM_CHAT_PATH}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       // 오류는 JSON 으로 옵니다 — 둘 다 받는다고 알려야 서버가 406 으로 바꾸지 않습니다
       Accept: 'text/event-stream, application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : null),
+      // vLLM 직접 연결에는 업무 API JWT를 보내지 않습니다.
+      ...(!direct && token ? { Authorization: `Bearer ${token}` } : null),
     },
-    body,
+    body: direct ? toDirectLlmBody(body) : body,
     signal,
+  });
+}
+
+/** 로컬 gateway proxy 용 OpenAI 호환 요청. */
+function toDirectLlmBody(body) {
+  const request = JSON.parse(body);
+  const messages = (request.messages || []).filter((m) => m.role === 'user' || m.role === 'assistant');
+  let lastUser = -1;
+  for (let i = 0; i < messages.length; i += 1) if (messages[i].role === 'user') lastUser = i;
+  if (lastUser < 0) return JSON.stringify({ model: DIRECT_LLM_MODEL, messages, stream: true });
+
+  messages.splice(lastUser + 1);
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+  const question = messages[lastUser].content.trim();
+  const context = request.context?.trim();
+  messages[lastUser] = {
+    role: 'user',
+    content: `[지시]\n오늘은 ${today}이다.${context ? `\n\n[근거]\n${context}` : ''}\n\n[질문]\n${question}`,
+  };
+  return JSON.stringify({
+    model: DIRECT_LLM_MODEL,
+    messages,
+    stream: true,
+    reasoning_effort: 'none',
+    dwje: { rag: false, tools: false },
   });
 }
 

@@ -4,7 +4,6 @@
  * 한 줄 척추(최대 720px) 위에 순서대로 놓입니다.
  *  1. 인사말 — "000님, 좋은 아침입니다."  + 오늘 날짜·소속
  *  2. 브리핑 카드 — 「AI 브리핑」(사내 LLM 문장 그대로) · 「현재 이슈」(미확인 알림). 각 문단은 눌러서 바로 질의할 수 있습니다.
- *  3. 빠른 질의 칩 — 서버가 준 추천 질의
  *
  * 브리핑 카드는 참조의 Briefing Card 규격(#FAFAFA · #DFE1E7 테두리 · 16px 반지름 · ai 스파클 머리글)입니다.
  */
@@ -18,7 +17,7 @@ import Icon from '@shared/components/ui/Icon';
 
 const TONE_DOT = { ok: 'success', warn: 'warning', bad: 'destructive', muted: 'border' };
 
-export default function ChatHome({ briefing, suggestions = [], onAsk }) {
+export default function ChatHome({ briefing, onAsk }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const { greeting, dept, sections, loading, period, generatedAt, modelVer } = briefing || {};
@@ -80,24 +79,6 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
           </View>
         )}
 
-        {/* 빠른 질의 칩 */}
-        {suggestions.length ? (
-          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.divider }}>
-            <Text style={[s.caption, { marginBottom: 8 }]}>빠른 질의</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {suggestions.slice(0, 6).map((x, i) => (
-                <Pressable
-                  key={x.q}
-                  onPress={() => onAsk?.(x.q)}
-                  style={({ hovered }) => [s.chip, { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: hovered ? theme.surfaceHover : theme.color.card }]}
-                >
-                  <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: [theme.color.primary, theme.color.info, theme.color.ink500, theme.color.warning][i % 4] }} />
-                  <Text style={s.chipText}>{x.q}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : null}
       </View>
 
       <Text style={[s.caption, { fontFamily: FONT_FAMILY, paddingHorizontal: 4 }]}>
@@ -106,4 +87,3 @@ export default function ChatHome({ briefing, suggestions = [], onAsk }) {
     </View>
   );
 }
-

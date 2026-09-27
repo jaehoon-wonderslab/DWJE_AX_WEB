@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+// 현재 운영 API는 8080에서 직접 서비스됩니다. :80은 API 프록시가 적용되지 않아 404가 납니다.
 const DEPLOY_API_URL = 'http://192.168.2.8:8080';
 const npmCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const rootDir = path.resolve(__dirname, '..');
@@ -26,7 +27,13 @@ try {
   result = spawnSync(npmCommand, ['expo', 'export', '--platform', 'web', '--clear'], {
     stdio: 'inherit',
     cwd: rootDir,
-    env: { ...process.env, EXPO_PUBLIC_API_URL: DEPLOY_API_URL, EXPO_PUBLIC_USE_MOCK: 'false' },
+    env: {
+      ...process.env,
+      EXPO_PUBLIC_API_URL: DEPLOY_API_URL,
+      EXPO_PUBLIC_USE_MOCK: 'false',
+      // 로컬 개발용 직접 Docker 호출은 배포 번들에서 비활성화합니다.
+      EXPO_PUBLIC_LLM_API_URL: '',
+    },
   });
 } finally {
   if (hadEnvFile) fs.writeFileSync(envFile, previousEnv);

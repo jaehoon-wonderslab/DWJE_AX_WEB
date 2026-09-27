@@ -333,7 +333,7 @@ export async function loadGlossaryByDomain({ keyword, domainCd, page, size }) {
 /* ═══════ SY-08 자연어 질의 이력 ═══════ */
 export async function loadChatHistory({ from, to, group, page, size }) {
   const data = await unwrapAll({
-    summary: systemService.getAiChatHistorySummary({}),
+    summary: systemService.getAiChatHistorySummary({ from, to, userGroup: group }),
     // 서버 파라미터는 userGroup 입니다. group 으로 보내면 조용히 무시됩니다
     list: systemService.getAiChatHistory({ from, to, userGroup: group, page, size }),
   });

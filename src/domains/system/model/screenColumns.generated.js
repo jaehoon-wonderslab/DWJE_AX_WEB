@@ -941,20 +941,28 @@ export const SCREEN_COLUMNS = [
         "field": "ts"
       },
       {
-        "title": "질의",
+        "title": "질문",
         "field": "question"
       },
       {
-        "title": "해석된 의도",
-        "field": "intentNm"
+        "title": "응답",
+        "field": "answer"
       },
       {
-        "title": "호출 Agent",
-        "field": "agents"
+        "title": "판단 근거",
+        "field": "judgmentBasis"
+      },
+      {
+        "title": "미응답 사유",
+        "field": "unansweredReason"
       },
       {
         "title": "응답 시간",
         "field": "responseSec"
+      },
+      {
+        "title": "답변 평가 기준",
+        "field": "evaluationCriteria"
       },
       {
         "title": "사용자",

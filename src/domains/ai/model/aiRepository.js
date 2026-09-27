@@ -19,6 +19,13 @@ export const loadSession = (sessionId) =>
       }))
     : Promise.resolve({ messages: [], sessionId: null });
 
+/** 사용자에게 귀속된 가장 최근 세션 복원 */
+export const loadLatestSession = () =>
+  unwrap(aiService.getAiChatSessionsLatest(), { messages: [], sessionId: null }).then((res) => ({
+    ...res,
+    messages: (res?.messages || []).map(fromSessionMessage),
+  }));
+
 /**
  * 서버 이력 한 건 → 화면 말풍선
  *
@@ -54,8 +61,32 @@ export const loadFollowups = (question, answer) =>
 export const startNewSession = (sessionId) => command(aiService.deleteAiChatSessionsBySessionId({ sessionId }));
 
 /** 응답 결과 내려받기 */
-export const exportMessage = (messageId, format = 'xls') =>
-  command(aiService.postAiChatMessagesByMessageIdExport({ messageId, format }));
+export const exportMessage = async (messageId, format = 'xlsx') => {
+  const res = await aiService.postAiChatMessagesByMessageIdExport({ messageId, format });
+  return saveXlsx(res, `ai-answer-${messageId || Date.now()}.xlsx`);
+};
+
+/** 불량 Top 10 export — API가 기록을 남기므로 download-logs를 별도 호출하지 않습니다. */
+export const exportTopDefects = async ({ from, to, limit = 10 }) => {
+  const res = await aiService.postAiChatDefectsTopExport({ from, to, limit });
+  return saveXlsx(res, `defects-top-${from}-${to}.xlsx`);
+};
+
+function saveXlsx(response, fallbackName) {
+  if (response?.success === false) return { ok: false, message: response?.message || '파일을 내려받지 못했습니다.' };
+  const file = response?.success === true ? response.data : response;
+  if (typeof window === 'undefined' || !window.URL?.createObjectURL || !file) {
+    return { ok: false, message: '이 환경에서는 파일 다운로드를 시작할 수 없습니다.' };
+  }
+  const blob = typeof Blob !== 'undefined' && file instanceof Blob ? file : new Blob([file], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fallbackName;
+  link.click();
+  window.URL.revokeObjectURL(url);
+  return { ok: true, message: 'Excel 파일 다운로드를 시작했습니다.' };
+}
 
 /** 응답 평가 (파인튜닝 학습데이터 후보) */
 export const rateMessage = (messageId, rating) =>

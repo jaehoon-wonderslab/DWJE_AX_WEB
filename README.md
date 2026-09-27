@@ -51,6 +51,21 @@ npm run check        # 구문 · 서비스 참조 · 목 커버리지 · 라우�
 `npm run web`은 `.env`의 로컬 API 주소를 사용합니다. `npm run build:web`은 배포 전용 빌드로 실행되며
 `EXPO_PUBLIC_API_URL=http://192.168.2.8:8080`, `EXPO_PUBLIC_USE_MOCK=false`를 빌드 프로세스에만 주입합니다.
 따라서 `.env` 파일을 배포용으로 바꾸지 않아도 됩니다.
+현재 운영 확인 결과 API는 `:8080`에서 응답하고 `:80/api/*`는 404를 반환하므로, 배포 번들은 API `:8080`을 직접 호출합니다. Nginx(:80) 프록시가 운영에 설치·검증된 뒤에만 API 기본 주소를 `:80`으로 바꿉니다.
+
+### 로컬 LLM 게이트웨이 확인
+
+웹앱의 LLM 요청만 로컬 프록시를 거쳐 원격 게이트웨이에 전달합니다. `.env`의
+`EXPO_PUBLIC_LLM_API_URL`은 `http://localhost:8787`로 두고, 별도 터미널에서 다음을 실행합니다.
+
+```bash
+# DWJE_GATEWAY_API_KEY는 비밀 저장소/실행 환경에서 프로세스에 주입
+npm run dev:gateway-proxy
+npm run web -- --port 8081
+```
+
+키는 프록시 프로세스 환경변수로만 전달하며 `.env`, `EXPO_PUBLIC_*`, 브라우저 입력란에 저장하지 않습니다.
+프록시 UI는 `http://localhost:8787`에서 헬스·모델 목록·채팅을 확인할 수 있습니다.
 
 ### 실 API 연동 상태
 

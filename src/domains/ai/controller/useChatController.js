@@ -14,7 +14,7 @@ import { useAsync } from '@shared/hooks/useAsync';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { streamLlmChat, LLM_ERRORS } from '@services/api/llmStream';
-import { ask, exportMessage, loadFollowups, loadSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
+import { ask, exportMessage, exportTopDefects, loadFollowups, loadLatestSession, loadSuggestions, rateMessage, speechToText, startNewSession } from '../model/aiRepository';
 
 /** 대화 세션 ID 보관 — 새로고침해도 직전 대화를 이어 볼 수 있게 합니다 */
 const SESSION_KEY = 'dwje.ax.chatSession';
@@ -61,6 +61,28 @@ function dataSources(list) {
   return (list || []).filter((x) => x && String(x.text || '').trim()).map((x) => ({ ...x, kind: 'data' }));
 }
 
+function requestsFile(question) {
+  return /(?:엑셀|excel|xlsx|다운로드|파일\s*(?:로|내려받|첨부|저장))/i.test(question);
+}
+
+function defectTopRange(question, evidence = []) {
+  if (!requestsFile(question) || !/불량/.test(question) || !/(top|상위|대표|순위)/i.test(question)) return null;
+  const count = String(question).match(/(?:top|상위)\s*(\d{1,2})/i)?.[1];
+  const limit = count ? Number(count) : 10;
+  // 이 API의 XLSX 계약은 1~10건만 지원합니다. Top 20 같은 요청은 엑셀 API 버튼을 만들지 않습니다.
+  if (limit < 1 || limit > 10) return null;
+  const explicit = String(question).match(/(20\d{2}-\d{2}-\d{2})/g) || [];
+  const hit = (evidence || []).find((x) => x?.from && x?.to);
+  if (hit) return { from: hit.from, to: hit.to, limit };
+  if (explicit.length >= 2) return { from: explicit[0], to: explicit[1], limit };
+  if (explicit.length === 1) return { from: explicit[0], to: explicit[0], limit };
+  if (/오늘/.test(question)) {
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+    return { from: today, to: today, limit };
+  }
+  return null;
+}
+
 /** 화면 대화 → 모델에 보낼 대화. 오류 말풍선과 빈 답은 뺍니다(서버가 최근 10턴만 씁니다) */
 function toLlmHistory(messages) {
   const out = [];
@@ -83,6 +105,7 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
   /** 진행 단계 — idle · searching(근거 찾는 중) · waiting(첫 조각 전) · streaming */
   const [phase, setPhase] = useState('idle');
   const [sessionId, setSessionId] = useState(null);
+  const [downloadStates, setDownloadStates] = useState({});
   /** 「근거 문서」 칸 — 비어 있으면 사내 문서 검색 결과를 근거로 씁니다 */
   const [context, setContext] = useState('');
 
@@ -97,18 +120,17 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
 
   const { data: suggestionData } = useAsync(() => loadSuggestions(), [], { silent: true });
 
-  // 세션 대화 복원 — 이전 세션 ID 가 있을 때만 (첫 진입은 빈 대화로 시작합니다)
+  // 인증 사용자에게 귀속된 최신 세션을 서버 계약으로 복원합니다.
   useEffect(() => {
     let alive = true;
-    const saved = restoreSessionId();
-    if (!saved) return undefined;
-    loadSession(saved)
+    loadLatestSession()
       .then((res) => {
         if (!alive) return;
         setMessages(res?.messages || []);
-        setSessionId(res?.sessionId || saved);
+        setSessionId(res?.sessionId || null);
+        rememberSessionId(res?.sessionId || null);
       })
-      .catch(() => rememberSessionId(null));
+      .catch(() => { if (alive) rememberSessionId(null); });
     return () => {
       alive = false;
     };
@@ -159,6 +181,9 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
           sources,
           manualContext: !!manual,
           blindFields: meta.blindFields,
+          // 집계 API가 결과 테이블 근거를 반환한 경우에만 XLSX 내보내기를 허용합니다.
+          answerExportAvailable: data.length > 0,
+          defectTopRange: data.length ? defectTopRange(question, meta.dataEvidence) : null,
         },
       ]);
       setPhase('waiting');
@@ -170,6 +195,7 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
             messages: [...history, { role: 'user', content: question }],
             context: evidence,
             messageId: meta.messageId,
+            sessionId: meta.sessionId || sessionId,
             signal: abort.signal,
             onDelta: (full) => {
               setPhase('streaming');
@@ -235,11 +261,30 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
 
   const exportAnswer = useCallback(
     async (messageId) => {
-      const res = await exportMessage(messageId, 'xls');
-      toast(res.message);
+      setDownloadStates((s) => ({ ...s, [messageId]: 'loading' }));
+      try {
+        const res = await exportMessage(messageId, 'xlsx');
+        setDownloadStates((s) => ({ ...s, [messageId]: res.ok ? 'done' : 'error' }));
+        toast(res.message);
+      } catch (e) {
+        setDownloadStates((s) => ({ ...s, [messageId]: 'error' }));
+        toast(e.message || '파일을 내려받지 못했습니다.');
+      }
     },
     [toast]
   );
+
+  const exportDefectTop = useCallback(async (messageId, range) => {
+    setDownloadStates((s) => ({ ...s, [`top-${messageId}`]: 'loading' }));
+    try {
+      const res = await exportTopDefects({ ...range, limit: range.limit || 10 });
+      setDownloadStates((s) => ({ ...s, [`top-${messageId}`]: res.ok ? 'done' : 'error' }));
+      toast(res.message);
+    } catch (e) {
+      setDownloadStates((s) => ({ ...s, [`top-${messageId}`]: 'error' }));
+      toast(e.message || '불량 Top 10 파일을 내려받지 못했습니다.');
+    }
+  }, [toast]);
 
   const rate = useCallback(
     async (messageId, rating) => {
@@ -270,6 +315,8 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
     send,
     newSession,
     exportAnswer,
+    exportDefectTop,
+    downloadStates,
     rate,
     requestVoice,
   };

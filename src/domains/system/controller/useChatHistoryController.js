@@ -15,12 +15,6 @@ import * as repo from '../model/systemRepository';
 /** 응답 시간 표기 — 초 단위 소수 1자리, 없으면 '—' */
 export const secText = (sec) => (sec === null || sec === undefined || sec === '' ? '—' : `${Number(sec).toFixed(1)}s`);
 
-/** 호출 Agent — 서버는 배열로 줍니다 (빈 배열이면 '—') */
-export const agentsText = (agents) => {
-  if (Array.isArray(agents)) return agents.length ? agents.join(', ') : '—';
-  return agents || '—';
-};
-
 export function useChatHistoryController() {
   const toast = useUiStore((state) => state.toast);
 
@@ -40,21 +34,24 @@ export function useChatHistoryController() {
     () => repo.loadChatHistory({ from, to, group, ...paging.params }),
     [from, to, group, paging.page, paging.size]
   );
-  const items = data?.list?.items || [];
+  const items = useMemo(() => [...(data?.list?.items || [])].sort((a, b) => {
+    const ta = Date.parse(a.ts || '') || 0;
+    const tb = Date.parse(b.ts || '') || 0;
+    return tb - ta;
+  }), [data]);
 
   /**
-   * 요약 카드 — 서버 필드명(questionCnt · avgResponseSec · requeryRate)을 화면 이름으로 맞춥니다.
-   * 예전 이름(totalCnt · avgElapsedSec · reAskRate)으로 오는 응답도 같이 받습니다.
+   * 요약 카드 — 서버 필드명(answerRate · questionCnt · avgResponseSec · requeryRate)을 화면 이름으로 맞춥니다.
    */
   const summary = useMemo(() => {
     const raw = data?.summary;
     if (!raw) return null;
     return {
       totalCnt: raw.questionCnt ?? raw.totalCnt ?? 0,
-      intentAccuracy: raw.intentAccuracy,
+      answerRate: raw.answerRate,
       avgElapsedSec: raw.avgResponseSec ?? raw.avgElapsedSec,
       reAskRate: raw.requeryRate ?? raw.reAskRate,
-      targetAccuracy: raw.targetAccuracy,
+      targetAnswerRate: raw.targetAnswerRate ?? raw.targetAnswerRatePct ?? raw.targetAccuracy,
       usefulCnt: raw.usefulCnt,
       badCnt: raw.badCnt,
     };
@@ -76,12 +73,13 @@ export function useChatHistoryController() {
   const exportExcel = useCallback(() => {
     downloadXls({
       name: '자연어 질의 이력',
-      head: ['시각', '질의', '해석된 의도', '호출 Agent', '응답 시간', '평가', '사용자'],
+      head: ['시각', '질의', '응답', '판단 근거', '미응답 사유', '응답 시간', '평가', '사용자'],
       rows: items.map((h) => [
         h.ts,
         h.question,
-        h.intentNm || h.intent || '—',
-        agentsText(h.agents),
+        h.answer || '상세 기록 확인',
+        h.judgmentBasis || h.evidenceSummary || '—',
+        h.unansweredReason || '—',
         secText(h.responseSec),
         ratingLabel(h.rating) || '—',
         `${h.name || h.empNo || ''} (${h.dept || ''})`,
