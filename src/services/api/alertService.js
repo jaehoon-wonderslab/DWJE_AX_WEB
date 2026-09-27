@@ -22,8 +22,8 @@ import { request } from './client';
  * @remarks 심각도 + 최신 순 정렬
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */
-export function getAlerts(params) {
-  return request('getAlerts', params);
+export function getAlerts(params, options) {
+  return request('getAlerts', params, options);
 }
 
 /**

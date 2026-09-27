@@ -132,39 +132,49 @@ function shouldTryRefresh(error) {
   return !!useAuthStore.getState().accessToken;
 }
 
+/**
+ * 토큰을 한 번 갱신하고 새 accessToken 을 돌려줍니다. 실패하면 세션을 끝내고 null.
+ *
+ * axios 를 거치지 않는 요청(LLM 스트리밍 — services/api/llmStream.js)도 401 에서 이것을 씁니다.
+ * 동시에 여러 요청이 401 을 받아도 갱신은 한 번만 수행합니다.
+ */
+export async function refreshAccessToken() {
+  const { refreshToken, setTokens, setLogout } = useAuthStore.getState();
+  if (!refreshToken) {
+    expireSession(setLogout);
+    return null;
+  }
+  if (!refreshing) {
+    refreshing = axios
+      .post(`${API_BASE_URL}/api/v1/auth/refresh`, { refreshToken })
+      .then((r) => r.data?.data?.accessToken)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  try {
+    const accessToken = await refreshing;
+    if (!accessToken) throw new Error('no token');
+    setTokens({ accessToken, refreshToken });
+    return accessToken;
+  } catch {
+    expireSession(setLogout);
+    return null;
+  }
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const { config } = error;
     if (!shouldTryRefresh(error)) return Promise.reject(error);
 
-    const { refreshToken, setTokens, setLogout } = useAuthStore.getState();
-    if (!refreshToken) {
-      expireSession(setLogout);
-      return Promise.reject(error);
-    }
-
-    // 동시에 여러 요청이 401 을 받아도 갱신은 한 번만 수행합니다
-    if (!refreshing) {
-      refreshing = axios
-        .post(`${API_BASE_URL}/api/v1/auth/refresh`, { refreshToken })
-        .then((r) => r.data?.data?.accessToken)
-        .finally(() => {
-          refreshing = null;
-        });
-    }
-
-    try {
-      const accessToken = await refreshing;
-      if (!accessToken) throw new Error('no token');
-      setTokens({ accessToken, refreshToken });
-      config._retried = true;
-      config.headers.Authorization = `Bearer ${accessToken}`;
-      return apiClient(config);
-    } catch (e) {
-      expireSession(setLogout);
-      return Promise.reject(error);
-    }
+    // 갱신에 실패하면 refreshAccessToken 이 세션을 끝내고 안내합니다
+    const accessToken = await refreshAccessToken();
+    if (!accessToken) return Promise.reject(error);
+    config._retried = true;
+    config.headers.Authorization = `Bearer ${accessToken}`;
+    return apiClient(config);
   }
 );
 
@@ -249,17 +259,18 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *
  * @param {string} key ENDPOINTS 의 키 (예: 'getAuthMe')
  * @param {object} params 경로 변수 + 쿼리 파라미터 + 요청 바디
- * @param {object} options { signal, responseType } 등 axios 추가 옵션
+ * @param {object} options { signal, responseType } 등 axios 추가 옵션.
+ *   `silent: true` 면 전역 로딩 표시를 켜지 않습니다 (종 배지처럼 뒤에서 주기적으로 세는 호출용).
  * @returns {Promise<object>} ApiResponse — { success, code, message, data, meta, masked, error }
  */
-export async function request(key, params = {}, options = {}) {
+export async function request(key, params = {}, { silent = false, ...options } = {}) {
   const def = ENDPOINTS[key];
   if (!def) throw new Error(`정의되지 않은 API 키입니다: ${key}`);
 
   const { url, rest: raw } = buildPath(def.path, params);
   const rest = dropEmptyParams(raw, def.preserveEmptyArrays);
 
-  useUiStore.getState().startApiLoading();
+  if (!silent) useUiStore.getState().startApiLoading();
   try {
     // [1] 목 모드 — 등록된 핸들러가 있으면 서버 대신 목 응답을 돌려줍니다
     //     (백엔드 구현이 끝난 live 엔드포인트는 목 모드에서도 [2] 로 내려갑니다)
@@ -317,7 +328,7 @@ export async function request(key, params = {}, options = {}) {
       };
     }
   } finally {
-    useUiStore.getState().endApiLoading();
+    if (!silent) useUiStore.getState().endApiLoading();
   }
 }
 

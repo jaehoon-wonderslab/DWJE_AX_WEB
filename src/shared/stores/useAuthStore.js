@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { DATA_SCOPE_DEFAULT, MENU_ACCESS_DEFAULT } from '@shared/constants/dataFields';
 import { clearSession, saveSession } from '@shared/utils/authStorage';
 
 /**
@@ -86,8 +85,9 @@ export const useAuthStore = create((set, get) => ({
         userInfo: user,
         accessToken,
         refreshToken,
-        menuPerms: perms?.menuPerms ?? MENU_ACCESS_DEFAULT[user?.dept] ?? [],
-        dataPerms: perms?.dataPerms ?? DATA_SCOPE_DEFAULT[user?.dept] ?? [],
+        // 권한은 서버가 DB(부서 권한 표)에서 내려준 값만 씁니다 — 없으면 아무것도 열지 않습니다
+        menuPerms: perms?.menuPerms ?? [],
+        dataPerms: perms?.dataPerms ?? [],
       };
     }),
 

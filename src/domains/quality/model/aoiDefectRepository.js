@@ -1,23 +1,15 @@
 /**
- * [Model] QC-03 AOI 불량 상세 · 이미지 (REQ_20260910 A-9 · API 회신 2026-09-10)
- *
- * MES 의 AOI 라벨 이력을 id·날짜로 분류해 목록으로 받고, 한 건을 고르면
- * NAS 에 저장된 불량 사진 목록(상대 경로 + 서명된 프록시 URL)을 받습니다.
+ * [Model] QC-03 AOI 불량 상세 — DIMENSION(MSSQL) 시리얼 목록과 회차 상세
  *
  * ■ 2026-09-14 — 원천을 **DIMENSION(MSSQL)** 으로 옮겼습니다
  * 그동안 쓰던 `/quality/aoi/defects` 는 **MES 라벨 이력**이고, 거기 있는 AOI 설비(VNA-*)는
  * DIMENSION 설비(GP-*·MQ-*)와 **다른 집합**입니다. 화면이 읽던 `seqCnt·failSeqCnt·items[{seq,passed}]`
  * 는 실제로 오지 않는 값이었습니다(9/11 문서 계약의 mock).
  * AOI 치수 판정의 원천은 `EDGE.dbo.TB_SAMSUN_DIMENSION` 이고, 그것을 읽는 API 가
- * `/quality/aoi/dimension/serials` 입니다. MES 목록 API 는 서버에 그대로 남아 있습니다.
+ * `/quality/aoi/dimension/serials` 입니다. MES 목록·상세·사진 API(`/quality/aoi/defects`, `/files/aoi-images`)와
+ * 사진 표(ax.tb_aoi_defect_image)는 2026-09-23 V42 에서 제거했습니다.
  *
- * 서버 규약
- *  · GET /quality/aoi/defects            — **하루치**: date(=from=to) · page · size → { items[] } + meta
- *    지금 API 는 from·to 를, 앞으로 올 MSSQL(DIMENSION) API 는 date 를 읽습니다 — **셋을 함께 보냅니다**(추가 파라미터는 무시됨을 확인).
- *    defectId 는 지금 `plant-wc-lot-serial`(예 PL01-V140-20260803-00316), MSSQL 전환 후에는 `wc~eqpt~lot~serial` 입니다 — 화면은 문자열로만 다룹니다.
- *  · GET /quality/aoi/defects/{defectId} — 목록 항목 + measurements[](DIMENSION 검사 항목) + imageUrlTtlSec + images[{imageId,seq,nasPath,capturedAt,sizeBytes,available,url,thumbUrl}]
- *    `url`·`thumbUrl` 은 /files/aoi-images/{imageId}?token=… 서명 주소(15분) — 그대로 <img src> 에 넣습니다.
- *  · '전체' 선택은 client 가 요청에서 걸러 냅니다 (조건 없음).
+ * '전체' 선택은 client 가 요청에서 걸러 냅니다 (조건 없음).
  */
 import * as qualityService from '@services/api/qualityService';
 import { unwrap, unwrapPaged } from '@services/api/request';

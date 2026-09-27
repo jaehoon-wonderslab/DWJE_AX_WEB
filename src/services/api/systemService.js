@@ -391,6 +391,18 @@ export function getSystemDataPermsAudit(params) {
 /* ───────── 이상 알림 발송 조건 관리 ───────── */
 
 /**
+ * 발송 조건 감지 지표 목록
+ *
+ * `GET /api/v1/metrics/standards`
+ * @param {object} params page, size
+ * @returns {Promise<object>} items[{stdId,category,name,unit,normal,warn,critical,direction,applied}], meta
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
+ */
+export function getAlertConditionMetrics(params) {
+  return request('getAlertConditionMetrics', params);
+}
+
+/**
  * 발송 조건 요약
  *
  * `GET /api/v1/alert-conditions/summary`
@@ -757,7 +769,7 @@ export function postGlossaryReindex(params) {
  *
  * `GET /api/v1/ai/chat/history/summary`
  * @param {object} params from, to, userGroup
- * @returns {Promise<object>} questionCnt, intentAccuracy, avgResponseSec, requeryRate, targetAccuracy
+ * @returns {Promise<object>} questionCnt, answerRate, avgResponseSec, requeryRate, targetAnswerRate
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */
 export function getAiChatHistorySummary(params) {
@@ -769,7 +781,7 @@ export function getAiChatHistorySummary(params) {
  *
  * `GET /api/v1/ai/chat/history`
  * @param {object} params from, to, userGroup, intent, page, size
- * @returns {Promise<object>} items[{ts,empNo,question,intent,agents[],responseSec,rating}], meta
+ * @returns {Promise<object>} items[{ts,empNo,question,answer,judgmentBasis,unansweredReason,responseSec,evaluationCriteria,rating}], meta
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */
 export function getAiChatHistory(params) {
@@ -781,7 +793,7 @@ export function getAiChatHistory(params) {
  *
  * `GET /api/v1/ai/chat/history/{messageId}`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} question, intent, prompt, answer, hits[{docId,chunkId,score}], agents[], elapsedMs
+ * @returns {Promise<object>} question, answer, judgmentBasis, unansweredReason, evaluationCriteria, hits[], elapsedMs, responseSec, rating
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
  */
 export function getAiChatHistoryByMessageId(params) {

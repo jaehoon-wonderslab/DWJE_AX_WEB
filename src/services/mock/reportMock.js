@@ -1,7 +1,7 @@
 /**
  * 보고서 목 핸들러 (API 20건)
  */
-import { nowClock, nowStamp, today } from '@shared/utils/formatUtil';
+import { nowClock, today } from '@shared/utils/formatUtil';
 import {
   LRR_BY_CUSTOMER, LRR_BY_DEFECT, LRR_DEFECT_TOTAL, LRR_MONTHS, LRR_PERCENT_ROW, LRR_QUARTER_TOTAL,
   PLATING_MORNING_ROWS, PLATING_MORNING_TOTAL, PLATING_PROCESS_SUMMARY, PRESS_MORNING_DECISIONS,
@@ -15,12 +15,6 @@ import { mockState } from './state';
 function store() {
   if (!mockState.store.report) mockState.store.report = { draft: newScrapDraft(), published: [...SCRAP_LIST] };
   return mockState.store.report;
-}
-
-/** 작성 상태 기록 (`screenId|baseDate` → 행) */
-function stateStore() {
-  if (!mockState.store.reportState) mockState.store.reportState = {};
-  return mockState.store.reportState;
 }
 
 /** 보고서 사용 기록 (screenId → { useCount, lastUsedAt }) */
@@ -98,39 +92,13 @@ function calcSummary(groups) {
 }
 
 export const reportMock = {
-  /* ── 보고서 작성 상태 (보고서 센터 "오늘 작성할 보고서" · 각 화면 머리말) — API 회신 스펙과 같은 필드명 ── */
+  /* ── 보고서 사용 횟수 (보고서 센터 "자주 쓰는 보고서") ── */
   getReportsUsage: ({ top } = {}) => usageTop(top),
   postReportsUsage: ({ screenId }) => {
     const u = usageStore();
     const prev = u[screenId] || { useCount: 0 };
     u[screenId] = { useCount: prev.useCount + 1, lastUsedAt: `${today()} ${nowClock()}` }; // 서버 형식 yyyy-MM-dd HH:mm:ss
     return usageTop(5);
-  },
-
-  getReportsStatus: ({ baseDate }) => {
-    const d = baseDate || nowStamp().slice(0, 10);
-    const recorded = stateStore();
-    const derived = {
-      'prod-daily': { state: 'DRAFT', source: 'DERIVED', updatedAt: `${d} 08:41:12`, updatedBy: '20220418', updatedByName: '최민아' },
-      'rpt-press-morning': { state: 'DRAFT', source: 'DERIVED', updatedAt: `${d} 08:55:03`, updatedBy: '20170905', updatedByName: '정우진' },
-    };
-    const RANK = { NONE: 0, DRAFT: 1, SUBMITTED: 2, APPROVED: 3 };
-    const items = ['prod-daily', 'rpt-press-morning', 'rpt-plating-morning', 'rpt-scrap'].map((screenId) => {
-      const rec = recorded[`${screenId}|${d}`];
-      const der = derived[screenId];
-      // 판정 = max(파생, 기록)
-      const pick = rec && (!der || RANK[rec.state] >= RANK[der.state]) ? rec : der;
-      return pick ? { screenId, ...pick } : { screenId, state: 'NONE', source: null, updatedAt: null, updatedBy: null, updatedByName: null };
-    });
-    return { baseDate: d, items };
-  },
-  putReportsStatus: ({ screenId, baseDate, state }) => {
-    if (!['DRAFT', 'SUBMITTED', 'APPROVED'].includes(state)) {
-      return { success: false, code: 'E-VALIDATION', message: 'state 는 DRAFT · SUBMITTED · APPROVED 중 하나여야 합니다.', data: null };
-    }
-    const row = { state, source: 'RECORDED', updatedAt: nowStamp(), updatedBy: mockState.currentUser.empNo, updatedByName: mockState.currentUser.name };
-    stateStore()[`${screenId}|${baseDate}`] = row;
-    return { success: true, code: 'SUCCESS', message: '작성 상태를 기록했습니다.', data: { screenId, ...row } };
   },
 
   /* ───────── RP-01 아침회의 자료 (PRESS) ───────── */
@@ -281,16 +249,6 @@ export const reportMock = {
   },
 
   /* ───────── RP-06 폐기 보고서 ───────── */
-
-
-
-
-
-
-
-
-
-
 
 };
 

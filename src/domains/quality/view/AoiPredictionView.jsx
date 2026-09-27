@@ -22,7 +22,7 @@
  *  4. 「지금 상태 — 추정의 근거」 제목 제거 (요구 4)
  *  5. 목록은 모두 Tabulator (요구 5) — 불량 목록 · 출하 전 위험 LOT · 불량 유형 구성 변화
  *
- * 사용 API — /api/v1/quality/aoi/defects(+상세) · /files/aoi-images/{imageId} · /aoi/prediction/{trend-band,lot-risk} · /aoi/defect-type-shift
+ * 사용 API — /api/v1/quality/aoi/dimension/serials(+회차) · /aoi/prediction/{trend-band,lot-risk} · /aoi/defect-type-shift
  * 모든 값은 서버 응답 필드만 그립니다. 임계값(SY-13 불량률 기준)이 없으면 확률·등급은 "산출 불가" 입니다.
  */
 import React, { useMemo } from 'react';

@@ -2,66 +2,48 @@
  * [View] AI-01 자연어 질의 (경로: /ai/chat)
  *
  * 생산 실적 · 불량 현황 · 로트 이력 · 설비 가동 상태를 자연어로 조회합니다.
- * 응답은 blocks 배열(text · table · chart · source · actions)을 종류별 컴포넌트로 그립니다.
- * 사용 API 6건 — /api/v1/ai/chat/*
+ * 사내 LLM 답은 스트리밍으로 점진 표시하고 마크다운으로 그립니다(Markdown — HTML 을 해석하지 않습니다).
+ * 예전 검색 요약 답(이력 복원)은 blocks 배열(text · table · chart · source · actions)을 종류별로 그립니다.
+ * 사용 API — /api/v1/ai/chat/* · /api/ai/chat(스트리밍)
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LineChart } from '@shared/components/charts';
-import { Badge, BlindNote, BlindValue, Button, Chip, ChipRow, Icon, Table } from '@shared/components/ui';
-import AiThinking from '@shared/components/brand/AiThinking';
+import { Badge, BlindNote, BlindValue, Button, Chip, ChipRow, Icon, Markdown, Table } from '@shared/components/ui';
+import SparkleSpinner from '@shared/components/ui/SparkleSpinner';
 import { DEPTS } from '@shared/constants/dataFields';
 import { useAuthStore } from '@shared/stores/useAuthStore';
-import { useUiStore } from '@shared/stores/useUiStore';
 import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
 import ChatHome from './ChatHome';
-import llmAnswerTools from '../model/llmAnswer.cjs';
 
 export default function ChatView({
-  messages, followups, input, setInput, pending, suggestions, servingModelVer, askedCount,
-  send, newSession, exportAnswer, rate, requestVoice, compact = false, briefing = null,
+  messages, followups, input, setInput, pending, phase = 'idle', stop, suggestions, servingModelVer, askedCount,
+  send, newSession, exportAnswer, exportDefectTop, downloadStates = {}, rate, compact = false, briefing = null,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
-  const openDrawer = useUiStore((state) => state.openDrawer);
-  const closeDrawer = useUiStore((state) => state.closeDrawer);
   const userInfo = useAuthStore((state) => state.userInfo);
   const scrollRef = useRef(null);
 
-  // 새 메시지가 붙으면 아래로 스크롤합니다
+  // 새 메시지가 붙거나 답이 자라면 아래로 스크롤합니다
+  const lastLen = String(messages[messages.length - 1]?.text || '').length;
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     return () => clearTimeout(timer);
-  }, [messages.length, pending]);
+  }, [messages.length, pending, lastLen]);
 
-  const showSuggestions = () =>
-    openDrawer({
-      title: '추천 질의',
-      sub: '자주 묻는 질문 · 누르면 바로 질의합니다',
-      render: () => (
-        <View>
-          {suggestions.map((x) => (
-            <TouchableOpacity
-              key={x.q}
-              style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.divider }}
-              onPress={() => {
-                closeDrawer();
-                send(x.q);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.textSm, { fontWeight: '500' }]}>{x.q}</Text>
-              <Text style={[s.textXs, { marginTop: 3 }]}>{x.desc}</Text>
-            </TouchableOpacity>
-          ))}
-          <Text style={[s.sourceText, { marginTop: 14 }]}>현장 빈출 질의 목록이 확보되면 이 항목을 실제 질문으로 교체합니다.</Text>
-        </View>
-      ),
-    });
+  /** Enter 로 보내고 Shift+Enter 로 줄을 바꿉니다 (한글 조합 중 Enter 는 글자 확정이라 보내지 않습니다) */
+  const onKeyPress = (e) => {
+    const ne = e?.nativeEvent || {};
+    if (ne.key !== 'Enter' || ne.shiftKey || ne.isComposing) return;
+    e.preventDefault?.();
+    if (!pending) send(input);
+  };
 
   const deptAv = DEPTS.find((d) => d.id === userInfo?.dept)?.av || 'ME';
+  const chatContentWidth = Math.max(theme.metrics.contentColumn, 1120);
 
   return (
     <View style={{ flex: 1, minHeight: compact ? 0 : 520 }}>
@@ -71,7 +53,6 @@ export default function ChatView({
           flexDirection: 'row',
           alignItems: 'center',
           gap: 8,
-          // 좁은 화면에서는 줄을 바꿔 담습니다 — 한 줄로 두면 「추천 질의」가 패널 밖으로 잘려 누를 수 없습니다
           flexWrap: 'wrap',
           rowGap: 8,
           paddingBottom: 12,
@@ -79,7 +60,7 @@ export default function ChatView({
           borderBottomColor: theme.divider,
           marginBottom: 4,
           width: '100%',
-          maxWidth: theme.metrics.contentColumn,
+          maxWidth: chatContentWidth,
           alignSelf: 'center',
         }}
       >
@@ -92,29 +73,33 @@ export default function ChatView({
         </Text>
         <View style={s.spacer} />
         <Button label="새 대화" size="sm" icon="plus" onPress={newSession} />
-        <Button label="추천 질의" size="sm" icon="sparkles" onPress={showSuggestions} />
       </View> : null}
 
       {/* 대화 영역 */}
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: compact ? 14 : 18 }}>
-        <View style={{ maxWidth: theme.metrics.contentColumn, width: '100%', alignSelf: 'center', gap: 16 }}>
+      <ScrollView ref={scrollRef} style={{ flex: 1, minWidth: 0 }} contentContainerStyle={{ paddingVertical: compact ? 14 : 18, paddingHorizontal: 12 }}>
+        <View style={{ maxWidth: chatContentWidth, width: '100%', alignSelf: 'center', gap: 16 }}>
           {!messages.length ? (
             briefing && !compact ? (
-              <ChatHome briefing={briefing} suggestions={suggestions} onAsk={send} />
+              <ChatHome briefing={briefing} onAsk={send} />
             ) : (
-              <EmptyChat suggestions={suggestions} onPick={send} compact={compact} />
+              <EmptyChat compact={compact} />
             )
           ) : (
             // 질문과 답이 같은 messageId 를 나눠 쓰므로 누가 말했는지와 순번을 함께 키로 씁니다
-            messages.map((m, i) => <Message key={`${m.messageId ?? 'm'}-${m.who}-${i}`} message={m} deptAv={deptAv} onExport={exportAnswer} onRate={rate} />)
+            messages.map((m, i) => <Message key={`${m.messageId ?? 'm'}-${m.who}-${i}`} message={m} deptAv={deptAv} onExport={exportAnswer} onExportTop={exportDefectTop} downloadStates={downloadStates} onRate={rate} />)
           )}
           {/* 조건부 마운트가 아닙니다 — 답이 도착한 뒤 입자가 한 점으로 수렴하는 동안 스스로 남아 있습니다 */}
-          <AiThinking active={pending} compact={compact} text="응답을 생성하는 중입니다…" />
+          <SparkleSpinner
+            active={phase === 'searching' || phase === 'waiting'}
+            text={phase === 'searching' ? '사내 문서에서 근거를 찾는 중입니다…' : '모델 준비 중… (첫 호출은 20초가량 걸릴 수 있습니다)'}
+            size={compact ? 76 : 112}
+            style={{ minHeight: compact ? 96 : 148, paddingVertical: 8 }}
+          />
         </View>
       </ScrollView>
 
       {/* 입력창 */}
-      <View style={{ maxWidth: theme.metrics.contentColumn, width: '100%', alignSelf: 'center', paddingTop: 10 }}>
+      <View style={{ maxWidth: chatContentWidth, width: '100%', alignSelf: 'center', paddingTop: 10, paddingHorizontal: 12 }}>
         {followups.length ? (
           <ChipRow style={{ marginTop: 0, marginBottom: 10 }}>
             {followups.map((q) => (
@@ -135,66 +120,54 @@ export default function ChatView({
           }}
         >
           <TextInput
-            style={[s.text, { fontSize: 17, lineHeight: 20, paddingBottom: 10, outlineStyle: 'none' }]}
+            style={[s.text, { fontSize: 17, lineHeight: 22, paddingBottom: 10, outlineStyle: 'none', minHeight: 24, maxHeight: 160 }]}
             placeholder="생산 실적 · 불량 현황 · 로트 이력을 질의하십시오"
+            accessibilityHint="Enter 로 보내고 Shift+Enter 로 줄을 바꿉니다"
             placeholderTextColor={theme.color.mutedForeground}
             value={input}
             onChangeText={setInput}
-            onSubmitEditing={() => send(input)}
-            returnKeyType="send"
+            onKeyPress={onKeyPress}
+            multiline
+            numberOfLines={input.includes('\n') ? Math.min(6, input.split('\n').length) : 1}
           />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <MiniButton icon="sparkles" label="추천 질의" onPress={showSuggestions} />
-            <MiniButton icon="mic" label="음성" onPress={requestVoice} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <View style={s.spacer} />
-            <TouchableOpacity
-              onPress={() => send(input)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="질의 보내기"
-              style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-            >
-              <Icon name="sparkles" size={14} color={theme.color.primaryForeground} />
-              <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
-            </TouchableOpacity>
+            {pending ? (
+              <TouchableOpacity
+                onPress={stop}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="생성 중단"
+                style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.color.card, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: theme.color.foreground }} />
+                <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.foreground }}>중단</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => send(input)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="질의 보내기"
+                style={{ height: 32, paddingHorizontal: 14, borderRadius: theme.metrics.radiusAction, backgroundColor: theme.color.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name="sparkles" size={14} color={theme.color.primaryForeground} />
+                <Text style={{ fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '600', color: theme.color.primaryForeground }}>질의</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
         {!compact && messages.length ? <Text style={[s.caption, { textAlign: 'center', marginTop: 8 }]}>
-          조회 대상 데이터는 질문 의도에 따라 AI 가 자동으로 판단합니다. 답변에는 원천 화면·기간·LOT 근거가 함께 표시되며, 권한 범위를 벗어난 항목은 마스킹됩니다.
+          답변은 실적 DB 집계 및 사내 문서 검색 결과를 근거로 합니다. 답의 [1] 은 아래 근거 목록의 번호이며, 권한 범위를 벗어난 발췌는 근거로 쓰지 않습니다.
         </Text> : null}
       </View>
     </View>
   );
 }
 
-function MiniButton({ icon, label, onPress }) {
-  const s = useCommonStyles();
-  const theme = useTheme();
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      style={{
-        height: 30,
-        paddingHorizontal: 11,
-        borderRadius: 99,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.07)',
-        backgroundColor: theme.color.card,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-      }}
-    >
-      <Icon name={icon} size={13} color={theme.color.mutedForeground} />
-      <Text style={[s.textXs, { fontSize: 16 }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 /** 빈 대화 상태 */
-function EmptyChat({ suggestions, onPick, compact }) {
+function EmptyChat({ compact }) {
   const s = useCommonStyles();
   const theme = useTheme();
   return (
@@ -203,40 +176,12 @@ function EmptyChat({ suggestions, onPick, compact }) {
       <Text style={[s.bodySm, { textAlign: compact ? 'left' : 'center', marginTop: compact ? 6 : 10, alignSelf: compact ? 'flex-start' : 'center', maxWidth: 560 }]}>
         생산 실적 · 불량 현황 · 로트 이력 · 설비 가동 상태를 조회합니다. 표와 차트로 정리해 드리고 엑셀로 내려받을 수 있습니다.
       </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: compact ? 18 : 26 }}>
-        {suggestions.map((x) => (
-          <TouchableOpacity
-            key={x.q}
-            onPress={() => onPick(x.q)}
-            activeOpacity={0.75}
-            style={{
-              flexGrow: 1,
-              flexBasis: 320,
-              borderWidth: 1,
-              borderColor: 'rgba(0,0,0,0.07)',
-              borderRadius: theme.metrics.radiusSm,
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              backgroundColor: theme.color.card,
-              flexDirection: 'row',
-              gap: 11,
-              alignItems: 'flex-start',
-            }}
-          >
-            <View style={{ width: 6, height: 6, borderRadius: 99, marginTop: 6, backgroundColor: theme.color.ink500 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]}>{x.q}</Text>
-              <Text style={[s.textXs, { marginTop: 3 }]}>{x.desc}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
     </View>
   );
 }
 
 /** 말풍선 하나 */
-function Message({ message, deptAv, onExport, onRate }) {
+function Message({ message, deptAv, onExport, onExportTop, downloadStates, onRate }) {
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -253,10 +198,11 @@ function Message({ message, deptAv, onExport, onRate }) {
     );
   }
 
+  if (message.llm) return <LlmMessage message={message} onExport={onExport} onExportTop={onExportTop} downloadStates={downloadStates} />;
+
   const denied = message.intent === 'denied';
   const unknown = message.intent === 'unknown';
   const plain = !denied && !unknown;
-  const citationSources = llmAnswerTools.formatCitationSources(message);
 
   return (
     <View style={s.msg}>
@@ -273,22 +219,14 @@ function Message({ message, deptAv, onExport, onRate }) {
           { flex: 1 },
         ]}
       >
-        {message.llmAnswer ? (
-          <Text style={[s.bubbleText, { marginBottom: 8 }]}>{message.llmAnswer}</Text>
-        ) : null}
-
-        {message.generationWarning ? (
-          <Text style={[s.bubbleText, { marginBottom: 8, color: theme.color.mutedForeground }]}>{message.generationWarning}</Text>
-        ) : null}
-
         {(message.blocks || []).length ? (
           (message.blocks || []).map((b, i) => (
-            <Block key={i} block={b} messageId={message.messageId} onExport={onExport} onRate={onRate} />
+            <Block key={i} block={b} messageId={message.messageId} onRate={onRate} />
           ))
-        ) : !message.llmAnswer && !message.generationWarning ? (
+        ) : (
           // 블록이 없는 응답 — 서버의 answerHtml(또는 text)을 글로 보여 줍니다
           <Text style={[s.bubbleText, { marginBottom: 8 }]}>{plainText(message.answerHtml || message.text || message.answer) || '응답 내용이 없습니다.'}</Text>
-        ) : null}
+        )}
 
         {/*
           가려진 항목 안내 — 질의를 막는 대신 답은 내고 값만 가리므로, 무엇이 빠졌는지
@@ -296,14 +234,22 @@ function Message({ message, deptAv, onExport, onRate }) {
         */}
         {message.blindFields?.length ? <BlindNote fields={message.blindFields} /> : null}
 
-        {citationSources.length ? (
-          <View style={[s.source, { marginBottom: 4 }]}>
-            <Text style={s.sourceText}>출처</Text>
-            {citationSources.map((source) => (
-              <Text key={source.number} style={s.sourceText}>
-                [{source.number}] {source.title}{source.detail ? ` · ${source.detail}` : ''}
-              </Text>
+        {message.sources?.length ? (
+          <View style={[s.source, { marginBottom: 4, gap: 4 }]}>
+            <Text style={s.sourceText}>출처 {message.sources.length}건</Text>
+            {message.sources.map((source, i) => (
+              <SourceAccordion key={`${source.kind || 'doc'}-${source.chunkId ?? source.docId ?? i}`} source={source} index={i} />
             ))}
+          </View>
+        ) : null}
+
+        {message.messageId && (message.blocks || []).some((block) => block.type === 'table') ? (
+          <View style={{ alignItems: 'flex-start', marginTop: 8 }}>
+            <Button
+              label={downloadLabel(downloadStates[message.messageId], '표 XLSX 다운로드')}
+              size="sm" icon="download" disabled={downloadStates[message.messageId] === 'loading'}
+              onPress={() => onExport(message.messageId)}
+            />
           </View>
         ) : null}
 
@@ -318,6 +264,139 @@ function Message({ message, deptAv, onExport, onRate }) {
       </View>
     </View>
   );
+}
+
+/**
+ * 사내 LLM 답 말풍선 — 스트리밍 중에는 글이 자라고, 끝나면 근거 목록·소요 시간을 붙입니다.
+ * 첫 조각 전(waiting)에는 그리지 않습니다 — 그동안은 아래 AiThinking 이 「모델 준비 중」을 보여 줍니다.
+ */
+function LlmMessage({ message, onExport, onExportTop, downloadStates }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const { status, text } = message;
+  const hasTableResult = message.answerExportAvailable || (message.sources || []).some((source) => source.kind === 'data');
+  if (status === 'waiting' && !text) return null;
+
+  const error = status === 'error';
+  return (
+    <View style={s.msg}>
+      <View style={s.avatarSm}>
+        <Text style={s.avatarSmText}>AI</Text>
+      </View>
+      <View style={[s.bubble, error ? s.bubbleDeny : { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 }, { flex: 1 }]}>
+        {error ? (
+          <Text style={s.bubbleText}>{text}</Text>
+        ) : text ? (
+          <Markdown text={status === 'streaming' ? `${text} ▍` : text} />
+        ) : (
+          <Text style={[s.bubbleText, { color: theme.color.mutedForeground }]}>(생성을 중단했습니다)</Text>
+        )}
+
+        {message.blindFields?.length && !error ? <BlindNote fields={message.blindFields} /> : null}
+
+        {message.sources?.length && !error ? (
+          <View style={[s.source, { marginTop: 10, marginBottom: 4, gap: 4 }]}>
+            <Text style={s.sourceText}>출처 {message.sources.length}건</Text>
+            {message.sources.map((x, i) => (
+              <SourceAccordion key={`${x.kind || 'doc'}-${x.chunkId ?? x.docId ?? i}`} source={x} index={i} />
+            ))}
+          </View>
+        ) : null}
+
+        {!error && status !== 'streaming' ? (
+          <View style={[s.chips, { marginTop: 10 }]}>
+            <Badge>{evidenceLabel(message)}</Badge>
+            {status === 'aborted' ? <Badge tone="amber">중단함</Badge> : null}
+            {status === 'interrupted' ? <Badge tone="amber">응답 끊김</Badge> : null}
+            {strayCitations(message).length ? <Badge tone="red">{`근거에 없는 번호 ${strayCitations(message).map((n) => `[${n}]`).join(' ')}`}</Badge> : null}
+            {message.elapsedMs ? <Badge>{`${(message.elapsedMs / 1000).toFixed(1)}초`}</Badge> : null}
+          </View>
+        ) : null}
+        {!error && status === 'done' && message.messageId && (message.defectTopRange || (hasTableResult && !message.defectTopRange)) ? (
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+            {hasTableResult && !message.defectTopRange ? (
+              <Button
+                label={downloadLabel(downloadStates[message.messageId], '답변 XLSX 다운로드')}
+                size="sm" icon="download" disabled={downloadStates[message.messageId] === 'loading'}
+                onPress={() => onExport(message.messageId)}
+              />
+            ) : null}
+            {message.defectTopRange ? (
+              <Button
+                label={downloadLabel(downloadStates[`top-${message.messageId}`], `불량 Top ${message.defectTopRange.limit || 10} XLSX 다운로드`)}
+                size="sm" icon="download" disabled={downloadStates[`top-${message.messageId}`] === 'loading'}
+                onPress={() => onExportTop(message.messageId, message.defectTopRange)}
+              />
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function downloadLabel(state, idleLabel) {
+  if (state === 'loading') return '다운로드 준비 중…';
+  if (state === 'done') return '다운로드 완료';
+  if (state === 'error') return '다시 다운로드';
+  return idleLabel;
+}
+
+function SourceAccordion({ source, index }) {
+  const s = useCommonStyles();
+  const theme = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const title = source.kind === 'data'
+    ? `${source.title || '실적 집계'} (실적 DB)`
+    : `${source.title || '문서'}${source.page ? ` · ${source.page}쪽` : ''}${source.docDate ? ` · ${source.docDate}` : ''}`;
+  const detail = String(source.snippet || source.text || '').trim();
+  return (
+    <View style={{ borderTopWidth: index === 0 ? 0 : 1, borderTopColor: theme.divider }}>
+      <TouchableOpacity
+        onPress={() => setExpanded((value) => !value)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        style={{ minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 6 }}
+      >
+        <Text style={[s.sourceText, { flex: 1 }]}>{`[${index + 1}] ${title}`}</Text>
+        <Text style={[s.sourceText, { color: theme.color.primary }]}>{expanded ? '접기 −' : '내용 보기 +'}</Text>
+      </TouchableOpacity>
+      {expanded ? (
+        <Text style={[s.sourceText, { paddingHorizontal: 8, paddingBottom: 10, lineHeight: 20, color: theme.color.foreground }]}>
+          {detail || '표시할 출처 내용이 없습니다.'}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * 보낸 근거 목록에 없는 `[n]` — 모델은 확률적으로 동작하므로 화면에서도 한 겹 더 봅니다(LLM 담당 권고).
+ * 붙여 넣은 근거는 번호를 셀 수 없어 보지 않습니다.
+ */
+function strayCitations(message) {
+  if (message.manualContext || message.status !== 'done') return [];
+  const max = (message.sources || []).length;
+  const cited = new Set();
+  String(message.text || '').replace(/\[(\d+(?:\s*[,\-–]\s*\d+)*)\]/g, (_, g) => {
+    g.split(/\s*,\s*/).forEach((part) => {
+      const [a, b] = part.split(/\s*[-–]\s*/).map(Number);
+      for (let n = a; n <= (b || a); n++) cited.add(n);
+    });
+    return _;
+  });
+  return [...cited].filter((n) => n < 1 || n > max).sort((x, y) => x - y);
+}
+
+/** 근거 배지 — 실적 집계 k건 · 사내 문서 n건 */
+function evidenceLabel(message) {
+  if (message.manualContext) return '붙여 넣은 근거';
+  const list = message.sources || [];
+  const data = list.filter((x) => x.kind === 'data').length;
+  const docs = list.length - data;
+  const parts = [data ? `실적 집계 ${data}건` : '', docs ? `사내 문서 ${docs}건` : ''].filter(Boolean);
+  return parts.length ? `${parts.join(' · ')} 근거` : '근거 없음';
 }
 
 /**
@@ -350,7 +429,7 @@ function plainText(html) {
 }
 
 /** 응답 블록 종류별 렌더링 */
-function Block({ block, messageId, onExport, onRate }) {
+function Block({ block, messageId, onRate }) {
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -398,7 +477,6 @@ function Block({ block, messageId, onExport, onRate }) {
   if (block.type === 'actions') {
     return (
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-        <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => onExport(messageId)} />
         <Button label="유용함" size="sm" icon="thumbsUp" onPress={() => onRate(messageId, 'good')} />
         <Button label="개선 필요" size="sm" icon="thumbsDown" onPress={() => onRate(messageId, 'bad')} />
       </View>

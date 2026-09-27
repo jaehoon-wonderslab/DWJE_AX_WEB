@@ -42,9 +42,10 @@ suite('AI 검색 근거와 LLM 답변 연결', () => {
   test('로컬 대화 분기 뒤의 나머지 질문은 ask와 근거 기반 생성 흐름을 유지한다', async () => {
     const controller = fs.readFileSync(path.join(__dirname, '../../src/domains/ai/controller/useChatController.js'), 'utf8');
     const localReply = controller.indexOf('const smallTalk = smallTalkReply(question)');
-    const askCall = controller.indexOf('res = await ask(sessionId, question)');
-    const evidenceCall = controller.indexOf('askWithEvidence(question, messages, res.data.messageId, res.data)');
-    eq(localReply >= 0 && localReply < askCall && askCall < evidenceCall, true);
+    const askCall = controller.indexOf('await ask(sessionId, question)');
+    const evidenceCall = controller.indexOf('const evidence = manual || sourcesToContext(sources)');
+    const llmCall = controller.indexOf('await streamLlmChat({');
+    eq(localReply >= 0 && localReply < askCall && askCall < evidenceCall && evidenceCall < llmCall, true);
   });
 
   test('SSE의 여러 delta 조각을 순서대로 합친다', async () => {
@@ -101,17 +102,16 @@ suite('AI 검색 근거와 LLM 답변 연결', () => {
 
   test('Chat UI는 blocks가 있어도 생성 답변을 출처보다 먼저 렌더링한다', async () => {
     const view = fs.readFileSync(path.join(__dirname, '../../src/domains/ai/view/ChatView.jsx'), 'utf8');
-    const answer = view.indexOf('{message.llmAnswer ?');
-    const blocks = view.indexOf('{(message.blocks || []).length ?');
-    const sources = view.indexOf('{citationSources.length ?');
-    eq(answer >= 0 && answer < blocks && blocks < sources, true);
+    const answer = view.indexOf('<Markdown text={status === \'streaming\' ?');
+    const sources = view.indexOf('{message.sources?.length && !error ?');
+    eq(answer >= 0 && answer < sources, true);
   });
 
   test('Chat UI는 생성 실패 안내를 근거 블록과 출처보다 먼저 표시한다', async () => {
     const view = fs.readFileSync(path.join(__dirname, '../../src/domains/ai/view/ChatView.jsx'), 'utf8');
-    const warning = view.indexOf('{message.generationWarning ?');
-    const blocks = view.indexOf('{(message.blocks || []).length ?');
-    const sources = view.indexOf('{citationSources.length ?');
-    eq(warning >= 0 && warning < blocks && blocks < sources, true);
+    const error = view.indexOf('{error ? (');
+    const errorText = view.indexOf('<Text style={s.bubbleText}>{text}</Text>');
+    const sources = view.indexOf('{message.sources?.length && !error ?');
+    eq(error >= 0 && error < errorText && errorText < sources, true);
   });
 });

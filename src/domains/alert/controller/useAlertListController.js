@@ -13,13 +13,17 @@ import { downloadXls } from '@shared/utils/exportUtil';
 import { labelOf, withAll } from '@domains/common/model/codeRepository';
 import { acknowledgeAlert, fetchAlertDetail, isAcked, loadAlertCodes, loadAlerts } from '../model/alertRepository';
 
-/** 발송 로그 카드를 볼 수 있는 부서 (명세: 전산팀·통합관리자) */
-const SEND_LOG_DEPTS = ['전산팀', '통합관리자'];
+/**
+ * 발송 로그 카드를 볼 수 있는 화면 권한 — 알림 발송 조건·수신자 관리 중 하나.
+ * 팀 이름으로 가르지 않습니다. 부서별 권한은 DB(ax.tb_sys_dept_menu_perm)가 기준이고,
+ * 서버(GET /alerts/send-logs)도 같은 두 화면 권한으로 판정합니다.
+ */
+const SEND_LOG_SCREENS = ['alert-cond', 'sys-recip'];
 
 export function useAlertListController() {
   const toast = useUiStore((state) => state.toast);
-  const dept = useAuthStore((state) => state.userInfo?.dept);
-  const canSendLog = SEND_LOG_DEPTS.includes(dept);
+  const can = useAuthStore((state) => state.can);
+  const canSendLog = SEND_LOG_SCREENS.some((id) => can(id));
 
   const [tab, setTab] = useState('미확인');
   const [type, setType] = useState('전체');

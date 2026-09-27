@@ -14,28 +14,6 @@ import { request } from './client';
 /* ───────── 보고서 센터 ───────── */
 
 /**
- * 보고서 작성 상태 조회 — "오늘 작성할 보고서" 띠 · 각 보고서 머리말의 상태 배지
- *
- * `GET /api/v1/reports/status`
- * @param {object} params baseDate (YYYY-MM-DD, 없으면 오늘)
- * @returns {Promise<object>} baseDate, items[{screenId,state,source,updatedAt,updatedBy,updatedByName}]
- */
-export function getReportsStatus(params) {
-  return request('getReportsStatus', params);
-}
-
-/**
- * 보고서 작성 상태 기록 — 제출·승인·작성 중으로 되돌리기
- *
- * `PUT /api/v1/reports/status`
- * @param {object} params screenId, baseDate, state (DRAFT|SUBMITTED|APPROVED)
- * @returns {Promise<object>} screenId, state, source, updatedAt, updatedBy, updatedByName
- */
-export function putReportsStatus(params) {
-  return request('putReportsStatus', params);
-}
-
-/**
  * 자주 쓰는 보고서 조회 (계정별 만든 횟수 순)
  * @param {{top?:number}} params
  * @returns {Promise<object>} items[{screenId,useCount,lastUsedAt}]

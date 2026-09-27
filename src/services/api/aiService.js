@@ -32,6 +32,18 @@ export function postLlmChat(params) {
 }
 
 /**
+ * 후속 질의 만들기 (사내 LLM)
+ *
+ * `POST /api/ai/followups`
+ * @param {object} params question, answer
+ * @returns {Promise<object>} questions[], reason
+ * @remarks 답을 본 dwje-ax 가 2~3개를 씁니다. 모델이 없으면 빈 목록
+ */
+export function postAiFollowups(params) {
+  return request('postAiFollowups', params);
+}
+
+/**
  * 세션 대화 조회
  *
  * `GET /api/v1/ai/chat/sessions/{sessionId}`
@@ -41,6 +53,11 @@ export function postLlmChat(params) {
  */
 export function getAiChatSessionsBySessionId(params) {
   return request('getAiChatSessionsBySessionId', params);
+}
+
+/** 마지막 대화 세션 및 메시지 복원 */
+export function getAiChatSessionsLatest() {
+  return request('getAiChatSessionsLatest', {});
 }
 
 /**
@@ -79,7 +96,12 @@ export function getAiChatSuggestions(params) {
  * @privateRemarks 접근 권한 전 부서 · 우선순위 2
  */
 export function postAiChatMessagesByMessageIdExport(params) {
-  return request('postAiChatMessagesByMessageIdExport', params);
+  return request('postAiChatMessagesByMessageIdExport', params, { responseType: 'blob' });
+}
+
+/** 불량 Top 10 XLSX — 응답 헤더(Content-Disposition)를 포함해 반환 */
+export function postAiChatDefectsTopExport(params) {
+  return request('postAiChatDefectsTopExport', params, { responseType: 'blob' });
 }
 
 /**

@@ -30,3 +30,4 @@ export { ToastHost, ModalHost, DrawerHost } from './Overlays';
 export { default as GlobalApiSpinner } from './GlobalApiSpinner';
 
 export { default as SparkleSpinner } from './SparkleSpinner';
+export { default as Markdown } from './Markdown';

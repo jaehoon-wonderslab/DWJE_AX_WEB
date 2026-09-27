@@ -3,7 +3,6 @@
  */
 import * as aiService from '@services/api/aiService';
 import { command, unwrap } from '@services/api/request';
-import llmAnswerTools from './llmAnswer.cjs';
 
 /**
  * 세션 대화 복원
@@ -14,37 +13,80 @@ import llmAnswerTools from './llmAnswer.cjs';
  */
 export const loadSession = (sessionId) =>
   sessionId
-    ? unwrap(aiService.getAiChatSessionsBySessionId({ sessionId }), { messages: [], sessionId })
+    ? unwrap(aiService.getAiChatSessionsBySessionId({ sessionId }), { messages: [], sessionId }).then((res) => ({
+        ...res,
+        messages: (res?.messages || []).map(fromSessionMessage),
+      }))
     : Promise.resolve({ messages: [], sessionId: null });
+
+/** 사용자에게 귀속된 가장 최근 세션 복원 */
+export const loadLatestSession = () =>
+  unwrap(aiService.getAiChatSessionsLatest(), { messages: [], sessionId: null }).then((res) => ({
+    ...res,
+    messages: (res?.messages || []).map(fromSessionMessage),
+  }));
+
+/**
+ * 서버 이력 한 건 → 화면 말풍선
+ *
+ * 서버는 `{ who: 'user' | 'ai', html }` 로 줍니다. 화면은 `who: 'me' | 'ai'` 와 `text` 를 읽습니다
+ * (그대로 쓰면 질문이 AI 말풍선으로, 답이 「응답 내용이 없습니다」로 보였습니다).
+ * 사내 LLM 답은 마크다운 글로, 그 전의 검색 요약 답은 HTML 로 저장돼 있어 둘을 가려 둡니다.
+ */
+function fromSessionMessage(m) {
+  const body = m?.html ?? m?.text ?? '';
+  if (m?.who === 'user' || m?.who === 'me') return { ...m, who: 'me', text: body };
+  const isHtml = /<\/?(p|ol|ul|li|br|div|strong|b)\b/i.test(body);
+  return isHtml ? { ...m, who: 'ai', answerHtml: body } : { ...m, who: 'ai', llm: true, status: 'done', text: body };
+}
 
 /** 추천 질의 목록 */
 export const loadSuggestions = () => unwrap(aiService.getAiChatSuggestions({}), { suggestions: [] });
 
-/** 자연어 질의 요청 */
+/**
+ * 자연어 질의 요청 — 사내 문서 검색 · 권한 마스킹 · 질의 이력 기록
+ *
+ * 답 문장은 여기서 받지 않습니다. 여기서 받은 근거(`sources[].snippet`)로 사내 LLM 에 다시 묻고
+ * (services/api/llmStream.js), 받은 답은 서버가 이 질의 이력(`messageId`)에 저장합니다.
+ */
 export const ask = (sessionId, question) => command(aiService.postAiChatAsk({ sessionId, question }));
 
-/** 질문과 ask 검색 근거를 API 서버 LLM 프록시로 보내 생성 답변을 반환합니다. */
-export async function askWithEvidence(question, priorMessages = [], messageId = null, askData = {}) {
-  const response = await aiService.postLlmChat({
-    messages: [
-      ...priorMessages.slice(-10).map((message) => ({
-        role: message.who === 'me' ? 'user' : 'assistant',
-        content: message.text || message.llmAnswer || message.answerHtml || message.answer || '',
-      })),
-      { role: 'user', content: question },
-    ],
-    context: llmAnswerTools.formatLlmContext(askData),
-    messageId,
-  });
-  return llmAnswerTools.parseLlmSse(response);
-}
+/** 후속 질의 — 답을 본 사내 LLM 이 만듭니다. 실패하면 빈 목록 */
+export const loadFollowups = (question, answer) =>
+  unwrap(aiService.postAiFollowups({ question, answer }), { questions: [] })
+    .then((r) => (r?.questions || []).filter(Boolean))
+    .catch(() => []);
 
 /** 새 대화 시작 (세션 맥락 초기화) */
 export const startNewSession = (sessionId) => command(aiService.deleteAiChatSessionsBySessionId({ sessionId }));
 
 /** 응답 결과 내려받기 */
-export const exportMessage = (messageId, format = 'xls') =>
-  command(aiService.postAiChatMessagesByMessageIdExport({ messageId, format }));
+export const exportMessage = async (messageId, format = 'xlsx') => {
+  const res = await aiService.postAiChatMessagesByMessageIdExport({ messageId, format });
+  return saveXlsx(res, `ai-answer-${messageId || Date.now()}.xlsx`);
+};
+
+/** 불량 Top 10 export — API가 기록을 남기므로 download-logs를 별도 호출하지 않습니다. */
+export const exportTopDefects = async ({ from, to, limit = 10 }) => {
+  const res = await aiService.postAiChatDefectsTopExport({ from, to, limit });
+  return saveXlsx(res, `defects-top-${from}-${to}.xlsx`);
+};
+
+function saveXlsx(response, fallbackName) {
+  if (response?.success === false) return { ok: false, message: response?.message || '파일을 내려받지 못했습니다.' };
+  const file = response?.success === true ? response.data : response;
+  if (typeof window === 'undefined' || !window.URL?.createObjectURL || !file) {
+    return { ok: false, message: '이 환경에서는 파일 다운로드를 시작할 수 없습니다.' };
+  }
+  const blob = typeof Blob !== 'undefined' && file instanceof Blob ? file : new Blob([file], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fallbackName;
+  link.click();
+  window.URL.revokeObjectURL(url);
+  return { ok: true, message: 'Excel 파일 다운로드를 시작했습니다.' };
+}
 
 /** 응답 평가 (파인튜닝 학습데이터 후보) */
 export const rateMessage = (messageId, rating) =>

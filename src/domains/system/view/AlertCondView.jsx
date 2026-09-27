@@ -9,7 +9,6 @@ import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import { Badge, Button, Card, Filters, Hint, Loading, Pagination, SelectField, SourceNote, StatCard, Table, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
-import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { labelOf, withAll } from '@domains/common/model/codeRepository';
 import { useCommonStyles } from '@shared/theme/styles';
@@ -29,7 +28,6 @@ export default function AlertCondView({
   const dur = codes?.ALM_DURATION || [];
 
   const s = useCommonStyles();
-  const { goToScreen } = useAppNavigation();
   const toast = useUiStore((state) => state.toast);
   const openModal = useUiStore((state) => state.openModal);
 
@@ -126,7 +124,6 @@ export default function AlertCondView({
         actions={
           <>
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />
-            <Button label="알림 수신자 관리" size="sm" icon="users" onPress={() => goToScreen('sys-recip')} />
             <Button label="조건 등록" size="sm" variant="primary" icon="plus" onPress={() => openCondForm(null)} />
           </>
         }
@@ -142,7 +139,7 @@ export default function AlertCondView({
       <Gap />
 
       <Hint>
-        발송 조건은 &apos;언제 · 무엇을 기준으로&apos; 보낼지를 정합니다. &apos;누구에게 · 어떤 연락처로&apos; 보낼지는 알림 수신자 관리(SY-05)에서 관리하며, 여기서는 수신 그룹 이름만 참조합니다.
+        발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다. 받는 사람과 연락처는 알림 수신자 관리에서 지정합니다.
       </Hint>
 
       <Filters>
@@ -155,7 +152,8 @@ export default function AlertCondView({
       <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건`} tight>
         <Table
           inset
-          minWidth={1400}
+          bordered
+          minWidth={1460}
           keyExtractor={(r) => r.condId}
           emptyText="등록된 발송 조건이 없습니다. '조건 등록' 으로 첫 조건을 만드세요."
 
@@ -165,12 +163,12 @@ export default function AlertCondView({
             { key: 'threshold', title: '비교 · 임계값', width: 150, render: (r) => <Text style={s.td}>{`${labelOf(op, r.op)} ${r.threshold}`}</Text> },
             { key: 'duration', title: '지속 조건', width: 130, render: (r) => <Text style={s.td}>{labelOf(dur, r.duration)}</Text> },
             { key: 'target', title: '대상 범위', width: 160, render: (r) => <Text style={s.td}>{labelOf(target, r.target)}</Text> },
-            { key: 'severity', title: '심각도', width: 84, render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
+            { key: 'severity', title: '심각도', width: 110, render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
             { key: 'channels', title: '발송 채널', width: 150, render: (r) => <Text style={s.td}>{(r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—'}</Text> },
             { key: 'groups', title: '수신 그룹', width: 200, render: (r) => <Text style={s.td}>{(r.groups || []).map(groupNmOf).join(' · ') || '—'}</Text> },
             { key: 'validWindow', title: '유효 시간대', width: 120, render: (r) => <Text style={s.td}>{labelOf(win, r.validWindow)}</Text> },
-            { key: 'dedupMin', title: '중복 억제', width: 90, render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
-            { key: 'on', title: '상태', width: 80, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
+            { key: 'dedupMin', title: '중복 억제', width: 110, render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
+            { key: 'on', title: '상태', width: 90, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
             {
               key: 'action',
               title: '관리',

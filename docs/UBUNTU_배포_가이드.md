@@ -244,10 +244,11 @@ cd /opt/dwje/web
    sudo systemctl reload nginx
    ```
 
-- **Nginx 설정의 장점**:
+- **Nginx 설정의 장점** (해당 설정을 운영에 설치하고 `nginx -t` 및 API 프록시를 검증한 경우):
   - `http://<서버IP>/` 접속 시 `/opt/dwje/web/dist`의 정적 리소스 초고속 서빙 (Gzip 압축 및 정적 번들 1년 캐싱 자동 적용).
   - `http://<서버IP>/api/*` 요청은 백엔드 Spring Boot `http://127.0.0.1:8080`으로 자동 안전 프록시 (CORS 문제 원천 차단).
   - 대용량 파일 업로드(50MB) 및 웹소켓(WebSocket) 지원 포함.
+  - `/api/ai/chat`은 정확 경로 프록시에서 SSE 버퍼링·압축을 끄고 150초까지 기다립니다. 이 설정을 설치한 환경은 배포 프론트 API 주소를 Nginx(:80)로 둘 수 있습니다. 현재 확인된 운영 상태는 `:80/api/*` 404, API `:8080` 응답이므로 기본 빌드는 `:8080`을 직접 사용합니다.
 
 ---
 

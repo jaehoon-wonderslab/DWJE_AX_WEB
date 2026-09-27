@@ -10,7 +10,9 @@
  * 새 메뉴를 추가할 때는
  *   1) 여기에 { id, name, path } 를 추가하고
  *   2) app/(main)/<path>.jsx 라우트 파일을 만들고
- *   3) 부서 권한(MENU_ACCESS_DEFAULT)에 id 를 넣습니다.
+ *   3) DB 에 화면 행을 넣고(ax.tb_sys_menu — V42 의 메뉴 목록과 같은 모양) 부서 권한은
+ *      [시스템관리 > 메뉴 접근 권한] 화면에서 줍니다(ax.tb_sys_dept_menu_perm).
+ *      목(mock) 모드를 쓰면 dataFields.js 의 MENU_ACCESS_DEFAULT 에도 넣습니다.
  */
 export const MENU = [
   {

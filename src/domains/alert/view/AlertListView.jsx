@@ -48,8 +48,7 @@ export default function AlertListView({
   const s = useCommonStyles();
   const theme = useTheme();
   const can = useAuthStore((state) => state.can);
-  const dept = useAuthStore((state) => state.userInfo?.dept);
-  const canSendLog = canSendLogProp ?? (dept === '전산팀' || dept === '통합관리자');
+  const canSendLog = canSendLogProp ?? (can('alert-cond') || can('sys-recip'));
   const { goToScreen, goToPath } = useAppNavigation();
   const toast = useUiStore((state) => state.toast);
   const openModal = useUiStore((state) => state.openModal);
@@ -260,7 +259,7 @@ export default function AlertListView({
       {canSendLog ? (
         <>
           <Gap />
-          <Card title="알림 발송 로그" sub="최근 발송 내역 (전산팀·통합관리자 전용)" tight>
+          <Card title="알림 발송 로그" sub="최근 발송 내역 (알림 발송 조건·수신자 관리 권한)" tight>
             <Table
               inset
               minWidth={860}

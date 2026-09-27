@@ -1,7 +1,8 @@
 /**
  * 상단 알림 종 — 이상 알림 메뉴를 여기로 통합했습니다
  *
- *  · 종 위의 배지: 미확인(OPEN) 알림 건수. 진입 시 한 번 세고, 팝오버를 열 때마다 새로 셉니다.
+ *  · 종 위의 배지: 미확인(OPEN) 알림 건수. 진입 시 세고, 이후 1분마다(엔진 판정 주기) 다시 셉니다.
+ *    탭이 가려져 있으면 건너뛰고, 다시 보일 때 바로 셉니다. 팝오버를 열 때도 새로 셉니다.
  *  · 팝오버: 최근 미확인 알림 5건(등급 점 · 제목 · 대상 설비 · 발생 시각). 항목을 누르면 목록 화면으로.
  *  · 하단 「알림 전체 보기」 → /alert/list (권한 ID alert-list 는 그대로).
  */
@@ -18,9 +19,12 @@ import { IconButton } from '../ui/Button';
 import { Loading } from '../ui/Feedback';
 
 const PAGE_SIZE = 5;
+/** 배지 갱신 주기 — 알림 엔진의 판정 주기(기본 1분)와 맞춥니다 */
+const POLL_MS = 60_000;
 
-async function fetchOpenAlerts() {
-  const res = await unwrapPaged(alertService.getAlerts({ ackState: 'OPEN', period: '7d', page: 1, size: PAGE_SIZE }), 'items');
+/** @param {boolean} silent 주기 갱신이면 true — 매분 전역 로딩 표시가 번쩍이지 않게 합니다 */
+async function fetchOpenAlerts(silent = false) {
+  const res = await unwrapPaged(alertService.getAlerts({ ackState: 'OPEN', period: '7d', page: 1, size: PAGE_SIZE }, { silent }), 'items');
   const items = res?.items || res?.list || [];
   const total = res?.meta?.total ?? items.length;
   return { items, total };
@@ -33,19 +37,31 @@ export default function AlertBell() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState({ items: [], total: null, loading: false, failed: false });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     setState((prev) => ({ ...prev, loading: true, failed: false }));
     try {
-      const { items, total } = await fetchOpenAlerts();
+      const { items, total } = await fetchOpenAlerts(silent);
       setState({ items, total, loading: false, failed: false });
     } catch {
       setState((prev) => ({ ...prev, loading: false, failed: true }));
     }
   }, []);
 
-  // 진입 시 배지 건수만 한 번 셉니다
+  // 진입 시 세고, 이후 주기적으로 다시 셉니다 — 엔진이 새 알림을 만들면 새로고침 없이 배지가 오릅니다
   useEffect(() => {
     load();
+    const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    const timer = setInterval(() => {
+      if (visible()) load(true);
+    }, POLL_MS);
+    const onVisible = () => {
+      if (visible()) load(true);
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [load]);
 
   const toggle = () => {

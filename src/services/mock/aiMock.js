@@ -263,6 +263,9 @@ function store() {
 }
 
 export const aiMock = {
+  // 목 모드에서는 사내 LLM 을 부르지 않습니다 — 후속 질의는 비워 둡니다(고정 문장으로 채우지 않습니다)
+  postAiFollowups: () => ({ questions: [], reason: 'MODEL_NOT_READY' }),
+
   postAiChatAsk: ({ question }) => {
     const st = store();
     const started = Date.now();
