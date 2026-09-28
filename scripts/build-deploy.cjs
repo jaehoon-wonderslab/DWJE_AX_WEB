@@ -1,44 +1,61 @@
 /**
- * 배포용 웹 번들 생성기
+ * 배포용 정적 번들 생성기 — 대상(target)을 골라 빌드합니다.
  *
- * 로컬 개발의 .env(API localhost)는 그대로 두고, 정적 배포 번들을 만들 때만
- * 사내 API 서버 주소를 클라이언트 번들에 주입합니다.
+ *   node scripts/build-deploy.cjs                 # 기본 = server (실서버 :8080 직접)
+ *   node scripts/build-deploy.cjs --target=nginx  # 실서버 Nginx(:80) 경유
+ *   node scripts/build-deploy.cjs --target=local  # 로컬 API 주소로 빌드 (로컬에서 결과물 확인)
+ *   node scripts/build-deploy.cjs --list          # 대상 목록
+ *
+ * .env 는 고치지 않습니다 (2026-09-28 부터).
+ *  이전에는 빌드 중에 .env 를 고쳤다 되돌렸는데, 그 사이 Ctrl-C 로 끊기면
+ *  배포 주소가 그대로 남아 로컬 개발이 실서버를 보게 되는 사고가 났습니다.
+ *  지금은 자식 프로세스 환경변수로만 주입합니다 —
+ *  @expo/env 는 시스템 환경변수를 .env 보다 먼저 씁니다.
  */
-const fs = require('fs');
-const path = require('path');
 const { spawnSync } = require('child_process');
+const {
+  resolveTarget,
+  targetEnv,
+  banner,
+  allTargets,
+  DEFAULT_TARGET,
+  probeUrl,
+  TargetError,
+} = require('./targets.cjs');
 
-// 현재 운영 API는 8080에서 직접 서비스됩니다. :80은 API 프록시가 적용되지 않아 404가 납니다.
-const DEPLOY_API_URL = 'http://192.168.2.8:8080';
-const npmCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const rootDir = path.resolve(__dirname, '..');
-const envFile = path.join(rootDir, '.env');
-const hadEnvFile = fs.existsSync(envFile);
-const previousEnv = hadEnvFile ? fs.readFileSync(envFile, 'utf8') : '';
-
-// Expo export가 읽는 .env를 배포 빌드 동안에만 바꾸고, 완료 후 원상복구합니다.
-const deployEnv = previousEnv
-  .replace(/^EXPO_PUBLIC_API_URL=.*$/m, `EXPO_PUBLIC_API_URL=${DEPLOY_API_URL}`)
-  .replace(/^EXPO_PUBLIC_USE_MOCK=.*$/m, 'EXPO_PUBLIC_USE_MOCK=false');
-fs.writeFileSync(envFile, deployEnv);
-
-let result;
-try {
-  result = spawnSync(npmCommand, ['expo', 'export', '--platform', 'web', '--clear'], {
-    stdio: 'inherit',
-    cwd: rootDir,
-    env: {
-      ...process.env,
-      EXPO_PUBLIC_API_URL: DEPLOY_API_URL,
-      EXPO_PUBLIC_USE_MOCK: 'false',
-      // 로컬 개발용 직접 Docker 호출은 배포 번들에서 비활성화합니다.
-      EXPO_PUBLIC_LLM_API_URL: '',
-    },
+// ── 1. 인자에서 대상 고르기 ──────────────────────────────────────────────────────
+const args = process.argv.slice(2);
+if (args.includes('--list') || args.includes('list')) {
+  console.log('\n빌드 대상:');
+  allTargets().forEach((t) => {
+    console.log(`  ${t.id.padEnd(8)} ${t.desc}`);
   });
-} finally {
-  if (hadEnvFile) fs.writeFileSync(envFile, previousEnv);
-  else fs.rmSync(envFile, { force: true });
+  console.log(`\n  기본값: ${DEFAULT_TARGET}\n`);
+  process.exit(0);
 }
+
+const targetArg =
+  args.find((a) => a.startsWith('--target='))?.slice('--target='.length) || args[0] || DEFAULT_TARGET;
+
+let target;
+try {
+  target = resolveTarget(targetArg);
+} catch (e) {
+  if (e instanceof TargetError) {
+    console.error(`\n[대상 오류] ${e.message}\n`);
+    process.exit(1);
+  }
+  throw e;
+}
+
+// ── 2. 번들 생성 ────────────────────────────────────────────────────────────────
+process.stdout.write(banner(target.id));
+
+const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const result = spawnSync(npx, ['expo', 'export', '--platform', 'web', '--clear'], {
+  stdio: 'inherit',
+  env: { ...process.env, ...targetEnv(target.id) },
+});
 
 if (result.error) {
   console.error(`[배포 빌드 실패] ${result.error.message}`);
@@ -46,13 +63,26 @@ if (result.error) {
 }
 if (result.status !== 0) process.exit(result.status || 1);
 
+// ── 3. 배포 패키지 구성 ─────────────────────────────────────────────────────────
 const prepare = spawnSync(process.execPath, ['scripts/prepare-deploy.cjs'], {
   stdio: 'inherit',
-  env: process.env,
+  env: { ...process.env, BUILD_TARGET: target.id },
 });
 
 if (prepare.error) {
   console.error(`[배포 패키지 구성 실패] ${prepare.error.message}`);
   process.exit(1);
 }
+
+// ── 4. 어디에 올릴 수 있는지까지 한 번 더 ───────────────────────────────────────
+console.log('──────────────────────────────────────────────────────────────────────');
+console.log(`  빌드 대상   : ${target.label} (${target.id})`);
+console.log(`  번들 API    : ${target.env.EXPO_PUBLIC_API_URL}`);
+console.log(`  접속 확인   : ${probeUrl(target.id)}`);
+if (target.needsVpn) {
+  console.log('  ⚠ 실서버 주소입니다 — 전송·확인 전에 VPN 이 켜져 있는지 보십시오.');
+  console.log(`    상태 확인: npm run env:check -- ${target.id}`);
+}
+console.log('──────────────────────────────────────────────────────────────────────\n');
+
 process.exit(prepare.status || 0);

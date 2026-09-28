@@ -2,6 +2,7 @@
  * 루트 레이아웃 — 앱 전역 초기화
  *
  *  1) 목(mock) 응답 등록   2) 저장된 세션 복원   3) 테마 적용   4) 공통 오버레이(토스트·모달·드로어)
+ *  5) 접속 대상(로컬/실서버) 콘솔 출력 — `shared/utils/logApiTarget.js`
  *
  * 세션 복원이 끝나기 전에는 화면을 그리지 않습니다.
  * 먼저 그리면 로그인한 사용자가 로그인 화면을 한 번 스쳐 보게 되기 때문입니다.
@@ -25,6 +26,7 @@ import { useTheme } from '@shared/theme/useTheme';
 import { useAuthBootstrap } from '@domains/auth/controller/useAuthBootstrap';
 import EntryTransition from '@shared/components/brand/EntryTransition';
 import { useUiStore } from '@shared/stores/useUiStore';
+import { logApiTarget } from '@shared/utils/logApiTarget';
 
 export default function RootLayout() {
   const theme = useTheme();
@@ -41,6 +43,9 @@ export default function RootLayout() {
       document.documentElement.dataset.theme = theme.mode;
     }
   }, [theme]);
+
+  // 현재 붙어 있는 서버(로컬/실서버)를 콘솔에 한 번 찍습니다 — `shared/utils/logApiTarget.js`
+  useEffect(logApiTarget, []);
 
   return (
     <SafeAreaProvider>

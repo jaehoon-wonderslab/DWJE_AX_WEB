@@ -12,9 +12,12 @@ npm-debug.*
 *.orig.*
 .DS_Store
 
-# IDE
-.idea/
+# IDE — 개인 설정은 제외하되 실행 설정(디버깅 대상 선택)만 공유합니다.
+# 주의: `.idea/` 로 두면 git 이 디렉토리를 아예 내려가지 않아 아래 ! 규칙이 먹지 않습니다.
+# 그래서 `.idea/*` 로 바꿔 contents 만 막습니다.
+.idea/*
 *.iml
+!.idea/runConfigurations/
 
 # 환경 변수 — .env.example 만 커밋합니다
 .env

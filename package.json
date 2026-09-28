@@ -31,13 +31,19 @@
   },
   "scripts": {
     "start": "expo start",
-    "web": "expo start --web",
+    "web": "node scripts/dev-target.cjs local",
+    "web:server": "node scripts/dev-target.cjs server",
+    "web:mock": "node scripts/dev-target.cjs mock",
+    "env:check": "node scripts/check-target.cjs",
     "dev:gateway-proxy": "node scripts/local-gateway-proxy.cjs",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "build:web": "node scripts/build-deploy.cjs",
+    "build:web": "node scripts/build-deploy.cjs --target=server",
+    "build:web:local": "node scripts/build-deploy.cjs --target=local",
     "build:proto": "node proto/vercel-demo/build.cjs",
-    "check": "npm run check:syntax && npm run check:api && npm run check:mock && npm run check:routes && npm run check:columns",
+    "check": "npm run check:env && npm run check:target-log && npm run check:syntax && npm run check:api && npm run check:mock && npm run check:routes && npm run check:columns",
+    "check:env": "node scripts/check-env.cjs",
+    "check:target-log": "node scripts/check-target-log.cjs",
     "check:syntax": "node scripts/check-syntax.cjs",
     "check:api": "node scripts/check-api.cjs",
     "check:mock": "node scripts/check-mock.cjs",
@@ -52,6 +58,11 @@
   },
   "private": true,
   "description": "덕우전자 AX — AI 의사결정 지원 계층 (React Native for Web / Expo)",
+  "comments": {
+    "ports": "사내 배포 — WEB 은 192.168.2.8:8081, API 는 192.168.2.8:8080 입니다 (역할이 다릅니다).",
+    "targets": "로컬/실서버 구분은 scripts/targets.cjs 한 곳에 있습니다. npm run env:check -- list",
+    "vpn": "192.168.2.8 은 VPN 활성화 시에만 닿는 사내 실서버입니다 (server 대상)."
+  },
   "devDependencies": {
     "playwright-core": "^1.62.1"
   }

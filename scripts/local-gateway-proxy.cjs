@@ -1,6 +1,11 @@
 'use strict';
 
-// Local-only bridge: keeps the gateway key in the Node process, outside Expo/browser bundles.
+// 로컬 전용 LLM 게이트웨이 브리지 — gateway key 를 Node 프로세스 안에만 두고,
+// Expo/브라우저 번들 밖에서만 원격 gateway 에 붙입니다.
+//
+// ★ UPSTREAM 의 기본값(192.168.2.8:11436)은 사내 실서버 경로입니다.
+//   VPN 이 활성화되어 있어야 연결됩니다. 켜지지 않으면 프록시 UI 에서 연결 실패로 보입니다.
+//   사내망 LLM 이 아닌 다른 주소를 쓸 때만 DWJE_GATEWAY_BASE_URL 로 바꿉니다.
 const http = require('node:http');
 const { Readable } = require('node:stream');
 
