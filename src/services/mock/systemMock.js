@@ -11,6 +11,7 @@ import { nowStamp } from '@shared/utils/formatUtil';
 import {
   ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
   DATA_ACCESS_AUDIT, DATA_PERM_PREVIEW, DOWNLOAD_LOGS, ESCALATION_RULES,
+  GW_DEPT_MAP_SEED, GW_DEPT_SOURCE, GW_UNASSIGNED_USERS,
   GLOSSARY, GLOSSARY_DOMAINS, PERM_LOGS, RECIPIENT_GROUPS,
   RECIPIENTS, RETENTION_POLICY, SYNC_DRIFTS, SYNC_FAIL_REASON, SYNC_JOBS, SYNC_MAPS, SYNC_POLICY,
 } from './data/system';
@@ -34,6 +35,8 @@ function store() {
       syncJobs: JSON.parse(JSON.stringify(SYNC_JOBS)),
       syncDrifts: JSON.parse(JSON.stringify(SYNC_DRIFTS)),
     };
+    // 그룹웨어 자동 가입 계정·미배정 부서 — 계정 관리 화면에서도 같은 계정이 보여야 합니다 (SY-17)
+    gwStore();
   }
   return mockState.store.system;
 }
@@ -917,3 +920,136 @@ const SYNC_RUNS = [
   { runId: 'RUN-260827-02', mode: 'FULL', modeNm: '전체', state: 'ABORTED', stateNm: '중단', startedAt: '2026-08-27 01:02:00', endedAt: '2026-08-27 01:02:31', durationSec: 31, triggeredByCd: 'USER', triggeredBy: '관리자 관리자', options: 'dryRun', dryRun: true, tableCnt: 0, successCnt: 0, failCnt: 0, okRows: 0, ngRows: 0, driftOpenCntAtRun: 3, engineVersion: '1.4.2', host: 'ax-mig-02', message: '원본 접속 실패 — 표에 닿지 못하고 끝났습니다' },
   { runId: 'RUN-260826-01', mode: 'FULL', modeNm: '전체', state: 'SUCCESS', stateNm: '완료', startedAt: '2026-08-26 03:00:00', endedAt: '2026-08-26 03:04:12', durationSec: 252, triggeredByCd: 'USER', triggeredBy: '관리자 관리자', options: 'tables=1', dryRun: false, tableCnt: 1, successCnt: 1, failCnt: 0, okRows: 3418, ngRows: 0, driftOpenCntAtRun: 1, engineVersion: '1.4.1', host: 'ax-mig-01', message: '' },
 ];
+
+/* ═══════════ SY-17 그룹웨어 부서 매핑 ═══════════ */
+
+/** 미배정 부서 이름 — 서버는 엔진 설정 migration.groupware.ax-join.default-dept-name 과 같은 값을 씁니다 */
+const UNASSIGNED = '미배정';
+
+/**
+ * 매핑표와 미배정 계정
+ *
+ * 미배정 계정은 계정 관리 화면의 계정 목록(`store().users`)에 함께 넣습니다 — 실제 DB 에서도
+ * ax.tb_sys_user 의 같은 표이고, 한 명씩 옮길 때는 계정 부서 이동 API 를 그대로 쓰기 때문입니다.
+ */
+function gwStore() {
+  const st = store();
+  if (!st.gwMaps) {
+    st.gwMaps = GW_DEPT_MAP_SEED.map((m) => ({ ...m, updDate: '2026-09-30 00:00', updUser: 'SYSTEM' }));
+    if (!st.depts.some((d) => d.id === UNASSIGNED)) {
+      st.depts.push({ id: UNASSIGNED, av: 'NA', desc: '그룹웨어 자동 가입 계정 중 부서 매핑이 없는 사람 — 화면 권한 없음' });
+    }
+    GW_UNASSIGNED_USERS.forEach((u) => {
+      if (!st.users.some((x) => x.empNo === u.empNo)) {
+        st.users.push({ ...u, dept: UNASSIGNED, state: '사용', lastLoginAt: '—', gwJoined: true });
+      }
+    });
+  }
+  return st;
+}
+
+const gwMapOf = (gwDeptNm) => gwStore().gwMaps.find((m) => m.gwDeptNm === gwDeptNm);
+const gwStateOf = (m) => (!m ? 'UNMAPPED' : m.joinYn === 'N' ? 'EXCLUDED' : m.deptId ? 'MAPPED' : 'UNMAPPED');
+const gwUnassigned = () => gwStore().users.filter((u) => u.gwJoined && u.dept === UNASSIGNED);
+
+/** 그룹웨어 부서명(재직자) ∪ 매핑표 행 */
+function gwRows() {
+  const st = gwStore();
+  const names = [...new Set([...GW_DEPT_SOURCE.map((d) => d.gwDeptNm), ...st.gwMaps.map((m) => m.gwDeptNm)])];
+  return names.map((gwDeptNm) => {
+    const src = GW_DEPT_SOURCE.find((d) => d.gwDeptNm === gwDeptNm);
+    const m = gwMapOf(gwDeptNm);
+    const joinedUsers = st.users.filter((u) => u.gwDeptNm === gwDeptNm);
+    return {
+      gwDeptNm,
+      activeCnt: src?.activeCnt ?? 0,
+      joinedCnt: joinedUsers.length,
+      unassignedCnt: joinedUsers.filter((u) => u.dept === UNASSIGNED).length,
+      deptId: m?.deptId ?? null,
+      deptNm: m?.deptId ?? null,
+      joinYn: m?.joinYn ?? 'Y',
+      state: gwStateOf(m),
+      remark: m?.remark ?? '',
+      hasRow: !!m,
+      inSource: !!src,
+      updDate: m?.updDate ?? null,
+      updUser: m?.updUser ?? null,
+    };
+  });
+}
+
+Object.assign(systemMock, {
+  getSystemGwDeptMapsSummary: () => {
+    const rows = gwRows().filter((r) => r.inSource);
+    const unmapped = rows.filter((r) => r.state === 'UNMAPPED');
+    return {
+      gwDeptCnt: rows.length,
+      mappedCnt: rows.filter((r) => r.state === 'MAPPED').length,
+      unmappedCnt: unmapped.length,
+      excludedCnt: rows.filter((r) => r.state === 'EXCLUDED').length,
+      unmappedUserCnt: unmapped.reduce((a, r) => a + r.activeCnt, 0),
+      unassignedUserCnt: gwUnassigned().length,
+      unassignedDept: { deptId: UNASSIGNED, deptNm: UNASSIGNED },
+      lastSyncAt: '2026-09-30 02:10',
+      lastJoinMessage: `AX 가입 ${GW_UNASSIGNED_USERS.length + 12}(미배정 ${GW_UNASSIGNED_USERS.length}) / 이미 가입 13 / 제외 부서 23`,
+    };
+  },
+
+  getSystemGwDeptMaps: ({ keyword, state, page = 1, size = 100 } = {}) => {
+    let items = gwRows();
+    if (keyword) items = items.filter((r) => `${r.gwDeptNm}${r.deptNm || ''}${r.remark}`.includes(keyword));
+    if (state) items = items.filter((r) => r.state === state);
+    return { items, meta: { page, size, total: items.length } };
+  },
+
+  putSystemGwDeptMaps: ({ gwDeptNm, deptId, joinYn, remark }) => {
+    const st = gwStore();
+    if (!gwDeptNm) return fail('E-VALID-001', '그룹웨어 부서명은 필수입니다.');
+    if (deptId && !st.depts.some((d) => d.id === deptId)) return fail('E-VALID-002', 'AX 부서를 찾을 수 없습니다.');
+    if (deptId === UNASSIGNED) return fail('E-VALID-003', `'${UNASSIGNED}' 부서는 매핑 대상으로 고를 수 없습니다 — 비워 두면 미배정입니다.`);
+    const next = { gwDeptNm, deptId: deptId || null, joinYn: joinYn === 'N' ? 'N' : 'Y', remark: remark || '', updDate: nowStamp(), updUser: mockState.currentUser.empNo };
+    const i = st.gwMaps.findIndex((m) => m.gwDeptNm === gwDeptNm);
+    if (i >= 0) st.gwMaps[i] = next; else st.gwMaps.push(next);
+    const label = next.joinYn === 'N' ? '가입 제외' : next.deptId || UNASSIGNED;
+    logPerm(gwDeptNm, '부서 매핑', `그룹웨어 부서 매핑 → ${label}`);
+    return ok(`'${gwDeptNm}' 을(를) ${label}(으)로 저장했습니다. 이미 가입된 계정의 부서는 바뀌지 않습니다.`, { gwDeptNm, state: gwStateOf(next) });
+  },
+
+  deleteSystemGwDeptMaps: ({ gwDeptNm }) => {
+    const st = gwStore();
+    const i = st.gwMaps.findIndex((m) => m.gwDeptNm === gwDeptNm);
+    if (i < 0) return fail('E-NOTFOUND', '매핑 행이 없습니다.');
+    st.gwMaps.splice(i, 1);
+    logPerm(gwDeptNm, '부서 매핑', '그룹웨어 부서 매핑 삭제');
+    return ok(`'${gwDeptNm}' 매핑을 지웠습니다. 다음 가입부터 이 부서 사람은 미배정으로 들어갑니다.`);
+  },
+
+  getSystemGwDeptMapsUnassignedUsers: ({ keyword, page = 1, size = 100 } = {}) => {
+    let items = gwUnassigned().map((u) => {
+      const m = gwMapOf(u.gwDeptNm);
+      const suggest = m && m.joinYn === 'Y' && m.deptId ? m.deptId : null;
+      return {
+        empNo: u.empNo, name: u.name, gwDeptNm: u.gwDeptNm, pos: u.pos, posNm: u.pos,
+        state: u.state, stateNm: u.state, joinedAt: u.joinedAt, lastLoginAt: u.lastLoginAt,
+        suggestDeptId: suggest, suggestDeptNm: suggest,
+      };
+    });
+    if (keyword) items = items.filter((u) => `${u.empNo}${u.name}${u.gwDeptNm}`.includes(keyword));
+    return { items, meta: { page, size, total: items.length } };
+  },
+
+  postSystemGwDeptMapsReassign: ({ empNos } = {}) => {
+    const targets = gwUnassigned().filter((u) => !empNos?.length || empNos.includes(u.empNo));
+    const moved = [];
+    targets.forEach((u) => {
+      const m = gwMapOf(u.gwDeptNm);
+      if (!m || m.joinYn !== 'Y' || !m.deptId) return;
+      u.dept = m.deptId;
+      moved.push({ empNo: u.empNo, deptNm: m.deptId });
+      logPerm(u.name, '계정', `${UNASSIGNED} → ${m.deptId} 부서 이동 (그룹웨어 부서 매핑대로 재배정)`);
+    });
+    const skippedCnt = targets.length - moved.length;
+    if (!moved.length) return ok('옮길 계정이 없습니다 — 매핑이 정해진 그룹웨어 부서의 계정만 옮깁니다.', { movedCnt: 0, skippedCnt, items: [] });
+    return ok(`${moved.length}명을 매핑된 부서로 옮겼습니다${skippedCnt ? ` (매핑 없음 ${skippedCnt}명은 그대로)` : ''}.`, { movedCnt: moved.length, skippedCnt, items: moved });
+  },
+});

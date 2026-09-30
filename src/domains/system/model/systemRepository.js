@@ -435,3 +435,37 @@ export async function loadSystemUploadVersions(docId) {
   const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
   return [...items].sort((a, b) => Number(b.version) - Number(a.version));
 }
+
+/* ═══════ SY-17 그룹웨어 부서 매핑 ═══════ */
+
+/**
+ * 그룹웨어 부서 매핑 화면 — 요약 · 매핑 목록 · 미배정 계정 · AX 부서 선택지
+ *
+ * 부서 선택지에서 '미배정' 부서는 뺍니다. 매핑을 비워 두는 것이 곧 미배정이라,
+ * 미배정 부서를 매핑 대상으로 고르게 하면 같은 뜻의 선택지가 둘이 됩니다.
+ */
+export async function loadGwDeptMap({ keyword, state, userKeyword }) {
+  const data = await unwrapAll({
+    summary: systemService.getSystemGwDeptMapsSummary({}),
+    maps: systemService.getSystemGwDeptMaps({ keyword, state, size: 0 }),
+    users: systemService.getSystemGwDeptMapsUnassignedUsers({ keyword: userKeyword, size: 0 }),
+    depts: systemService.getSystemDepts({ size: 0 }),
+  });
+  const unassignedId = data.summary?.unassignedDept?.deptId;
+  const depts = (data.depts?.items || [])
+    .map((d) => ({ id: d.deptId ?? d.id, name: d.deptNm ?? d.name ?? String(d.deptId ?? d.id ?? '') }))
+    .filter((d) => d.id != null && String(d.id) !== String(unassignedId ?? ''));
+  return {
+    summary: data.summary,
+    maps: data.maps?.items || [],
+    users: data.users?.items || [],
+    depts,
+    errors: data.errors,
+  };
+}
+
+export const saveGwDeptMap = ({ gwDeptNm, deptId, joinYn, remark }) =>
+  command(systemService.putSystemGwDeptMaps({ gwDeptNm, deptId, joinYn, remark }));
+export const deleteGwDeptMap = (gwDeptNm) => command(systemService.deleteSystemGwDeptMaps({ gwDeptNm }));
+/** 비운 목록을 보내면 요청에서 빠져 서버가 '제안 부서가 있는 미배정 계정 전체' 로 처리합니다 */
+export const reassignUnassigned = (empNos = []) => command(systemService.postSystemGwDeptMapsReassign({ empNos }));

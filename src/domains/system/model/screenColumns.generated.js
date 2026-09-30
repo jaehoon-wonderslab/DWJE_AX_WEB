@@ -733,6 +733,77 @@ export const SCREEN_COLUMNS = [
     ]
   },
   {
+    "id": "sys-gw-dept",
+    "name": "그룹웨어 부서 매핑",
+    "group": "시스템관리",
+    "columns": [
+      {
+        "title": "그룹웨어 부서",
+        "field": "gwDeptNm"
+      },
+      {
+        "title": "재직",
+        "field": "activeCnt"
+      },
+      {
+        "title": "가입 계정",
+        "field": "joinedCnt"
+      },
+      {
+        "title": "미배정 계정",
+        "field": "unassignedCnt"
+      },
+      {
+        "title": "AX 부서",
+        "field": "deptNm"
+      },
+      {
+        "title": "메모",
+        "field": "remark"
+      },
+      {
+        "title": "수정",
+        "field": "updDate"
+      },
+      {
+        "title": "관리",
+        "field": "hasRow"
+      },
+      {
+        "title": "사번",
+        "field": "empNo"
+      },
+      {
+        "title": "이름",
+        "field": "name"
+      },
+      {
+        "title": "직위",
+        "field": "posNm"
+      },
+      {
+        "title": "상태",
+        "field": "stateNm"
+      },
+      {
+        "title": "가입 일시",
+        "field": "joinedAt"
+      },
+      {
+        "title": "최근 로그인",
+        "field": "lastLoginAt"
+      },
+      {
+        "title": "매핑대로 옮길 부서",
+        "field": "suggestDeptNm"
+      },
+      {
+        "title": "관리",
+        "field": "empNo"
+      }
+    ]
+  },
+  {
     "id": "sys-menu",
     "name": "메뉴 접근 권한",
     "group": "시스템관리",

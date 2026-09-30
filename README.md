@@ -2,7 +2,7 @@
 
 사내 MES 위에 얹는 **AI 의사결정 지원 계층**의 프론트엔드입니다.
 `기능 및 API 명세/ver01` 의 명세를 코드로 반영했으며, **2026-09 기준 운영에 맞춘 결과는
-메뉴 27건 · API 209건**입니다. (명세 원본 36화면/236건에서 실서버 화면 목록에 맞춰 정리한 상태)
+메뉴 28건 · API 215건**입니다. (명세 원본 36화면/236건에서 실서버 화면 목록에 맞춰 정리한 상태)
 
 - **메뉴 하나 = 라우트 하나 = 소스 파일 하나** (파일 기반 라우팅)
 - **MVC 3계층** — Model(데이터) / View(화면) / Controller(상태·동작)
@@ -174,6 +174,7 @@ npm run web
 **업무 API 전 도메인이 실 DB 에 연결되어 있습니다** (`EXPO_PUBLIC_USE_MOCK=false`).
 카탈로그 209건이 서버 구현과 1:1로 대조되어 누락 0건임을 확인했습니다
 (`/v3/api-docs` 대조 · 2026-09-01, 카탈로그 정리 이후 재확인).
+2026-09-30 에 추가한 그룹웨어 부서 매핑(SY-17) 6건은 **서버 미구현**입니다 — 요청서 `docs/requests/REQ_20260930_gw_dept_map.md`.
 
 목 레이어는 지운 게 아니라 남겨 두었습니다. API 서버 없이 화면만 볼 때는
 `npm run web:mock` — 화면·컨트롤러·리포지토리 코드는 그대로 두고 목 응답만 씁니다.
@@ -253,10 +254,10 @@ src/
 │
 └── services/                         원격 데이터 소스 (Model 계층이 사용)
     ├── api/client.js                 Axios 클라이언트 · 목 스위치 · 토큰 갱신
-    ├── api/endpoints.js              API 카탈로그 209건
+    ├── api/endpoints.js              API 카탈로그 215건
     ├── api/llmStream.js              사내 LLM 스트리밍 (fetch · SSE)
     ├── api/request.js                unwrap(조회) · command(등록·수정) 헬퍼
-    ├── api/*Service.js               도메인별 서비스 함수 209개
+    ├── api/*Service.js               도메인별 서비스 함수 215개
     ├── mock/                         목 핸들러 + 목 데이터 (실 서버 전환 시 불필요)
     └── setup.js                      목 등록 side-effect 모듈
 
@@ -358,8 +359,8 @@ export default function AiDashboardView({ loading, summary, trend, refresh }) { 
 
 ## 6. 화면 · API 매핑
 
-메뉴 27건 = 라우트 27건 (`npm run check:routes` 로 항상 대조).
-API 카탈로그는 `src/services/api/endpoints.js` 의 `domain` 값 기준 209건입니다.
+메뉴 28건 = 라우트 28건 (`npm run check:routes` 로 항상 대조).
+API 카탈로그는 `src/services/api/endpoints.js` 의 `domain` 값 기준 215건입니다.
 
 | 구분 | 경로 | 화면 ID | API |
 | :--- | :--- | :--- | ---: |
@@ -368,9 +369,9 @@ API 카탈로그는 `src/services/api/endpoints.js` 의 `domain` 값 기준 209�
 | 생산 · 품질 | `/production/monitor` · `/production/result` · `/production/daily-report` · `/production/daily-report/history` · `/quality/defect` · `/quality/aoi` | prod-monitor / prod-result / prod-daily / daily-history / qc-defect / qc-aoi | 31 |
 | 보고서 | `/report/press-morning` · `/report/plating-morning` · `/report/ship-plan` · `/report/yield-by-model` · `/report/lrr-by-customer` · `/report/scrap` | rpt-* | 7 |
 | 이상 알림 | `/alert/list` | alert-list | 5 |
-| 시스템관리 | `/system/*` 11종 | sys-* | **85** |
+| 시스템관리 | `/system/*` 12종 | sys-* | **91** |
 | 인증·공통 | (화면 없음) | — | 22 |
-| **합계** | **27 화면** | | **209** |
+| **합계** | **28 화면** | | **215** |
 
 > 대시보드 34건 = AI 통합 22 + 공정·제품 12. 인증·공통 22건은 로그인·회원가입·비밀번호 찾이 외 공통 API 를 포함합니다.
 > 화면에서 쓰지 않는 API (MES AOI 불량·즐겨찾기·보고서 상태 등) 는 2026-09-23 에 정리했습니다.

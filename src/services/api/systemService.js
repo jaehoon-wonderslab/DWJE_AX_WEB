@@ -1060,3 +1060,78 @@ export function getSystemUploads(params) {
 export function getSystemUploadsByDocIdVersions(params) {
   return request('getSystemUploadsByDocIdVersions', params);
 }
+
+/* ───────── 그룹웨어 부서 매핑 (SY-17) ───────── */
+
+/**
+ * 그룹웨어 부서 매핑 요약
+ *
+ * `GET /api/v1/system/gw-dept-maps/summary`
+ * @param {object} [params] 요청 파라미터 없음
+ * @returns {Promise<object>} gwDeptCnt, mappedCnt, unmappedCnt, excludedCnt, unmappedUserCnt, unassignedUserCnt, unassignedDept{deptId,deptNm}, lastSyncAt, lastJoinMessage
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
+ */
+export function getSystemGwDeptMapsSummary(params) {
+  return request('getSystemGwDeptMapsSummary', params);
+}
+
+/**
+ * 그룹웨어 부서 매핑 목록
+ *
+ * `GET /api/v1/system/gw-dept-maps`
+ * @param {object} params keyword, state(MAPPED|UNMAPPED|EXCLUDED), page, size
+ * @returns {Promise<object>} items[{gwDeptNm,activeCnt,joinedCnt,unassignedCnt,deptId,deptNm,joinYn,state,remark,hasRow,inSource,updDate,updUser}], meta
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
+ */
+export function getSystemGwDeptMaps(params) {
+  return request('getSystemGwDeptMaps', params);
+}
+
+/**
+ * 그룹웨어 부서 매핑 저장 (없으면 추가)
+ *
+ * `PUT /api/v1/system/gw-dept-maps`
+ * @param {object} params gwDeptNm, deptId(생략=미배정), joinYn(Y|N), remark(생략=비움)
+ * @returns {Promise<object>} gwDeptNm, state
+ * @remarks 이미 가입된 계정의 부서는 바꾸지 않습니다
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
+ */
+export function putSystemGwDeptMaps(params) {
+  return request('putSystemGwDeptMaps', params);
+}
+
+/**
+ * 그룹웨어 부서 매핑 삭제
+ *
+ * `DELETE /api/v1/system/gw-dept-maps`
+ * @param {object} params gwDeptNm
+ * @returns {Promise<object>} success
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 2
+ */
+export function deleteSystemGwDeptMaps(params) {
+  return request('deleteSystemGwDeptMaps', params);
+}
+
+/**
+ * 미배정 계정 목록
+ *
+ * `GET /api/v1/system/gw-dept-maps/unassigned-users`
+ * @param {object} params keyword, page, size
+ * @returns {Promise<object>} items[{empNo,name,gwDeptNm,pos,posNm,state,stateNm,joinedAt,lastLoginAt,suggestDeptId,suggestDeptNm}], meta
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
+ */
+export function getSystemGwDeptMapsUnassignedUsers(params) {
+  return request('getSystemGwDeptMapsUnassignedUsers', params);
+}
+
+/**
+ * 미배정 계정 매핑대로 재배정
+ *
+ * `POST /api/v1/system/gw-dept-maps/reassign`
+ * @param {object} params empNos[] (비우면 제안 부서가 있는 미배정 계정 전체)
+ * @returns {Promise<object>} movedCnt, skippedCnt, items[{empNo,deptNm}]
+ * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
+ */
+export function postSystemGwDeptMapsReassign(params) {
+  return request('postSystemGwDeptMapsReassign', params);
+}

@@ -226,3 +226,49 @@ export const SYNC_POLICY = {
   retry: '실패 건만 재실행 · 최대 3회 자동 재시도',
   note: '이관 실패율은 지표 측정 데이터 관리(SY-13)의 임계값으로 판정합니다.',
 };
+
+/* ───────── SY-17 그룹웨어 부서 매핑 (API V45 시드와 같은 모양) ───────── */
+
+/** 그룹웨어 인사정보(groupware_user.tb_user_list)의 부서별 재직 인원 — 일부만 추렸습니다 */
+export const GW_DEPT_SOURCE = [
+  { gwDeptNm: '생산관리팀(A)', activeCnt: 14 },
+  { gwDeptNm: '생산관리팀(M)', activeCnt: 9 },
+  { gwDeptNm: '제조팀(A)', activeCnt: 62 },
+  { gwDeptNm: '제조팀(M)', activeCnt: 48 },
+  { gwDeptNm: '품질보증팀(A)', activeCnt: 11 },
+  { gwDeptNm: '품질보증팀(M)', activeCnt: 7 },
+  { gwDeptNm: '전산팀', activeCnt: 4 },
+  { gwDeptNm: 'IPQC파트(M)', activeCnt: 6 },
+  { gwDeptNm: 'OQC파트(A)', activeCnt: 5 },
+  { gwDeptNm: '경영지원팀', activeCnt: 8 },
+  { gwDeptNm: '구매팀(A)', activeCnt: 5 },
+  { gwDeptNm: '영업팀', activeCnt: 6 },
+  { gwDeptNm: '멕시코법인(A)', activeCnt: 3 },
+  { gwDeptNm: '퇴사자_로그인불가', activeCnt: 21 },
+  { gwDeptNm: '휴직자_로그인불가', activeCnt: 2 },
+];
+
+/** ax.tb_sys_dept_gw_map 시드 — deptId 가 null 이면 미배정, joinYn 'N' 이면 가입 제외 */
+export const GW_DEPT_MAP_SEED = [
+  { gwDeptNm: '생산관리팀(A)', deptId: '생산관리팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '생산관리팀(M)', deptId: '생산관리팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '제조팀(A)', deptId: '제조팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '제조팀(M)', deptId: '제조팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '품질보증팀(A)', deptId: '품질보증팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '품질보증팀(M)', deptId: '품질보증팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '전산팀', deptId: '전산팀', joinYn: 'Y', remark: '부서명 일치' },
+  { gwDeptNm: '퇴사자_로그인불가', deptId: null, joinYn: 'N', remark: '그룹웨어에서도 로그인 불가 계정' },
+  { gwDeptNm: '퇴사자 로그인 불가 x', deptId: null, joinYn: 'N', remark: '그룹웨어에서도 로그인 불가 계정' },
+  { gwDeptNm: '휴직자_로그인불가', deptId: null, joinYn: 'N', remark: '그룹웨어에서도 로그인 불가 계정' },
+];
+
+/** 매핑이 없어 미배정 부서로 자동 가입된 계정 */
+export const GW_UNASSIGNED_USERS = [
+  { empNo: '20250311', name: '문하늘', gwDeptNm: 'IPQC파트(M)', pos: '사원', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20240902', name: '백서윤', gwDeptNm: 'IPQC파트(M)', pos: '주임', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20230714', name: '장태오', gwDeptNm: 'OQC파트(A)', pos: '대리', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20190128', name: '구나래', gwDeptNm: '경영지원팀', pos: '과장', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20210517', name: '남도윤', gwDeptNm: '구매팀(A)', pos: '대리', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20260105', name: '류지호', gwDeptNm: '영업팀', pos: '사원', joinedAt: '2026-09-30 02:10' },
+  { empNo: '20220930', name: '성예린', gwDeptNm: '멕시코법인(A)', pos: '사원', joinedAt: '2026-09-30 02:10' },
+];

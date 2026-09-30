@@ -75,7 +75,7 @@ export const MENU_ACCESS_DEFAULT = {
     'rpt-plating-morning', 'alert-list', 'sys-gloss', 'chat-history',
   ],
   전산팀: [
-    'ai-chat', 'dash-ai', 'dash-proc', 'dash-ai-upload', 'alert-list', 'sys-account', 'sys-menu',
+    'ai-chat', 'dash-ai', 'dash-proc', 'dash-ai-upload', 'alert-list', 'sys-account', 'sys-gw-dept', 'sys-menu',
     'sys-data', 'alert-cond', 'sys-recip', 'sys-gloss', 'chat-history', 'sys-audit', 'sys-dl',
     'sys-upload-doc', 'sys-sync',
   ],
