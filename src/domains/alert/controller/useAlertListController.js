@@ -5,6 +5,7 @@
  * 심각도 조회 조건은 공통코드 ALM_SEVERITY(CRIT·WARN·LOW)를 그대로 보냅니다.
  */
 import { useCallback, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAsync } from '@shared/hooks/useAsync';
 import { usePaging } from '@shared/hooks/usePaging';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -25,10 +26,27 @@ export function useAlertListController() {
   const can = useAuthStore((state) => state.can);
   const canSendLog = SEND_LOG_SCREENS.some((id) => can(id));
 
-  const [tab, setTab] = useState('미확인');
+  /**
+   * 주소 파라미터 — 다른 화면에서 건너온 조건 (기획 05)
+   *  · condId      발송 조건 화면 「최근 7일」 → 그 조건의 알림, 기간 최근 7일, 확인 여부 전체
+   *  · alertId     테스트 결과 「알림 목록에서 보기」 → 그 한 건 (서버가 기간·테스트 여부와 무관하게 줌), 상세를 바로 엽니다
+   *  · includeTest 테스트 알림도 함께 (기본 목록은 테스트 알림을 뺍니다)
+   */
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const one = (v) => (Array.isArray(v) ? v[0] : v) || '';
+  const condId = one(params.condId);
+  const alertId = one(params.alertId);
+  const includeTest = one(params.includeTest) === 'true';
+  const linked = !!(condId || alertId);
+
+  const [tab, setTab] = useState(linked ? '전체' : '미확인');
   const [type, setType] = useState('전체');
   const [target, setTarget] = useState('전체');
-  const [period, setPeriod] = useState('오늘');
+  const [period, setPeriod] = useState(condId && !alertId ? '최근 7일' : '오늘');
+
+  /** 건너온 조건을 풀고 평소 목록으로 */
+  const clearLink = useCallback(() => router.setParams({ condId: '', alertId: '', includeTest: '' }), [router]);
 
   // 심각도·확인 상태·채널·발송 결과 표시명 (서버 공통코드)
   const { data: codes } = useAsync(loadAlertCodes, [], {
@@ -41,11 +59,11 @@ export function useAlertListController() {
   const channelLabel = useCallback((code) => labelOf(codes?.ALM_CHANNEL, code), [codes]);
   const sendResultLabel = useCallback((code) => labelOf(codes?.ALM_SEND_RESULT, code), [codes]);
 
-  const paging = usePaging({ resetKey: `${tab}|${type}|${target}|${period}` });
+  const paging = usePaging({ resetKey: `${tab}|${type}|${target}|${period}|${condId}|${alertId}|${includeTest}` });
 
   const { data, loading, reload } = useAsync(
-    () => loadAlerts({ state: tab === '전체' ? undefined : tab, type, target, period, withSendLogs: canSendLog, ...paging.params }),
-    [tab, type, target, period, canSendLog, paging.page, paging.size]
+    () => loadAlerts({ state: tab === '전체' ? undefined : tab, type, target, period, condId, alertId, includeTest, withSendLogs: canSendLog, ...paging.params }),
+    [tab, type, target, period, condId, alertId, includeTest, canSendLog, paging.page, paging.size]
   );
 
   const items = data?.list?.items || [];
@@ -98,6 +116,9 @@ export function useAlertListController() {
     tab,
     setTab,
     filters: { type, target, period },
+    link: linked ? { condId, alertId, includeTest } : null,
+    focusAlertId: alertId,
+    clearLink,
     severityOptions,
     severityLabel,
     ackStateLabel,

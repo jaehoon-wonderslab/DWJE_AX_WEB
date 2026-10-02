@@ -1,184 +1,308 @@
 /**
- * [View] SY-04 이상 알림 발송 조건 관리 (경로: /system/alert-condition)
+ * [View] SY-04 이상 알림 발송 조건 관리 (경로: /system/alert-condition · 화면 ID alert-cond)
  *
  * '언제 · 무엇을 기준으로' 보낼지를 정의합니다.
- * 사용 API 6건 — /api/v1/alert-conditions/*
+ * 사용 API 8건 — /api/v1/alert-conditions/* (목록·요약·상세·등록·수정·활성/중지·테스트·삭제)
+ *
+ * 쓰기 권한이 없으면 등록·편집·중지/활성·테스트 버튼을 숨기지 않고 비활성으로 두고 이유를 툴팁으로 보입니다(R-06).
+ * 삭제는 통합관리자만 할 수 있습니다(R-13).
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, Filters, Hint, Loading, Pagination, SelectField, SourceNote, StatCard, Table, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
+import {
+  Badge, Button, Card, ExportMenuButton, Filters, FormAlert, Hint, Loading, Pagination, SelectField, StatCard, Table, TextField,
+  openConfirmModal,
+} from '@shared/components/ui';
+import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { labelOf, withAll } from '@domains/common/model/codeRepository';
 import { useCommonStyles } from '@shared/theme/styles';
+import { useTheme } from '@shared/theme/useTheme';
+import { evalBadge, groupNameOf, receivingOf, relativeTime, targetLabel, windowLabel } from '../controller/useAlertCondController';
+import AlertGuardButton, { DELETE_SUPER_ONLY_TIP, WRITE_DENIED_TIP } from './AlertGuardButton';
+import { openAlertCondForm } from './AlertCondForm';
+import AlertTestResult, { normalizeTestResult } from './AlertTestResult';
 
 // 선택지·표시명은 서버 공통코드에서 받습니다 (ALM_SEVERITY · ALM_CHANNEL · ALM_OP · ALM_TARGET · ALM_WINDOW · ALM_DEDUP · ALM_DURATION)
 
 export default function AlertCondView({
-  loading, items, summary, codes, groupOptions, metricOptions, filters, setSeverity, setEnabled, setKeyword, reload,
-  exportExcel, submitCond, toggleCond, testCond, removeCond, paging, itemsMeta,
+  firstLoad, loading, items, summary, codes, groups, groupOptions, metricOptions, metrics, escalationRules, loadError, listError, filters,
+  setSeverity, setEnabled, setChannel, setGroupId, setKeyword, reload,
+  canWrite, canDelete, canAlertList, canRecipient, exportView, exportAll, exportTotal,
+  loadCondDetail, searchEquipments, submitCond, toggleCond, testCond, removeCond, paging, itemsMeta,
 }) {
   const sev = codes?.ALM_SEVERITY || [];
   const chan = codes?.ALM_CHANNEL || [];
-  const target = codes?.ALM_TARGET || [];
   const op = codes?.ALM_OP || [];
   const win = codes?.ALM_WINDOW || [];
   const dedup = codes?.ALM_DEDUP || [];
   const dur = codes?.ALM_DURATION || [];
 
   const s = useCommonStyles();
+  const theme = useTheme();
   const toast = useUiStore((state) => state.toast);
   const openModal = useUiStore((state) => state.openModal);
+  const { goToScreen } = useAppNavigation();
+  const tableRef = useRef(null);
 
-  /** 수신 그룹 표기 — 목록 행에는 이름 또는 {groupId,name} 으로 옵니다 */
-  const groupNmOf = (g) => (g && typeof g === 'object' ? g.name ?? g.groupNm ?? '' : g);
-  const groupIdOf = (g) => (g && typeof g === 'object' ? g.groupId : groupOptions.find((o) => o.label === g)?.value);
+  const writeTip = canWrite ? '' : WRITE_DENIED_TIP;
 
-  /** 발송 조건 등록·편집 */
-  const openCondForm = (row) =>
-    openFormModal({
-      title: row ? '발송 조건 편집' : '발송 조건 등록',
-      sub: '언제 · 무엇을 기준으로 보낼지 정의합니다 (수신자는 알림 수신자 관리에서 지정)',
-      wide: true,
-      // 목록 행의 수신 그룹은 이름(또는 {groupId,name}) 으로 오므로 폼 값(groupId)으로 되돌립니다
-      initial: row
-        ? {
-            ...row,
-            metricStdId: row.metricId,
-            channels: (row.channels || [])[0],
-            groupIds: (row.groupIds || [])[0] ?? groupIdOf((row.groups || [])[0]),
-          }
-        : { severity: 'WARN', channels: 'MAIL', validWindow: 'ALWAYS', dedupMin: 'M30', op: 'GE', duration: 'IMMEDIATE', target: 'ALL_EQPT' },
-      fields: [
-        { key: 'name', label: '조건명', required: true, placeholder: '예) 불량률 임계 초과' },
-        // 감지 지표는 지표 기준(SY-13)에서 고릅니다 — 서버가 metricStdId 로 연결합니다
-        { key: 'metricStdId', label: '감지 지표', type: 'select', options: metricOptions, required: true, full: true },
-        { key: 'op', label: '비교', type: 'select', options: op },
-        { key: 'threshold', label: '임계값', type: 'number', required: true, placeholder: '예) 3.0' },
-        { key: 'duration', label: '지속 조건', type: 'select', options: dur },
-        { key: 'target', label: '대상 범위', type: 'select', options: target },
-        { key: 'severity', label: '심각도', type: 'select', options: sev },
-        { key: 'channels', label: '발송 채널', type: 'select', options: chan },
-        { key: 'groupIds', label: '수신 그룹', type: 'select', options: groupOptions, full: true },
-        { key: 'validWindow', label: '유효 시간대', type: 'select', options: win },
-        { key: 'dedupMin', label: '중복 억제', type: 'select', options: dedup },
-      ],
-      note: '임계값은 지표 측정 데이터 관리(SY-13)의 기준 수치와 함께 판정에 사용됩니다. 수신 그룹의 멤버와 연락처는 알림 수신자 관리(SY-05)에서만 바꿉니다.',
-      submitLabel: row ? '수정' : '등록',
-      onSubmit: async (v) => (await submitCond(row?.condId, {
-        ...v,
-        // 서버는 배열로 받습니다 (화면은 아직 하나만 고르게 되어 있습니다)
-        channels: v.channels ? [v.channels] : [],
-        groupIds: v.groupIds ? [v.groupIds] : [],
-      })).ok,
+  /** 폼을 엽니다 — 편집은 상세를 먼저 받아 채웁니다(ALC-04) */
+  const openCondForm = async (row) => {
+    let detail = null;
+    if (row) {
+      const res = await loadCondDetail(row.condId);
+      if (!res.ok) {
+        toast(res.message);
+        return;
+      }
+      detail = res.data;
+    }
+    openAlertCondForm({
+      detail,
+      codes,
+      groups,
+      groupOptions,
+      metricOptions,
+      metrics,
+      escalationRules,
+      loadError,
+      searchEquipments,
+      onSubmit: async (body) => {
+        const res = await submitCond(row?.condId, body);
+        // 편집 중 조건이 지워졌으면(404) 폼을 닫고 목록을 다시 봅니다
+        return res.ok || res.code === 'E-NOTFOUND';
+      },
     });
+  };
 
-  /**
-   * 발송 조건 테스트 — 서버가 실제 수신자에게 테스트 발송한 결과를 보여 줍니다.
-   * 응답은 `{ sentCnt, recipients[], channels[] }` 입니다 (예전엔 없는 `preview` 를 읽어 화면이 죽었습니다).
-   */
-  const testSend = async (row) => {
-    const res = await testCond(row.condId);
-    if (!res.ok) {
-      toast(res.message);
+  /** 활성/중지 — 중지는 한 번 묻고, 활성은 바로 실행합니다(ALC-01) */
+  const onToggle = (row) => {
+    if (!row.on) {
+      toggleCond(row.condId, true);
       return;
     }
-    const d = res.data || {};
-    const recips = (d.recipients || []).map((r) => (r && typeof r === 'object' ? [r.name, r.dept].filter(Boolean).join(' · ') || r.empNo : r));
-    const chans = (d.channels || row.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—';
+    openConfirmModal({
+      title: '발송 조건 중지',
+      message: `'${row.name}' 조건은 판정 대상에서 빠집니다. 이미 난 알림은 남습니다.`,
+      confirmLabel: '중지',
+      danger: true,
+      onConfirm: () => toggleCond(row.condId, false),
+    });
+  };
+
+  /** 테스트 발송 결과 (ALC-03) — 대기열 건수 · 수신 예정 · 제외 사유 */
+  const testSend = async (row) => {
+    const res = await testCond(row.condId);
+    if (!res.ok) return;
+    const result = normalizeTestResult(res.data || {});
+    const chans = (result.channels.length ? result.channels : row.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—';
     openModal({
-      title: '발송 조건 테스트',
+      title: '발송 조건 테스트 결과',
       sub: `${row.name} · ${chans}`,
-      render: () => (
-        <View>
-          <Text style={[s.textSm, { fontWeight: '700', marginBottom: 6 }]}>{`테스트 발송 ${d.sentCnt ?? 0}건`}</Text>
-          {recips.length ? (
-            <Text style={[s.textSm, { lineHeight: 21 }]}>{`수신자: ${recips.join(', ')}`}</Text>
-          ) : (
-            <Text style={[s.textSm, { lineHeight: 21 }]}>연결된 수신 그룹에 수신 상태인 멤버가 없어 실제 발송은 없었습니다. 알림 수신자 관리에서 그룹 멤버를 지정하세요.</Text>
-          )}
-          <SourceNote>{`${row.metric || ''} · ${labelOf(op, row.op)} ${row.threshold} · 심각도 ${labelOf(sev, row.severity)} — 테스트 발송도 알림 발송 로그에 기록됩니다.`}</SourceNote>
-        </View>
+      render: () => <AlertTestResult result={result} channelLabel={(c) => labelOf(chan, c)} />,
+      footer: (close) => (
+        <>
+          {/* 테스트 알림은 알림 목록 기본 조회에서 빠지므로 alertId 와 includeTest 를 함께 넘깁니다 */}
+          {canAlertList ? <Button label="알림 목록에서 보기" onPress={() => { close(); goToScreen('alert-list', res.data?.alertId ? { alertId: String(res.data.alertId), includeTest: 'true' } : {}); }} /> : null}
+          <Button label="닫기" variant="primary" onPress={close} />
+        </>
       ),
-      footer: (close) => <Button label="닫기" variant="primary" onPress={close} />,
     });
   };
 
   const confirmDelete = (row) =>
     openConfirmModal({
       title: '발송 조건 삭제',
-      message: `'${row.name}' 발송 조건을 삭제합니다. 삭제된 조건은 복구할 수 없습니다.`,
+      message: `'${row.name}' 발송 조건을 삭제합니다. 연결된 채널·수신 그룹·승격 설정·판정 상태가 함께 지워지며 복구할 수 없습니다.`,
       confirmLabel: '삭제',
       danger: true,
       onConfirm: () => removeCond(row.condId),
     });
 
-  if (loading) return <Loading />;
+  /** 지금 표에 보이는 행·열 순서 — 「조회 목록」 엑셀이 그리드와 같게 (관리 열 제외) */
+  const gridState = () => {
+    const t = tableRef.current;
+    if (!t) return { rows: items };
+    try {
+      return {
+        rows: t.getData('active'),
+        order: t.getColumns().map((c) => c.getField()).filter((f) => f && f !== 'action'),
+      };
+    } catch (e) {
+      return { rows: items };
+    }
+  };
+
+  if (firstLoad) return <Loading />;
+
+  const eng = summary.engine;
+  const engineTone = eng.judge === 'STOPPED' ? 'down' : eng.judge === 'DELAY' ? 'down' : '';
+  const lastRun = summary.engineRaw?.lastRunAt ? String(summary.engineRaw.lastRunAt).slice(11, 16) : '';
+  const filtered = filters.appliedKeyword || filters.severity !== '전체' || filters.enabled !== '전체' || filters.channel !== '전체' || filters.groupId !== '전체';
 
   return (
     <View>
       <PageHead
         title="이상 알림 발송 조건 관리"
-        desc="임계값을 넘거나 패턴이 이상할 때 어떤 알림을 보낼지 정의합니다. 수신자와 연락처는 알림 수신자 관리에서 따로 관리하며, 여기서는 수신 그룹 이름만 참조합니다."
+        desc="언제 · 무엇을 기준으로 알림을 낼지 정합니다. 받는 사람은 수신 그룹으로 연결합니다."
         actions={
-          <>
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} />
-            <Button label="조건 등록" size="sm" variant="primary" icon="plus" onPress={() => openCondForm(null)} />
-          </>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* 수신 그룹 수는 카드 대신 이 링크로 (ALC-07) */}
+            <Button
+              label={`수신 그룹 ${summary.groupCnt}개 관리 →`}
+              size="sm"
+              variant="ghost"
+              disabled={!canRecipient}
+              onPress={() => goToScreen('sys-recip')}
+            />
+            <ExportMenuButton
+              viewCount={items.length}
+              totalCount={exportTotal}
+              onExportView={() => exportView(gridState())}
+              onExportAll={exportAll}
+            />
+            <AlertGuardButton
+              testID="alert-cond-create"
+              label="조건 등록"
+              size="sm"
+              variant="primary"
+              icon="plus"
+              deniedTip={writeTip || (loadError ? '선택지(감지 지표·수신 그룹)를 불러오지 못해 등록할 수 없습니다.' : '')}
+              onPress={() => openCondForm(null)}
+            />
+          </View>
         }
       />
 
+      {eng.judge === 'STOPPED' ? (
+        <FormAlert tone="error">{`알림 엔진 마지막 실행이 ${eng.lagMin ?? '?'}분 전입니다. 조건을 저장해도 판정되지 않습니다.`}</FormAlert>
+      ) : null}
+      {!canWrite ? <Hint icon="lock">{`읽기 전용 — ${WRITE_DENIED_TIP} 목록·요약·엑셀은 그대로 볼 수 있습니다.`}</Hint> : null}
+      {loadError ? <FormAlert tone="error">{`${loadError}. 조건을 등록할 수 없습니다.`}</FormAlert> : null}
+
+      {/* 요약 카드 4종 (ALC-07) */}
       <Grid cols={4}>
-        <StatCard label="등록 조건" value={summary?.total ?? 0} unit="건" sub={`활성 ${summary?.enabled ?? 0} · 중지 ${summary?.disabled ?? 0}`} />
-        {/* 서버 요약에 심각도별 건수(severityRisk)가 없어 오늘 발송 건수를 보입니다 (API 요청 사항) */}
-        <StatCard label="오늘 발송" value={summary?.todaySent ?? 0} unit="건" sub={`중복 억제 ${summary?.dedupCnt ?? 0}건`} tone={summary?.todaySent ? 'down' : ''} />
-        <StatCard label="수신 그룹" value={summary?.groupCnt ?? 0} unit="개" sub="알림 수신자 관리에서 편성" />
-        <StatCard label="중지 조건" value={summary?.disabled ?? 0} unit="건" sub="임시 중지 상태" tone={summary?.disabled ? 'down' : ''} />
+        <StatCard label="등록 조건" value={summary.total} unit="건" sub={`활성 ${summary.enabled} · 중지 ${summary.disabled}`} />
+        <StatCard
+          label="오늘 발송"
+          value={summary.todaySent}
+          unit="건"
+          sub={`억제 ${summary.suppressed ?? '—'} · 제외 ${summary.skipped ?? '—'} · 실패 ${summary.failed ?? '—'}`}
+          tone={Number(summary.failed) > 0 ? 'down' : ''}
+        />
+        <StatCard
+          label="판정 이상 조건"
+          value={summary.evalKnown ? summary.breach + summary.stale : '—'}
+          unit={summary.evalKnown ? '건' : ''}
+          sub={summary.evalKnown ? `발생 ${summary.breach} · 수집 중단 ${summary.stale}` : '판정 집계 준비 중'}
+          tone={summary.breach ? 'down' : ''}
+        />
+        <StatCard label="엔진 상태" value={eng.label} sub={lastRun ? `마지막 실행 ${lastRun} · 대기 ${summary.engineRaw?.pendingQueueCnt ?? 0}건` : '엔진 실행 기록 없음'} tone={engineTone} />
       </Grid>
       <Gap />
 
       <Hint>
-        발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다. 받는 사람과 연락처는 알림 수신자 관리에서 지정합니다.
+        발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다. 수신 그룹을 골라 연결합니다. 멤버·연락처는 알림 수신자 관리에서 바꿉니다.
       </Hint>
 
+      {/* 조회 조건 (ALC-11) — 검색어는 조회·Enter 로만 보냅니다 */}
       <Filters>
-        <SelectField label="심각도" value={filters.severity} options={withAll(sev)} onChange={setSeverity} />
-        <SelectField label="상태" value={filters.enabled} options={['전체', '활성', '중지']} onChange={setEnabled} />
-        <TextField label="검색" value={filters.keyword} onChangeText={setKeyword} placeholder="조건명 · 지표" />
+        <SelectField label="심각도" value={filters.severity} options={withAll(sev)} onChange={setSeverity} nativeSelect />
+        <SelectField label="상태" value={filters.enabled} options={['전체', '활성', '중지']} onChange={setEnabled} nativeSelect />
+        <SelectField label="발송 채널" value={filters.channel} options={withAll(chan)} onChange={setChannel} nativeSelect />
+        <SelectField label="수신 그룹" value={filters.groupId} options={withAll(groupOptions)} onChange={setGroupId} nativeSelect />
+        <TextField label="검색" value={filters.keyword} onChangeText={setKeyword} onSubmitEditing={reload} placeholder="조건명 · 지표" accessibilityLabel="조건 검색" />
         <Button label="조회" variant="primary" onPress={reload} />
       </Filters>
 
-      <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건`} tight>
+      <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건${loading ? ' · 불러오는 중' : ''}`} tight>
+        {listError ? (
+          <View style={{ padding: 16, gap: 8 }}>
+            <FormAlert tone="error">{`발송 조건을 불러오지 못했습니다 — ${listError}`}</FormAlert>
+            <Button label="다시 시도" size="sm" onPress={reload} />
+          </View>
+        ) : null}
+        {!items.length && !filtered && !groups.length && canRecipient ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <Button label="수신 그룹 만들기" size="sm" onPress={() => goToScreen('sys-recip')} />
+          </View>
+        ) : null}
         <Table
           inset
           bordered
-          minWidth={1460}
+          minWidth={2380}
+          instanceRef={tableRef}
           keyExtractor={(r) => r.condId}
-          emptyText="등록된 발송 조건이 없습니다. '조건 등록' 으로 첫 조건을 만드세요."
-
+          emptyText={filtered
+            ? '조회 조건에 맞는 조건이 없습니다.'
+            : "등록된 발송 조건이 없습니다. 먼저 알림 수신자 관리에서 수신 그룹을 만든 뒤 '조건 등록' 으로 첫 조건을 만드세요."}
           columns={[
+            { key: 'on', title: '상태', width: 90, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
             { key: 'name', title: '조건명', width: 170 },
-            { key: 'metric', title: '감지 지표', width: 190 },
-            { key: 'threshold', title: '비교 · 임계값', width: 150, render: (r) => <Text style={s.td}>{`${labelOf(op, r.op)} ${r.threshold}`}</Text> },
+            { key: 'metric', title: '감지 지표', width: 190, render: (r) => <Text style={s.td}>{`${r.metric ?? r.metricNm ?? ''}${r.unitNm ? ` (${r.unitNm})` : ''}`}</Text> },
+            {
+              key: 'threshold', title: '비교 · 임계값', width: 150,
+              render: (r) => <Text style={s.td}>{r.blindFieldKey && r.threshold == null && r.thresholdVal == null ? '●●●● 비공개' : `${labelOf(op, r.op)} ${r.threshold ?? r.thresholdVal ?? ''}${r.unitNm ? ` ${r.unitNm}` : ''}`}</Text>,
+            },
             { key: 'duration', title: '지속 조건', width: 130, render: (r) => <Text style={s.td}>{labelOf(dur, r.duration)}</Text> },
-            { key: 'target', title: '대상 범위', width: 160, render: (r) => <Text style={s.td}>{labelOf(target, r.target)}</Text> },
+            { key: 'target', title: '대상 범위', width: 160, render: (r) => <Text style={s.td}>{targetLabel(r, codes?.ALM_TARGET)}</Text> },
             { key: 'severity', title: '심각도', width: 110, render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
             { key: 'channels', title: '발송 채널', width: 150, render: (r) => <Text style={s.td}>{(r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—'}</Text> },
-            { key: 'groups', title: '수신 그룹', width: 200, render: (r) => <Text style={s.td}>{(r.groups || []).map(groupNmOf).join(' · ') || '—'}</Text> },
-            { key: 'validWindow', title: '유효 시간대', width: 120, render: (r) => <Text style={s.td}>{labelOf(win, r.validWindow)}</Text> },
+            {
+              key: 'groups', title: '수신 그룹', width: 200,
+              // 사용 중지 그룹은 회색·취소선
+              render: (r) => (
+                <Text style={s.td}>
+                  {(r.groups || []).length ? (r.groups || []).map((g, i) => (
+                    <Text key={i} style={g && typeof g === 'object' && g.useFlg === 'N' ? { textDecorationLine: 'line-through', opacity: 0.5 } : null}>
+                      {`${i ? ' · ' : ''}${groupNameOf(g)}`}
+                    </Text>
+                  )) : '—'}
+                </Text>
+              ),
+            },
+            {
+              key: 'receivingCnt', title: '수신 인원', width: 100,
+              render: (r) => {
+                const n = receivingOf(r);
+                return <Text style={[s.td, n === 0 ? { color: theme.color.destructive, fontWeight: '700' } : null]}>{n === null ? '—' : `${n}명`}</Text>;
+              },
+            },
+            { key: 'validWindow', title: '유효 시간대', width: 120, render: (r) => <Text style={s.td}>{windowLabel(r, win)}</Text> },
             { key: 'dedupMin', title: '중복 억제', width: 110, render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
-            { key: 'on', title: '상태', width: 90, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
+            { key: 'evalState', title: '판정', width: 130, sortable: false, render: (r) => { const b = evalBadge(r); return b.label === '—' ? <Text style={s.td}>—</Text> : <Badge tone={b.tone}>{b.label}</Badge>; } },
+            {
+              key: 'lastEvalAt', title: '마지막 평가', width: 120, sortable: false,
+              render: (r) => <Text style={s.td}>{relativeTime(r.evalState?.lastEvalAt) || '—'}</Text>,
+            },
+            {
+              key: 'alert7dCnt', title: '최근 7일', width: 90, align: 'right',
+              render: (r) => (r.alert7dCnt === undefined || r.alert7dCnt === null
+                ? <Text style={[s.td, { textAlign: 'right' }]}>—</Text>
+                : canAlertList && r.alert7dCnt > 0
+                  ? <Button label={`${r.alert7dCnt}건`} size="sm" variant="ghost" onPress={() => goToScreen('alert-list', { condId: String(r.condId) })} />
+                  : <Text style={[s.td, { textAlign: 'right' }]}>{`${r.alert7dCnt}건`}</Text>),
+            },
             {
               key: 'action',
               title: '관리',
-              width: 250,
+              width: 260,
+              sortable: false,
               render: (r) => (
                 <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-                  <Button label="편집" size="sm" onPress={() => openCondForm(r)} />
-                  <Button label={r.on ? '중지' : '활성'} size="sm" onPress={() => toggleCond(r.condId)} />
-                  <Button label="테스트" size="sm" onPress={() => testSend(r)} />
-                  <Button label="삭제" size="sm" variant="danger" onPress={() => confirmDelete(r)} />
+                  <AlertGuardButton label="편집" size="sm" deniedTip={writeTip} onPress={() => openCondForm(r)} />
+                  <AlertGuardButton label={r.on ? '중지' : '활성'} size="sm" deniedTip={writeTip} onPress={() => onToggle(r)} />
+                  <AlertGuardButton label="테스트" size="sm" deniedTip={writeTip} onPress={() => testSend(r)} />
+                  <AlertGuardButton
+                    label="삭제"
+                    size="sm"
+                    variant="danger"
+                    deniedTip={canDelete ? (r.deletable === false ? `운영 알림${r.alertCnt ? ` ${r.alertCnt}건` : ''}이 있어 삭제할 수 없습니다 — 중지를 사용하십시오` : '') : DELETE_SUPER_ONLY_TIP}
+                    onPress={() => confirmDelete(r)}
+                  />
                 </View>
               ),
             },

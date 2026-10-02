@@ -23,8 +23,11 @@ const DEFAULT_EXPIRE_MINUTES = 5;
  * @param {object} params
  * @param {string} params.purpose  SIGNUP | PASSWORD_RESET
  * @param {Function} params.sender 코드 발송 함수 — { ok, sent, res, message } 를 돌려줘야 합니다
+ * @param {Function} [params.verifier] 코드 검증 함수 — ({ args, code, purpose }) => { ok, verificationToken, res, message }.
+ *        주지 않으면 이메일 기준 검증(POST /auth/email/verify-code)을 씁니다. 계정 잠금 해제는 화면이 이메일 원문을
+ *        모르므로 사번 기준 검증(POST /auth/unlock/verify)을 주입합니다(기획 AUD-16).
  */
-export function useEmailVerification({ purpose, sender }) {
+export function useEmailVerification({ purpose, sender, verifier }) {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [sentInfo, setSentInfo] = useState(null); // { email(마스킹), message }
@@ -101,7 +104,9 @@ export function useEmailVerification({ purpose, sender }) {
     setFormError('');
     setFieldErrors({});
     try {
-      const res = await verifyCode({ email: lastArgs.current?.email, purpose, code });
+      const res = verifier
+        ? await verifier({ args: lastArgs.current || {}, code, purpose })
+        : await verifyCode({ email: lastArgs.current?.email, purpose, code });
       if (!res.ok) {
         const mapped = toFormError(res.res, res.message);
         setFormError(mapped.formError);
@@ -113,7 +118,7 @@ export function useEmailVerification({ purpose, sender }) {
     } finally {
       setVerifying(false);
     }
-  }, [code, purpose]);
+  }, [code, purpose, verifier]);
 
   /**
    * 인증 결과를 버리고 코드 입력 상태로 되돌립니다.

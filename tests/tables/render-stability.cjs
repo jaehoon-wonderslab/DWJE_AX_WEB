@@ -1,7 +1,7 @@
 /** 실행: WEB_URL=http://localhost:8091 node tests/tables/render-stability.cjs (로그인 가능한 데모 서버) */
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
-const routes = ['/quality/defect', '/system/account', '/system/chat-history'];
+const routes = ['/quality/defect', '/system/account', '/history/chat'];
 const web = process.env.WEB_URL || 'http://localhost:8091';
 
 async function observe(page) {

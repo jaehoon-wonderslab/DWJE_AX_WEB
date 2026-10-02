@@ -1,10 +1,20 @@
 /**
  * 내려받기 · 인쇄 유틸 (CM-07)
  *
- * 엑셀(.xls) · CSV · 인쇄/PDF 3종 출력을 담당합니다.
- * 모든 출력은 보고서 다운로드 이력(SY-14)에 자동 기록되며, 비공개(blind) 항목은 제외됩니다.
+ * 엑셀(.xls · .xlsx) · CSV · 인쇄/PDF · 차트 이미지(.png) 출력을 담당합니다.
+ * 모든 출력은 보고서 다운로드 이력(SY-14)에 자동 기록되며, 권한 밖 값은 「비공개」 로 채웁니다.
  *
  * 웹에서만 실제 파일이 만들어지고, 앱(네이티브)에서는 안내 토스트만 띄웁니다.
+ *
+ * ■ 2026-10-01 개편 (기획 10 DLG-02 · 03 · 04 · 05 · 13 · 15, 공통 10.6 CMN-07)
+ * - 기록 선행(DLG-05): 파일을 저장하기 **전에** 기록을 기다립니다. 기록이 실패하면 파일을 만들지 않습니다.
+ *   목 모드(USE_MOCK)는 기록 성공 여부와 관계없이 저장합니다(목에는 감사 대상이 없습니다).
+ * - 형식 코드(DLG-02): 표시명('엑셀 (.xls)') 대신 코드(`FORMAT`)를 보냅니다.
+ * - 화면 식별자(DLG-03): `reportId` 가 아니라 `menuId` 로 보냅니다. 서버가 `menuId` 로 보고서 ID 를 찾습니다.
+ * - 누락 경로(DLG-04): 차트 이미지 저장(saveChartAsPng)도 기록합니다.
+ * - 범위·조건(DLG-15): 인자 `scope`('VIEW'|'ALL') 를 서버 본문 `scopeCd` 로 바꿔 보내고 `condSummary` 를 함께 보냅니다.
+ *   파일 첫 줄에 「비공개 처리 n건(데이터 접근 권한 기준)」 을 넣고, 같은 n 을 기록의 blindCnt 로 보냅니다.
+ * - 인쇄(DLG-13): 호출부가 행 수를 넘길 수 있고, 범위 문구에 「실제 인쇄 여부는 확인할 수 없음」 을 적습니다.
  */
 import { Platform } from 'react-native';
 import { toast } from '@shared/stores/useUiStore';
@@ -15,6 +25,37 @@ import { maskRows } from '@shared/utils/maskUtil';
 import { HOME_PATH, HOME_SCREEN_ID, screenIdOf } from '@shared/navigation/routes';
 
 const isWeb = Platform.OS === 'web' && typeof document !== 'undefined';
+
+/**
+ * 내려받기 형식 코드 (공통코드 RPT_FORMAT, 기획 DLG-02)
+ *
+ * 예전에는 표시명('엑셀 (.xls)', 'CSV (.csv)', '인쇄 · PDF')을 보내 서버가 대문자 표시명으로 저장했습니다.
+ * 형식 필터가 코드(XLS)로 걸러 그 기록이 빠졌습니다. 형식 문자열은 이 표 한 곳에만 둡니다.
+ */
+export const FORMAT = Object.freeze({ XLS: 'XLS', XLSX: 'XLSX', CSV: 'CSV', PDF: 'PDF', PNG: 'PNG' });
+
+/** 기록이 실패해 파일을 만들지 않았을 때의 안내 (기획 DLG-05) */
+export const LOG_FAIL_MESSAGE = '내려받기 기록을 남기지 못해 파일을 만들지 않았습니다. 잠시 뒤 다시 시도해 주세요.';
+
+/** 인쇄 기록의 범위 문구 — 브라우저는 인쇄 취소를 알려 주지 않습니다 (기획 DLG-13) */
+const PRINT_SCOPE = '인쇄 창 열림 — 실제 인쇄·PDF 저장 여부는 확인할 수 없음';
+
+/** 파일 안에 남기는 비공개 건수 문구 — 이력의 blindCnt 와 같은 n 입니다 (기획 DLG-15) */
+export const blindNote = (n) => `비공개 처리 ${Number(n) || 0}건(데이터 접근 권한 기준)`;
+
+/** 개발 모드 여부 — attrs 누락을 콘솔에 알릴 때만 씁니다 */
+const IS_DEV = typeof __DEV__ !== 'undefined' && !!__DEV__;
+
+/**
+ * `attrs` 없이 부른 호출을 개발 모드 콘솔에 알립니다 (기획 DLG-15 · R-10).
+ * attrs 가 없으면 권한 밖 값을 가리지 못하고 서버가 비운 값이 빈칸으로 나갑니다.
+ * @returns {boolean} 누락 여부 — 기록 본문 `params.note='attrs-missing'` 으로도 남깁니다
+ */
+function attrsMissing(attrs, name) {
+  const missing = !Array.isArray(attrs) || !attrs.some(Boolean);
+  if (missing && IS_DEV) console.error(`[내려받기] attrs 없이 호출했습니다 — 권한 밖 값을 가리지 못합니다: ${name}`);
+  return missing;
+}
 
 /** 값 하나를 CSV 셀로 감쌉니다 */
 function csvCell(v) {
@@ -39,7 +80,7 @@ function saveBlob(blob, filename) {
 }
 
 /**
- * 지금 보고 있는 화면의 ID — 내려받기 기록의 `reportId` 로 보냅니다.
+ * 지금 보고 있는 화면의 ID — 내려받기 기록의 `menuId` 로 보냅니다 (2026-10-01 DLG-03 — 예전에는 `reportId`).
  *
  * 화면 코드가 화면 ID 를 일일이 넘기지 않아도 되도록 URL 에서 알아냅니다.
  * `screenIdOf` 는 모르는 경로를 홈(dash-ai)으로 돌려주므로, 홈 경로가 아닌데 홈이 나오면
@@ -61,6 +102,8 @@ function currentScreenId() {
  * 기록되고 있었습니다. 실패를 `.catch(() => {})` 로 삼키고 있어 아무도 몰랐습니다.
  * 화면 ID 도 `menuId` 라는 이름으로 보내 서버가 버렸습니다 — 그래서 이력의 「화면」 칸이 늘 비었습니다.
  * 호출부 시그니처는 그대로 두고 여기서만 서버 이름으로 바꿉니다.
+ * → 2026-10-01: 서버가 `menuId` 를 받게 되어 `menuId` 로 되돌림(DLG-03). `reportId` 는 서버가 menuId 로 찾아 채웁니다.
+ *   이제 기록을 기다린 뒤에 파일을 저장합니다(DLG-05) — 반환값은 `{ ok, logId }` 입니다.
  *
  * @param {object} log { reportName, format, rowCount, blindCount, menuId } — menuId 를 안 주면 현재 URL 의 화면으로
  */
@@ -80,17 +123,63 @@ function applyMask(rows, attrs, given) {
   return { rows: out.rows, blindCount: out.blindCount || given || 0 };
 }
 
-function logDownload({ reportName, format, rowCount, blindCount, menuId }) {
-  // 이력 기록은 부가 동작이라 사용자 흐름을 막지 않습니다.
-  // 다만 조용히 삼키지는 않습니다 — 그래서 이 버그를 오래 못 봤습니다.
-  const reportId = menuId || currentScreenId();
-  systemService
-    .postDownloadLogs({ reportId, reportNm: reportName, format, rowCnt: rowCount, blindCnt: blindCount })
-    .then((res) => {
-      if (!res?.success) console.warn('[내려받기 이력] 기록 실패:', res?.message, res?.error?.field || '');
-    })
-    .catch((e) => console.warn('[내려받기 이력] 기록 실패:', e?.message));
+/**
+ * @param {object} log
+ * @param {'VIEW'|'ALL'} [log.scope] 엑셀 옵션 패널에서 고른 범위 (조회 목록 / 전체, 기획 CMN-07).
+ *        서버 본문에서는 `scopeCd` 입니다 — 기존 `scope` 필드는 사람이 읽는 범위 문구라 이름을 나눴습니다(공통 10.6).
+ * @param {string} [log.condSummary] 조회 조건 요약 (예: "기간=09-24~09-30 · 상태=실패 · 쪽=1")
+ * @param {string} [log.scopeDesc] 사람이 읽는 범위 문구 — 서버 본문의 기존 `scope`(scope_desc). 인쇄·차트 이미지가 씁니다
+ * @param {number} [log.fileSize] 파일 크기(byte)
+ * @param {boolean} [log.attrsMissing] attrs 없이 만든 파일 — 이력 `params.note='attrs-missing'` 으로 남깁니다
+ * @returns {Promise<{ok:boolean, logId:number|null, message?:string}>}
+ */
+async function logDownload({ reportName, format, rowCount, blindCount, menuId, scope, condSummary, scopeDesc, fileSize, attrsMissing: noAttrs }) {
+  const body = {
+    menuId: menuId || currentScreenId(),
+    reportNm: reportName,
+    format,
+    rowCnt: rowCount ?? 0,
+    blindCnt: blindCount ?? 0,
+    ...(scope ? { scopeCd: scope } : {}),
+    ...(condSummary ? { condSummary: String(condSummary).slice(0, 500) } : {}),
+    ...(scopeDesc ? { scope: String(scopeDesc).slice(0, 100) } : {}),
+    ...(fileSize != null ? { fileSize } : {}),
+    ...(noAttrs ? { params: { note: 'attrs-missing' } } : {}),
+  };
+  try {
+    const res = await systemService.postDownloadLogs(body);
+    if (res?.success) return { ok: true, logId: res?.data?.logId ?? null };
+    // 조용히 삼키지 않습니다 — 예전에 이름·건수가 버려진 채 기록되는 것을 오래 못 봤습니다
+    console.warn('[내려받기 이력] 기록 실패:', res?.code, res?.message, res?.error?.field || '');
+    return { ok: false, logId: null, message: res?.message };
+  } catch (e) {
+    console.warn('[내려받기 이력] 기록 실패:', e?.message);
+    return { ok: false, logId: null, message: e?.message };
+  }
 }
+
+/**
+ * 기록을 먼저 남기고, 성공했을 때만 저장합니다 (기획 DLG-05 「기록 선행」).
+ *
+ * 기록이 없는 내려받기는 감사에서 보이지 않으므로 파일을 만들지 않고 안내합니다.
+ * 목 모드는 감사 대상이 없어 기록 결과와 관계없이 저장합니다.
+ *
+ * @param {object} log logDownload 인자
+ * @param {Function} save 실제 저장 동작
+ * @returns {Promise<boolean>} 저장했는지
+ */
+async function logThenSave(log, save) {
+  const rec = await logDownload(log);
+  if (!rec.ok && !USE_MOCK) {
+    toast(LOG_FAIL_MESSAGE);
+    return false;
+  }
+  save();
+  return true;
+}
+
+/** 비공개 건수를 덧붙인 완료 토스트 */
+const doneText = (file, blindCount) => `${file} 파일을 내려받았습니다${blindCount ? ` — 비공개 처리 ${blindCount}건` : ''}`;
 
 /**
  * 서버가 만든 파일을 그대로 내려받습니다.
@@ -103,9 +192,16 @@ function logDownload({ reportName, format, rowCount, blindCount, menuId }) {
  *   path   `/api/v1` 뒤의 경로 (예: '/production/results/export')
  *   body   요청 본문
  *   name   실패 안내에 쓸 이름
+ *   limit  화면별 상한 행 수(선택) — 서버가 `X-Export-Limit` 을 주지 않을 때만 안내에 씁니다.
+ *          상한은 서버가 정하므로 모르면 넘기지 마십시오(틀린 숫자를 안내하게 됩니다)
  * @returns {Promise<boolean>} 성공 여부
+ *
+ * 상한 초과는 오류가 아닙니다. 서버가 응답 헤더 `X-Export-Truncated: true` · `X-Export-Total: N` 으로 알리면
+ * 「상한 n건까지 내려받았습니다(전체 N건)」 을 띄웁니다(공통 10.6). n 은 `X-Export-Limit` 헤더 → `limit` 인자 순이고,
+ * 둘 다 없으면 「상한까지 내려받았습니다(전체 N건)」 입니다. 교차 출처라 서버 CORS 가 이 헤더들을
+ * `Access-Control-Expose-Headers` 에 넣어야 읽힙니다(2단계 서버는 Truncated·Total 노출).
  */
-export async function downloadFromServer({ path, body = {}, name = '파일' }) {
+export async function downloadFromServer({ path, body = {}, name = '파일', limit }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return false;
@@ -118,7 +214,9 @@ export async function downloadFromServer({ path, body = {}, name = '파일' }) {
    * 함께 알립니다. 여기서 가짜 집계를 지어내면 화면의 수와 어긋납니다.
    */
   if (USE_MOCK) {
+    // 서버 생성 경로는 서버가 기록합니다 — 데모 파일도 브라우저 기록을 남기지 않습니다
     await downloadXlsx({
+      log: false,
       name,
       sheetName: '데모',
       columns: [{ header: '항목', width: 22 }, { header: '값', width: 60 }],
@@ -146,7 +244,16 @@ export async function downloadFromServer({ path, body = {}, name = '파일' }) {
       return false;
     }
     saveBlob(await res.blob(), filenameOf(res) || `${name}.xlsx`);
-    toast(`${name}을(를) 내려받았습니다`);
+    const truncated = String(res.headers.get('x-export-truncated') || '').toLowerCase() === 'true';
+    if (truncated) {
+      // 상한은 서버가 정합니다(2026-10-01 2단계 서버는 10,000건). 서버가 X-Export-Limit 을 주면 그 값, 아니면 호출부 값
+      const total = Number(res.headers.get('x-export-total'));
+      const capN = Number(res.headers.get('x-export-limit')) || Number(limit) || 0;
+      const cap = capN ? `상한 ${capN.toLocaleString('ko-KR')}건까지` : '상한까지';
+      toast(`${cap} 내려받았습니다${Number.isFinite(total) && total > 0 ? `(전체 ${total.toLocaleString('ko-KR')}건)` : ''}`);
+    } else {
+      toast(`${name}을(를) 내려받았습니다`);
+    }
     return true;
   } catch (e) {
     toast(e?.message || `${name}을(를) 내려받지 못했습니다`);
@@ -169,23 +276,31 @@ function filenameOf(res) {
  * `attrs` 를 주면 열마다 응답 필드명을 보고 **이 함수가 직접** 값을 가립니다 — 호출부에서
  * 미리 가릴 필요가 없습니다. 빠뜨리면 원본이 그대로 나가므로 값이 있는 표에는 꼭 넘겨 주세요.
  *
- * @param {object} config { name, head:string[], attrs?:string[], rows:(string|number)[][], blindCount }
+ * 파일 첫 줄에 「비공개 처리 n건(데이터 접근 권한 기준)」 을 넣습니다 — 같은 n 이 이력의 blindCnt 입니다(DLG-15).
+ *
+ * @param {object} config { name, head:string[], attrs?:string[], rows:(string|number)[][], blindCount, scope?:'VIEW'|'ALL', condSummary?, menuId? }
+ * @returns {Promise<boolean>} 저장했는지 (기록이 실패하면 저장하지 않습니다)
  */
-export function downloadCsv({ name, head, attrs, rows, blindCount = 0 }) {
+export async function downloadCsv({ name, head, attrs, rows, blindCount = 0, scope, condSummary, menuId }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
-    return;
+    return false;
   }
   if (!rows?.length) {
     toast('내려받을 표를 찾을 수 없습니다');
-    return;
+    return false;
   }
+  const noAttrs = attrsMissing(attrs, name);
   ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
-  const lines = [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const lines = [[blindNote(blindCount)], head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
   // BOM(﻿) 을 붙여야 엑셀에서 한글이 깨지지 않습니다
-  saveBlob(new Blob([`﻿${lines}`], { type: 'text/csv;charset=utf-8;' }), `${name}.csv`);
-  logDownload({ reportName: name, format: 'CSV (.csv)', rowCount: rows.length, blindCount });
-  toast(`${name}.csv 파일을 내려받았습니다${blindCount ? ` — 비공개 ${blindCount}건은 제외됨` : ' (비공개 항목 제외)'}`);
+  const blob = new Blob([`﻿${lines}`], { type: 'text/csv;charset=utf-8;' });
+  const saved = await logThenSave(
+    { reportName: name, format: FORMAT.CSV, rowCount: rows.length, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
+    () => saveBlob(blob, `${name}.csv`)
+  );
+  if (saved) toast(doneText(`${name}.csv`, blindCount));
+  return saved;
 }
 
 /**
@@ -193,28 +308,40 @@ export function downloadCsv({ name, head, attrs, rows, blindCount = 0 }) {
  * (SpreadsheetML 대신 엑셀이 읽을 수 있는 HTML 표 형식을 씁니다 — 별도 라이브러리 불필요)
  *
  * `attrs` 를 주면 열마다 응답 필드명을 보고 이 함수가 직접 값을 가립니다.
+ * 로그인한 계정의 데이터 접근 권한 밖 값은 빈칸이 아니라 「비공개」 로 채웁니다(기획 R-10).
+ * 파일 첫 줄(표 위)에 「비공개 처리 n건(데이터 접근 권한 기준)」 을 남기며, 이 n 은 내려받기 이력의 blindCnt 와 같습니다.
+ * (2026-10-01 처음에는 표 아래에 두었다가 기획 DLG-15 「첫 행 위」 에 맞춰 옮겼습니다)
  *
- * @param {object} config { name, head, attrs?:string[], rows, blindCount }
+ * @param {object} config { name, head, attrs?:string[], rows, blindCount, scope?:'VIEW'|'ALL', condSummary?, menuId? }
+ * @returns {Promise<boolean>} 저장했는지 (기록이 실패하면 저장하지 않습니다)
  */
-export function downloadXls({ name, head, attrs, rows, blindCount = 0 }) {
+export async function downloadXls({ name, head, attrs, rows, blindCount = 0, scope, condSummary, menuId }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
-    return;
+    return false;
   }
   if (!rows?.length) {
     toast('내려받을 표를 찾을 수 없습니다');
-    return;
+    return false;
   }
+  const noAttrs = attrsMissing(attrs, name);
   ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
   const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const meta = `${blindNote(blindCount)}${scope ? ` · 범위 ${scope === 'ALL' ? '전체' : '조회 목록'}` : ''}${condSummary ? ` · 조건 ${condSummary}` : ''}`;
   const html =
     `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>` +
+    `<p>${esc(meta)}</p>` +
     `<table border="1"><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>` +
     rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') +
-    `</table></body></html>`;
-  saveBlob(new Blob([`﻿${html}`], { type: 'application/vnd.ms-excel;charset=utf-8;' }), `${name}.xls`);
-  logDownload({ reportName: name, format: '엑셀 (.xls)', rowCount: rows.length, blindCount });
-  toast(`${name}.xls 파일을 내려받았습니다${blindCount ? ` — 비공개 ${blindCount}건은 제외됨` : ''}`);
+    `</table>` +
+    `</body></html>`;
+  const blob = new Blob([`﻿${html}`], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const saved = await logThenSave(
+    { reportName: name, format: FORMAT.XLS, rowCount: rows.length, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
+    () => saveBlob(blob, `${name}.xls`)
+  );
+  if (saved) toast(doneText(`${name}.xls`, blindCount));
+  return saved;
 }
 
 /**
@@ -233,29 +360,38 @@ export function downloadXls({ name, head, attrs, rows, blindCount = 0 }) {
  * 열에 `attr`(응답 필드명)을 달아 두면 본문 행의 그 칸을 이 함수가 직접 가립니다.
  * 제목·머리 정보·머리글 줄(`title`·`meta`·`section`·`head`)은 값이 아니라 글이므로 건드리지 않습니다.
  *
- * @param {object} config { name, sheetName, columns[{header,width,attr}], rows, blindCount }
+ * 머리 정보 줄(제목·meta 줄 바로 뒤)에 「비공개 처리 n건(데이터 접근 권한 기준)」 을 넣습니다(DLG-15).
+ *
+ * @param {object} config { name, sheetName, columns[{header,width,attr}], rows, blindCount, scope?, condSummary?, menuId? }
+ *   `log: false` 는 내부용입니다 — 서버 생성 경로의 데모 파일처럼 이력을 서버가 맡는 경우.
+ * @returns {Promise<boolean>} 저장했는지
  */
-export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], rows = [], blindCount = 0 }) {
+export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], rows = [], blindCount = 0, scope, condSummary, menuId, log = true }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
-    return;
+    return false;
   }
   if (!rows?.length) {
     toast('내려받을 내용이 없습니다');
-    return;
+    return false;
   }
 
   // 본문 줄만 골라 가립니다 — 꾸밈 줄에는 가릴 값이 없습니다
   const attrs = columns.map((c) => c?.attr || '');
+  const noAttrs = log && attrsMissing(attrs, name);
   const body = new Set(['title', 'meta', 'section', 'head']);
-  const maskedBody = maskRows(
-    rows.filter((r) => !body.has(r?.style)).map((r) => r.cells || r),
-    attrs
-  );
+  const bodyRows = rows.filter((r) => !body.has(r?.style));
+  const maskedBody = maskRows(bodyRows.map((r) => r.cells || r), attrs);
   if (maskedBody.blindCount) {
     let i = 0;
     rows = rows.map((r) => (body.has(r?.style) ? r : { ...(r.cells ? r : { cells: r }), cells: maskedBody.rows[i++] }));
     blindCount = maskedBody.blindCount;
+  }
+  // 비공개 건수 머리 정보 — 제목·meta 줄이 끝나는 자리에 넣습니다
+  if (log) {
+    const lead = rows.findIndex((r) => !(r?.style === 'title' || r?.style === 'meta'));
+    const at = lead < 0 ? rows.length : lead;
+    rows = [...rows.slice(0, at), { cells: [blindNote(blindCount)], style: 'meta' }, ...rows.slice(at)];
   }
 
   try {
@@ -296,15 +432,21 @@ export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], r
     });
 
     const buf = await wb.xlsx.writeBuffer();
-    saveBlob(
-      new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      `${name}.xlsx`
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    if (!log) {
+      saveBlob(blob, `${name}.xlsx`);
+      return true;
+    }
+    const saved = await logThenSave(
+      { reportName: name, format: FORMAT.XLSX, rowCount: bodyRows.length, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
+      () => saveBlob(blob, `${name}.xlsx`)
     );
-    logDownload({ reportName: name, format: '엑셀 (.xlsx)', rowCount: rows.length, blindCount });
-    toast(`${name}.xlsx 파일을 내려받았습니다${blindCount ? ` — 비공개 ${blindCount}건은 제외됨` : ''}`);
+    if (saved) toast(doneText(`${name}.xlsx`, blindCount));
+    return saved;
   } catch (e) {
     console.error('[엑셀 내려받기] 실패:', e);
     toast('엑셀 파일을 만들지 못했습니다');
+    return false;
   }
 }
 
@@ -314,22 +456,35 @@ export async function downloadXlsx({ name, sheetName = 'Sheet1', columns = [], r
  * React Native for Web 에서는 DOM 노드를 직접 다루지 않고,
  * 인쇄할 영역에 nativeID 를 지정해 두고 그 id 로 찾아 새 창에 복사합니다.
  *
- * @param {object} config { nodeId, title, role }
+ * 기록 순서(DLG-05 · DLG-13): 인쇄 창을 먼저 연 뒤(팝업 차단을 피하려면 클릭 직후 열어야 합니다)
+ * 기록을 기다리고, 기록이 실패하면 창을 닫고 안내합니다. 브라우저는 인쇄 취소를 알려 주지 않으므로
+ * 기록 시점은 창 열기이며, 범위 문구에 그 사실을 적습니다.
+ *
+ * @param {object} config { nodeId, title, role, rowCount?, condSummary?, menuId? }
+ * @returns {Promise<boolean>} 인쇄 창을 띄웠는지
  */
-export function printDocument({ nodeId, title, role }) {
+export async function printDocument({ nodeId, title, role, rowCount = 0, condSummary, menuId }) {
   if (!isWeb) {
     toast('앱에서는 인쇄를 지원하지 않습니다 — 웹에서 이용하세요');
-    return;
+    return false;
   }
   const node = document.getElementById(nodeId);
   if (!node) {
     toast('인쇄할 보고서 영역을 찾을 수 없습니다');
-    return;
+    return false;
   }
   const win = window.open('', '_blank', 'width=1180,height=860');
   if (!win) {
+    // 창이 열리지 않으면 기록하지 않습니다 (기획 10 4.7)
     toast('팝업이 차단되어 인쇄 창을 열 수 없습니다');
-    return;
+    return false;
+  }
+  const blindCount = node.querySelectorAll('[data-blind="1"]').length;
+  const rec = await logDownload({ reportName: title, format: FORMAT.PDF, rowCount, blindCount, condSummary, menuId, scopeDesc: PRINT_SCOPE });
+  if (!rec.ok && !USE_MOCK) {
+    win.close();
+    toast(LOG_FAIL_MESSAGE);
+    return false;
   }
   // 현재 문서의 스타일을 그대로 복사해야 표 서식이 유지됩니다
   const css = Array.from(document.querySelectorAll('style')).map((x) => x.outerHTML).join('');
@@ -342,29 +497,32 @@ export function printDocument({ nodeId, title, role }) {
       `</body></html>`
   );
   win.document.close();
-  const blindCount = node.querySelectorAll('[data-blind="1"]').length;
-  logDownload({ reportName: title, format: '인쇄 · PDF', rowCount: 0, blindCount });
   setTimeout(() => {
     win.focus();
     win.print();
   }, 400);
+  return true;
 }
 
 /**
  * 계층 트리 데이터(일자 ➔ 제품 ➔ 공정/프레스 기기)를 엑셀 그룹핑(+/- 아웃라인)이 적용된
  * 순수 .xlsx 파일로 내려받습니다.
  *
- * @param {object} config { name, head, rows, blindCount }
+ * 첫 줄은 「비공개 처리 n건(데이터 접근 권한 기준)」, 둘째 줄이 머리글입니다(DLG-15).
+ *
+ * @param {object} config { name, head, rows, blindCount, scope?, condSummary?, menuId? }
+ * @returns {Promise<boolean>} 저장했는지
  */
-export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0 }) {
+export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0, scope, condSummary, menuId }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
-    return;
+    return false;
   }
   if (!rows?.length) {
     toast('내려받을 데이터가 없습니다');
-    return;
+    return false;
   }
+  const noAttrs = attrsMissing(attrs, name);
   ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
 
   try {
@@ -387,7 +545,8 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
     });
 
     // 컬럼 정의 (사용자 후처리 편집 및 피벗 분석이 용이하도록 개별 셀로 완전 분리)
-    ws.columns = [
+    // 머리글을 열 정의(header)로 두면 1행에 박혀 그 위에 비공개 건수 줄을 둘 수 없으므로, 줄로 따로 씁니다
+    const treeColumns = [
       { header: '일자', key: 'period', width: 14 },
       { header: '제품명', key: 'product', width: 18 },
       { header: '공장', key: 'plant', width: 13 },
@@ -401,9 +560,13 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
       { header: '가동률', key: 'uptimeRate', width: 13 },
       { header: '비가동 시간', key: 'downtimeMin', width: 15 },
     ];
+    ws.columns = treeColumns.map(({ key, width }) => ({ key, width }));
+    const noteRow = ws.addRow([blindNote(blindCount)]);
+    noteRow.font = { name: 'Pretendard', size: 10, color: { argb: 'FF666666' } };
+    ws.addRow(treeColumns.map((col) => col.header));
 
     // 헤더 스타일링 (Shadcn 깔끔한 테마)
-    const headerRow = ws.getRow(1);
+    const headerRow = ws.getRow(2);
     headerRow.height = 28;
     headerRow.eachCell((cell) => {
       cell.font = { name: 'Pretendard', size: 11, bold: true, color: { argb: 'FF1E293B' } };
@@ -549,12 +712,16 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    saveBlob(blob, `${name}.xlsx`);
-    logDownload({ reportName: name, format: '엑셀 (.xlsx)', rowCount: totalExportedRows, blindCount });
-    toast(`${name}.xlsx 파일을 내려받았습니다. (엑셀 좌측 +/- 그룹핑 지원)`);
+    const saved = await logThenSave(
+      { reportName: name, format: FORMAT.XLSX, rowCount: totalExportedRows, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
+      () => saveBlob(blob, `${name}.xlsx`)
+    );
+    if (saved) toast(`${name}.xlsx 파일을 내려받았습니다. (엑셀 좌측 +/- 그룹핑 지원)${blindCount ? ` — 비공개 처리 ${blindCount}건` : ''}`);
+    return saved;
   } catch (err) {
     console.error('XLSX 다운로드 오류:', err);
     toast('엑셀 파일 생성 중 오류가 발생했습니다.');
+    return false;
   }
 }
 
@@ -686,11 +853,14 @@ export async function saveChartAsPng({
       ctx.fillText('불량률 % (우측 축)', centerX + 50, legendY);
     }
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      saveBlob(blob, `${fileName}.png`);
-      toast(`${fileName}.png 차트 이미지를 저장했습니다.`);
-    }, 'image/png');
+    // 차트 이미지도 내려받기입니다 — 예전에는 기록 없이 저장했습니다(기획 DLG-04). 기록을 먼저 남깁니다(DLG-05)
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+    const saved = await logThenSave(
+      { reportName: fileName, format: FORMAT.PNG, rowCount: 0, blindCount: 0, scopeDesc: sub || title || '', fileSize: blob.size },
+      () => saveBlob(blob, `${fileName}.png`)
+    );
+    if (saved) toast(`${fileName}.png 차트 이미지를 저장했습니다.`);
   } catch (err) {
     console.error('차트 이미지 저장 오류:', err);
     toast('차트 이미지 저장 중 오류가 발생했습니다.');

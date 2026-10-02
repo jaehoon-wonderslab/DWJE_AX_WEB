@@ -59,7 +59,7 @@ export default function PlatingMorningView({
         desc={`기준일 ${filters.baseDate} · 도금·코팅 공정별 일목표 대비 실적과 주간 누적 달성률을 신호등으로 점검하는 아침회의 요약표입니다.`}
         actions={
           <>
-            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: TITLE, role })} />
+            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: TITLE, role, rowCount: exportRows.length })} />
             <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: fileName, head: MORNING_HEAD, rows: exportRows, blindCount: blindCnt })} />
             <Button label="엑셀 다운로드" size="sm" icon="download" variant="primary" onPress={() => downloadXls({ name: fileName, head: MORNING_HEAD, rows: exportRows, blindCount: blindCnt })} />
           </>

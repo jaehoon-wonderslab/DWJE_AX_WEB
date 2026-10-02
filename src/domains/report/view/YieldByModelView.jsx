@@ -41,8 +41,8 @@ export default function YieldByModelView({
   useEffect(() => {
     if (!printPending || loading || paging?.size !== 0) return;
     clearPrintPending();
-    printDocument({ nodeId: NODE_ID, title: '제품별 수율', role });
-  }, [printPending, loading, paging?.size, clearPrintPending, role]);
+    printDocument({ nodeId: NODE_ID, title: '제품별 수율', role, rowCount: (data?.rows || []).length });
+  }, [printPending, loading, paging?.size, clearPrintPending, role, data]);
 
   if (loading) return <Loading />;
   // 조회 결과가 없어도 로딩 화면에 머무르지 않습니다 — 빈 상태로 알려 줍니다
@@ -107,7 +107,7 @@ export default function YieldByModelView({
         desc="MES 투입·양품 실적과 AOI 판정 로그를 모델별로 집계한 월간 수율 현황입니다. Loss 세부 유형까지 한 표에서 확인할 수 있습니다."
         actions={
           <>
-            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => { if (requestPrint?.() !== false) printDocument({ nodeId: NODE_ID, title: '제품별 수율', role }); }} />
+            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => { if (requestPrint?.() !== false) printDocument({ nodeId: NODE_ID, title: '제품별 수율', role, rowCount: (data?.rows || []).length }); }} />
             <Button label="CSV" size="sm" icon="download" onPress={() => exportAll('csv')} />
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => exportAll('xls')} />
           </>

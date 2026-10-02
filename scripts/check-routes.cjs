@@ -22,7 +22,9 @@ function walk(dir, base = '', out = []) {
   }
   return out;
 }
-const routes = walk(path.join(ROOT, 'app/(main)')).filter((route) => !route.startsWith('/menu/'));
+// 옛 주소(리다이렉트만 하는 라우트)는 메뉴 정의 대상이 아닙니다 — menu.js 의 LEGACY_PATHS `from:` 값
+const legacy = [...MENU_SRC.matchAll(/from: '([^']+)'/g)].map((m) => m[1]);
+const routes = walk(path.join(ROOT, 'app/(main)')).filter((route) => !route.startsWith('/menu/') && !legacy.includes(route));
 
 let bad = 0;
 defined.forEach((d) => {

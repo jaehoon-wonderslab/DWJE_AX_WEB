@@ -110,7 +110,8 @@ export const useCommonStyles = makeStyles((theme) => {
     pageHead: { marginBottom: 20, flexDirection: 'row', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' },
     pageTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 25, lineHeight: 29, fontWeight: '600', letterSpacing: -0.42, color: ink, ...KEEP_ALL },
     pageDesc: { fontFamily: FONT_FAMILY, fontSize: 16.5, lineHeight: 20, fontWeight: '500', color: text3, marginTop: 6, maxWidth: 720, ...KEEP_ALL },
-    pageActions: { marginLeft: 'auto', flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
+    // 좁은 화면에서 머리 단추 묶음이 화면 밖으로 밀리지 않게 폭을 부모 안에 가둡니다 (2026-10-01)
+    pageActions: { marginLeft: 'auto', flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center', maxWidth: '100%', flexShrink: 1, minWidth: 0 },
 
     /* ---------- card ---------- */
     /** 카드 — 패널 안의 흰 카드. 구분선 색 테두리 · 16px 반지름 · 그림자 없음 */

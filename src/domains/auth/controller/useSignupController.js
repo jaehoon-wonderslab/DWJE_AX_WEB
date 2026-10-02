@@ -77,7 +77,7 @@ export function useSignupController() {
         setFieldErrors((prev) => ({ ...prev, empNo: res.message }));
         return;
       }
-      setEmpNoCheck({ checked: true, available: res.available, message: res.message });
+      setEmpNoCheck({ checked: true, available: res.available, message: res.message, reason: res.reason });
       setFieldErrors((prev) => ({ ...prev, empNo: res.available ? '' : res.message }));
     } finally {
       setCheckingEmpNo(false);

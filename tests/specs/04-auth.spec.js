@@ -70,14 +70,6 @@ suite('인증 흐름', () => {
     eq(fails, [], '시드 계정 비밀번호가 바뀌었거나 계정이 정지되었습니다');
   });
 
-  test('사번 없음과 비밀번호 오류의 문구가 같다 (계정 열거 방지)', async () => {
-    const a = await post('/auth/login', { loginId: '99999999', password: 'Whatever!1' });
-    const b = await post('/auth/login', { loginId: '10000', password: 'WrongPass!1' });
-    eq(a.status, 401);
-    eq(b.status, 401);
-    eq(a.body.message, b.body.message, '두 경우를 구분할 수 있으면 사번을 캐낼 수 있습니다');
-  });
-
   test('내 정보에 메뉴·데이터 권한이 함께 온다', async () => {
     const me = await api.data('/auth/me');
     ok(Array.isArray(me.menuPerms) && me.menuPerms.length > 0, 'menuPerms 가 비면 사이드바를 그릴 수 없습니다');
@@ -176,6 +168,22 @@ suite('인증 흐름', () => {
 
     const login = await post('/auth/login', { loginId: empNo, password: 'Test!2026' });
     eq(login.status, 200, '승인 후에는 로그인되어야 합니다');
+    ctx.activeEmpNo = empNo;
+  });
+
+  /*
+   * 계정 열거 방지 — 2026-10-01 이전에는 시드 계정 10000 으로 비밀번호를 틀렸습니다.
+   * 로그인 실패가 커밋되고 5회째 잠기게 되면서(기획 09 AUD-01·AUD-16) 시드 계정을 틀리면 실제로 잠깁니다.
+   * 그래서 이 시험이 방금 만든 전용 시험 계정(승인된 T… 계정)으로 1회만 틀립니다. 계정은 afterAll 에서 지웁니다.
+   */
+  test('사번 없음과 비밀번호 오류의 문구가 같다 (계정 열거 방지)', async () => {
+    const empNo = ctx.activeEmpNo;
+    if (!empNo) skip('전용 시험 계정을 만들지 못했습니다 — 시드 계정은 잠기므로 틀리지 않습니다');
+    const a = await post('/auth/login', { loginId: '99999999', password: 'Whatever!1' });
+    const b = await post('/auth/login', { loginId: empNo, password: 'WrongPass!1' });
+    eq(a.status, 401);
+    eq(b.status, 401);
+    eq(a.body.message, b.body.message, '두 경우를 구분할 수 있으면 사번을 캐낼 수 있습니다');
   });
 
   test('인증 코드 재발송 제한이 걸린다', async () => {

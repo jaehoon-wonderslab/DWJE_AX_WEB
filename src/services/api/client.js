@@ -86,6 +86,7 @@ const NO_AUTH_PATHS = [
   '/api/v1/auth/signup',
   '/api/v1/auth/email/',
   '/api/v1/auth/password/',
+  '/api/v1/auth/unlock/',
 ];
 
 /**
@@ -93,6 +94,8 @@ const NO_AUTH_PATHS = [
  *
  * 401 이 아닌 실패는 그대로 흘려보내 화면이 자기 자리에서 처리하게 둡니다.
  *  · 403 / `E-AUTH-002` — 메뉴 접근 권한 없음 → 화면 내 안내
+ *  · 403 / `E-AUTH-004` — 쓰기 권한 없음 → 화면 내 안내 (버튼은 미리 비활성으로 그립니다)
+ *  · 403 / `E-AUTH-006` — 초기 비밀번호 변경 전 → 비밀번호 변경 화면으로 (request() 가 처리)
  *  · 404 / `E-NOTFOUND` — 대상 없음 → 화면 내 안내 (빈 상태)
  * 이 둘을 로그아웃으로 처리하면 조회 대상이 없다는 이유로 사용자가 튕겨 나갑니다.
  *
@@ -178,11 +181,28 @@ apiClient.interceptors.response.use(
   }
 );
 
+/**
+ * 초기 비밀번호를 바꾸기 전에는 서버가 거의 모든 API 를 403 `E-AUTH-006` 으로 막습니다(기획 R-04).
+ * 이 응답을 받으면 스토어에 표시만 해 둡니다 — 실제 이동은 레이아웃이 그 값을 보고 비밀번호 변경 화면으로
+ * Redirect 합니다(토스트는 띄우지 않습니다). 화면마다 이 코드를 따로 처리하지 않게 하려고 여기서 받습니다.
+ */
+function notePasswordChangeRequired(body) {
+  const code = body?.code || body?.error?.code;
+  if (code !== 'E-AUTH-006') return;
+  const state = useAuthStore.getState();
+  if (state.isLoggedIn && !state.pwdChangeRequired) state.setPwdChangeRequired(true);
+}
+
 /** 표준 에러 코드 — API_목록 ver01 「공통 규약」 2절 */
 export const ERROR_CODES = {
   'E-AUTH-001': '미인증 · 세션 만료',
   'E-AUTH-002': '메뉴 접근 권한 없음',
   'E-AUTH-003': '데이터 접근 권한 없음',
+  // 2026-10-01 추가 (기획 공통 문서 9.7)
+  'E-AUTH-004': '쓰기 권한 없음',
+  'E-AUTH-005': '계정 잠금 (로그인 연속 실패)',
+  'E-AUTH-006': '비밀번호 변경 필요 (초기 비밀번호)',
+  'E-AUTH-007': '이메일 잠금 해제를 지금 쓸 수 없음',
   'E-VALID-001': '필수 항목 누락',
   'E-VALID-002': '중복 값 (아이디 · 부서명 · 용어 등)',
   'E-RULE-001': '업무 규칙 위반',
@@ -215,13 +235,23 @@ const EMPTY_FILTERS = new Set(['전체', '전부', '없음', '선택']);
 /**
  * 값이 비어 있는(=조건 없음) 파라미터를 걸러 냅니다.
  *
+ * 편집 요청(POST·PUT·PATCH)에서는 「비우기」 도 뜻이 있는 값입니다 — 연락처를 지우거나 멤버를 모두 빼는 저장이
+ * 걸러지면 서버는 「필드 생략 = 기존 값 유지」 로 읽어 아무것도 바뀌지 않습니다(기획 공통 CMN-04).
+ * 그래서 엔드포인트가 `preserveEmpty` 로 선언한 필드는 빈 문자열·빈 배열·null 이어도 그대로 보냅니다.
+ * 조회(GET) 파라미터는 지금처럼 거릅니다.
+ *
  * @param {object} params 요청 파라미터
- * @param {string[]} preserveEmptyArrays 명시적 해제 의미를 가진 빈 배열 필드
+ * @param {string[]} preserveEmptyArrays 명시적 해제 의미를 가진 빈 배열 필드 (예전 선언, 그대로 읽습니다)
+ * @param {string[]} [preserveEmpty] 본문 요청에서 빈 값도 보내야 하는 필드
  * @returns {object} 실제로 보낼 파라미터
  */
-function dropEmptyParams(params = {}, preserveEmptyArrays = []) {
+function dropEmptyParams(params = {}, preserveEmptyArrays = [], preserveEmpty = []) {
   const out = {};
   Object.entries(params).forEach(([k, v]) => {
+    if (preserveEmpty.includes(k) && (v === null || v === '' || (Array.isArray(v) && !v.length))) {
+      out[k] = v;
+      return;
+    }
     if (v === null || v === undefined || v === '') return;
     if (typeof v === 'string' && EMPTY_FILTERS.has(v.trim())) return;
     if (Array.isArray(v) && !v.length && !preserveEmptyArrays.includes(k)) return;
@@ -268,7 +298,9 @@ export async function request(key, params = {}, { silent = false, ...options } =
   if (!def) throw new Error(`정의되지 않은 API 키입니다: ${key}`);
 
   const { url, rest: raw } = buildPath(def.path, params);
-  const rest = dropEmptyParams(raw, def.preserveEmptyArrays);
+  // DELETE 도 엔드포인트가 `deleteBody: true` 를 선언하면 본문을 싣습니다(삭제 사유처럼 주소에 남기면 안 되는 값, 2026-10-02)
+  const isBody = ['POST', 'PUT', 'PATCH'].includes(def.method) || (def.method === 'DELETE' && def.deleteBody === true);
+  const rest = dropEmptyParams(raw, def.preserveEmptyArrays, isBody ? def.preserveEmpty || [] : []);
 
   if (!silent) useUiStore.getState().startApiLoading();
   try {
@@ -282,17 +314,16 @@ export async function request(key, params = {}, { silent = false, ...options } =
         return { success: true, code: 'SUCCESS', message: `[mock 미구현] ${def.name}`, data: null, masked: [] };
       }
       // 목 핸들러에는 경로 파라미터({defectId} 등)도 함께 넘깁니다 — 실 서버는 URL 에서 읽지만 목은 인자로만 받습니다
-      const data = await handler(dropEmptyParams(params, def.preserveEmptyArrays), def);
+      const data = await handler(dropEmptyParams(params, def.preserveEmptyArrays, isBody ? def.preserveEmpty || [] : []), def);
       if (data && data.success !== undefined) return data; // 핸들러가 전체 응답을 만든 경우
       return { success: true, code: 'SUCCESS', message: `${def.name} 조회가 완료되었습니다.`, data, masked: [] };
     }
 
     // [2] 실 서버 호출
-    const isBodyMethod = ['POST', 'PUT', 'PATCH'].includes(def.method);
     const config = {
       url,
       method: def.method.toLowerCase(),
-      ...(isBodyMethod ? { data: rest } : { params: rest }),
+      ...(isBody ? { data: rest } : { params: rest }),
       // 모델 추론처럼 오래 걸리는 것은 카탈로그가 제 시간을 들고 있습니다 (기본 45초로는 끊깁니다)
       ...(def.timeoutMs ? { timeout: def.timeoutMs } : null),
       ...options,
@@ -303,7 +334,10 @@ export async function request(key, params = {}, { silent = false, ...options } =
       return res.data;
     } catch (error) {
       // 서버가 표준 포맷으로 에러를 내려준 경우 그대로 전달합니다
-      if (error.response?.data?.success !== undefined) return error.response.data;
+      if (error.response?.data?.success !== undefined) {
+        notePasswordChangeRequired(error.response.data);
+        return error.response.data;
+      }
 
       // 제한 시간 초과 — 서버 오류와 구분해 안내합니다
       if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {

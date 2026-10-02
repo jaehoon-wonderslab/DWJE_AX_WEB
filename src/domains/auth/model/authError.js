@@ -41,3 +41,15 @@ export function needsReverify(res) {
   const message = res?.error?.message || res?.message || '';
   return /인증|토큰/.test(message);
 }
+
+/**
+ * 로그인 5회 실패로 계정이 잠겼다는 응답인지 판정합니다 (E-AUTH-005, 기획 AUD-16).
+ *
+ * 잠금 응답의 `data` 에는 `lockedAt`·`emailMasked`(가린 이메일)·`mailEnabled`(이메일 해제 가능 여부)가 옵니다.
+ *
+ * @param {object} res ApiResponse
+ * @returns {boolean}
+ */
+export function isAccountLocked(res) {
+  return (res?.error?.code || res?.code) === 'E-AUTH-005';
+}

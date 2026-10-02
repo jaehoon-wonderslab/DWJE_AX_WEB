@@ -87,7 +87,11 @@ export function ModalHost() {
   return (
     <>
       {modals.map((m) => {
-        const close = () => closeModal(m.id);
+        // onBeforeClose 가 false 를 돌려주면 닫지 않습니다 — 바깥 영역·×·Esc 로 닫을 때도 「저장하지 않은 내용」 확인을 걸 수 있습니다(2026-10-01)
+        const close = () => {
+          if (typeof m.onBeforeClose === 'function' && m.onBeforeClose() === false) return;
+          closeModal(m.id);
+        };
         return (
           <RNModal key={m.id} visible transparent animationType="fade" onRequestClose={close}>
             <Pressable

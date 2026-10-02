@@ -6,6 +6,7 @@ import { Animated, Easing, Platform, Text, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import Icon from './Icon';
+import Button from './Button';
 
 /** 화면 상단 안내 박스 (정보색 틴트) */
 export function Hint({ children, style, icon = 'info' }) {
@@ -188,8 +189,18 @@ export function Pulse({ size = 8, colors }) {
   );
 }
 
-/** 화면 전체에 걸친 접근 권한 없음 안내 */
-export function NoAccess({ dept, style }) {
+/**
+ * 화면 전체에 걸친 접근 권한 없음 안내
+ *
+ * 사용자에게 관리 메뉴 경로를 안내하지 않습니다 — 권한을 바꿀 수 있는 사람은 전산팀입니다.
+ * 미배정(부서 배정 전) 계정은 허용 화면이 고정되어 있어 문구가 다릅니다(기획 R-11).
+ *
+ * @param {object} props
+ * @param {string} [props.dept] 소속 부서명
+ * @param {boolean} [props.unassigned] 미배정 계정인지
+ * @param {Function} [props.onGoChat] 「덕반장 AI 로 이동」 — 미배정 계정에게만 보입니다
+ */
+export function NoAccess({ dept, unassigned = false, onGoChat, style }) {
   const s = useCommonStyles();
   const theme = useTheme();
   return (
@@ -197,9 +208,11 @@ export function NoAccess({ dept, style }) {
       <Text style={s.eyebrow}>Access denied</Text>
       <Text style={[s.pageTitle, { textAlign: 'center' }]}>접근 권한이 없는 화면입니다</Text>
       <Text style={[s.bodySm, { textAlign: 'center', maxWidth: 460 }]}>
-        {dept ? `${dept} 에 허용되지 않은 화면입니다. ` : ''}
-        시스템관리 &gt; 메뉴 접근 권한에서 부서 권한을 지정해 주세요.
+        {unassigned
+          ? '소속 부서 배정 전에는 대시보드·덕반장 AI·질의 이력만 쓸 수 있습니다. 전산팀에 부서 배정을 요청하세요.'
+          : `${dept ? `${dept}에 ` : ''}허용되지 않은 화면입니다. 필요하면 전산팀에 권한을 요청하세요.`}
       </Text>
+      {unassigned && onGoChat ? <Button label="덕반장 AI 로 이동" variant="primary" onPress={onGoChat} style={{ marginTop: 4 }} /> : null}
       <View style={{ width: 40, height: 1, backgroundColor: theme.divider, marginTop: 8 }} />
     </View>
   );

@@ -54,8 +54,8 @@ suite('AI 채팅 세션·내보내기 계약', () => {
   });
 
   test('운영 빌드는 현재 응답하는 API 8080 포트를 사용한다', () => {
-    const build = read('scripts/build-deploy.cjs');
-    ok(/DEPLOY_API_URL = 'http:\/\/192\.168\.2\.8:8080'/.test(build));
+    const targets = require('../../scripts/targets.cjs');
+    ok(targets.resolveTarget('server').env.EXPO_PUBLIC_API_URL.endsWith(':8080'));
   });
 
   test('출처는 접고 펼칠 수 있으며 채팅 본문은 표가 들어갈 너비를 확보한다', () => {

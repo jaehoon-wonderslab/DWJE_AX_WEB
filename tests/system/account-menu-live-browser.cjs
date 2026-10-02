@@ -15,6 +15,11 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
     created = true;
     const opened = await open(); browser = opened.browser;
     const { page } = opened;
+    // 앱 번들은 8080 을 부릅니다 — API_URL 이 다르면(예: 18081) 그쪽으로 돌립니다
+    const apiTarget = (process.env.API_URL || 'http://localhost:8080').replace(/\/$/, '');
+    if (!apiTarget.endsWith('localhost:8080')) {
+      await page.route('http://localhost:8080/**', (r) => r.continue({ url: r.request().url().replace('http://localhost:8080', apiTarget) }));
+    }
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${WEB}/system/account`);
     const grid = page.locator('[id="account-grid-계정"]');

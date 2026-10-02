@@ -42,6 +42,9 @@ export const commonMock = {
       dept: user.dept,
       menuPerms: menuPermsOf(user.dept),
       dataPerms: dataPermsOf(user.dept),
+      // 쓰기 권한(R-06) — 목에는 조회/쓰기 구분 데이터가 없어 조회 가능한 화면을 그대로 쓰기 가능으로 둡니다
+      writePerms: menuPermsOf(user.dept),
+      pwdChangeRequired: false,
       // 적용 중인 항목 정의 — 화면·엑셀이 이걸로 「응답 필드명 → 항목」 맵을 만듭니다
       dataFields: appliedDataFields(),
       servingModelVer: mockState.servingModelVer,
@@ -58,8 +61,21 @@ export const commonMock = {
       user,
       menuPerms: menuPermsOf(user.dept),
       dataPerms: dataPermsOf(user.dept),
+      writePerms: menuPermsOf(user.dept),
     };
   },
+
+  // 계정 잠금 해제 (AUD-16) — 목 인증에서는 잠금이 걸리지 않으므로 성공 응답만 둡니다
+  postAuthUnlockRequest: () => ({
+    message: '잠긴 계정이면 등록된 이메일로 인증 코드를 보냈습니다. 메일함을 확인해 주세요.',
+    expireMinutes: 5,
+    resendAvailableInSec: 60,
+  }),
+  postAuthUnlockVerify: () => ({ verificationToken: 'mock-unlock-token', expireMinutes: 10 }),
+  postAuthUnlockComplete: () => ({
+    empNo: mockState.currentUser?.empNo || '',
+    message: '잠금이 해제되었습니다. 새 비밀번호로 로그인해 주세요.',
+  }),
 
   /** 접근 가능한 메뉴만 반환합니다 */
   getMenus: () => {

@@ -8,12 +8,12 @@
  *           · defectCd · desc · condNm · ackState · ackBy · ackAt · escLevel · agent
  * 응답에 없는 필드로는 열을 그리지 않습니다.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Badge, BlindValue, Button, Card, Dot, EmptyState, Filters, KeyValue, Loading, Pagination, SelectField, Table, Tabs, TextAreaField,
+  Badge, BlindValue, Button, Card, Dot, EmptyState, Filters, Hint, KeyValue, Loading, Pagination, SelectField, Table, Tabs, TextAreaField,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -44,6 +44,7 @@ export default function AlertListView({
   tab, setTab, filters, equipments = [], severityOptions = ['전체'],
   severityLabel = (v) => v, ackStateLabel = (v) => v, channelLabel = (v) => v, sendResultLabel = (v) => v,
   setType, setTarget, setPeriod, reload, search, loadDetail, acknowledge, exportExcel, paging, itemsMeta,
+  link = null, focusAlertId = '', clearLink,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
@@ -104,6 +105,16 @@ export default function AlertListView({
 
   const countText = (n) => (n === null || n === undefined ? '' : ` ${comma(n)}`);
 
+  // 주소로 건너온 알림(alertId)은 목록에 그 한 건이 오면 상세를 한 번 바로 엽니다
+  const focused = useRef('');
+  useEffect(() => {
+    if (!focusAlertId || focused.current === focusAlertId) return;
+    const row = items.find((a) => String(a.alertId) === String(focusAlertId));
+    if (!row) return;
+    focused.current = focusAlertId;
+    openDetail(row);
+  }, [focusAlertId, items]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <View>
       <PageHead
@@ -116,6 +127,18 @@ export default function AlertListView({
           </>
         }
       />
+
+      {link ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <Hint style={{ flex: 1, minWidth: 240 }}>
+            {[
+              link.alertId ? `알림 #${link.alertId} 한 건을 보고 있습니다` : `발송 조건 #${link.condId} 의 알림만 보고 있습니다`,
+              link.includeTest ? '테스트 알림 포함' : null,
+            ].filter(Boolean).join(' · ')}
+          </Hint>
+          {clearLink ? <Button label="모든 알림 보기" size="sm" onPress={clearLink} /> : null}
+        </View>
+      ) : null}
 
       <Tabs
         value={tab}
@@ -164,7 +187,10 @@ export default function AlertListView({
                 minWidth: 220,
                 render: (r) => (
                   <View style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-                    <Text style={[s.textSm, { fontWeight: '600' }]} numberOfLines={2}>{text(r.title)}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                      <Text style={[s.textSm, { fontWeight: '600', flexShrink: 1 }]} numberOfLines={2}>{text(r.title)}</Text>
+                      {r.test ? <Badge tone="blue">테스트</Badge> : null}
+                    </View>
                     {r.condNm && r.condNm !== r.title ? <Text style={s.textXs} numberOfLines={1}>{`조건 ${r.condNm}`}</Text> : null}
                   </View>
                 ),
@@ -295,7 +321,11 @@ export default function AlertListView({
                   width: 150,
                   render: (r) => (
                     <View style={{ paddingHorizontal: 14 }}>
-                      <Badge tone={sendResultTone(r.result)}>{text(sendResultLabel(r.result))}</Badge>
+                      {/* 테스트 발송 기록은 운영 발송과 구분해 표시합니다 (기획 05 ALC-03 · 응답 test 필드) */}
+                      <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                        <Badge tone={sendResultTone(r.result)}>{text(sendResultLabel(r.result))}</Badge>
+                        {r.test ? <Badge tone="blue">테스트</Badge> : null}
+                      </View>
                       {r.failReason ? <Text style={[s.textXs, { marginTop: 2, color: theme.color.destructive }]} numberOfLines={1}>{r.failReason}</Text> : null}
                     </View>
                   ),

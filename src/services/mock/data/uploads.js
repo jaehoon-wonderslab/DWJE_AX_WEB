@@ -178,13 +178,19 @@ export function docSummary(doc) {
     sizeBytes: latest?.sizeBytes ?? 0,
     parseState: latest?.parseState ?? 'OK',
     warningCnt: latest?.warningCnt ?? 0,
+    // 숨김(R-19) — 소프트 삭제. 대시보드·기본 목록에서 빠집니다
+    deleted: !!doc.deleted,
+    deletedAt: doc.deletedAt || null,
+    deletedByName: doc.deletedByName || null,
+    deleteReason: doc.deleteReason || null,
   };
 }
 
 /** 문서 목록 — 최근 업로드 순 */
-export function listDocs({ keyword, uploadedBy, from, to } = {}) {
+export function listDocs({ keyword, uploadedBy, from, to, includeDeleted = false } = {}) {
   const kw = String(keyword || '').trim();
   return uploadStore().docs
+    .filter((d) => includeDeleted || !d.deleted)
     .map(docSummary)
     .filter((d) => !kw || d.title.includes(kw) || d.memo.includes(kw) || d.docId.includes(kw))
     .filter((d) => !uploadedBy || d.updatedByName === uploadedBy || d.updatedBy === uploadedBy || d.createdByName === uploadedBy)

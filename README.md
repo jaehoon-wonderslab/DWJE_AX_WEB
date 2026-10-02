@@ -2,7 +2,7 @@
 
 사내 MES 위에 얹는 **AI 의사결정 지원 계층**의 프론트엔드입니다.
 `기능 및 API 명세/ver01` 의 명세를 코드로 반영했으며, **2026-09 기준 운영에 맞춘 결과는
-메뉴 28건 · API 215건**입니다. (명세 원본 36화면/236건에서 실서버 화면 목록에 맞춰 정리한 상태)
+메뉴 29건 · API 244건**입니다(2026-10-02 시스템관리 개선 반영). (명세 원본 36화면/236건에서 실서버 화면 목록에 맞춰 정리한 상태)
 
 - **메뉴 하나 = 라우트 하나 = 소스 파일 하나** (파일 기반 라우팅)
 - **MVC 3계층** — Model(데이터) / View(화면) / Controller(상태·동작)
@@ -359,21 +359,23 @@ export default function AiDashboardView({ loading, summary, trend, refresh }) { 
 
 ## 6. 화면 · API 매핑
 
-메뉴 28건 = 라우트 28건 (`npm run check:routes` 로 항상 대조).
-API 카탈로그는 `src/services/api/endpoints.js` 의 `domain` 값 기준 215건입니다.
+메뉴 29건 = 라우트 29건 (`npm run check:routes` 로 항상 대조).
+API 카탈로그는 `src/services/api/endpoints.js` 의 `domain` 값 기준 244건입니다.
 
 | 구분 | 경로 | 화면 ID | API |
 | :--- | :--- | :--- | ---: |
 | AI 어시스턴트 | `/ai/chat` | ai-chat | 10 |
-| 대시보드 | `/dashboard/ai` · `/dashboard/process` | dash-ai / dash-proc | 34 |
-| 생산 · 품질 | `/production/monitor` · `/production/result` · `/production/daily-report` · `/production/daily-report/history` · `/quality/defect` · `/quality/aoi` | prod-monitor / prod-result / prod-daily / daily-history / qc-defect / qc-aoi | 31 |
-| 보고서 | `/report/press-morning` · `/report/plating-morning` · `/report/ship-plan` · `/report/yield-by-model` · `/report/lrr-by-customer` · `/report/scrap` | rpt-* | 7 |
+| 대시보드 | `/dashboard/ai` · `/dashboard/process` | dash-ai / dash-proc | 45 |
+| 생산 · 품질 | `/production/monitor` · `/production/result` · `/production/daily-report` · `/production/daily-report/history` · `/quality/defect` · `/quality/aoi` | prod-monitor / prod-result / prod-daily / daily-history / qc-defect / qc-aoi | 33 |
+| 보고서 | `/report/press-morning` · `/report/plating-morning` · `/report/ship-plan` · `/report/yield-by-model` · `/report/lrr-by-customer` · `/report/scrap` | rpt-* | 9 |
 | 이상 알림 | `/alert/list` | alert-list | 5 |
-| 시스템관리 | `/system/*` 12종 | sys-* | **91** |
-| 인증·공통 | (화면 없음) | — | 22 |
-| **합계** | **28 화면** | | **215** |
+| 시스템관리 | `/system/*` 11종 | sys-* | **115** |
+| 자연어 질의 이력 | `/history/chat` | chat-history | (시스템관리에 포함) |
+| 용어 사전 | `/glossary/view` | gloss-view | 2 |
+| 인증·공통 | (화면 없음) | — | 25 |
+| **합계** | **메뉴 29건** | | **244** |
 
-> 대시보드 34건 = AI 통합 22 + 공정·제품 12. 인증·공통 22건은 로그인·회원가입·비밀번호 찾이 외 공통 API 를 포함합니다.
+> 건수는 `endpoints.js` 의 `domain` 값으로 셉니다(생산 16 + 품질 17 = 33). 인증·공통 25건은 로그인·회원가입·비밀번호 찾기·잠금 해제·비밀번호 변경 외 공통 API 를 포함합니다.
 > 화면에서 쓰지 않는 API (MES AOI 불량·즐겨찾기·보고서 상태 등) 는 2026-09-23 에 정리했습니다.
 
 ### 6-1. 제거된 화면

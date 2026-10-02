@@ -13,12 +13,16 @@ import { alertAckState, alertPeriod, alertSeverity } from '@domains/common/model
 export const loadAlertCodes = () => loadCodeGroups('ALM_SEVERITY', 'ALM_ACK_STATE', 'ALM_CHANNEL', 'ALM_SEND_RESULT');
 
 /** 조회 조건 → 서버 파라미터 ('전체' 는 클라이언트가 비워 보냅니다) */
-function listParams({ state, type, target, period }) {
+function listParams({ state, type, target, period, condId, alertId, includeTest }) {
   return {
     ackState: alertAckState(state),
     type: alertSeverity(type),
     eqptCd: target,
     period: alertPeriod(period),
+    // 다른 화면에서 건너온 조건 (기획 05 ALC-08 「최근 7일」 · ALC-03 「알림 목록에서 보기」)
+    condId: condId || undefined,
+    alertId: alertId || undefined,
+    includeTest: includeTest ? true : undefined,
   };
 }
 
@@ -28,8 +32,8 @@ function listParams({ state, type, target, period }) {
  * 탭의 건수(미확인·확인됨)는 서버가 따로 주지 않아 같은 조건으로 1건씩 조회해 `meta.total` 을 읽습니다.
  * 발송 로그는 전산팀·통합관리자만 볼 수 있어 `withSendLogs` 가 false 면 부르지 않습니다(403 소음 방지).
  */
-export async function loadAlerts({ state, type, target, period, page, size, withSendLogs = true }) {
-  const base = listParams({ state, type, target, period });
+export async function loadAlerts({ state, type, target, period, condId, alertId, includeTest, page, size, withSendLogs = true }) {
+  const base = listParams({ state, type, target, period, condId, alertId, includeTest });
   const spec = {
     list: alertService.getAlerts({ ...base, page, size }),
     openCount: alertService.getAlerts({ ...base, ackState: 'OPEN', page: 1, size: 1 }),

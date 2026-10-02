@@ -1,0 +1,1775 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>덕우전자 AX 리디자인</title>
+<!--
+  덕우전자 AX — 3차 리디자인 화면 프로토타입 (단일 파일)
+  기준: docs/design/UI_REDESIGN_PROMPT.md
+   · 기본 글자 15px · Pretendard + Inter · 굵기 500/600
+   · 팔레트 Burgundy & Blush (#880D1E · #DD2D4A · #F26A8D · #F49CBB · #D1D5DE · #EDE3E9)
+   · 메뉴 27건 + 로그인·회원가입·비밀번호 재설정 + 404 + 컴포넌트·토큰
+  데이터는 전부 화면용 목(mock)입니다. 서버를 호출하지 않습니다.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+<style>
+/* =========================================================
+   1. 토큰
+   ========================================================= */
+:root{
+  --bg:#F6F1F4; --card:#FFFFFF; --muted:#FBF8FA; --secondary:#F3ECF0; --border:#E4DDE2;
+  --fg:#1E1418; --fg2:#3D3237; --fg3:#7A6E74;
+  --primary:#880D1E; --primary-h:#6E0A18; --accent:#DD2D4A; --spark:#F26A8D; --tint:#F49CBB; --mute:#D1D5DE;
+  --success:#2E9E57; --success-bg:#EAF6EE; --warning:#E8A33D; --warning-text:#8F5B0B; --warning-bg:#FDF4E6;
+  --danger:#C81E1E; --danger-bg:#FCECEC; --brand-bg:#F8E7EB; --info-bg:#F1EEF2;
+  --ring:rgba(221,45,74,.35); --tint-bg:rgba(244,156,187,.14); --tint-bg-2:rgba(244,156,187,.22);
+  --overlay:rgba(30,20,24,.32); --shadow:0 10px 30px rgba(136,13,30,.05); --pop-shadow:0 16px 40px rgba(30,20,24,.12),0 2px 6px rgba(30,20,24,.06);
+  --s1:#880D1E; --s2:#DD2D4A; --s3:#F26A8D; --s4:#F49CBB; --s5:#8A93A6; --s6:#2E9E57;
+  --ci-blue:#0033A0; --ci-sky:#00AEEF;
+  --r-panel:20px; --r:14px; --r-act:12px; --r-sm:10px; --r-xs:8px;
+  --gutter:16px; --sb:228px; --sb-c:64px; --top:60px; --rail:380px;
+  --ease:cubic-bezier(.22,1,.36,1); --spring:cubic-bezier(.34,1.56,.64,1);
+  --t:160ms; --t-in:220ms; --t-out:140ms;
+  --f-sans:"Pretendard Variable",Pretendard,Inter,"Apple SD Gothic Neo","Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --f-num:Inter,"Pretendard Variable",Pretendard,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-sans);font-size:15px;line-height:22px;font-weight:500;word-break:keep-all;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,p{margin:0}
+b,strong{font-weight:600}
+:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:6px}
+::selection{background:var(--tint-bg-2)}
+.ic{flex:none;display:block}
+[hidden]{display:none!important}
+
+/* 타이포 스케일 — 기본 15px */
+.t-caption{font-size:12.5px;line-height:17px;color:var(--fg3)}
+.t-label{font-size:13.5px;line-height:18px;color:var(--fg3);letter-spacing:.01em}
+.eyebrow{font-size:13.5px;line-height:18px;font-weight:600;color:var(--fg3);letter-spacing:.01em}
+.t-xs{font-size:13px;line-height:18px}
+.t-sm{font-size:14px;line-height:20px}
+.t-body{font-size:15px;line-height:22px;color:var(--fg2)}
+.h-card{font-size:16px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--fg)}
+.h-sec{font-size:18px;line-height:24px;font-weight:600;letter-spacing:-.015em;color:var(--fg)}
+.h-page{font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.02em;color:var(--fg)}
+.h-lg{font-size:26px;line-height:32px;font-weight:600;letter-spacing:-.02em;color:var(--fg)}
+.display{font-size:30px;line-height:36px;font-weight:600;letter-spacing:-.025em;color:var(--primary)}
+.num{font-family:var(--f-num);font-size:26px;line-height:30px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--fg)}
+.num-sm{font-family:var(--f-num);font-size:20px;line-height:24px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+.num-t{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-mono);font-size:13.5px;line-height:20px}
+.fg3{color:var(--fg3)} .fg2{color:var(--fg2)} .brand{color:var(--primary)}
+.row{display:flex;align-items:center;gap:8px} .spacer{flex:1}
+.wrap{flex-wrap:wrap}
+
+/* =========================================================
+   2. 공통 컴포넌트
+   ========================================================= */
+/* 버튼 */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 16px;border-radius:var(--r-act);font-size:15px;font-weight:600;white-space:nowrap;border:1px solid transparent;transition:background-color var(--t) var(--ease),border-color var(--t) var(--ease),color var(--t) var(--ease),transform 80ms var(--ease),box-shadow var(--t) var(--ease)}
+.btn:active{transform:scale(.98)}
+.btn-sm{height:32px;padding:0 12px;font-size:14px;border-radius:var(--r-sm)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-h)}
+.btn-outline{background:#fff;border-color:var(--border);color:var(--fg)}
+.btn-outline:hover{background:var(--secondary);border-color:#D8CFD5}
+.btn-ghost{color:var(--fg2)}
+.btn-ghost:hover{background:var(--secondary);color:var(--primary)}
+.btn-danger{background:#fff;border-color:#F0C9C9;color:var(--danger)}
+.btn-danger:hover{background:var(--danger-bg)}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn.loading{color:transparent!important;pointer-events:none}
+.btn.loading>*{visibility:hidden}
+.btn.loading::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite}
+.btn-outline.loading::after{border-color:var(--border);border-top-color:var(--primary)}
+.icon-btn{position:relative;width:34px;height:34px;display:inline-grid;place-items:center;border-radius:var(--r-sm);color:var(--fg2);transition:background-color var(--t) var(--ease),color var(--t) var(--ease)}
+.icon-btn:hover{background:var(--secondary);color:var(--primary)}
+.icon-btn.on{background:var(--tint-bg);color:var(--primary)}
+.icon-btn.spin-on-press:active .ic{animation:spin .6s linear infinite}
+.icon-btn.spinning .ic{animation:spin .6s linear infinite}
+/* 링크 — 밑줄이 왼쪽에서 그려집니다 */
+.lnk{color:var(--primary);font-weight:600;background:linear-gradient(currentColor,currentColor) 0 100%/0 1px no-repeat;transition:background-size var(--t-in) var(--ease),color var(--t) var(--ease);padding-bottom:1px}
+.lnk:hover{background-size:100% 1px;color:var(--accent)}
+
+/* 배지·점 */
+.badge{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:999px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap;background:var(--secondary);color:var(--fg2)}
+.badge .ic{width:13px;height:13px}
+.b-success{background:var(--success-bg);color:var(--success)}
+.b-warning{background:var(--warning-bg);color:var(--warning-text)}
+.b-danger{background:var(--danger-bg);color:var(--danger)}
+.b-brand{background:var(--brand-bg);color:var(--primary)}
+.b-line{background:#fff;border:1px solid var(--border);color:var(--fg2)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--mute);flex:none}
+.dot.live{background:var(--success);box-shadow:0 0 0 0 rgba(46,158,87,.45);animation:breath 2.4s var(--ease) infinite}
+.tag-new{font-size:11.5px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--brand-bg);color:var(--primary);font-weight:600}
+
+/* 카드 */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);min-width:0}
+.card-head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px 0}
+.card-head>div:first-child{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.card-r{display:flex;align-items:center;gap:6px;flex:none}
+.card-body{padding:14px 20px 20px}
+.card.tight .card-body{padding:12px 14px 14px}
+.sub-card{background:var(--muted);border-radius:var(--r-sm);padding:14px 16px}
+.src-note{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12.5px;line-height:17px;color:var(--fg3)}
+
+/* 그리드 */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g-2-1{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.g-1-2{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}
+.stack{display:flex;flex-direction:column;gap:14px}
+@media (max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3,.g-2-1,.g-1-2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.g2,.g4{grid-template-columns:minmax(0,1fr)}}
+
+/* 통계 카드 */
+.stat{padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.stat-top{display:flex;align-items:center;justify-content:space-between}
+.stat-ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--muted);color:var(--primary)}
+.stat-v{display:flex;align-items:baseline;gap:4px}
+.unit{font-size:14px;color:var(--fg3);font-weight:500}
+.stat-bot{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.drift{display:inline-flex;align-items:center;gap:2px;font-size:13.5px;line-height:18px;font-weight:600;font-family:var(--f-num)}
+.drift.good{color:var(--success)} .drift.bad{color:var(--danger)}
+.spark-svg path{fill:none;stroke:var(--primary);stroke-width:1.6}
+
+/* 입력 */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>label{font-size:13.5px;line-height:18px;color:var(--fg2);font-weight:600}
+.req{color:var(--accent);margin-left:2px}
+.inp,.sel select{height:40px;width:100%;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:#fff;font-size:15px;transition:border-color var(--t) var(--ease),box-shadow var(--t) var(--ease);outline:none}
+.inp::placeholder,textarea::placeholder{color:#A99EA4}
+.inp:hover,.sel select:hover{border-color:#D3C9CF}
+.inp:focus,.sel select:focus,textarea.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+.inp.sm,.sel.sm select{height:34px;font-size:14px;border-radius:var(--r-xs)}
+textarea.inp{height:auto;padding:10px 12px;resize:vertical;line-height:22px}
+.field.has-err .inp{border-color:var(--danger)}
+.err{display:flex;align-items:center;gap:5px;font-size:13px;line-height:18px;color:var(--danger)}
+.hint{font-size:13px;line-height:18px;color:var(--fg3)}
+.sel{position:relative;display:block}
+.sel select{appearance:none;padding-right:34px;cursor:pointer}
+.sel .ic{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--fg3);pointer-events:none}
+.inp-wrap{position:relative}
+.inp-wrap .inp{padding-right:42px}
+.inp-wrap .eye{position:absolute;right:4px;top:3px}
+.inp-ic{position:relative}
+.inp-ic>.ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--fg3)}
+.inp-ic .inp{padding-left:34px}
+
+/* 체크·라디오·스위치 */
+.chk,.rad{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;line-height:20px;user-select:none}
+.chk input,.rad input{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+.chk .box{width:18px;height:18px;border-radius:5px;border:1.5px solid #CFC5CB;background:#fff;display:grid;place-items:center;transition:background-color var(--t) var(--ease),border-color var(--t) var(--ease),transform 120ms var(--ease);flex:none}
+.chk .box svg{width:14px;height:14px}
+.chk .box path{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 220ms var(--ease) 40ms}
+.chk input:checked+.box{background:var(--primary);border-color:var(--primary)}
+.chk input:checked+.box path{stroke-dashoffset:0}
+.chk:active .box{transform:scale(.9)}
+.chk input:focus-visible+.box,.rad input:focus-visible+.o{box-shadow:0 0 0 3px var(--ring)}
+.rad .o{width:18px;height:18px;border-radius:50%;border:1.5px solid #CFC5CB;display:grid;place-items:center;transition:border-color var(--t) var(--ease);flex:none;background:#fff}
+.rad .o i{width:8px;height:8px;border-radius:50%;background:var(--primary);transform:scale(0);transition:transform 260ms var(--spring)}
+.rad input:checked+.o{border-color:var(--primary)}
+.rad input:checked+.o i{transform:scale(1)}
+.sw{position:relative;width:38px;height:22px;border-radius:999px;background:#DCD3D8;transition:background-color var(--t-in) var(--ease);flex:none}
+.sw .knob{position:absolute;left:3px;top:3px;height:16px;width:16px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(30,20,24,.2);transition:left 260ms var(--spring),width 160ms var(--ease)}
+.sw:active .knob{width:21px}
+.sw[aria-checked="true"]{background:var(--primary)}
+.sw[aria-checked="true"] .knob{left:19px}
+.sw[aria-checked="true"]:active .knob{left:14px}
+.sw-row{display:flex;align-items:center;gap:10px;font-size:14px}
+
+/* 세그먼트·탭 — 지시자가 미끄러지며 잠깐 늘어납니다 */
+.seg{position:relative;display:inline-flex;align-items:center;padding:3px;border-radius:12px;background:var(--secondary);gap:2px;isolation:isolate;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg>button{position:relative;z-index:1;height:30px;padding:0 13px;border-radius:9px;font-size:14px;font-weight:600;color:var(--fg3);white-space:nowrap;transition:color var(--t) var(--ease)}
+.seg>button:hover{color:var(--fg)}
+.seg>button[aria-selected="true"]{color:var(--primary)}
+.seg-ind{position:absolute;z-index:0;top:3px;bottom:3px;left:0;width:0;border-radius:9px;background:#fff;box-shadow:0 1px 3px rgba(30,20,24,.08),0 0 0 1px rgba(30,20,24,.03)}
+.seg.ready .seg-ind{transition:left 170ms var(--ease),width 170ms var(--ease)}
+.seg.line{background:none;padding:0;border-radius:0;gap:4px;border-bottom:1px solid var(--border);display:flex}
+.seg.line>button{height:40px;border-radius:0;padding:0 12px;font-size:15px}
+.seg.line .seg-ind{top:auto;bottom:-1px;height:2px;border-radius:2px;background:var(--accent);box-shadow:none}
+.seg.sm>button{height:26px;padding:0 10px;font-size:13px}
+
+/* 칩 */
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:14px;color:var(--fg2);transition:background-color var(--t) var(--ease),border-color var(--t) var(--ease),color var(--t) var(--ease),transform 80ms}
+.chip:hover{border-color:#D3C9CF;color:var(--fg)}
+.chip:active{transform:scale(.97)}
+.chip.on{background:var(--tint-bg);border-color:rgba(221,45,74,.35);color:var(--primary)}
+.chip .x{display:grid;place-items:center;width:18px;height:18px;margin-right:-6px;border-radius:50%;color:var(--fg3)}
+.chip .x:hover{background:var(--secondary);color:var(--primary)}
+.chip.enter{animation:chipIn 220ms var(--spring) both}
+.chip.leave{animation:chipOut 140ms var(--ease) both}
+.chip-add{border-style:dashed;color:var(--fg3)}
+
+/* 필터 바 */
+.filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px;padding:14px 16px;border:1px solid var(--border);background:#fff;border-radius:var(--r);margin-bottom:14px}
+.filters .field{width:168px}
+.filters .field.w-lg{width:220px}
+.filters .actions{margin-left:auto;display:flex;gap:6px}
+.filters .chips-line{flex-basis:100%;display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px dashed var(--border)}
+.filters .chips-line .t-label{white-space:nowrap}
+.filters .row>input[type=date]{flex:1;min-width:0}
+@media (max-width:640px){.filters .field,.filters .field.w-lg{width:100%}.filters .actions{width:100%;justify-content:flex-end}}
+
+/* 표 — 넘치면 가로 스크롤, 헤더·본문이 같은 스크롤 영역 안에서 함께 움직입니다 */
+.tbl{border:1px solid var(--border);border-radius:var(--r);background:#fff;overflow:hidden;min-width:0}
+.tbl-scroll{overflow:auto;max-width:100%;overscroll-behavior:contain}
+.tbl table{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:14px;line-height:20px}
+.tbl th{position:sticky;top:0;z-index:2;background:var(--muted);height:40px;padding:0 12px;text-align:left;font-size:13px;line-height:18px;font-weight:600;color:var(--fg2);border-bottom:1px solid var(--border);white-space:nowrap;user-select:none}
+.tbl th.r,.tbl td.r{text-align:right}
+.tbl th.c,.tbl td.c{text-align:center}
+.tbl th.sortable{cursor:pointer}
+.tbl th.sortable:hover{color:var(--primary)}
+.th-in{display:inline-flex;align-items:center;gap:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tbl th.r .th-in{flex-direction:row-reverse}
+.sort-ic{display:inline-grid;opacity:0;transition:opacity var(--t),transform var(--t-in) var(--ease);color:var(--accent)}
+.tbl th.sortable:hover .sort-ic{opacity:.45}
+.tbl th.sorted .sort-ic{opacity:1}
+.tbl th.sorted.desc .sort-ic{transform:rotate(180deg)}
+.tbl td{height:42px;padding:0 12px;border-bottom:1px solid #F0EAEE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg);background:#fff;transition:background-color 120ms}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover td{background:var(--secondary)}
+.tbl tbody tr.is-sel td{background:var(--tint-bg)}
+.tbl tbody tr.clickable{cursor:pointer}
+.tbl .sel{width:44px;text-align:center;padding:0}
+.tbl .sticky-l{position:sticky;left:0;z-index:1}
+.tbl th.sticky-l{z-index:3}
+.tbl .sticky-l::after{content:"";position:absolute;top:0;bottom:0;right:-1px;width:1px;background:var(--border)}
+.tbl td.num-c{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.tbl-foot{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--border);background:#fff;flex-wrap:wrap}
+.pager{display:flex;align-items:center;gap:4px;margin-left:auto}
+.pager .seg>button{min-width:30px;padding:0 8px;font-family:var(--f-num)}
+.cell-bar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.cell-bar i{display:block;height:6px;border-radius:3px;background:var(--mute);width:48px;overflow:hidden}
+.cell-bar i b{display:block;height:100%;background:var(--primary)}
+
+/* 보고서 문서표(XlsTable) */
+.xls-scroll{overflow:auto;border:1px solid var(--border);border-radius:var(--r-sm)}
+.xls{border-collapse:collapse;font-size:13.5px;line-height:19px;min-width:100%}
+.xls th,.xls td{border:1px solid #E8E1E5;padding:7px 10px;white-space:nowrap}
+.xls th{background:var(--muted);font-weight:600;color:var(--fg2);font-size:13px}
+.xls td{font-family:var(--f-num);text-align:right;font-variant-numeric:tabular-nums}
+.xls td.l{font-family:var(--f-sans);text-align:left}
+.xls tr.sum td{background:#FBF4F6;font-weight:600}
+.xls td.hi{color:var(--danger);font-weight:600}
+.xls td.ok{color:var(--success);font-weight:600}
+.xls .stk{position:sticky;left:0;background:#fff;z-index:1}
+.xls th.stk{background:var(--muted)}
+
+/* 보고서 문서 틀 */
+.doc{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:28px 32px}
+.doc-head{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;padding-bottom:18px;border-bottom:2px solid var(--fg);margin-bottom:18px}
+.approve{display:flex;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;margin-left:auto}
+.approve div{width:76px;text-align:center;border-left:1px solid var(--border)}
+.approve div:first-child{border-left:0}
+.approve span{display:block;font-size:12.5px;color:var(--fg3);background:var(--muted);padding:3px 0;border-bottom:1px solid var(--border)}
+.approve b{display:grid;place-items:center;height:44px;font-size:13px}
+.approve .stamp{color:var(--primary);font-weight:600}
+
+/* 단계 */
+.steps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg3);font-weight:600}
+.step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1.5px solid #D8CFD5;font-size:12.5px;font-family:var(--f-num);background:#fff;transition:all var(--t-in) var(--ease)}
+.step.on{color:var(--fg)} .step.on .n{border-color:var(--primary);color:var(--primary);box-shadow:0 0 0 4px var(--tint-bg)}
+.step.done .n{background:var(--primary);border-color:var(--primary);color:#fff}
+.step-line{width:28px;height:1.5px;background:#E4DDE2;border-radius:2px;position:relative;overflow:hidden}
+.step-line i{position:absolute;inset:0;background:var(--primary);transform:scaleX(0);transform-origin:left;transition:transform var(--t-in) var(--ease)}
+.step-line.done i{transform:scaleX(1)}
+
+/* 진행 막대 */
+.prog{height:6px;border-radius:999px;background:var(--secondary);overflow:hidden}
+.prog i{display:block;height:100%;border-radius:999px;background:var(--primary);transition:width .45s var(--ease)}
+
+/* 키-값 */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px}
+.kv dt{color:var(--fg3)} .kv dd{margin:0;color:var(--fg);font-weight:600}
+
+/* 피드백 */
+.hint-box{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);background:var(--muted);font-size:14px;line-height:20px;color:var(--fg2)}
+.hint-box .ic{margin-top:2px;color:var(--fg3)}
+.alert-box{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);font-size:14px;line-height:20px}
+.alert-box.error{background:var(--danger-bg);color:var(--danger)}
+.alert-box.ok{background:var(--success-bg);color:var(--success)}
+.alert-box .ic{margin-top:2px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:48px 16px;text-align:center;color:var(--fg2)}
+.empty .em-ic{width:40px;height:40px;border-radius:50%;background:var(--secondary);display:grid;place-items:center;color:var(--fg3)}
+.blind{display:inline-flex;align-items:center;gap:4px;color:var(--fg3);letter-spacing:2px}
+
+/* 스켈레톤 */
+.sk{border-radius:var(--r-sm);background:linear-gradient(90deg,#F1EAEE 0%,#F8F3F6 40%,#F1EAEE 80%) 0 0/200% 100%;animation:shimmer 1.4s linear infinite}
+.sk-page{display:flex;flex-direction:column;gap:14px}
+
+/* 아코디언 */
+.acc{border-top:1px solid var(--border)}
+.acc:first-child{border-top:0}
+.acc-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;text-align:left}
+.acc-h .chev{margin-left:auto;color:var(--fg3);transition:transform var(--t-in) var(--ease)}
+.acc.open .acc-h .chev{transform:rotate(180deg)}
+.acc-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t-in) var(--ease)}
+.acc.open .acc-b{grid-template-rows:1fr}
+.acc-b>div{overflow:hidden;min-height:0}
+.acc-b>div>div{padding:0 0 14px}
+
+/* 타임라인 */
+.tl{position:relative;padding-left:22px;display:flex;flex-direction:column;gap:16px}
+.tl::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:1.5px;background:var(--border)}
+.tl-i{position:relative}
+.tl-i::before{content:"";position:absolute;left:-21px;top:5px;width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid var(--mute)}
+.tl-i.on::before{border-color:var(--accent);box-shadow:0 0 0 4px var(--tint-bg)}
+.tl-i.ok::before{border-color:var(--success)}
+.tl-i .t{font-size:12.5px;color:var(--fg3);font-family:var(--f-num)}
+
+/* AI 오브 — 대기 숨쉬기 · 생각 중 회전 · 완료 한 번 퍼짐 */
+.orb{--s:28px;position:relative;width:var(--s);height:var(--s);border-radius:50%;flex:none;isolation:isolate}
+.orb::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,#880D1E,#DD2D4A,#F26A8D,#F49CBB,#F26A8D,#880D1E);filter:blur(.4px);animation:breathe 4s ease-in-out infinite}
+.orb::after{content:"";position:absolute;inset:16%;border-radius:50%;background:radial-gradient(circle at 34% 30%,rgba(255,255,255,.95) 0 14%,rgba(255,255,255,.35) 38%,rgba(255,255,255,0) 66%)}
+.orb[data-state="thinking"]::before{animation:spin 1.4s linear infinite}
+.orb[data-state="thinking"]{animation:breathe 1.2s ease-in-out infinite}
+.orb .ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--spark);opacity:0;pointer-events:none}
+.orb[data-state="done"] .ring{animation:ripple .8s var(--ease) 1}
+.orb.sm{--s:18px} .orb.lg{--s:56px}
+.orb canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;z-index:1}
+
+/* =========================================================
+   3. 오버레이
+   ========================================================= */
+#tip{position:fixed;left:0;top:0;z-index:300;pointer-events:none;max-width:280px;padding:8px 10px;border-radius:10px;background:#1E1418;color:#fff;font-size:13.5px;line-height:19px;opacity:0;transition:opacity var(--t-out) var(--ease),transform 90ms linear;box-shadow:0 8px 20px rgba(30,20,24,.2)}
+#tip.on{opacity:1}
+#tip b{display:block;font-weight:600;margin-bottom:2px}
+.tip-row{display:flex;align-items:center;gap:6px;font-family:var(--f-num)}
+.tip-row i{width:8px;height:8px;border-radius:2px}
+.tip-row span{margin-left:auto;padding-left:10px;font-weight:600}
+.pop{position:fixed;z-index:120;background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--pop-shadow);opacity:0;transform:scale(.96) translateY(-4px);transition:opacity var(--t-in) var(--ease),transform var(--t-in) var(--spring);max-height:min(520px,calc(100vh - 90px));overflow:auto}
+.pop.open{opacity:1;transform:none}
+.pop.closing{opacity:0;transform:scale(.97);transition-duration:var(--t-out)}
+.pop-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.pop-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;text-align:left;font-size:14px;transition:background-color 120ms}
+.pop-item:hover,.pop-item.kb{background:var(--secondary)}
+.pop-item .ic{color:var(--fg3)}
+.pop-sep{height:1px;background:var(--border);margin:4px 0}
+.modal-root{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
+.scrim{position:absolute;inset:0;background:var(--overlay);opacity:0;transition:opacity var(--t-in) var(--ease)}
+.modal-root.open .scrim{opacity:1}
+.modal{position:relative;background:#fff;border-radius:var(--r-panel);box-shadow:var(--pop-shadow);max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(8px)}
+.modal.in{transition:opacity var(--t-in) var(--ease),transform var(--t-in) var(--ease)}
+.modal-root.open .modal{opacity:1;transform:none}
+.modal.flip{transition:transform 320ms var(--ease),opacity 120ms linear,border-radius 320ms var(--ease)}
+.modal.flip .modal-in{animation:fadeIn 220ms var(--ease) 140ms both}
+.modal-root.closing .scrim{opacity:0;transition-duration:var(--t-out)}
+.modal-root.closing .modal{opacity:0;transform:translateY(6px) scale(.99);transition:opacity var(--t-out) var(--ease),transform var(--t-out) var(--ease)}
+.modal-in{display:flex;flex-direction:column;min-height:0;flex:1}
+.modal-head{display:flex;align-items:center;gap:10px;padding:18px 20px 14px}
+.modal-body{padding:0 20px 20px;overflow:auto;min-height:0}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:var(--muted)}
+.drawer-root{position:fixed;inset:0;z-index:190}
+.drawer-root .scrim{background:rgba(30,20,24,.2)}
+.drawer-root.open .scrim{opacity:1}
+.drawer{position:absolute;top:16px;right:16px;bottom:16px;width:min(460px,calc(100vw - 32px));background:#fff;border-radius:var(--r-panel);box-shadow:var(--pop-shadow);display:flex;flex-direction:column;transform:translateX(calc(100% + 24px));transition:transform 260ms var(--ease)}
+.drawer-root.open .drawer{transform:none}
+.drawer-root.closing .drawer{transform:translateX(calc(100% + 24px));transition-duration:180ms}
+.drawer-root.closing .scrim{opacity:0}
+#toasts{position:fixed;top:16px;right:16px;z-index:260;width:min(360px,calc(100vw - 32px));display:flex;flex-direction:column;pointer-events:none}
+.toast-w{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t-in) var(--ease),opacity var(--t-in) var(--ease);opacity:0}
+.toast-w.in{grid-template-rows:1fr;opacity:1}
+.toast-w>div{min-height:0;overflow:hidden}
+.toast{pointer-events:auto;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r);background:#fff;border:1px solid var(--border);box-shadow:var(--pop-shadow);transform:translateX(16px);transition:transform var(--t-in) var(--spring)}
+.toast-w.in .toast{transform:none}
+.toast .t-ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none}
+.toast.success .t-ic{background:var(--success-bg);color:var(--success)}
+.toast.warning .t-ic{background:var(--warning-bg);color:var(--warning-text)}
+.toast.error .t-ic{background:var(--danger-bg);color:var(--danger)}
+.toast.info .t-ic{background:var(--brand-bg);color:var(--primary)}
+.toast .t-bar{height:2px;background:var(--tint);border-radius:2px;margin-top:8px;transform-origin:left}
+#progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:400;background:linear-gradient(90deg,var(--primary),var(--spark));opacity:0;transition:width .35s var(--ease),opacity .3s}
+#progress.on{opacity:1}
+
+/* =========================================================
+   4. 인증 화면
+   ========================================================= */
+.auth{position:fixed;inset:0;padding:var(--gutter);display:flex;background:var(--bg)}
+.auth-panel{flex:1;display:flex;background:#fff;border-radius:var(--r-panel);border:1px solid rgba(0,0,0,.03);box-shadow:var(--shadow);overflow:hidden;min-height:0}
+.auth-brand{position:relative;flex:1.1;overflow:hidden;border-right:1px solid var(--border);background:linear-gradient(160deg,#F6F1F4,#EDE3E9 55%,#F8E3EA)}
+.auth-brand canvas{position:absolute;inset:0;width:100%;height:100%}
+.brand-in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:40px;gap:24px}
+.logo{display:inline-flex;align-items:center;gap:10px}
+.logo-txt{display:flex;flex-direction:column;line-height:1}
+.logo-txt b{font-family:var(--f-num);font-size:15px;letter-spacing:.06em;color:var(--fg)}
+.logo-txt span{font-size:12px;color:var(--fg3);margin-top:3px}
+.hero .display{font-size:38px;line-height:46px;letter-spacing:-.028em}
+.reveal>span{display:block;overflow:hidden}
+.reveal>span>span{display:block;animation:lineUp .7s var(--ease) both}
+.reveal>span:nth-child(2)>span{animation-delay:.12s}
+.hero p{margin-top:16px;max-width:460px;color:var(--fg2);font-size:15.5px;line-height:25px;animation:fadeUp .7s var(--ease) .3s both}
+.hero-pts{display:flex;flex-direction:column;gap:10px;margin-top:22px;animation:fadeUp .7s var(--ease) .42s both}
+.hero-pts div{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg2)}
+.hero-pts .pi{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.7);display:grid;place-items:center;color:var(--primary);backdrop-filter:blur(6px)}
+.auth-form{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px;overflow:auto}
+.auth-view{width:100%;max-width:400px;display:flex;flex-direction:column;gap:16px}
+.auth-view.enter{animation:fadeUp .34s var(--ease) both}
+.auth-links{display:flex;justify-content:center;gap:6px;font-size:14px;color:var(--fg3)}
+.shake{animation:shake .38s var(--ease)}
+.otp{display:flex;gap:8px}
+.otp input{width:46px;height:50px;text-align:center;font-family:var(--f-num);font-size:20px;font-weight:600;border-radius:var(--r-sm);border:1px solid var(--border);outline:none;transition:border-color var(--t),box-shadow var(--t),transform 200ms var(--spring)}
+.otp input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+.otp input.filled{transform:scale(1.06);border-color:var(--primary)}
+.collapse{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t-in) var(--ease)}
+.collapse.open{grid-template-rows:1fr}
+.collapse>div{min-height:0;overflow:hidden}
+.pw-meter{display:flex;gap:4px;margin-top:2px}
+.pw-meter i{flex:1;height:4px;border-radius:2px;background:var(--secondary);transition:background-color var(--t-in)}
+.done-ic{width:64px;height:64px;border-radius:50%;background:var(--success-bg);display:grid;place-items:center;margin:0 auto}
+.done-ic path,.done-ic circle{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .7s var(--ease) .1s forwards}
+.demo-acc{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.demo-acc button{text-align:left;padding:8px 10px;border-radius:var(--r-sm);background:var(--muted);font-size:13px;line-height:18px;transition:background-color var(--t)}
+.demo-acc button:hover{background:var(--tint-bg)}
+.demo-acc b{font-family:var(--f-num);display:block;color:var(--fg)}
+.auth.leaving{animation:blurOut .45s var(--ease) both}
+.app.entering{animation:blurIn .55s var(--ease) both}
+@media (max-width:959px){
+  .auth-panel{flex-direction:column;overflow:auto}
+  .auth-brand{flex:none;height:160px;border-right:0;border-bottom:1px solid var(--border)}
+  .brand-in{padding:20px 22px;justify-content:center}
+  .hero .display{font-size:24px;line-height:30px}
+  .hero p,.hero-pts,.brand-foot,.brand-in>.logo{display:none}
+  .auth-form{align-items:flex-start;padding:28px 20px}
+}
+
+/* =========================================================
+   5. 앱 셸
+   ========================================================= */
+.app{position:fixed;inset:0;display:flex;gap:var(--gutter);padding:var(--gutter);background:var(--bg)}
+.panel{background:#fff;border-radius:var(--r-panel);border:1px solid rgba(0,0,0,.03);box-shadow:var(--shadow)}
+.sidebar{width:var(--sb);flex:none;display:flex;flex-direction:column;overflow:hidden;transition:width 200ms var(--ease)}
+.app.collapsed .sidebar{width:var(--sb-c)}
+.sb-top{height:var(--top);display:flex;align-items:center;padding:0 16px;flex:none}
+.sb-nav{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px 10px;scrollbar-width:thin}
+.sb-gh{display:flex;align-items:center;width:100%;height:32px;padding:0 8px;margin-top:8px;font-size:12.5px;font-weight:600;color:var(--fg3);border-radius:8px;letter-spacing:.01em}
+.sb-gh:hover{color:var(--fg)}
+.sb-gh .ic{margin-left:auto;transition:transform var(--t-in) var(--ease)}
+.sb-group:not(.open) .sb-gh .ic{transform:rotate(-90deg)}
+.sb-items{display:grid;grid-template-rows:1fr;transition:grid-template-rows var(--t-in) var(--ease)}
+.sb-group:not(.open) .sb-items{grid-template-rows:0fr}
+.sb-items>div{min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:1px}
+.sb-item{position:relative;display:flex;align-items:center;gap:10px;height:38px;padding:0 10px;border-radius:var(--r-sm);font-size:14px;color:var(--fg2);white-space:nowrap;transition:background-color var(--t) var(--ease),color var(--t) var(--ease);width:100%;text-align:left}
+.sb-item .ic{color:var(--fg3);transition:color var(--t)}
+.sb-item:hover{background:var(--secondary);color:var(--fg)}
+.sb-item:hover .ic{color:var(--primary)}
+.sb-item.active{background:var(--tint-bg);color:var(--primary);font-weight:600}
+.sb-item.active .ic{color:var(--primary)}
+.sb-item.active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);animation:indIn .26s var(--spring)}
+.sb-label{overflow:hidden;text-overflow:ellipsis;transition:opacity var(--t)}
+.sb-foot{padding:8px 10px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.app.collapsed .sb-gh{height:1px;margin:8px 6px;padding:0;overflow:hidden;background:var(--border);color:transparent;pointer-events:none}
+.app.collapsed .sb-gh *{display:none}
+.app.collapsed .sb-group .sb-items{grid-template-rows:1fr}
+.app.collapsed .sb-item{justify-content:center;padding:0}
+.app.collapsed .sb-label,.app.collapsed .sb-item .tag-new,.app.collapsed .logo-txt{opacity:0;width:0;position:absolute;pointer-events:none}
+.app.collapsed .sb-top{padding:0 0 0 14px}
+.main-col{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:var(--top);flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.crumb{display:flex;align-items:center;gap:6px;min-width:0;font-size:14px;color:var(--fg3)}
+.crumb b{color:var(--fg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb .ic{color:#C4B9BF}
+.search{position:relative;width:260px}
+.search .inp{height:36px;padding-left:34px;padding-right:44px;background:var(--muted);border-color:transparent;font-size:14px}
+.search .inp:hover{border-color:var(--border)}
+.search>.ic{position:absolute;left:11px;top:10px;color:var(--fg3)}
+.search kbd{position:absolute;right:8px;top:8px;font-family:var(--f-num);font-size:11.5px;line-height:18px;padding:0 6px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--fg3)}
+.bell-badge{position:absolute;top:-3px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10.5px;line-height:16px;font-weight:600;font-family:var(--f-num);text-align:center;border:2px solid #fff;box-sizing:content-box;transform-origin:center;transition:transform 260ms var(--spring)}
+.bell-badge.bump{animation:bump .4s var(--spring)}
+.icon-btn.ring-bell .ic{animation:bellRing .7s var(--ease);transform-origin:50% 10%}
+.ai-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px 0 9px;border-radius:999px;border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--fg);transition:background-color var(--t),border-color var(--t)}
+.ai-btn:hover{background:var(--secondary)}
+.ai-btn.on{background:var(--tint-bg);border-color:rgba(221,45,74,.3);color:var(--primary)}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#880D1E,#F26A8D);color:#fff;font-size:13.5px;font-weight:600;display:grid;place-items:center;margin-left:4px}
+.content{flex:1;overflow:auto;padding:22px 24px 32px;position:relative;scroll-behavior:smooth}
+.page{min-width:0}
+.page.page-in{animation:pageIn .3s var(--ease) both}
+.page-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.ph-l{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px}
+.ph-desc{font-size:14px;line-height:20px;color:var(--fg3);max-width:720px}
+.ph-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rail{width:0;flex:none;overflow:hidden;transition:width var(--t-in) var(--ease),opacity var(--t-in);opacity:0;border-width:0}
+.app.rail-open .rail{width:var(--rail);opacity:1;border-width:1px}
+.rail-in{width:var(--rail);height:100%;display:flex;flex-direction:column}
+.rail-h{height:var(--top);display:flex;align-items:center;gap:10px;padding:0 12px 0 18px;border-bottom:1px solid var(--border);flex:none}
+.mob-only{display:none}
+.sb-scrim{display:none}
+@media (max-width:1100px){.search{width:200px}}
+@media (max-width:1023px){.app.rail-open .rail{position:fixed;right:16px;top:16px;bottom:16px;z-index:150;box-shadow:var(--pop-shadow)}}
+@media (max-width:760px){
+  .app{padding:10px;gap:10px}
+  .sidebar{position:fixed;left:10px;top:10px;bottom:10px;z-index:160;width:var(--sb)!important;transform:translateX(calc(-100% - 20px));transition:transform 240ms var(--ease);box-shadow:var(--pop-shadow)}
+  .app.mob-nav .sidebar{transform:none}
+  .app.mob-nav .sb-scrim{display:block;position:fixed;inset:0;z-index:155;background:rgba(30,20,24,.2)}
+  .app.collapsed .sb-label,.app.collapsed .logo-txt{opacity:1;width:auto;position:static}
+  .mob-only{display:inline-grid}
+  .search,.crumb>span,.crumb>.ic,.ai-btn span.lbl,#sbToggle{display:none}
+  .topbar{padding:0 8px 0 8px}
+  .content{padding:18px 16px 28px}
+  .app.rail-open .rail{left:10px;right:10px;top:10px;bottom:10px;width:auto}
+  .rail-in{width:100%}
+  .doc{padding:20px 16px}
+}
+
+/* =========================================================
+   6. 화면별
+   ========================================================= */
+/* 덕반장 AI */
+.chat{display:flex;flex-direction:column;height:100%;min-height:0}
+.chat-scroll{flex:1;overflow:auto;min-height:0}
+.chat-inner{max-width:760px;margin:0 auto;padding:12px 4px 24px;display:flex;flex-direction:column;gap:18px}
+.chat-home{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding-top:6vh}
+.chat-home.leave{animation:fadeOut .2s var(--ease) both}
+.brief-list{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:8px}
+.brief{position:relative;display:flex;flex-direction:column;gap:4px;width:100%;padding:14px 48px 14px 16px;border-radius:var(--r);text-align:left;background:var(--muted);border:1px solid transparent;transition:background-color var(--t) var(--ease),border-color var(--t) var(--ease),transform var(--t) var(--ease)}
+.brief:hover{background:var(--tint-bg);border-color:rgba(221,45,74,.18)}
+.brief-t{font-size:15px;line-height:24px;color:var(--fg2)}
+.brief-t b{color:var(--primary)}
+.brief-go{position:absolute;right:16px;top:50%;transform:translate(-4px,-50%);opacity:0;color:var(--primary);transition:all var(--t-in) var(--ease)}
+.brief:hover .brief-go{opacity:1;transform:translate(0,-50%)}
+.msg{display:flex;gap:12px;animation:fadeUp .3s var(--ease) both}
+.msg.user{justify-content:flex-end}
+.msg.user .bubble{background:var(--primary);color:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:80%;font-size:15px;line-height:24px}
+.msg.ai .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:24px;color:var(--fg)}
+.thinking{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--fg3)}
+.thinking div{display:flex;align-items:center;gap:6px;animation:fadeUp .25s var(--ease) both}
+.thinking .ic{color:var(--success)}
+.w{animation:wordIn .26s var(--ease) both}
+.msg-tools{display:flex;gap:2px;animation:fadeIn .3s both}
+.composer{flex:none;max-width:760px;width:100%;margin:0 auto;display:flex;align-items:flex-end;gap:6px;padding:8px 8px 8px 16px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 6px 20px rgba(136,13,30,.05);transition:border-color var(--t),box-shadow var(--t)}
+.composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+.composer textarea{flex:1;border:0;outline:0;resize:none;min-height:24px;max-height:140px;padding:7px 0;line-height:22px;font-size:15px;background:none}
+.send{width:36px;height:36px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;transition:background-color var(--t),transform 80ms,opacity var(--t)}
+.send:hover{background:var(--primary-h)}
+.send:active{transform:scale(.94)}
+.send[disabled]{opacity:.3;pointer-events:none}
+.chat-page{height:calc(100vh - var(--top) - 32px - 54px);display:flex;flex-direction:column}
+.rail .chat-inner{padding:14px 16px}
+.rail .composer{margin:0 12px 12px;width:auto}
+.src-chips{display:flex;gap:6px;flex-wrap:wrap}
+/* 설비 매트릭스 */
+.eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.eq{position:relative;text-align:left;padding:12px;border-radius:var(--r-sm);border:1px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:6px;transition:border-color var(--t),transform var(--t) var(--ease),box-shadow var(--t)}
+.eq:hover{border-color:rgba(221,45,74,.35);transform:translateY(-1px);box-shadow:0 6px 16px rgba(136,13,30,.06)}
+.eq-h{display:flex;align-items:center;gap:6px;font-family:var(--f-num);font-weight:600;font-size:14px}
+.eq-h .st{margin-left:auto}
+.eq.stop{border-style:dashed;border-color:#E9B8B8;background:#FFFBFB}
+.eq.check{background:#FFFCF6}
+.eq.idle{background:var(--muted)}
+.eq .num-t{font-size:13px;color:var(--fg2)}
+.legend-row{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--fg2)}
+.legend-row span{display:inline-flex;align-items:center;gap:6px}
+/* 히트맵 */
+.heat{display:grid;gap:3px;font-size:12.5px}
+.heat .hc{height:28px;border-radius:5px;transition:transform 120ms}
+.heat .hc:hover{transform:scale(1.12);box-shadow:0 0 0 2px #fff,0 0 0 3px var(--accent);position:relative;z-index:1}
+.heat .hl{color:var(--fg3);display:flex;align-items:center;white-space:nowrap;padding-right:8px;font-size:13px}
+.heat .hx{color:var(--fg3);text-align:center;font-family:var(--f-num)}
+/* AOI */
+.aoi-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.aoi-img{border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);background:#fff;text-align:left;transition:transform var(--t) var(--ease),box-shadow var(--t)}
+.aoi-img:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(136,13,30,.08)}
+.aoi-img svg{display:block;width:100%;height:auto}
+.aoi-img div{padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;gap:6px}
+.pred{display:flex;flex-direction:column;gap:6px}
+.ci-bar{position:relative;height:8px;border-radius:4px;background:var(--secondary);margin-top:4px}
+.ci-bar i{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--tint)}
+.ci-bar b{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;background:var(--primary)}
+/* 차트 */
+.chart-box{width:100%;min-width:0;position:relative}
+svg.chart{display:block;overflow:visible}
+.chart .grid{stroke:#F0EAEE;stroke-width:1}
+.chart .ax{font-size:12px;fill:var(--fg3);font-family:var(--f-num)}
+.chart .limit{stroke:var(--danger);stroke-dasharray:3 4;stroke-width:1}
+.chart .lim-t{fill:var(--danger)}
+.chart path{transition:d .45s var(--ease)}
+.chart rect.bar{transition:y .45s var(--ease),height .45s var(--ease)}
+.chart .guide{stroke:var(--fg3);stroke-dasharray:2 3;opacity:0;transition:opacity 120ms}
+.chart .pt{opacity:0;transition:opacity 120ms}
+.chart .hitg:hover .guide,.chart .hitg:hover .pt{opacity:1}
+.chart .hitb:hover{fill:rgba(244,156,187,.12)}
+.anim .ln{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .8s var(--ease) forwards}
+.anim .ln-dash,.anim .area,.anim .fade{animation:fadeIn .7s var(--ease) .2s both}
+.anim .bar{transform-box:fill-box;transform-origin:bottom;animation:growY .6s var(--ease) both}
+.hbars{display:flex;flex-direction:column;gap:10px}
+.hb-row{display:grid;grid-template-columns:minmax(80px,120px) 1fr auto;gap:10px;align-items:center;font-size:14px}
+.hb-l{color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-track{height:10px;border-radius:5px;background:var(--secondary);overflow:hidden}
+.hb-fill{display:block;height:100%;border-radius:5px;transform-origin:left;animation:growX .7s var(--ease) both}
+.hb-v{font-size:13.5px;font-weight:600;min-width:52px;text-align:right}
+.donut-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut{position:relative;flex:none}
+.donut svg{animation:donutIn .8s var(--ease) both}
+.dseg{transition:stroke-width var(--t)}
+.dseg:hover{stroke-width:6.5}
+.donut-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.legend{display:flex;flex-direction:column;gap:6px;flex:1;min-width:150px}
+.lg-row{display:flex;align-items:center;gap:8px;font-size:14px}
+.lg-row i{width:10px;height:10px;border-radius:3px;flex:none}
+.lg-row .num-t{margin-left:auto;font-weight:600;color:var(--fg2)}
+.legend-inline{display:flex;gap:14px;font-size:13px;color:var(--fg2)}
+.legend-inline span{display:inline-flex;align-items:center;gap:6px}
+.legend-inline i{width:14px;height:3px;border-radius:2px}
+/* 권한 매트릭스 */
+.perm td.c{padding:0}
+.perm .chk{justify-content:center;width:100%;height:42px}
+/* 404 */
+.nf{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:24px 0}
+.nf svg{max-width:100%;height:auto}
+/* 갤러리 */
+.sw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.swatch{border-radius:var(--r-sm);border:1px solid var(--border);overflow:hidden;font-size:13px}
+.swatch i{display:block;height:56px}
+.swatch div{padding:8px 10px;display:flex;flex-direction:column}
+.type-row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid #F0EAEE}
+.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+.ic-cell{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:var(--r-sm);font-size:12px;color:var(--fg3);transition:background-color var(--t),color var(--t)}
+.ic-cell:hover{background:var(--secondary);color:var(--primary)}
+.gal-sec{display:flex;flex-direction:column;gap:12px}
+
+/* =========================================================
+   7. 키프레임 · 움직임 줄이기
+   ========================================================= */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes breath{0%{box-shadow:0 0 0 0 rgba(46,158,87,.45)}70%{box-shadow:0 0 0 6px rgba(46,158,87,0)}100%{box-shadow:0 0 0 0 rgba(46,158,87,0)}}
+@keyframes ripple{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
+@keyframes shimmer{to{background-position:-200% 0}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeOut{to{opacity:0;transform:translateY(-6px)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes lineUp{from{transform:translateY(105%)}to{transform:none}}
+@keyframes wordIn{from{opacity:0;filter:blur(3px)}to{opacity:1;filter:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes growY{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes growX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes donutIn{from{transform:rotate(-180deg);opacity:0}to{transform:rotate(-90deg);opacity:1}}
+@keyframes chipIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes chipOut{to{opacity:0;transform:scale(.7)}}
+@keyframes indIn{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@keyframes blurOut{to{opacity:0;filter:blur(10px);transform:scale(1.015)}}
+@keyframes blurIn{from{opacity:0;filter:blur(10px)}to{opacity:1;filter:none}}
+@keyframes bump{0%{transform:scale(.4)}100%{transform:scale(1)}}
+@keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(2deg)}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;scroll-behavior:auto!important}
+  .seg.ready .seg-ind,.sidebar,.drawer,.pop,.modal,.toast,.sw .knob,.rad .o i{transition-property:opacity!important}
+  .pop,.modal,.toast{transform:none!important}
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- ============ 인증 ============ -->
+<section class="auth" id="auth" hidden>
+  <div class="auth-panel">
+    <div class="auth-brand">
+      <canvas id="shader" aria-hidden="true"></canvas>
+      <canvas id="constel" aria-hidden="true"></canvas>
+      <div class="brand-in">
+        <div class="logo" data-logo></div>
+        <div class="hero">
+          <div class="eyebrow" style="margin-bottom:12px">AI Decision Support Layer</div>
+          <h1 class="display reveal"><span><span>현장의 답은</span></span><span><span>이미 데이터 안에 있습니다.</span></span></h1>
+          <p>MES 위에 얹은 AI 계층이 생산·품질·설비 데이터를 읽고, 질의하면 근거와 함께 답합니다. 보고서는 스스로 정리되고, 이상은 먼저 알려 드립니다.</p>
+          <div class="hero-pts" id="heroPts"></div>
+        </div>
+        <div class="t-caption brand-foot">© DEOKWOO ELECTRONICS · AX Workspace · 프로토타입</div>
+      </div>
+    </div>
+    <div class="auth-form"><div id="authView" class="auth-view"></div></div>
+  </div>
+</section>
+
+<!-- ============ 앱 셸 ============ -->
+<div class="app" id="app" hidden>
+  <div class="sb-scrim" id="sbScrim"></div>
+  <aside class="sidebar panel" id="sidebar" aria-label="메뉴">
+    <div class="sb-top"><a href="#/ai/chat" class="logo" data-logo></a></div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <a class="sb-item" href="#/gallery" data-id="gallery" data-tip="컴포넌트·토큰" data-sbtip></a>
+      <button class="sb-item" id="sbToggle" data-tip="메뉴 펼치기" data-sbtip></button>
+    </div>
+  </aside>
+  <div class="main-col panel">
+    <header class="topbar">
+      <button class="icon-btn mob-only" id="mobMenu" aria-label="메뉴 열기"></button>
+      <div class="crumb" id="crumb"></div>
+      <div class="spacer"></div>
+      <label class="search" id="searchBox"><span data-ic="search"></span><input class="inp" id="q" placeholder="화면 검색" autocomplete="off"><kbd>⌘K</kbd></label>
+      <button class="icon-btn" id="bell" aria-label="알림" data-tip="알림"><span data-ic="bell" data-sz="18"></span><span class="bell-badge" id="bellBadge">3</span></button>
+      <button class="ai-btn" id="railBtn"><span class="orb sm" id="railOrb"><span class="ring"></span></span><span class="lbl">덕반장 AI</span></button>
+      <button class="avatar" id="userBtn" aria-label="사용자 메뉴">관</button>
+    </header>
+    <main class="content" id="content"></main>
+  </div>
+  <aside class="rail panel" id="rail" aria-label="덕반장 AI">
+    <div class="rail-in">
+      <div class="rail-h"><span class="orb" data-orb><span class="ring"></span></span><div style="flex:1"><div class="h-card">덕반장 AI</div><div class="t-caption">지금 보는 화면 기준으로 답합니다</div></div><button class="icon-btn" id="railClose" aria-label="닫기"></button></div>
+      <div id="railChat" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   0. 유틸
+   ========================================================= */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const nf=(n,d=0)=>Number(n).toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const nfk=n=>n>=10000?nf(n/1000,0)+'k':n>=1000?nf(n/1000,1)+'k':nf(n,n<10&&n%1?1:0);
+let seed=20261001;
+const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};
+const ri=(a,b)=>Math.floor(a+rnd()*(b-a+1));
+const rf=(a,b,d=1)=>+(a+rnd()*(b-a)).toFixed(d);
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const store={get(k){try{return sessionStorage.getItem(k)}catch(e){return null}},set(k,v){try{sessionStorage.setItem(k,v)}catch(e){}},del(k){try{sessionStorage.removeItem(k)}catch(e){}}};
+let cleanups=[];
+const onClean=f=>cleanups.push(f);
+
+/* =========================================================
+   1. 아이콘 — lucide 형태 · 24 그리드 · stroke 1.75 · round
+   ========================================================= */
+const ICON={
+  menu:['M4 6h16','M4 12h16','M4 18h16'],
+  search:['C 11 11 7','m20 20-3.5-3.5'],
+  bell:['M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9','M10.3 21a1.94 1.94 0 0 0 3.4 0'],
+  chevronDown:['m6 9 6 6 6-6'],chevronRight:['m9 18 6-6-6-6'],chevronLeft:['m15 18-6-6 6-6'],chevronUp:['m18 15-6-6-6 6'],
+  close:['M18 6 6 18','M6 6l12 12'],check:['M20 6 9 17l-5-5'],
+  download:['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4','M7 10l5 5 5-5','M12 15V3'],
+  upload:['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4','M17 8l-5-5-5 5','M12 3v12'],
+  printer:['M6 9V2h12v7','M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2','M6 14h12v8H6z'],
+  info:['C 12 12 10','M12 16v-4','M12 8h.01'],help:['C 12 12 10','M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3','M12 17h.01'],
+  alert:['C 12 12 10','M12 8v4','M12 16h.01'],
+  triangle:['m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3','M12 9v4','M12 17h.01'],
+  checkCircle:['C 12 12 10','m9 12 2 2 4-4'],xCircle:['C 12 12 10','m15 9-6 6','m9 9 6 6'],
+  plus:['M12 5v14','M5 12h14'],minus:['M5 12h14'],
+  edit:['M12 20h9','M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'],
+  trash:['M3 6h18','M8 6V4h8v2','M19 6l-1 14H6L5 6','M10 11v6','M14 11v6'],
+  refresh:['M21 12a9 9 0 1 1-2.64-6.36L21 8','M21 3v5h-5'],
+  filter:['M22 3H2l8 9.46V19l4 2v-8.54L22 3z'],
+  arrowUp:['M12 19V5','m5 12 7-7 7 7'],arrowDown:['M12 5v14','m19 12-7 7-7-7'],arrowRight:['M5 12h14','m12 5 7 7-7 7'],arrowLeft:['M19 12H5','m12 19-7-7 7-7'],
+  arrowUpRight:['M7 17 17 7','M7 7h10v10'],
+  clock:['C 12 12 10','M12 6v6l4 2'],
+  file:['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6','M8 13h8','M8 17h5'],
+  user:['M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2','C 12 7 4'],
+  users:['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2','C 9 7 4','M22 21v-2a4 4 0 0 0-3-3.87','M16 3.13a4 4 0 0 1 0 7.75'],
+  settings:['C 12 12 3','M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.5-2.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z'],
+  send:['m22 2-7 20-4-9-9-4Z','M22 2 11 13'],
+  sparkles:['m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z','M19 3v4','M17 5h4','M5 17v3','M3.5 18.5h3'],
+  eye:['M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z','C 12 12 3'],
+  eyeOff:['M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.7','M6.6 6.6A17 17 0 0 0 2 12s4 7 10 7a9.5 9.5 0 0 0 4.4-1','M2 2l20 20'],
+  lock:['R 3 11 18 11 2','M7 11V7a5 5 0 0 1 10 0v4'],
+  database:['E 12 5 9 3','M3 5v14a9 3 0 0 0 18 0V5','M3 12a9 3 0 0 0 18 0'],
+  activity:['M22 12h-4l-3 9L9 3l-3 9H2'],
+  layers:['m12 2 10 5-10 5L2 7z','m2 17 10 5 10-5','m2 12 10 5 10-5'],
+  grid:['R 3 3 7 7 1.5','R 14 3 7 7 1.5','R 14 14 7 7 1.5','R 3 14 7 7 1.5'],
+  dashboard:['R 3 3 7 9 1.5','R 14 3 7 5 1.5','R 14 12 7 9 1.5','R 3 16 7 5 1.5'],
+  chart:['M3 3v18h18','M18 17V9','M13 17V5','M8 17v-3'],
+  calendar:['R 3 4 18 18 2','M16 2v4','M8 2v4','M3 10h18'],
+  shield:['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z','m9 12 2 2 4-4'],
+  link:['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71','M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
+  history:['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8','M3 3v5h5','M12 7v5l4 2'],
+  book:['M4 19.5A2.5 2.5 0 0 1 6.5 17H20','M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
+  image:['R 3 3 18 18 2','C 9 9 2','m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21'],
+  logout:['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4','m16 17 5-5-5-5','M21 12H9'],
+  factory:['M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z','M17 18h1','M12 18h1','M7 18h1'],
+  cpu:['R 4 4 16 16 2','R 9 9 6 6 1','M15 2v2','M15 20v2','M2 15h2','M2 9h2','M20 15h2','M20 9h2','M9 2v2','M9 20v2'],
+  gauge:['m12 14 4-4','M3.34 19a10 10 0 1 1 17.32 0'],
+  loader:['M21 12a9 9 0 1 1-6.22-8.56'],
+  panelLeft:['R 3 3 18 18 2','M9 3v18'],
+  sliders:['M4 21v-7','M4 10V3','M12 21v-9','M12 8V3','M20 21v-5','M20 12V3','M1 14h6','M9 8h6','M17 16h6'],
+  sort:['m21 16-4 4-4-4','M17 20V4','m3 8 4-4 4 4','M7 4v16'],
+  star:['M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z'],
+  copy:['R 9 9 13 13 2','M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'],
+  thumbsUp:['M7 10v12','M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z'],
+  thumbsDown:['M17 14V2','M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z'],
+  mic:['R 9 2 6 13 3','M19 10v2a7 7 0 0 1-14 0v-2','M12 19v3'],
+  clipboard:['R 8 2 8 4 1','M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2','M9 12h6','M9 16h4'],
+  external:['M15 3h6v6','M10 14 21 3','M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'],
+  maximize:['M8 3H5a2 2 0 0 0-2 2v3','M21 8V5a2 2 0 0 0-2-2h-3','M3 16v3a2 2 0 0 0 2 2h3','M16 21h3a2 2 0 0 0 2-2v-3'],
+  more:['C 12 12 1','C 19 12 1','C 5 12 1'],
+  scrap:['M3 6h18','M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6','M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'],
+  truck:['M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2','M15 18H9','M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14','C 17 18 2','C 7 18 2'],
+};
+function ic(n,s=16,sw=1.75){
+  const p=ICON[n]||ICON.info;
+  return `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p.map(d=>{const t=d.split(' ');
+    if(t[0]==='C')return `<circle cx="${t[1]}" cy="${t[2]}" r="${t[3]}"/>`;
+    if(t[0]==='R')return `<rect x="${t[1]}" y="${t[2]}" width="${t[3]}" height="${t[4]}" rx="${t[5]||0}"/>`;
+    if(t[0]==='E')return `<ellipse cx="${t[1]}" cy="${t[2]}" rx="${t[3]}" ry="${t[4]}"/>`;
+    return `<path d="${d}"/>`}).join('')}</svg>`;
+}
+function fillIcons(root=document){$$('[data-ic]',root).forEach(e=>{e.outerHTML=ic(e.dataset.ic,+(e.dataset.sz||16))})}
+
+/* 로고 — CI 색(덕우 블루 · 스카이 블루)은 바꾸지 않습니다 */
+const LOGO=()=>{const u='ci'+Math.random().toString(36).slice(2,7);return `<svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0033A0"/><stop offset="1" stop-color="#00AEEF"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#${u})"/><path d="M9 9h6.5a7 7 0 0 1 0 14H9z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/><circle cx="22.5" cy="10" r="2" fill="#fff"/></svg><span class="logo-txt"><b>DEOKWOO</b><span>AX Workspace</span></span>`};
+
+/* =========================================================
+   2. 메뉴 (menu.js 와 같은 ID · 27건)
+   ========================================================= */
+const MENU=[
+  {g:'덕반장 AI',items:[{id:'ai-chat',name:'덕반장 AI',path:'/ai/chat',icon:'sparkles',tag:'신규',desc:'자연어로 묻고, 근거와 함께 답을 받습니다.'}]},
+  {g:'대시보드',items:[
+    {id:'dash-ai',name:'AI 통합 대시보드',path:'/dashboard/ai',icon:'dashboard',desc:'생산·품질 현황과 AI 분석 결과를 통합해 확인합니다.'},
+    {id:'dash-proc',name:'공정 및 제품 대시보드',path:'/dashboard/process',icon:'layers',desc:'공정과 제품별 생산 실적·품질 지표를 비교합니다.'},
+    {id:'prod-monitor',name:'생산 모니터링',path:'/production/monitor',icon:'activity',desc:'설비별 생산 진행 상태와 가동 현황을 실시간으로 확인합니다.'}]},
+  {g:'생산 및 품질 관리',items:[
+    {id:'prod-result',name:'실적 집계·조회',path:'/production/result',icon:'chart',desc:'MES 생산 실적을 기간·제품·공정별로 집계해 조회합니다.'},
+    {id:'qc-defect',name:'불량 현황 조회',path:'/quality/defect',icon:'triangle',desc:'기간·공정·불량 유형별 발생 현황과 추이를 확인합니다.'},
+    {id:'qc-aoi',name:'AOI 판정 분석',path:'/quality/aoi',icon:'cpu',desc:'AOI 판정 결과와 불량 상세·불량 이미지를 확인하고 이상 가능성을 분석합니다.'}]},
+  {g:'보고서',items:[
+    {id:'prod-daily',name:'일일 생산현황 보고',path:'/production/daily-report',icon:'file',desc:'하루 생산 실적을 집계해 일일 보고서를 작성합니다.'},
+    {id:'rpt-press-morning',name:'아침회의 자료 (PRESS)',path:'/report/press-morning',icon:'clipboard',desc:'PRESS 공정의 목표 대비 실적과 주간 누적 달성률을 정리합니다.'},
+    {id:'rpt-plating-morning',name:'아침회의 자료 (Plating·Coating)',path:'/report/plating-morning',icon:'clipboard',desc:'Plating·Coating 라인의 실적과 주요 이슈를 회의 자료로 정리합니다.'},
+    {id:'rpt-ship-plan',name:'연간 출하계획',path:'/report/ship-plan',icon:'truck',desc:'모델·고객사·월별 연간 출하계획을 조회하고 관리합니다.'},
+    {id:'rpt-yield-model',name:'제품별 수율',path:'/report/yield-by-model',icon:'gauge',desc:'제품별 투입·양품 실적과 월간 수율을 확인합니다.'},
+    {id:'rpt-lrr-customer',name:'고객사별 LRR',path:'/report/lrr-by-customer',icon:'users',desc:'고객사별 출하 수량 대비 라인 불량률과 유형을 분석합니다.'},
+    {id:'rpt-scrap',name:'폐기 보고서',path:'/report/scrap',icon:'scrap',desc:'공정별 폐기 수량과 금액을 집계해 결재 보고서를 작성합니다.'}]},
+  {g:'시스템 관리',items:[
+    {id:'sys-account',name:'계정 관리',path:'/system/account',icon:'user',desc:'사용자 계정과 소속 부서·사용 상태를 관리합니다.'},
+    {id:'sys-gw-dept',name:'그룹웨어 부서 매핑',path:'/system/gw-dept-map',icon:'link',desc:'그룹웨어 인사정보 자동 가입 때 들어갈 AX 부서를 정하고, 미배정 계정을 실제 부서로 옮깁니다.'},
+    {id:'sys-menu',name:'메뉴 접근 권한',path:'/system/menu-perm',icon:'grid',desc:'부서별로 접근할 수 있는 화면 메뉴를 지정합니다.'},
+    {id:'sys-data',name:'데이터 접근 권한',path:'/system/data-perm',icon:'lock',desc:'부서별로 열람할 수 있는 데이터 항목을 지정합니다.'},
+    {id:'alert-cond',name:'이상 알림 발송 조건 관리',path:'/system/alert-condition',icon:'sliders',desc:'이상 알림의 발생 기준·대상·발송 조건을 관리합니다.'},
+    {id:'sys-recip',name:'알림 수신자 관리',path:'/system/recipient',icon:'bell',desc:'알림 수신 그룹과 연락처·대리 수신자를 관리합니다.'},
+    {id:'sys-gloss',name:'용어 사전 관리',path:'/system/glossary',icon:'book',desc:'공식 용어와 현장 유사어를 등록하고 관리합니다.'},
+    {id:'chat-history',name:'자연어 질의 이력',path:'/system/chat-history',icon:'history',desc:'사용자의 자연어 질의와 AI 응답 이력을 조회합니다.'},
+    {id:'sys-audit',name:'보안 감사 로그',path:'/system/audit-log',icon:'shield',desc:'사용자 접속·데이터 접근·보안 처리 이력을 확인합니다.'},
+    {id:'sys-dl',name:'보고서 다운로드 이력',path:'/system/download-log',icon:'download',desc:'사용자별 보고서·화면 파일 다운로드 이력을 조회합니다.'},
+    {id:'sys-upload-doc',name:'업로드 문서 목록',path:'/system/upload-doc',icon:'upload',desc:'AI 통합 대시보드 업로드 리포트에 올라온 엑셀 문서와 버전 이력을 조회합니다(읽기 전용).'},
+    {id:'sys-sync',name:'데이터 연동 이력',path:'/system/sync-history',icon:'database',desc:'MES에서 AX 계층으로 이관된 데이터 연동 결과와 오류를 확인합니다.'}]},
+];
+const EXTRA=[
+  {id:'alert-list',name:'알림 목록·상세',path:'/alert/list',icon:'bell',g:'이상 알림',desc:'임계값 초과와 패턴 이상 알림을 조회하고 처리 상태를 관리합니다.'},
+  {id:'gallery',name:'컴포넌트·토큰',path:'/gallery',icon:'grid',g:'디자인',desc:'3차 리디자인의 토큰과 공통 컴포넌트를 한 화면에 모았습니다.'},
+];
+const ALL=[...MENU.flatMap(g=>g.items.map(i=>({...i,g:g.g}))),...EXTRA];
+const BY_PATH=Object.fromEntries(ALL.map(i=>[i.path,i]));
+
+/* =========================================================
+   3. 목 데이터
+   ========================================================= */
+const PRODUCTS=[['DW-A556','A556 브래킷'],['DW-S931','S931 프레임'],['DW-F741','F741 힌지 커버'],['DW-X210','X210 케이스'],['DW-R960','R960 클립'],['DW-B330','B330 실드캔'],['DW-M155','M155 데코'],['DW-T870','T870 브래킷']];
+const CUSTOMERS=['고객사 A','고객사 B','고객사 C','고객사 D','고객사 E'];
+const PROCS=['PRESS','PLATING','COATING','AOI','조립','포장'];
+const DEFECTS=['찍힘','스크래치','이물','도금 불량','치수 불량','변색','버(Burr)','기타'];
+const DEPTS=['경영지원팀','생산관리팀','품질보증팀','PRESS팀','표면처리팀','설비보전팀','영업팀','IT팀'];
+const NAMES=['김*수','이*진','박*호','최*영','정*민','강*우','조*희','윤*현','장*석','임*아','한*결','오*준'];
+const day=(i)=>{const d=new Date(2026,9,1);d.setDate(d.getDate()-i);return d.toISOString().slice(0,10)};
+const hours=Array.from({length:12},(_,i)=>String(i*2).padStart(2,'0')+'시');
+const EQUIP=[...Array(8)].map((_,i)=>'PRESS-'+String(i+1).padStart(2,'0'))
+  .concat([...Array(4)].map((_,i)=>'PLT-'+String(i+1).padStart(2,'0')))
+  .concat([...Array(4)].map((_,i)=>'CT-'+String(i+1).padStart(2,'0')))
+  .concat([...Array(4)].map((_,i)=>'AOI-'+String(i+1).padStart(2,'0')))
+  .concat([...Array(4)].map((_,i)=>'ASM-'+String(i+1).padStart(2,'0')));
+const EQ_STATE=EQUIP.map((e,i)=>({id:e,st:i===6?'stop':i===13?'check':[3,17,22].includes(i)?'idle':'run',prod:pick(PRODUCTS),done:ri(1200,9800),plan:10000,rate:rf(78,99)}));
+let ALERTS=[
+  {id:'AL-2610-0142',lv:'긴급',title:'PRESS-07 금형 온도 상한 초과',eq:'PRESS-07',time:'08:32',st:'미확인',desc:'금형 온도가 기준 상한 185℃를 8분째 넘고 있습니다. 같은 시간대 찍힘 불량이 2.4배 늘었습니다.'},
+  {id:'AL-2610-0141',lv:'주의',title:'PLATING 2라인 도금 두께 편차 확대',eq:'PLT-02',time:'08:05',st:'처리 중',desc:'최근 30개 시료의 두께 표준편차가 0.42㎛로 관리 한계 0.35㎛를 넘었습니다.'},
+  {id:'AL-2610-0140',lv:'주의',title:'AOI-03 오판정 의심 패턴',eq:'AOI-03',time:'07:48',st:'미확인',desc:'재검 결과 양품으로 뒤집힌 비율이 12%로 평소(3%)보다 높습니다. 조명 보정을 확인하십시오.'},
+  {id:'AL-2610-0139',lv:'정보',title:'CT-01 계획 정지 종료',eq:'CT-01',time:'07:10',st:'완료',desc:'예방 보전 작업이 끝나 가동을 다시 시작했습니다.'},
+  {id:'AL-2609-0138',lv:'긴급',title:'F741 힌지 커버 치수 불량 연속 발생',eq:'PRESS-03',time:'어제 21:14',st:'완료',desc:'5개 연속 치수 상한 이탈. 금형 교체 후 정상화되었습니다.'},
+  {id:'AL-2609-0137',lv:'정보',title:'MES 연동 지연 해소',eq:'—',time:'어제 18:02',st:'완료',desc:'실적 이관이 14분 지연되었다가 정상화되었습니다.'},
+];
+let unread=ALERTS.filter(a=>a.st==='미확인').length+1;
+const LV_TONE={'긴급':'danger','주의':'warning','정보':'brand'};
+const ST_TONE={'미확인':'danger','처리 중':'warning','완료':'success'};
+
+/* =========================================================
+   4. 컴포넌트 (HTML 문자열 생성)
+   ========================================================= */
+const btn=(label,{v='outline',sm,icon,id,attrs='',iconOnly}={})=>`<button class="btn btn-${v} ${sm?'btn-sm':''}" ${id?`id="${id}"`:''} ${attrs}>${icon?ic(icon,sm?15:16):''}${label?`<span>${label}</span>`:''}</button>`;
+const iconBtn=(icon,title,{id,attrs='',cls=''}={})=>`<button class="icon-btn ${cls}" ${id?`id="${id}"`:''} aria-label="${title}" data-tip="${title}" ${attrs}>${ic(icon,16)}</button>`;
+function badge(text,tone='',{icon,dot}={}){
+  // 오류·긴급은 색만으로 구분하지 않습니다 — 아이콘을 함께 둡니다
+  const autoIc=icon!==undefined?icon:tone==='danger'?'alert':tone==='warning'?'triangle':tone==='success'?'checkCircle':null;
+  return `<span class="badge ${tone?'b-'+tone:''}">${autoIc?ic(autoIc,13,2):''}${text}</span>`;
+}
+const card=(title,body,{sub='',right='',cls='',id='',attrs=''}={})=>`<section class="card ${cls}" ${id?`id="${id}"`:''} ${attrs}>${title?`<div class="card-head"><div><h2 class="h-card">${title}</h2>${sub?`<div class="t-caption">${sub}</div>`:''}</div><div class="card-r">${right}</div></div>`:''}<div class="card-body">${body}</div></section>`;
+const pageHead=(item,right='')=>`<div class="page-head"><div class="ph-l"><div class="eyebrow">${item.g}</div><h1 class="h-page">${item.name}</h1><p class="ph-desc">${item.desc||''}</p></div><div class="ph-r">${right}</div></div>`;
+const seg=(items,active=0,{cls='',id='',label=''}={})=>`<div class="seg ${cls}" role="tablist" ${label?`aria-label="${label}"`:''} data-seg ${id?`id="${id}"`:''}>${items.map((t,i)=>`<button role="tab" aria-selected="${i===active}" data-i="${i}">${t}</button>`).join('')}<span class="seg-ind"></span></div>`;
+const chk=(label,checked,{name='',attrs=''}={})=>`<label class="chk"><input type="checkbox" ${checked?'checked':''} ${name?`name="${name}"`:''} ${attrs}><span class="box"><svg viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.2 4.2L19 7"/></svg></span>${label?`<span>${label}</span>`:''}</label>`;
+const radio=(name,opts,val)=>`<div class="row wrap" style="gap:16px">${opts.map(o=>`<label class="rad"><input type="radio" name="${name}" value="${o}" ${o===val?'checked':''}><span class="o"><i></i></span>${o}</label>`).join('')}</div>`;
+const sw=(on,label='')=>`<span class="sw-row"><button class="sw" role="switch" aria-checked="${!!on}" ${label?`aria-label="${label}"`:''}><span class="knob"></span></button>${label?`<span>${label}</span>`:''}</span>`;
+const select=(opts,val,{sm,id='',attrs=''}={})=>`<span class="sel ${sm?'sm':''}"><select ${id?`id="${id}"`:''} ${attrs}>${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>${ic('chevronDown',15)}</span>`;
+const field=(label,control,{req,err,hint,cls=''}={})=>`<div class="field ${err?'has-err':''} ${cls}"><label>${label}${req?'<span class="req">*</span>':''}</label>${control}${err?`<div class="err">${ic('alert',14,2)}${err}</div>`:hint?`<div class="hint">${hint}</div>`:''}</div>`;
+const input=(ph='',{val='',type='text',sm,id='',attrs=''}={})=>`<input class="inp ${sm?'sm':''}" type="${type}" placeholder="${ph}" value="${esc(val)}" ${id?`id="${id}"`:''} ${attrs}>`;
+const dateInp=(val,{sm}={})=>`<input class="inp ${sm?'sm':''}" type="date" value="${val}">`;
+const empty=(text='조회된 데이터가 없습니다.',icon='search',action='')=>`<div class="empty"><span class="em-ic">${ic(icon,20)}</span><div>${text}</div>${action}</div>`;
+const hintBox=(t,icon='info')=>`<div class="hint-box">${ic(icon,16)}<span>${t}</span></div>`;
+const srcNote=t=>`<div class="src-note">${ic('database',13)}${t}</div>`;
+const prog=(v,c='var(--primary)')=>`<div class="prog"><i style="width:${v}%;background:${c}"></i></div>`;
+const drift=(v,good,u='%')=>`<span class="drift ${good?'good':'bad'}">${ic(v>=0?'arrowUp':'arrowDown',13,2.2)}${nf(Math.abs(v),Math.abs(v)<10?2:1)}${u}</span>`;
+function sparkSvg(d,w=96,h=28){const mx=Math.max(...d),mn=Math.min(...d);const p=d.map((v,i)=>`${i?'L':'M'}${(i/(d.length-1)*w).toFixed(1)},${(h-3-(v-mn)/(mx-mn||1)*(h-6)).toFixed(1)}`).join('');const ly=h-3-(d[d.length-1]-mn)/(mx-mn||1)*(h-6);return `<svg class="spark-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${p}"/><circle cx="${w}" cy="${ly}" r="3" fill="var(--spark)"/></svg>`}
+function stat({label,value,dec=0,unit='',dv,good=true,du='%',spark,icon,k}){
+  return `<div class="stat card"><div class="stat-top"><span class="t-label">${label}</span>${icon?`<span class="stat-ic">${ic(icon,16)}</span>`:''}</div><div class="stat-v"><span class="num" data-count="${k||''}" data-dec="${dec}" data-v="${value}">${nf(value,dec)}</span><span class="unit">${unit}</span></div><div class="stat-bot"><span class="row" style="gap:6px">${dv!=null?drift(dv,good,du):''}<span class="t-caption">전일 대비</span></span>${spark?sparkSvg(spark):''}</div></div>`;
+}
+function countTo(el,to){
+  const dec=+el.dataset.dec||0;const from=parseFloat(el.dataset.v)||0;el.dataset.v=to;
+  if(RM||from===to){el.textContent=nf(to,dec);return}
+  const t0=performance.now();const D=400;
+  const step=t=>{const p=Math.min(1,(t-t0)/D);const e=1-Math.pow(1-p,3);el.textContent=nf(from+(to-from)*e,dec);if(p<1)requestAnimationFrame(step)};
+  requestAnimationFrame(step);
+}
+const stepsH=(labels,cur)=>`<div class="steps">${labels.map((l,i)=>`${i?`<span class="step-line ${i<=cur?'done':''}"><i></i></span>`:''}<span class="step ${i<cur?'done':i===cur?'on':''}"><span class="n">${i<cur?ic('check',13,2.6):i+1}</span>${l}</span>`).join('')}</div>`;
+
+/* ---------- 세그먼트·탭 결선 ---------- */
+function placeInd(s,b,anim){
+  const ind=$('.seg-ind',s);if(!ind||!b)return;
+  const l=b.offsetLeft,w=b.offsetWidth;
+  if(!anim||RM){ind.style.left=l+'px';ind.style.width=w+'px';return}
+  const ol=parseFloat(ind.style.left)||l,ow=parseFloat(ind.style.width)||w;
+  // 출발·도착 사이로 잠깐 늘어났다가 도착 폭으로 줄어듭니다 (gooey 의 pill pour 를 단순화)
+  const L=Math.min(ol,l),R=Math.max(ol+ow,l+w);
+  ind.style.left=L+'px';ind.style.width=(R-L)+'px';
+  clearTimeout(s._t);s._t=setTimeout(()=>{ind.style.left=l+'px';ind.style.width=w+'px'},110);
+}
+function segSelect(s,i,emit=true){
+  const bs=$$(':scope>button',s);const b=bs[i];if(!b)return;
+  bs.forEach(x=>x.setAttribute('aria-selected',x===b));
+  placeInd(s,b,true);
+  if(emit)s.dispatchEvent(new CustomEvent('segchange',{detail:i}));
+}
+function wireSegs(root){
+  $$('[data-seg]',root).forEach(s=>{
+    if(s._w)return;s._w=1;
+    const a=$(':scope>button[aria-selected="true"]',s)||$(':scope>button',s);
+    requestAnimationFrame(()=>{placeInd(s,a,false);requestAnimationFrame(()=>s.classList.add('ready'))});
+    s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.parentElement!==s||b.getAttribute('aria-selected')==='true')return;segSelect(s,+b.dataset.i)});
+    s.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;const bs=$$(':scope>button',s);let i=bs.findIndex(x=>x.getAttribute('aria-selected')==='true');i=(i+(e.key==='ArrowRight'?1:-1)+bs.length)%bs.length;segSelect(s,i);bs[i].focus()});
+  });
+}
+addEventListener('resize',()=>$$('[data-seg].ready').forEach(s=>placeInd(s,$(':scope>button[aria-selected="true"]',s),false)));
+
+/* ---------- 아코디언 ---------- */
+function wireAcc(root){$$('.acc-h',root).forEach(h=>h.onclick=()=>{const a=h.closest('.acc');a.classList.toggle('open');h.setAttribute('aria-expanded',a.classList.contains('open'))})}
+const acc=(head,body,open)=>`<div class="acc ${open?'open':''}"><button class="acc-h" aria-expanded="${!!open}">${head}<span class="chev">${ic('chevronDown',16)}</span></button><div class="acc-b"><div><div>${body}</div></div></div></div>`;
+
+/* ---------- 레이아웃 애니메이션(FLIP) ---------- */
+function flip(container,mutate){
+  const kids=[...container.children];const first=new Map(kids.map(k=>[k,k.getBoundingClientRect()]));
+  mutate();
+  if(RM)return;
+  [...container.children].forEach(k=>{const f=first.get(k);if(!f)return;const l=k.getBoundingClientRect();const dx=f.left-l.left,dy=f.top-l.top;if(!dx&&!dy)return;
+    k.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:160,easing:'cubic-bezier(.22,1,.36,1)'})});
+}
+
+/* =========================================================
+   5. 차트 (d3 없이 SVG 문자열 — 원본은 charts-d3 를 씁니다)
+   ========================================================= */
+let chartSeq=0;
+function mountChart(el,draw){
+  let lastW=el.clientWidth;
+  const go=anim=>{el.innerHTML=draw(el.clientWidth||600);el.classList.toggle('anim',!!anim&&!RM)};
+  go(true);
+  const ro=new ResizeObserver(()=>{if(Math.abs(el.clientWidth-lastW)>4){lastW=el.clientWidth;go(false)}});
+  ro.observe(el);onClean(()=>ro.disconnect());
+  return {update(nd){
+    // 데이터가 바뀌면 이전 모양에서 이어서 바뀝니다 (원본의 useDataChanged)
+    draw=nd;const tmp=document.createElement('div');tmp.innerHTML=draw(el.clientWidth);
+    const ks=$$('[data-k]',tmp);
+    if(RM||!ks.length||!ks.every(n=>$(`[data-k="${n.dataset.k}"]`,el))){go(false);return}
+    el.classList.remove('anim');
+    ks.forEach(n=>{const o=$(`[data-k="${n.dataset.k}"]`,el);
+      if(n.tagName.toLowerCase()==='path')o.style.d=`path("${n.getAttribute('d')}")`;
+      else['y','height'].forEach(a=>{if(n.hasAttribute(a))o.style[a]=n.getAttribute(a)+'px'})});
+    $$('[data-swap]',tmp).forEach(n=>{const o=$(`[data-swap="${n.dataset.swap}"]`,el);if(o)o.innerHTML=n.innerHTML});
+  }};
+}
+function lineChart(o){const id=++chartSeq;return w=>{
+  const h=o.h||220,L=o.padL||44,R=14,T=12,B=28,iw=Math.max(60,w-L-R),ih=h-T-B,n=o.labels.length;
+  const all=o.series.flatMap(s=>s.data).concat(o.limit!=null?[o.limit]:[]);
+  let lo=Math.min(...all),hi=Math.max(...all);const pad=(hi-lo)*.18||1;lo=o.min!=null?o.min:Math.max(0,lo-pad);hi=hi+pad;
+  const x=i=>L+(n===1?iw/2:i*iw/(n-1)),y=v=>T+ih-(v-lo)/(hi-lo)*ih;const yf=o.yFmt||(v=>v.toFixed(1));
+  let g='';for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=y(v).toFixed(1);g+=`<line class="grid" x1="${L}" x2="${w-R}" y1="${yy}" y2="${yy}"/><text class="ax" x="${L-8}" y="${+yy+4}" text-anchor="end">${yf(v)}</text>`}
+  const every=Math.ceil(n/Math.max(2,Math.floor(iw/58)));
+  o.labels.forEach((l,i)=>{if(i%every===0)g+=`<text class="ax" x="${x(i)}" y="${h-8}" text-anchor="middle">${l}</text>`});
+  let ps='';
+  o.series.forEach((s,si)=>{const d=s.data.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+    if(si===0&&o.area)ps+=`<path data-k="a" class="area" d="${d}L${x(n-1).toFixed(1)},${T+ih}L${x(0).toFixed(1)},${T+ih}Z" fill="url(#lg${id})" stroke="none"/>`;
+    ps+=s.dash?`<path data-k="l${si}" class="ln-dash" d="${d}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-dasharray="4 4"/>`:`<path data-k="l${si}" class="ln" pathLength="1" d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`});
+  if(o.limit!=null)ps+=`<line class="limit" x1="${L}" x2="${w-R}" y1="${y(o.limit)}" y2="${y(o.limit)}"/><text class="ax lim-t" x="${w-R}" y="${y(o.limit)-6}" text-anchor="end">${o.limitLabel||'기준'}</text>`;
+  const cw=iw/Math.max(1,n-1);const vf=o.vFmt||(v=>v);
+  const hits=o.labels.map((l,i)=>{const tip=`<b>${l}</b>`+o.series.map(s=>`<div class="tip-row"><i style="background:${s.color}"></i>${s.name}<span>${vf(s.data[i])}</span></div>`).join('');
+    return `<g class="hitg" data-tip="${esc(tip)}"><rect x="${x(i)-cw/2}" y="${T}" width="${cw}" height="${ih}" fill="transparent"/><line class="guide" x1="${x(i)}" x2="${x(i)}" y1="${T}" y2="${T+ih}"/>${o.series.map(s=>`<circle class="pt" cx="${x(i)}" cy="${y(s.data[i])}" r="3.5" fill="#fff" stroke="${s.color}" stroke-width="2"/>`).join('')}</g>`}).join('');
+  return `<svg class="chart" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${o.aria||'선 차트'}"><defs><linearGradient id="lg${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${o.series[0].color}" stop-opacity=".16"/><stop offset="1" stop-color="${o.series[0].color}" stop-opacity="0"/></linearGradient></defs><g data-swap="axis">${g}</g>${ps}<g data-swap="hit">${hits}</g></svg>`;
+}}
+const niceMax=v=>{const p=Math.pow(10,Math.floor(Math.log10(v||1)));const m=v/p;return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p};
+function barChart(o){return w=>{
+  const h=o.h||220,L=o.padL||44,R=o.pareto?42:14,T=12,B=28,iw=Math.max(60,w-L-R),ih=h-T-B,n=(o.data||o.series[0].data).length;
+  const series=o.series||[{data:o.data,color:o.color}];const mx=niceMax(Math.max(...series.flatMap(s=>s.data))*1.08);
+  const gw=iw/n,bw=Math.min(o.series?18:34,gw*(o.series?.32:.56)),xc=i=>L+gw*(i+.5),y=v=>T+ih-v/mx*ih;const yf=o.yFmt||nfk;
+  let g='';for(let k=0;k<=4;k++){const v=mx*k/4,yy=y(v).toFixed(1);g+=`<line class="grid" x1="${L}" x2="${w-R}" y1="${yy}" y2="${yy}"/><text class="ax" x="${L-8}" y="${+yy+4}" text-anchor="end">${yf(v)}</text>`;if(o.pareto)g+=`<text class="ax" x="${w-R+8}" y="${+yy+4}">${k*25}%</text>`}
+  const every=Math.ceil(n/Math.max(2,Math.floor(iw/52)));
+  o.labels.forEach((l,i)=>{if(i%every===0)g+=`<text class="ax" x="${xc(i)}" y="${h-8}" text-anchor="middle">${l}</text>`});
+  const top=o.data?o.data.indexOf(Math.max(...o.data)):-1;let bars='';
+  series.forEach((s,si)=>s.data.forEach((v,i)=>{const off=o.series?(si-(series.length-1)/2)*(bw+3):0;
+    const fill=o.series?s.color:(o.hl&&i!==top?'var(--mute)':(s.color||'var(--primary)'));
+    bars+=`<rect data-k="b${si}_${i}" class="bar" x="${(xc(i)+off-bw/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(T+ih-y(v)).toFixed(1)}" rx="4" fill="${fill}" style="animation-delay:${i*28}ms"/>`}));
+  let par='';
+  if(o.pareto){const tot=o.data.reduce((a,b)=>a+b,0);let c=0;const pts=o.data.map((v,i)=>{c+=v;return [xc(i),T+ih-c/tot*ih]});
+    par=`<path data-k="p" class="ln" pathLength="1" d="${pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('')}" fill="none" stroke="var(--spark)" stroke-width="2"/>`+pts.map(p=>`<circle class="fade" cx="${p[0]}" cy="${p[1]}" r="3" fill="#fff" stroke="var(--spark)" stroke-width="2"/>`).join('')}
+  const vf=o.vFmt||nf;
+  const hits=o.labels.map((l,i)=>`<rect class="hitb" x="${L+gw*i}" y="${T}" width="${gw}" height="${ih}" fill="transparent" data-tip="${esc(`<b>${l}</b>`+series.map(s=>`<div class="tip-row">${s.name?`<i style="background:${s.color}"></i>${s.name}`:''}<span>${vf(s.data[i])}</span></div>`).join(''))}"/>`).join('');
+  return `<svg class="chart" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${o.aria||'막대 차트'}"><g data-swap="axis">${g}</g>${bars}${par}<g data-swap="hit">${hits}</g></svg>`;
+}}
+function hbars(items,{fmt=nf,max}={}){const m=max||Math.max(...items.map(i=>i.v));
+  return `<div class="hbars">${items.map((it,i)=>`<div class="hb-row" data-tip="${esc(`<b>${it.l}</b><div class="tip-row">${it.sub||''}<span>${fmt(it.v)}</span></div>`)}"><span class="hb-l">${it.l}</span><span class="hb-track"><span class="hb-fill" style="width:${(it.v/m*100).toFixed(1)}%;background:${it.c||'var(--primary)'};animation-delay:${i*40}ms"></span></span><span class="hb-v num-t">${fmt(it.v)}</span></div>`).join('')}</div>`}
+function donut(items,{size=160,label='합계',fmt=nf,unit=''}={}){
+  const tot=items.reduce((a,b)=>a+b.v,0);let acc=0;const r=15.9155;
+  const segs=items.map(it=>{const p=it.v/tot*100,len=Math.max(p-.8,.1);const s=`<circle class="dseg" r="${r}" cx="21" cy="21" fill="none" stroke="${it.c}" stroke-width="5" pathLength="100" stroke-dasharray="${len} ${100-len}" stroke-dashoffset="${-acc}" data-tip="${esc(`<b>${it.l}</b><div class="tip-row"><span>${fmt(it.v)}${unit} · ${p.toFixed(1)}%</span></div>`)}"/>`;acc+=p;return s}).join('');
+  return `<div class="donut-wrap"><div class="donut"><svg viewBox="0 0 42 42" width="${size}" height="${size}" style="transform:rotate(-90deg)"><circle r="${r}" cx="21" cy="21" fill="none" stroke="var(--secondary)" stroke-width="5"/>${segs}</svg><div class="donut-c"><div class="num-sm">${fmt(tot)}</div><div class="t-caption">${label}</div></div></div><div class="legend">${items.map(it=>`<div class="lg-row"><i style="background:${it.c}"></i><span>${it.l}</span><span class="num-t">${(it.v/tot*100).toFixed(1)}%</span></div>`).join('')}</div></div>`}
+const SER=['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)'];
+const SERX=['#880D1E','#DD2D4A','#F26A8D','#F49CBB','#8A93A6','#2E9E57'];
+
+/* =========================================================
+   6. 표 (Tabulator 대응 — 열 너비 유지 · 가로 스크롤 · 헤더/본문 함께 이동)
+   ========================================================= */
+function mountTable(host,cfg){
+  const st={sort:null,dir:1,page:0,sel:new Set(),size:cfg.pageSize||12};
+  const cols=cfg.cols;const W=cols.reduce((s,c)=>s+(c.w||120),0)+(cfg.select?44:0);
+  const rowsAll=()=>{let r=cfg.rows.map((x,i)=>({...x,_i:i}));if(st.sort!=null){const c=cols[st.sort];r.sort((a,b)=>{const va=a[c.key],vb=b[c.key];return (typeof va==='number'?va-vb:String(va).localeCompare(String(vb),'ko'))*st.dir})}return r};
+  const pages=()=>Math.max(1,Math.ceil(cfg.rows.length/st.size));
+  host.innerHTML=`<div class="tbl"><div class="tbl-scroll" style="max-height:${cfg.maxH||540}px"><table style="width:max(100%,${W}px)"><colgroup>${cfg.select?'<col style="width:44px">':''}${cols.map(c=>`<col style="width:${c.w||120}px">`).join('')}</colgroup><thead><tr>${cfg.select?`<th class="sel ${cfg.stickyFirst?'sticky-l':''}">${chk('',false,{attrs:'data-all aria-label="전체 선택"'})}</th>`:''}${cols.map((c,i)=>`<th class="${c.num?'r':c.center?'c':''} ${c.sort===false?'':'sortable'} ${cfg.stickyFirst&&i===0&&!cfg.select?'sticky-l':''}" data-i="${i}" ${c.sort===false?'':'tabindex="0"'}><span class="th-in">${c.title}${c.sort===false?'':`<span class="sort-ic">${ic('arrowUp',13,2)}</span>`}</span></th>`).join('')}</tr></thead><tbody></tbody></table></div>${cfg.noFoot?'':`<div class="tbl-foot"><span class="t-sm fg3">총 <b class="num-t" style="color:var(--fg)">${nf(cfg.rows.length)}</b>건</span><span class="t-sm brand sel-info"></span><div class="pager">${pages()>1?iconBtn('chevronLeft','이전 페이지',{attrs:'data-prev'})+seg([...Array(pages())].map((_,i)=>i+1),0,{cls:'sm',label:'페이지'})+iconBtn('chevronRight','다음 페이지',{attrs:'data-next'}):''}</div></div>`}</div>`;
+  const tb=$('tbody',host);
+  const render=()=>{const r=rowsAll().slice(st.page*st.size,(st.page+1)*st.size);
+    tb.innerHTML=r.length?r.map(row=>`<tr data-r="${row._i}" class="${st.sel.has(row._i)?'is-sel':''} ${cfg.onRow?'clickable':''}">${cfg.select?`<td class="sel ${cfg.stickyFirst?'sticky-l':''}">${chk('',st.sel.has(row._i),{attrs:`data-rs="${row._i}" aria-label="행 선택"`})}</td>`:''}${cols.map((c,i)=>{const v=row[c.key];const h=c.fmt?c.fmt(v,row):c.num&&typeof v==='number'?nf(v,c.dec||0):(v==null?'—':esc(v));return `<td class="${c.num?'r num-c':c.center?'c':''} ${cfg.stickyFirst&&i===0&&!cfg.select?'sticky-l':''}" title="${typeof h==='string'&&!h.includes('<')?h:''}">${h}</td>`}).join('')}</tr>`).join(''):`<tr><td colspan="${cols.length+(cfg.select?1:0)}" style="height:auto;padding:0">${empty()}</td></tr>`;
+    const si=$('.sel-info',host);if(si)si.textContent=st.sel.size?`· ${st.sel.size}건 선택`:'';
+  };
+  render();wireSegs(host);
+  $$('th.sortable',host).forEach(th=>{const go=()=>{const i=+th.dataset.i;if(st.sort===i)st.dir*=-1;else{st.sort=i;st.dir=1}
+    $$('th',host).forEach(x=>x.classList.remove('sorted','desc'));th.classList.add('sorted');if(st.dir<0)th.classList.add('desc');render()};
+    th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
+  const sg=$('.pager [data-seg]',host);
+  if(sg){sg.addEventListener('segchange',e=>{st.page=e.detail;render();$('.tbl-scroll',host).scrollTop=0});
+    $('[data-prev]',host).onclick=()=>st.page>0&&segSelect(sg,st.page-1);
+    $('[data-next]',host).onclick=()=>st.page<pages()-1&&segSelect(sg,st.page+1)}
+  host.addEventListener('change',e=>{const t=e.target;
+    if(t.matches('[data-all]')){cfg.rows.forEach((_,i)=>t.checked?st.sel.add(i):st.sel.delete(i));render()}
+    if(t.matches('[data-rs]')){const i=+t.dataset.rs;t.checked?st.sel.add(i):st.sel.delete(i);t.closest('tr').classList.toggle('is-sel',t.checked);const si=$('.sel-info',host);if(si)si.textContent=st.sel.size?`· ${st.sel.size}건 선택`:''}});
+  tb.addEventListener('click',e=>{if(!cfg.onRow||e.target.closest('.chk,button,a'))return;const tr=e.target.closest('tr[data-r]');if(tr)cfg.onRow(cfg.rows[+tr.dataset.r],tr)});
+  return {setRows(r){cfg.rows=r;st.page=0;render()}};
+}
+
+/* =========================================================
+   7. 오버레이 — 팝오버 · 모달 · 드로어 · 토스트 · 툴팁
+   ========================================================= */
+let curPop=null;
+function openPop(trigger,html,{w=320,align='end',cls=''}={}){
+  if(curPop&&curPop.trigger===trigger){closePop();return null}
+  closePop();const p=document.createElement('div');p.className='pop '+cls;p.style.width=w+'px';p.innerHTML=html;document.body.append(p);
+  const r=trigger.getBoundingClientRect();let left=align==='end'?r.right-w:r.left;left=Math.max(8,Math.min(left,innerWidth-w-8));
+  let top=r.bottom+8;const ph=p.offsetHeight;let origin='top';if(top+ph>innerHeight-8&&r.top-ph-8>8){top=r.top-ph-8;origin='bottom'}
+  p.style.left=left+'px';p.style.top=top+'px';p.style.transformOrigin=`${r.left+r.width/2-left}px ${origin}`;
+  requestAnimationFrame(()=>p.classList.add('open'));curPop={el:p,trigger};return p;
+}
+function closePop(){if(!curPop)return;const p=curPop.el;curPop=null;p.classList.remove('open');p.classList.add('closing');setTimeout(()=>p.remove(),160)}
+document.addEventListener('pointerdown',e=>{if(curPop&&!curPop.el.contains(e.target)&&!curPop.trigger.contains(e.target))closePop()});
+
+let lastFocus=null;
+function openModal({title,body,foot='',from,w=640,onMount}){
+  closePop();lastFocus=document.activeElement;
+  const root=document.createElement('div');root.className='modal-root';
+  root.innerHTML=`<div class="scrim" data-close></div><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}" style="width:min(${w}px,calc(100vw - 32px))"><div class="modal-in"><div class="modal-head"><h2 class="h-sec" style="flex:1">${title}</h2>${iconBtn('close','닫기',{attrs:'data-close'})}</div><div class="modal-body">${body}</div>${foot?`<div class="modal-foot">${foot}</div>`:''}</div></div>`;
+  document.body.append(root);const m=$('.modal',root);
+  if(from&&!RM){
+    // 카드 위치에서 펼쳐지는 공유 요소 전환 (uselayouts)
+    const a=from.getBoundingClientRect(),b=m.getBoundingClientRect();
+    m.style.transformOrigin='top left';m.style.opacity='1';m.style.borderRadius='14px';
+    m.style.transform=`translate(${a.left-b.left}px,${a.top-b.top}px) scale(${a.width/b.width},${a.height/b.height})`;
+    m.getBoundingClientRect();m.classList.add('flip');root.classList.add('open');m.style.transform='';m.style.borderRadius='';
+  }else{m.classList.add('in');requestAnimationFrame(()=>root.classList.add('open'))}
+  root.addEventListener('click',e=>{if(e.target.closest('[data-close]'))close()});
+  const key=e=>{if(e.key==='Escape')close();if(e.key==='Tab'){const f=$$('button,input,select,textarea,[tabindex="0"]',m).filter(x=>!x.disabled&&x.offsetParent);if(!f.length)return;if(e.shiftKey&&document.activeElement===f[0]){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&document.activeElement===f[f.length-1]){e.preventDefault();f[0].focus()}}};
+  document.addEventListener('keydown',key);
+  function close(){document.removeEventListener('keydown',key);m.classList.remove('flip');root.classList.add('closing');setTimeout(()=>root.remove(),160);lastFocus&&lastFocus.focus&&lastFocus.focus()}
+  setTimeout(()=>{const f=$('input,select,textarea',m)||$('[data-close].icon-btn',m);f&&f.focus({preventScroll:true})},60);
+  wireSegs(root);wireAcc(root);onMount&&onMount(root,close);return {root,close};
+}
+function openDrawer({title,sub='',body,foot='',onMount}){
+  closePop();lastFocus=document.activeElement;
+  const root=document.createElement('div');root.className='drawer-root';
+  root.innerHTML=`<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head" style="border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><h2 class="h-sec">${title}</h2>${sub?`<div class="t-caption">${sub}</div>`:''}</div>${iconBtn('close','닫기',{attrs:'data-close'})}</div><div class="modal-body" style="padding-top:18px;flex:1">${body}</div>${foot?`<div class="modal-foot" style="border-radius:0 0 var(--r-panel) var(--r-panel)">${foot}</div>`:''}</aside>`;
+  document.body.append(root);requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.add('open')));
+  const key=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',key);
+  root.addEventListener('click',e=>{if(e.target.closest('[data-close]'))close()});
+  function close(){document.removeEventListener('keydown',key);root.classList.add('closing');setTimeout(()=>root.remove(),200);lastFocus&&lastFocus.focus&&lastFocus.focus()}
+  setTimeout(()=>{const f=$('.drawer input,.drawer select',root)||$('[data-close].icon-btn',root);f&&f.focus({preventScroll:true})},80);
+  wireSegs(root);wireAcc(root);onMount&&onMount(root,close);return {root,close};
+}
+function toast(msg,{tone='success',title}={}){
+  const host=$('#toasts');const w=document.createElement('div');w.className='toast-w';
+  const icn={success:'checkCircle',warning:'triangle',error:'alert',info:'sparkles'}[tone];
+  w.innerHTML=`<div><div class="toast ${tone}" role="status"><span class="t-ic">${ic(icn,15,2)}</span><div style="flex:1;min-width:0">${title?`<div class="h-card" style="font-size:15px">${title}</div>`:''}<div class="t-sm fg2">${msg}</div><div class="t-bar"></div></div>${iconBtn('close','닫기',{attrs:'data-x style="width:26px;height:26px;margin:-3px -6px 0 0"'})}</div></div>`;
+  host.prepend(w);requestAnimationFrame(()=>requestAnimationFrame(()=>w.classList.add('in')));
+  // 4초 뒤 사라지고, 올려 둔 동안에는 멈춥니다
+  const bar=$('.t-bar',w);const D=4000;let left=D,t0=performance.now(),tm;
+  const anim=RM?null:bar.animate([{transform:'scaleX(1)'},{transform:'scaleX(0)'}],{duration:D,fill:'forwards'});
+  const out=()=>{w.classList.remove('in');setTimeout(()=>w.remove(),240)};
+  const run=()=>{t0=performance.now();tm=setTimeout(out,left);anim&&anim.play()};
+  w.onmouseenter=()=>{clearTimeout(tm);left-=performance.now()-t0;anim&&anim.pause()};w.onmouseleave=run;
+  $('[data-x]',w).onclick=()=>{clearTimeout(tm);out()};run();
+}
+/* 툴팁 — 포인터를 따라 부드럽게 이동 */
+const tipEl=$('#tip');let tipOn=null;
+function tipMove(e){const r=tipEl.getBoundingClientRect();let x=e.clientX+14,y=e.clientY+16;if(x+r.width>innerWidth-8)x=e.clientX-r.width-12;if(y+r.height>innerHeight-8)y=e.clientY-r.height-12;tipEl.style.transform=`translate(${x}px,${y}px)`}
+document.addEventListener('pointerover',e=>{const t=e.target.closest('[data-tip]');if(!t||t===tipOn)return;
+  if(t.hasAttribute('data-sbtip')&&!$('#app').classList.contains('collapsed'))return;
+  tipOn=t;tipEl.innerHTML=t.dataset.tip;tipEl.classList.add('on');tipMove(e)});
+document.addEventListener('pointermove',e=>{if(tipOn)tipMove(e)});
+document.addEventListener('pointerout',e=>{if(tipOn&&!tipOn.contains(e.relatedTarget)){tipOn=null;tipEl.classList.remove('on')}});
+document.addEventListener('pointerdown',()=>{tipOn=null;tipEl.classList.remove('on')});
+/* 스위치 */
+document.addEventListener('click',e=>{const s=e.target.closest('.sw');if(s){s.setAttribute('aria-checked',s.getAttribute('aria-checked')!=='true')}});
+/* 진행 막대 */
+const progEl=$('#progress');
+function progStart(){progEl.classList.add('on');progEl.style.width='0';requestAnimationFrame(()=>progEl.style.width='70%')}
+function progDone(){progEl.style.width='100%';setTimeout(()=>{progEl.classList.remove('on');setTimeout(()=>progEl.style.width='0',300)},250)}
+
+/* =========================================================
+   8. AI 오브 (캔버스 셰이더 대체 — CSS conic 회전) · 채팅
+   ========================================================= */
+const orb=(cls='',state='idle')=>`<span class="orb ${cls}" data-state="${state}"><span class="ring"></span></span>`;
+const BRIEF=[
+  ['불량률','오늘 08시 기준 전 공정 불량률은 <b>1.58%</b>로 전일보다 0.21%p 낮습니다. 다만 PRESS 찍힘 불량은 오전 6시 이후 꾸준히 늘고 있습니다.','오늘 불량률 추이와 원인을 알려줘'],
+  ['공정 현황','6개 공정 중 5개가 목표 수율 이상입니다. <b>PLATING 2라인</b>은 도금 두께 편차로 수율이 97.1%까지 내려왔습니다.','공정별 수율 현황을 정리해줘'],
+  ['현재 이슈','미확인 알림이 <b>3건</b> 있습니다. 가장 급한 건은 PRESS-07 금형 온도 상한 초과(08:32)입니다.','지금 처리해야 할 이슈를 알려줘'],
+];
+const ANSWERS=[
+  {re:/불량|찍힘|원인/,steps:['MES 생산실적 조회','AOI 판정 결과 1,284건 대조','시간대별 비교'],
+   text:'오늘 08시 기준 전 공정 불량률은 1.58%로 전일보다 0.21%p 낮습니다. 다만 PRESS 공정의 찍힘 불량이 오전 6시 이후 꾸준히 늘고 있습니다. 전체 찍힘 불량 중 42%가 PRESS-07 한 대에서 나왔고, 같은 시간대 금형 온도가 상한을 넘었습니다. 금형 냉각수 유량과 상형 마모 상태를 먼저 확인하시기를 권합니다.',
+   extra:()=>card('찍힘 불량 — 설비별 비중',hbars([{l:'PRESS-07',v:42},{l:'PRESS-03',v:18},{l:'PRESS-05',v:13},{l:'PRESS-01',v:9},{l:'기타',v:18,c:'var(--mute)'}],{fmt:v=>v+'%'}),{cls:'tight'}),src:['MES 생산실적','AOI 판정 결과','설비 센서']},
+  {re:/공정|수율/,steps:['공정별 투입·양품 집계','목표 수율 대조'],
+   text:'6개 공정 중 5개가 목표 수율 이상입니다. PLATING 2라인은 도금 두께 편차가 커지면서 수율이 97.1%로 목표(98.0%)보다 0.9%p 낮습니다. 나머지 공정은 전일과 비슷한 수준입니다.',
+   extra:()=>`<div class="tbl"><div class="tbl-scroll"><table style="width:100%;min-width:420px"><thead><tr><th>공정</th><th class="r">투입</th><th class="r">수율</th><th class="r">목표</th><th>판정</th></tr></thead><tbody>${PROCS.map((p,i)=>{const y=i===1?97.1:rf(98.2,99.6,1);return `<tr><td>${p}</td><td class="r num-c">${nf(ri(18000,42000))}</td><td class="r num-c">${y}%</td><td class="r num-c">98.0%</td><td>${y<98?badge('미달','danger'):badge('달성','success')}</td></tr>`}).join('')}</tbody></table></div></div>`,src:['MES 생산실적','공정 목표 기준표']},
+  {re:/이슈|알림|처리/,steps:['미확인 알림 조회','심각도 정렬'],
+   text:'지금 확인이 필요한 알림은 3건입니다. 가장 급한 건은 PRESS-07 금형 온도 상한 초과로, 8분째 이어지고 있고 찍힘 불량 증가와 시간이 겹칩니다. 그다음은 AOI-03 오판정 의심 패턴과 PLATING 2라인 두께 편차입니다.',
+   extra:()=>`<div class="stack" style="gap:8px">${ALERTS.slice(0,3).map(a=>`<a class="sub-card row" href="#/alert/list" style="gap:10px">${badge(a.lv,LV_TONE[a.lv])}<span style="flex:1;min-width:0" class="t-sm">${a.title}</span><span class="t-caption num-t">${a.time}</span>${ic('chevronRight',15)}</a>`).join('')}</div>`,src:['이상 알림','설비 센서']},
+];
+const DEFAULT_ANS={steps:['질의 해석','관련 데이터 조회'],text:'질문을 이해했습니다. 이 프로토타입에서는 불량률, 공정별 수율, 현재 이슈에 대한 답만 준비되어 있습니다. 아래 추천 질문으로 다시 물어보시면 근거 자료와 함께 답을 보여 드립니다.',extra:()=>`<div class="chips">${BRIEF.map(b=>`<button class="chip" data-q="${b[2]}">${b[2]}</button>`).join('')}</div>`,src:[]};
+
+function createChat(root,{compact}={}){
+  const home=compact
+    ?`<div class="chat-home" style="padding-top:8px;gap:10px"><div class="t-sm fg2">지금 화면을 보면서 물어보십시오.</div><div class="chips">${BRIEF.map(b=>`<button class="chip" data-q="${b[2]}">${b[2]}</button>`).join('')}</div></div>`
+    :`<div class="chat-home">${orb('lg')}<h1 class="h-lg reveal"><span><span>통합관리자님,</span></span><span><span>좋은 아침입니다.</span></span></h1><p class="t-sm fg3">2026년 10월 1일 목요일 · 08:40 기준 AI 브리핑 — 문단을 누르면 바로 물어봅니다.</p><div class="brief-list">${BRIEF.map(b=>`<button class="brief" data-q="${b[2]}"><span class="eyebrow">${b[0]}</span><span class="brief-t">${b[1]}</span><span class="brief-go">${ic('arrowUpRight',18)}</span></button>`).join('')}</div><div class="chips" style="margin-top:4px">${['어제 대비 생산량이 줄어든 제품은?','이번 주 LRR 상위 고객사','PRESS-07 최근 정지 이력'].map(q=>`<button class="chip" data-q="${q}">${ic('sparkles',14)}${q}</button>`).join('')}</div></div>`;
+  root.innerHTML=`<div class="chat"><div class="chat-scroll"><div class="chat-inner">${home}</div></div><form class="composer" autocomplete="off"><textarea rows="1" placeholder="생산·품질 데이터에 대해 물어보십시오" aria-label="질문 입력"></textarea>${iconBtn('mic','음성 입력')}<button class="send" type="submit" disabled aria-label="보내기">${ic('send',16)}</button></form></div>`;
+  const sc=$('.chat-scroll',root),inner=$('.chat-inner',root),ta=$('textarea',root),send=$('.send',root);let busy=false;
+  const fit=()=>{ta.style.height='auto';ta.style.height=Math.min(140,ta.scrollHeight)+'px';send.disabled=!ta.value.trim()||busy};
+  ta.addEventListener('input',fit);
+  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!send.disabled)ask(ta.value.trim())}});
+  $('form',root).addEventListener('submit',e=>{e.preventDefault();if(ta.value.trim())ask(ta.value.trim())});
+  root.addEventListener('click',e=>{const q=e.target.closest('[data-q]');if(q&&!busy)ask(q.dataset.q)});
+  const bottom=()=>sc.scrollTo({top:sc.scrollHeight,behavior:RM?'auto':'smooth'});
+  function ask(q){
+    busy=true;ta.value='';fit();
+    const h=$('.chat-home',inner);if(h){h.classList.add('leave');setTimeout(()=>h.remove(),190)}
+    setTimeout(()=>{
+      inner.insertAdjacentHTML('beforeend',`<div class="msg user"><div class="bubble">${esc(q)}</div></div>`);
+      const a=ANSWERS.find(x=>x.re.test(q))||DEFAULT_ANS;
+      const m=document.createElement('div');m.className='msg ai';m.innerHTML=`${orb('','thinking')}<div class="body"><div class="thinking"></div><div class="ans"></div></div>`;
+      inner.append(m);bottom();const th=$('.thinking',m),ans=$('.ans',m),o=$('.orb',m);
+      a.steps.forEach((s,i)=>setTimeout(()=>{th.insertAdjacentHTML('beforeend',`<div>${ic('check',14,2.4)}${s}</div>`);bottom()},280+i*360));
+      setTimeout(()=>{
+        th.style.display='none';o.dataset.state='done';
+        // 단어 단위로 짧게 페이드인 — 읽기 속도 우선
+        const words=a.text.split(' ');let i=0;
+        const tick=()=>{if(i>=words.length){finish();return}const n=RM?words.length:3;ans.insertAdjacentHTML('beforeend',words.slice(i,i+n).map(w=>`<span class="w">${w} </span>`).join(''));i+=n;bottom();setTimeout(tick,RM?0:45)};
+        tick();
+      },400+a.steps.length*360);
+      function finish(){
+        const ex=document.createElement('div');ex.style.cssText='display:flex;flex-direction:column;gap:10px;animation:fadeUp .3s var(--ease) both';
+        ex.innerHTML=`${a.extra?a.extra():''}${a.src.length?`<div class="src-chips">${a.src.map(s=>`<span class="badge b-line">${ic('database',12)}${s}</span>`).join('')}</div>`:''}<div class="msg-tools">${iconBtn('copy','복사')}${iconBtn('thumbsUp','도움이 됐어요')}${iconBtn('thumbsDown','아쉬워요')}${iconBtn('refresh','다시 답하기')}</div>`;
+        m.querySelector('.body').append(ex);bottom();busy=false;fit();
+        $$('.msg-tools .icon-btn',ex).forEach(b=>b.onclick=()=>{b.classList.toggle('on');if(b.getAttribute('aria-label')==='복사')toast('답변을 복사했습니다.')});
+        setTimeout(()=>o.dataset.state='idle',900);
+      }
+    },h?200:0);
+  }
+  return {ask};
+}
+
+/* =========================================================
+   9. 화면
+   ========================================================= */
+const SCREENS={};
+const exportBtns=()=>btn('엑셀',{icon:'download',attrs:'data-export'})+btn('인쇄',{icon:'printer',v:'ghost',attrs:'data-print'});
+function wireCommon(page){
+  wireSegs(page);wireAcc(page);
+  $$('[data-export]',page).forEach(b=>b.onclick=()=>{b.classList.add('loading');setTimeout(()=>{b.classList.remove('loading');toast('엑셀 파일을 내려받았습니다. 다운로드 이력에 기록됩니다.',{title:'내려받기 완료'})},700)});
+  $$('[data-print]',page).forEach(b=>b.onclick=()=>toast('인쇄 미리보기는 실제 화면에서 열립니다.',{tone:'info'}));
+}
+function filterBar({fields='',chips=[],extraChipOpts=[]}={}){
+  return `<div class="filters">${fields}<div class="actions">${btn('초기화',{v:'ghost',icon:'refresh',attrs:'data-reset'})}${btn('조회',{v:'primary',icon:'search',attrs:'data-query'})}</div>${chips.length||extraChipOpts.length?`<div class="chips-line"><span class="t-label">적용된 조건</span><div class="chips" data-chips>${chips.map(c=>`<span class="chip on">${c}<button class="x" aria-label="${c} 조건 빼기">${ic('close',12,2.2)}</button></span>`).join('')}<button class="chip chip-add" data-addchip>${ic('plus',14)}조건 추가</button></div></div>`:''}</div>`;
+}
+function wireFilters(page,{onQuery,opts=[]}={}){
+  const box=$('[data-chips]',page);
+  if(box){
+    box.addEventListener('click',e=>{const x=e.target.closest('.x');if(x){const c=x.closest('.chip');c.classList.add('leave');setTimeout(()=>flip(box,()=>c.remove()),130)}});
+    const add=$('[data-addchip]',box);
+    add&&(add.onclick=()=>{const have=$$('.chip.on',box).map(c=>c.textContent.trim());const left=opts.filter(o=>!have.includes(o));
+      const p=openPop(add,left.length?`<div style="padding:6px 0">${left.map(o=>`<button class="pop-item" data-o="${o}">${ic('plus',14)}${o}</button>`).join('')}</div>`:`<div class="t-sm fg3" style="padding:14px">추가할 조건이 없습니다.</div>`,{w:220,align:'start'});
+      p&&p.addEventListener('click',e=>{const b=e.target.closest('[data-o]');if(!b)return;closePop();
+        flip(box,()=>add.insertAdjacentHTML('beforebegin',`<span class="chip on enter">${b.dataset.o}<button class="x" aria-label="${b.dataset.o} 조건 빼기">${ic('close',12,2.2)}</button></span>`))})});
+  }
+  const q=$('[data-query]',page);q&&(q.onclick=()=>{q.classList.add('loading');setTimeout(()=>{q.classList.remove('loading');onQuery&&onQuery();toast('조건에 맞는 실적을 다시 불러왔습니다.')},600)});
+  const r=$('[data-reset]',page);r&&(r.onclick=()=>{$$('input[type=date]',page).forEach((d,i)=>d.value=i%2?day(0):day(6));toast('조회 조건을 처음 값으로 되돌렸습니다.',{tone:'info'})});
+}
+
+/* ---------- 덕반장 AI ---------- */
+SCREENS['ai-chat']=(page)=>{
+  page.innerHTML=`<div class="chat-page" id="mainChat"></div>`;
+  createChat($('#mainChat',page));
+};
+
+/* ---------- AI 통합 대시보드 ---------- */
+SCREENS['dash-ai']=(page,item)=>{
+  const KP=()=>({prod:ri(126000,131000),good:rf(98.2,98.7,2),def:rf(1.4,1.8,2),op:rf(85,89,1)});let k=KP();
+  page.innerHTML=pageHead(item,seg(['오늘','주간','월간'],0,{id:'per',label:'기간'})+btn('',{icon:'refresh',attrs:'id="dashRefresh" aria-label="새로고침" data-tip="새로고침"'})+btn('업로드 리포트',{icon:'upload'}))+
+  `<div class="grid g4" style="margin-bottom:14px">
+    ${stat({label:'생산 수량',value:k.prod,unit:'EA',dv:3.2,good:true,spark:[8,9,7,10,11,10,12,13],icon:'factory',k:'prod'})}
+    ${stat({label:'양품률',value:k.good,dec:2,unit:'%',dv:.21,good:true,du:'%p',spark:[3,4,4,5,4,6,6,7],icon:'checkCircle',k:'good'})}
+    ${stat({label:'불량률',value:k.def,dec:2,unit:'%',dv:-.21,good:true,du:'%p',spark:[7,6,6,5,6,4,4,3],icon:'triangle',k:'def'})}
+    ${stat({label:'설비 가동률',value:k.op,dec:1,unit:'%',dv:-1.4,good:false,du:'%p',spark:[9,8,9,7,8,7,6,6],icon:'activity',k:'op'})}
+  </div>
+  <div class="grid g-1-2" style="margin-bottom:14px">
+    ${card('AI 브리핑',`<div class="stack" style="gap:12px"><p class="t-body">PRESS 공정의 <b class="brand">찍힘 불량</b>이 06시 이후 1.9배 늘었습니다. 같은 시간대 <b>PRESS-07</b> 금형 온도가 상한을 넘었고, 찍힘 불량의 42%가 이 설비에서 나왔습니다.</p><div class="sub-card"><div class="t-label" style="margin-bottom:6px">권장 조치</div><div class="t-sm">금형 냉각수 유량 점검 → 상형 마모 확인 → 필요 시 PRESS-03 으로 물량 전환</div></div><div class="row">${badge('신뢰도 높음','brand',{icon:'sparkles'})}<span class="t-caption">근거 3건 · 08:40 생성</span><span class="spacer"></span>${btn('근거 보기',{sm:true,icon:'arrowUpRight',attrs:'id="evid"'})}</div></div>`,{right:orb(),id:'briefCard'})}
+    ${card('시간대별 불량률',`<div class="chart-box" id="c1"></div>`,{sub:'금일 vs 전일 · 관리 한계 2.0%',right:`<div class="legend-inline"><span><i style="background:var(--s1)"></i>금일</span><span><i style="background:var(--s5)"></i>전일</span></div>`})}
+  </div>
+  <div class="grid g3" style="margin-bottom:14px">
+    ${card('공정별 수율',`<div id="hb1"></div>`,{sub:'목표 98.0%',right:badge('1건 미달','danger')})}
+    ${card('불량 유형 파레토',`<div class="chart-box" id="c2"></div>`,{sub:'금일 누적 · 막대=건수, 선=누적 비율'})}
+    ${card('AI 원인·처방',`${acc(`${badge('긴급','danger')}<span class="t-sm" style="font-weight:600">PRESS-07 찍힘 증가</span>`,`<p class="t-sm fg2">금형 온도 상승(최대 192℃)과 찍힘 발생 시각의 상관계수 0.81. 냉각 라인 막힘 가능성이 큽니다.</p>`,true)}${acc(`${badge('주의','warning')}<span class="t-sm" style="font-weight:600">PLATING 2라인 두께 편차</span>`,`<p class="t-sm fg2">약품 농도 보정 주기가 지난 뒤 편차가 커졌습니다. 농도 분석 시료를 채취하십시오.</p>`)}${acc(`${badge('주의','warning')}<span class="t-sm" style="font-weight:600">AOI-03 오판정 의심</span>`,`<p class="t-sm fg2">재검 양품 전환율 12%. 조명 밝기 보정 이력이 7일째 없습니다.</p>`)}`)}
+  </div>
+  ${card('설비 상태',`<div class="eq-grid" id="eqMini"></div>`,{sub:'24대 · 상태는 색과 모양으로 함께 표시합니다',right:`<a class="lnk t-sm" href="#/production/monitor">생산 모니터링</a>`})}`;
+  const today=hours.map((_,i)=>+(1.1+Math.sin(i/2)*.3+(i>2?i*.06:0)+rnd()*.15).toFixed(2));
+  const yday=hours.map((_,i)=>+(1.3+Math.cos(i/2.5)*.25+rnd()*.15).toFixed(2));
+  const lc=()=>lineChart({labels:hours,series:[{name:'금일',color:'#880D1E',data:today},{name:'전일',color:'#8A93A6',data:yday,dash:true}],area:true,limit:2,limitLabel:'관리 한계 2.0%',vFmt:v=>v.toFixed(2)+'%',yFmt:v=>v.toFixed(1)+'%',h:230});
+  const ch1=mountChart($('#c1',page),lc());
+  const pd=[412,268,190,122,88,61,40,22];
+  mountChart($('#c2',page),barChart({labels:DEFECTS.map(d=>d.length>4?d.slice(0,3):d),data:pd,pareto:true,color:'var(--primary)',h:230,vFmt:v=>nf(v)+'건'}));
+  $('#hb1',page).innerHTML=hbars(PROCS.map((p,i)=>({l:p,v:i===1?97.1:rf(98.1,99.6,1),c:i===1?'var(--accent)':'var(--primary)'})),{fmt:v=>v.toFixed(1)+'%',max:100});
+  $('#eqMini',page).innerHTML=EQ_STATE.slice(0,12).map(eqCell).join('');
+  wireEq(page);
+  $('#evid',page).onclick=()=>openModal({title:'AI 브리핑 근거',from:$('#briefCard',page),w:720,body:`<div class="stack"><p class="t-sm fg2">브리핑 문장마다 어떤 데이터에서 나왔는지 보여 줍니다.</p>${['MES 생산실적 — PRESS 시간대별 찍힘 불량 (06~08시 1.9배)','설비 센서 — PRESS-07 금형 온도 192℃ (상한 185℃)','AOI 판정 결과 — 찍힘 불량 설비별 비중'].map((t,i)=>`<div class="sub-card row" style="gap:12px"><span class="num-sm brand" style="width:22px">${i+1}</span><span class="t-sm" style="flex:1">${t}</span>${badge('원본 보기','line',{icon:'external'})}</div>`).join('')}<div class="chart-box" id="mc"></div></div>`,foot:btn('닫기',{attrs:'data-close'})+btn('질의로 이어가기',{v:'primary',icon:'sparkles',attrs:'data-close data-href="#/ai/chat"'}),
+    onMount:(r)=>{setTimeout(()=>mountChart($('#mc',r),lineChart({labels:hours,series:[{name:'금형 온도',color:'#DD2D4A',data:hours.map((_,i)=>+(172+i*1.8+rnd()*3).toFixed(1))}],limit:185,limitLabel:'상한 185℃',vFmt:v=>v+'℃',yFmt:v=>v.toFixed(0),h:200})),260)}});
+  const per=$('#per',page);per.addEventListener('segchange',()=>refresh());
+  $('#dashRefresh',page).onclick=()=>refresh();
+  function refresh(){const b=$('#dashRefresh',page);b.classList.add('loading');progStart();setTimeout(()=>{b.classList.remove('loading');progDone();k=KP();
+    $$('[data-count]',page).forEach(el=>{if(k[el.dataset.count]!=null)countTo(el,k[el.dataset.count])});
+    today.forEach((v,i)=>today[i]=+(v+(rnd()-.5)*.35).toFixed(2));ch1.update(lc());toast('대시보드를 최신 값으로 갱신했습니다.')},500)}
+};
+const ST_LABEL={run:'가동',idle:'대기',stop:'정지',check:'점검'};
+const ST_B={run:'success',idle:'',stop:'danger',check:'warning'};
+function eqCell(e){
+  const p=Math.round(e.done/e.plan*100);
+  return `<button class="eq ${e.st}" data-eq="${e.id}" data-tip="${esc(`<b>${e.id}</b><div class="tip-row">${ST_LABEL[e.st]}<span>${p}%</span></div>`)}"><span class="eq-h">${e.st==='run'?'<span class="dot live"></span>':e.st==='stop'?ic('xCircle',14,2):e.st==='check'?ic('triangle',14,2):'<span class="dot"></span>'}${e.id}<span class="st">${badge(ST_LABEL[e.st],ST_B[e.st],{icon:null})}</span></span><span class="t-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.prod[1]}</span>${prog(p,e.st==='stop'?'var(--danger)':e.st==='check'?'var(--warning)':e.st==='idle'?'var(--mute)':'var(--primary)')}<span class="num-t"><b data-eqc="${e.id}">${nf(e.done)}</b> / ${nf(e.plan)}</span></button>`;
+}
+function wireEq(page){page.addEventListener('click',e=>{const b=e.target.closest('[data-eq]');if(!b)return;const q=EQ_STATE.find(x=>x.id===b.dataset.eq);
+  openDrawer({title:q.id,sub:`${q.prod[1]} · ${q.prod[0]}`,body:`<div class="stack"><div class="row">${badge(ST_LABEL[q.st],ST_B[q.st])}<span class="t-caption">마지막 신호 08:41:12</span></div><div class="grid g2">${[['생산',nf(q.done)+' EA'],['계획',nf(q.plan)+' EA'],['가동률',q.rate+'%'],['불량률',rf(.4,3.2,2)+'%']].map(([a,b])=>`<div class="sub-card"><div class="t-label">${a}</div><div class="num-sm" style="margin-top:4px">${b}</div></div>`).join('')}</div>${card('시간대별 생산',`<div class="chart-box" id="dch"></div>`,{cls:'tight'})}<div><div class="h-card" style="margin-bottom:10px">최근 이력</div><div class="tl">${[['08:32','금형 온도 상한 초과 알림','on'],['07:55','작업자 교대 (B조 → A조)',''],['06:10','금형 점검 완료','ok'],['05:40','계획 정지 종료','ok']].map(([t,s,c])=>`<div class="tl-i ${c}"><div class="t">${t}</div><div class="t-sm">${s}</div></div>`).join('')}</div></div></div>`,foot:btn('알림 보기',{attrs:'data-close data-href="#/alert/list"'})+btn('덕반장 AI에 묻기',{v:'primary',icon:'sparkles',attrs:'data-close data-ai'}),
+    onMount:r=>setTimeout(()=>mountChart($('#dch',r),barChart({labels:hours,data:hours.map(()=>ri(380,920)),h:170,hl:true,vFmt:v=>nf(v)+' EA'})),280)})})}
+
+/* ---------- 공정 및 제품 대시보드 ---------- */
+SCREENS['dash-proc']=(page,item)=>{
+  page.innerHTML=pageHead(item,select(PRODUCTS.map(p=>p[1]),PRODUCTS[0][1],{id:'pp'})+exportBtns())+
+  `<div style="margin-bottom:14px">${seg(PROCS,0,{cls:'line',id:'procTab',label:'공정'})}</div>
+   <div class="grid g4" style="margin-bottom:14px" id="procStats"></div>
+   <div class="grid g-2-1" style="margin-bottom:14px">${card('제품별 목표 대비 실적',`<div class="chart-box" id="gb"></div>`,{sub:'단위 EA',right:`<div class="legend-inline"><span><i style="background:var(--s4)"></i>목표</span><span><i style="background:var(--s1)"></i>실적</span></div>`})}${card('불량 유형 구성',`<div id="dn"></div>`,{sub:'금일 누적'})}</div>
+   ${card('제품별 상세',`<div id="pt"></div>`)}`;
+  let gbc;
+  const draw=(pi)=>{seed=1000+pi*77;
+    $('#procStats',page).innerHTML=(()=>{const inp=ri(30000,52000),y=rf(97,99.6,2);return [['투입',inp,'EA',0],['양품',Math.round(inp*y/100),'EA',0],['수율',y,'%',2],['불량률',+(100-y).toFixed(2),'%',2]]})().map(([l,v,u,d])=>stat({label:l,value:v,unit:u,dec:d,dv:rf(-2,3,2),good:rnd()>.35,du:u==='%'?'%p':'%'})).join('');
+    const tg=PRODUCTS.slice(0,6).map(()=>ri(4000,9000)),ac=tg.map(t=>Math.round(t*rf(.82,1.06,2)));
+    const d=barChart({labels:PRODUCTS.slice(0,6).map(p=>p[0].slice(3)),series:[{name:'목표',color:'#F49CBB',data:tg},{name:'실적',color:'#880D1E',data:ac}],h:240,vFmt:v=>nf(v)+' EA'});
+    if(gbc)gbc.update(d);else gbc=mountChart($('#gb',page),d);
+    $('#dn',page).innerHTML=donut(DEFECTS.slice(0,5).map((l,i)=>({l,v:ri(20,200),c:SERX[i]})),{label:'불량 건수',unit:'건'});
+    mountTable($('#pt',page),{cols:[{key:'code',title:'제품코드',w:120},{key:'name',title:'제품명',w:160},{key:'plan',title:'계획',num:1,w:110},{key:'input',title:'투입',num:1,w:110},{key:'good',title:'양품',num:1,w:110},{key:'yield',title:'수율',num:1,w:100,fmt:v=>v.toFixed(2)+'%'},{key:'ach',title:'달성률',num:1,w:150,fmt:v=>`<span class="cell-bar"><span>${v}%</span><i><b style="width:${Math.min(100,v)}%;${v<95?'background:var(--accent)':''}"></b></i></span>`},{key:'st',title:'판정',w:100,sort:false,fmt:v=>v?badge('달성','success'):badge('미달','danger')}],
+      rows:PRODUCTS.map(p=>{const plan=ri(4000,9000),input=Math.round(plan*rf(.85,1.05,2)),good=Math.round(input*rf(.96,.995,3));const ach=Math.round(good/plan*100);return {code:p[0],name:p[1],plan,input,good,yield:good/input*100,ach,st:ach>=95}}),noFoot:true});
+  };
+  draw(0);$('#procTab',page).addEventListener('segchange',e=>{progStart();setTimeout(()=>{draw(e.detail);progDone()},250)});
+  $('#pp',page).onchange=()=>toast(`${$('#pp',page).value} 기준으로 바꿨습니다.`,{tone:'info'});
+};
+
+/* ---------- 생산 모니터링 ---------- */
+SCREENS['prod-monitor']=(page,item)=>{
+  page.innerHTML=pageHead(item,`<span class="badge b-success"><span class="dot live" style="width:6px;height:6px"></span>실시간 · 3초 갱신</span>`+seg(['전체','PRESS','PLATING','COATING','AOI','조립'],0,{id:'eqf',label:'공정'}))+
+  `<div class="grid g4" style="margin-bottom:14px">${[['가동','run','success'],['대기','idle',''],['점검','check','warning'],['정지','stop','danger']].map(([l,s,t])=>`<div class="card stat"><div class="stat-top"><span class="t-label">${l}</span>${badge(l,t)}</div><div class="stat-v"><span class="num">${EQ_STATE.filter(e=>e.st===s).length}</span><span class="unit">대</span></div></div>`).join('')}</div>
+  ${card('설비 매트릭스',`<div class="eq-grid" id="eqAll"></div>`,{right:`<div class="legend-row"><span><span class="dot live"></span>가동</span><span><span class="dot"></span>대기</span><span style="color:var(--warning-text)">${ic('triangle',13,2)}점검</span><span style="color:var(--danger)">${ic('xCircle',13,2)}정지</span></div>`})}`;
+  const pre={0:null,1:'PRESS',2:'PLT',3:'CT',4:'AOI',5:'ASM'};let f=null;
+  const draw=()=>{$('#eqAll',page).innerHTML=EQ_STATE.filter(e=>!f||e.id.startsWith(f)).map(eqCell).join('');$$('[data-eqc]',page).forEach(el=>{el.dataset.v=el.textContent.replace(/,/g,'')})};
+  draw();wireEq(page);
+  $('#eqf',page).addEventListener('segchange',e=>{f=pre[e.detail];const g=$('#eqAll',page);g.style.opacity=0;setTimeout(()=>{draw();g.style.transition='opacity .2s';g.style.opacity=1},120)});
+  const iv=setInterval(()=>{EQ_STATE.forEach(e=>{if(e.st==='run'){e.done=Math.min(e.plan,e.done+ri(4,26));const el=$(`[data-eqc="${e.id}"]`,page);if(el)countTo(el,e.done);const pr=el&&el.closest('.eq').querySelector('.prog i');if(pr)pr.style.width=Math.round(e.done/e.plan*100)+'%'}})},3000);
+  onClean(()=>clearInterval(iv));
+};
+
+/* ---------- 실적 집계·조회 ---------- */
+function prodRows(n=84){seed=4242;return [...Array(n)].map((_,i)=>{const p=pick(PRODUCTS),plan=ri(2000,9000),input=Math.round(plan*rf(.9,1.04,2)),def=ri(10,260),good=input-def;
+  return {date:day(i%7),proc:pick(PROCS),line:'L'+ri(1,4),eq:pick(EQUIP),code:p[0],name:p[1],cust:pick(CUSTOMERS),plan,input,good,def,yield:good/input*100,dr:def/input*100,hrs:rf(14,23.5,1),worker:pick(NAMES),memo:rnd()>.8?'금형 교체 후 재가동':''}})}
+SCREENS['prod-result']=(page,item)=>{
+  page.innerHTML=pageHead(item,exportBtns())+filterBar({fields:field('기간',`<div class="row" style="gap:6px">${dateInp(day(6),{sm:1})}<span class="fg3">~</span>${dateInp(day(0),{sm:1})}</div>`,{cls:'w-lg'})+field('공정',select(['전체',...PROCS],'전체',{sm:1}))+field('제품',select(['전체',...PRODUCTS.map(p=>p[1])],'전체',{sm:1}))+field('집계 단위',seg(['일','주','월'],0,{cls:'sm'})),chips:['고객사 A','PRESS'],})+
+   `<div class="grid g4" style="margin-bottom:14px" id="rs"></div><div id="rt"></div>`;
+  wireFilters(page,{opts:['고객사 B','고객사 C','PLATING','L1 라인','불량률 2% 이상','야간조'],onQuery:()=>{t.setRows(prodRows(ri(40,84)))}});
+  const rows=prodRows();
+  $('#rs',page).innerHTML=[['계획',rows.reduce((a,r)=>a+r.plan,0),'EA',0],['투입',rows.reduce((a,r)=>a+r.input,0),'EA',0],['양품',rows.reduce((a,r)=>a+r.good,0),'EA',0],['평균 수율',rows.reduce((a,r)=>a+r.yield,0)/rows.length,'%',2]].map(([l,v,u,d])=>`<div class="card stat"><span class="t-label">${l}</span><div class="stat-v"><span class="num-sm">${nf(v,d)}</span><span class="unit">${u}</span></div></div>`).join('');
+  const t=mountTable($('#rt',page),{select:true,cols:[{key:'date',title:'일자',w:112},{key:'proc',title:'공정',w:100},{key:'line',title:'라인',w:72},{key:'eq',title:'설비',w:104},{key:'code',title:'제품코드',w:104},{key:'name',title:'제품명',w:150},{key:'cust',title:'고객사',w:104},{key:'plan',title:'계획',num:1,w:92},{key:'input',title:'투입',num:1,w:92},{key:'good',title:'양품',num:1,w:92},{key:'def',title:'불량',num:1,w:80},{key:'yield',title:'수율',num:1,w:92,fmt:v=>v.toFixed(2)+'%'},{key:'dr',title:'불량률',num:1,w:110,fmt:v=>v>=2.5?`<span style="color:var(--danger);font-weight:600" class="row" style="justify-content:flex-end">${ic('alert',13,2)}${v.toFixed(2)}%</span>`:v.toFixed(2)+'%'},{key:'hrs',title:'가동시간(h)',num:1,w:110,dec:1},{key:'worker',title:'작업자',w:90},{key:'memo',title:'비고',w:200,sort:false,fmt:v=>v?esc(v):'<span class="fg3">—</span>'}],rows,
+    onRow:(r)=>openDrawer({title:`${r.name} 실적`,sub:`${r.date} · ${r.proc} · ${r.eq}`,body:`<dl class="kv">${[['제품코드',r.code],['고객사',r.cust],['라인',r.line],['계획',nf(r.plan)+' EA'],['투입',nf(r.input)+' EA'],['양품',nf(r.good)+' EA'],['불량',nf(r.def)+' EA'],['수율',r.yield.toFixed(2)+'%'],['작업자',r.worker]].map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl><div style="margin-top:18px">${hintBox('작업자 이름은 개인정보 보호를 위해 가운데 글자를 가립니다.','lock')}</div>`,foot:btn('닫기',{attrs:'data-close'})})});
+};
+
+/* ---------- 불량 현황 조회 ---------- */
+SCREENS['qc-defect']=(page,item)=>{
+  page.innerHTML=pageHead(item,exportBtns())+filterBar({fields:field('기간',`<div class="row" style="gap:6px">${dateInp(day(6),{sm:1})}<span class="fg3">~</span>${dateInp(day(0),{sm:1})}</div>`,{cls:'w-lg'})+field('공정',select(['전체',...PROCS],'전체',{sm:1}))+field('불량 유형',select(['전체',...DEFECTS],'전체',{sm:1}))})+
+  `<div class="grid g-2-1" style="margin-bottom:14px">${card('공정 × 시간대 불량률',`<div id="hm" style="overflow-x:auto"></div>`,{sub:'색이 진할수록 불량률이 높습니다 · 2.5% 이상은 테두리로 함께 표시',right:`<div class="row t-caption" style="gap:6px">낮음<span style="width:80px;height:8px;border-radius:4px;background:linear-gradient(90deg,#F6EEF1,#880D1E)"></span>높음</div>`})}${card('불량 유형 상위',`<div id="dt"></div>`,{sub:'최근 7일'})}</div>
+  ${card('일별 불량률 추이',`<div class="chart-box" id="dl"></div>`,{sub:'공정 상위 3개',right:`<div class="legend-inline"><span><i style="background:var(--s1)"></i>PRESS</span><span><i style="background:var(--s3)"></i>PLATING</span><span><i style="background:var(--s5)"></i>COATING</span></div>`})}
+  <div style="margin-top:14px" id="dtb"></div>`;
+  const hm=$('#hm',page);
+  hm.innerHTML=`<div class="heat" style="grid-template-columns:90px repeat(12,minmax(34px,1fr));min-width:520px"><span></span>${hours.map(h=>`<span class="hx">${h.replace('시','')}</span>`).join('')}${PROCS.map(p=>`<span class="hl">${p}</span>`+hours.map((h,i)=>{const v=rf(.2,p==='PRESS'&&i>3?3.6:2.4,2);const a=Math.min(1,v/3.6);return `<span class="hc" style="background:rgba(136,13,30,${(.06+a*.9).toFixed(2)});${v>=2.5?'outline:2px solid #fff;outline-offset:-4px':''}" data-tip="${esc(`<b>${p} · ${h}</b><div class="tip-row">불량률<span>${v}%</span></div>`)}"></span>`}).join('')).join('')}</div>`;
+  $('#dt',page).innerHTML=hbars(DEFECTS.slice(0,6).map((l,i)=>({l,v:ri(40,420)-i*30,c:i===0?'var(--primary)':'var(--spark)'})).sort((a,b)=>b.v-a.v),{fmt:v=>nf(v)+'건'});
+  const ds=[...Array(14)].map((_,i)=>day(13-i).slice(5));
+  mountChart($('#dl',page),lineChart({labels:ds,series:[{name:'PRESS',color:'#880D1E',data:ds.map(()=>rf(1.2,2.6,2))},{name:'PLATING',color:'#F26A8D',data:ds.map(()=>rf(.8,2,2))},{name:'COATING',color:'#8A93A6',data:ds.map(()=>rf(.6,1.5,2))}],limit:2.5,limitLabel:'관리 한계 2.5%',vFmt:v=>v+'%',yFmt:v=>v.toFixed(1)+'%',h:240}));
+  mountTable($('#dtb',page),{cols:[{key:'date',title:'일자',w:112},{key:'proc',title:'공정',w:100},{key:'eq',title:'설비',w:104},{key:'name',title:'제품명',w:150},{key:'type',title:'불량 유형',w:110},{key:'cnt',title:'건수',num:1,w:84},{key:'rate',title:'불량률',num:1,w:96,fmt:v=>v.toFixed(2)+'%'},{key:'lv',title:'판정',w:96,sort:false,fmt:v=>v?badge('초과','danger'):badge('정상','success')},{key:'act',title:'조치',w:220,sort:false}],
+    rows:[...Array(40)].map((_,i)=>{const r=rf(.3,3.4,2);return {date:day(i%7),proc:pick(PROCS),eq:pick(EQUIP),name:pick(PRODUCTS)[1],type:pick(DEFECTS),cnt:ri(4,120),rate:r,lv:r>=2.5,act:r>=2.5?'금형 점검 요청':'—'}})});
+  wireFilters(page);
+};
+
+/* ---------- AOI 판정 분석 ---------- */
+function aoiImg(i){seed=900+i;const cx=ri(30,130),cy=ri(24,86);const lines=[...Array(9)].map(()=>`<path d="M${ri(0,160)} ${ri(0,110)} h${ri(20,80)} v${ri(-30,30)}" stroke="#D1C3CB" stroke-width="2" fill="none"/>`).join('');
+  return `<svg viewBox="0 0 160 110"><rect width="160" height="110" fill="#EDE3E9"/>${lines}${[...Array(14)].map(()=>`<circle cx="${ri(4,156)}" cy="${ri(4,106)}" r="2.5" fill="#C9BAC2"/>`).join('')}<circle cx="${cx}" cy="${cy}" r="${ri(4,8)}" fill="#880D1E" opacity=".75"/><circle cx="${cx}" cy="${cy}" r="16" fill="none" stroke="#DD2D4A" stroke-width="1.6" stroke-dasharray="3 3"/></svg>`}
+SCREENS['qc-aoi']=(page,item)=>{
+  page.innerHTML=pageHead(item,seg(['판정 분석','예측'],0,{id:'aoiTab'})+exportBtns())+
+  `<div class="grid g3" style="margin-bottom:14px">
+    ${card('AOI 브리핑',`<div class="stack" style="gap:10px"><p class="t-body">AOI-03 재검 양품 전환율이 <b class="brand">12%</b>로 평소보다 4배 높습니다. 실제 불량보다 <b>오판정</b>일 가능성이 큽니다.</p>${hintBox('조명 밝기 보정이 7일째 없습니다. 보정 후 다시 판정하면 재검 물량을 하루 약 380건 줄일 수 있습니다.','sparkles')}</div>`,{right:orb()})}
+    ${card('예측 불량률 (내일)',`<div class="pred"><div class="row"><span class="num">1.62</span><span class="unit">%</span>${badge('신뢰도 87%','brand',{icon:'sparkles'})}</div><div class="t-caption">95% 신뢰구간 1.31 ~ 1.94%</div><div class="ci-bar"><i style="left:26%;width:24%"></i><b style="left:35%"></b></div><div class="row t-caption" style="justify-content:space-between"><span>0%</span><span>관리 한계 2.5%</span><span>4%</span></div></div>`)}
+    ${card('판정 결과',`${donut([{l:'양품',v:12840,c:'#2E9E57'},{l:'불량 확정',v:214,c:'#880D1E'},{l:'재검 대기',v:96,c:'#F26A8D'},{l:'재검 양품',v:118,c:'#D1D5DE'}],{size:128,label:'판정 수'})}`)}
+  </div>
+  ${card('불량 이미지',`<div class="aoi-imgs" id="imgs"></div>`,{sub:'NAS 원본 · 이미지를 누르면 상세가 펼쳐집니다',right:seg(['전체','불량 확정','재검 대기'],0,{cls:'sm'})})}`;
+  $('#imgs',page).innerHTML=[...Array(12)].map((_,i)=>{seed=500+i;const t=pick(DEFECTS.slice(0,5));const c=rf(62,98,0);return `<button class="aoi-img" data-img="${i}" data-type="${t}" data-conf="${c}">${aoiImg(i)}<div><span>${t}</span><span class="num-t ${c<75?'fg3':''}">${c}%</span></div></button>`}).join('');
+  page.addEventListener('click',e=>{const b=e.target.closest('[data-img]');if(!b)return;const i=+b.dataset.img;
+    openModal({title:`불량 이미지 #${2610400+i}`,from:b,w:760,body:`<div class="grid g2" style="align-items:start"><div style="border-radius:12px;overflow:hidden;border:1px solid var(--border)">${aoiImg(i)}</div><div class="stack" style="gap:12px"><dl class="kv"><dt>판정</dt><dd>${b.dataset.type}</dd><dt>AI 신뢰도</dt><dd>${b.dataset.conf}%</dd><dt>설비</dt><dd>AOI-0${i%4+1}</dd><dt>제품</dt><dd>${PRODUCTS[i%8][1]}</dd><dt>시각</dt><dd class="num-t">2026-10-01 08:${String(10+i).padStart(2,'0')}</dd></dl>${+b.dataset.conf<75?hintBox('신뢰도가 75% 미만이라 재검 대상으로 분류했습니다.','info'):''}<div class="t-label">작업자 판정</div>${radio('jd',['불량 확정','양품','재검'],'불량 확정')}</div></div>`,foot:btn('취소',{attrs:'data-close'})+btn('판정 저장',{v:'primary',attrs:'data-save'}),
+      onMount:(r,close)=>{$('[data-save]',r).onclick=()=>{close();toast('판정을 저장했습니다.')}}})});
+};
+
+/* ---------- 보고서 공통 ---------- */
+function docHead(title,sub){return `<div class="doc-head"><div><div class="eyebrow">덕우전자 · 생산관리팀</div><div class="h-page" style="margin-top:4px">${title}</div><div class="t-sm fg3" style="margin-top:4px">${sub}</div></div><div class="approve">${[['작성','이*진',1],['검토','박*호',1],['승인','',0]].map(([a,b,s])=>`<div><span>${a}</span><b class="${s?'stamp':'fg3'}">${b||'대기'}</b></div>`).join('')}</div></div>`}
+function morningSheet(procs){
+  const days=['월','화','수','목'];
+  let h=`<div class="xls-scroll"><table class="xls"><thead><tr><th rowspan="2" class="stk">라인</th><th rowspan="2">제품</th>${days.map(d=>`<th colspan="3">${d}</th>`).join('')}<th colspan="3">주간 누적</th></tr><tr>${[...days,'누적'].map(()=>'<th>목표</th><th>실적</th><th>달성률</th>').join('')}</tr></thead><tbody>`;
+  procs.forEach(p=>{let gt=0,ga=0;const rows=PRODUCTS.slice(0,4).map(pr=>{let t=0,a=0;const cells=days.map(()=>{const tg=ri(1800,3200),ac=Math.round(tg*rf(.86,1.08,2));t+=tg;a+=ac;const r=ac/tg*100;return `<td>${nf(tg)}</td><td>${nf(ac)}</td><td class="${r<95?'hi':r>=100?'ok':''}">${r.toFixed(1)}%</td>`}).join('');gt+=t;ga+=a;const r=a/t*100;return `<tr><td class="l stk">${p}</td><td class="l">${pr[1]}</td>${cells}<td>${nf(t)}</td><td>${nf(a)}</td><td class="${r<95?'hi':r>=100?'ok':''}">${r.toFixed(1)}%</td></tr>`}).join('');
+    h+=rows+`<tr class="sum"><td class="l stk" colspan="2">${p} 소계</td>${days.map(()=>'<td></td><td></td><td></td>').join('')}<td>${nf(gt)}</td><td>${nf(ga)}</td><td>${(ga/gt*100).toFixed(1)}%</td></tr>`});
+  return h+`</tbody></table></div><div class="row t-caption" style="margin-top:8px;gap:14px"><span style="color:var(--danger)" class="row">${ic('alert',13,2)}95% 미만</span><span style="color:var(--success)" class="row">${ic('checkCircle',13,2)}100% 이상</span></div>`;
+}
+const reportPicker=(item)=>select(MENU[3].items.map(i=>i.name),item.name,{attrs:'data-rpick aria-label="보고서 선택"'});
+function wireRPick(page){const s=$('[data-rpick]',page);s&&(s.onchange=()=>{const t=MENU[3].items.find(i=>i.name===s.value);if(t)location.hash='#'+t.path})}
+SCREENS['prod-daily']=(page,item)=>{
+  page.innerHTML=pageHead(item,reportPicker(item)+btn('이전 보고서',{icon:'history',v:'ghost'})+exportBtns())+
+  `<div class="doc">${docHead('일일 생산현황 보고','2026년 10월 1일 (목) · 자동 집계 08:40')}
+  <div class="grid g4" style="margin-bottom:18px">${[['총 생산','128,430 EA'],['양품률','98.42%'],['불량률','1.58%'],['가동률','87.6%']].map(([a,b])=>`<div class="sub-card"><div class="t-label">${a}</div><div class="num-sm" style="margin-top:4px">${b}</div></div>`).join('')}</div>
+  <div class="h-card" style="margin-bottom:8px">1. 공정별 실적</div>${morningSheet(['PRESS','PLATING'])}
+  <div class="h-card" style="margin:20px 0 8px">2. 특이사항</div>
+  <div class="stack" style="gap:8px">${hintBox('PRESS-07 금형 온도 상한 초과로 08:32 알림 발생. 냉각 라인 점검 중입니다.','triangle')}${hintBox('PLATING 2라인 도금 두께 편차 확대. 약품 농도 분석을 요청했습니다.','info')}</div>
+  <div class="h-card" style="margin:20px 0 8px">3. 작성자 의견</div><textarea class="inp" rows="3" placeholder="의견을 입력하면 보고서에 함께 실립니다"></textarea>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">${btn('임시 저장')}${btn('결재 올리기',{v:'primary',icon:'send',attrs:'data-submit'})}</div></div>`;
+  wireRPick(page);$('[data-submit]',page).onclick=e=>{const b=e.currentTarget;b.classList.add('loading');setTimeout(()=>{b.classList.remove('loading');toast('결재를 올렸습니다. 승인자에게 알림을 보냈습니다.',{title:'결재 요청'})},700)};
+};
+SCREENS['rpt-press-morning']=(page,item)=>{page.innerHTML=pageHead(item,reportPicker(item)+dateInp(day(0),{sm:1})+exportBtns())+`<div class="doc">${docHead('아침회의 자료 — PRESS','2026년 40주차 (9/28 ~ 10/1) · 목표 대비 실적')}${morningSheet(['PRESS 1라인','PRESS 2라인','PRESS 3라인'])}</div>`;wireRPick(page)};
+SCREENS['rpt-plating-morning']=(page,item)=>{page.innerHTML=pageHead(item,reportPicker(item)+dateInp(day(0),{sm:1})+exportBtns())+`<div class="doc">${docHead('아침회의 자료 — Plating·Coating','2026년 40주차 (9/28 ~ 10/1)')}${morningSheet(['PLATING 1','PLATING 2','COATING'])}<div class="h-card" style="margin:20px 0 8px">주요 이슈</div>${acc(`${badge('주의','warning')}<span class="t-sm" style="font-weight:600">PLATING 2 두께 편차</span>`,'<p class="t-sm fg2">약품 농도 보정 주기 초과. 10/1 오후 분석 예정.</p>',true)}${acc(`${badge('정보','brand',{icon:'info'})}<span class="t-sm" style="font-weight:600">COATING 설비 예방 보전 완료</span>`,'<p class="t-sm fg2">CT-01 계획 정지 07:10 종료.</p>')}</div>`;wireRPick(page)};
+SCREENS['rpt-ship-plan']=(page,item)=>{
+  const M=[...Array(12)].map((_,i)=>(i+1)+'월');
+  page.innerHTML=pageHead(item,reportPicker(item)+select(['2026년','2025년'],'2026년')+exportBtns())+hintBox('월 열이 많아 표가 가로로 넘칩니다. 표 안에서 오른쪽으로 스크롤하면 12월과 합계까지 볼 수 있습니다.','arrowRight')+`<div id="sp" style="margin-top:12px"></div>`;
+  seed=77;mountTable($('#sp',page),{stickyFirst:true,cols:[{key:'model',title:'모델',w:150},{key:'cust',title:'고객사',w:110},...M.map((m,i)=>({key:'m'+i,title:m,num:1,w:96,fmt:(v,r)=>i<9?`<span class="fg3">${nf(v)}</span>`:nf(v)})),{key:'tot',title:'합계',num:1,w:120,fmt:v=>`<b>${nf(v)}</b>`},{key:'ach',title:'누적 달성률',num:1,w:120,fmt:v=>v+'%'}],
+    rows:PRODUCTS.flatMap(p=>CUSTOMERS.slice(0,2).map(c=>{const r={model:p[1],cust:c};let t=0;M.forEach((_,i)=>{r['m'+i]=ri(8,60)*1000;t+=r['m'+i]});r.tot=t;r.ach=ri(82,104);return r}))});
+  wireRPick(page);
+};
+SCREENS['rpt-yield-model']=(page,item)=>{
+  const M=['4월','5월','6월','7월','8월','9월'];
+  page.innerHTML=pageHead(item,reportPicker(item)+exportBtns())+`${card('월별 수율 추이',`<div class="chart-box" id="yl"></div>`,{sub:'상위 4개 제품 · 목표 98.0%',right:`<div class="legend-inline">${PRODUCTS.slice(0,4).map((p,i)=>`<span><i style="background:${SERX[i]}"></i>${p[1]}</span>`).join('')}</div>`})}<div id="yt" style="margin-top:14px"></div>`;
+  mountChart($('#yl',page),lineChart({labels:M,series:PRODUCTS.slice(0,4).map((p,i)=>({name:p[1],color:SERX[i],data:M.map(()=>rf(96.4,99.5,2))})),limit:98,limitLabel:'목표 98.0%',vFmt:v=>v+'%',yFmt:v=>v.toFixed(1),h:250}));
+  mountTable($('#yt',page),{cols:[{key:'code',title:'제품코드',w:110},{key:'name',title:'제품명',w:150},...M.map((m,i)=>({key:'y'+i,title:m,num:1,w:90,fmt:v=>v<98?`<span style="color:var(--danger);font-weight:600">${v.toFixed(2)}</span>`:v.toFixed(2)})),{key:'avg',title:'평균',num:1,w:96,fmt:v=>`<b>${v.toFixed(2)}%</b>`}],
+    rows:PRODUCTS.map(p=>{const r={code:p[0],name:p[1]};let s=0;M.forEach((_,i)=>{r['y'+i]=rf(96.2,99.6,2);s+=r['y'+i]});r.avg=s/M.length;return r}),noFoot:true});
+  wireRPick(page);
+};
+SCREENS['rpt-lrr-customer']=(page,item)=>{
+  page.innerHTML=pageHead(item,reportPicker(item)+seg(['월간','분기'],0)+exportBtns())+`<div class="grid g-1-2">${card('고객사별 LRR',`<div id="lh"></div>`,{sub:'단위 ppm · 낮을수록 좋습니다'})}${card('유형별 구성',`<div class="chart-box" id="lb"></div>`,{sub:'고객사별 불량 유형 건수',right:`<div class="legend-inline">${DEFECTS.slice(0,3).map((d,i)=>`<span><i style="background:${SERX[i]}"></i>${d}</span>`).join('')}</div>`})}</div><div id="lt" style="margin-top:14px"></div>`;
+  $('#lh',page).innerHTML=hbars(CUSTOMERS.map((c,i)=>({l:c,v:ri(120,980),c:i===0?'var(--primary)':'var(--spark)'})).sort((a,b)=>b.v-a.v),{fmt:v=>nf(v)+' ppm'});
+  mountChart($('#lb',page),barChart({labels:CUSTOMERS.map(c=>c.replace('고객사 ','')),series:DEFECTS.slice(0,3).map((d,i)=>({name:d,color:SERX[i],data:CUSTOMERS.map(()=>ri(10,90))})),h:240,vFmt:v=>v+'건'}));
+  mountTable($('#lt',page),{cols:[{key:'c',title:'고객사',w:120},{key:'ship',title:'출하 수량',num:1,w:120},{key:'def',title:'불량 수량',num:1,w:110},{key:'ppm',title:'LRR(ppm)',num:1,w:110},{key:'top',title:'주요 유형',w:120},{key:'trend',title:'전월 대비',num:1,w:120,fmt:v=>drift(v,v<0,'%')}],rows:CUSTOMERS.map(c=>{const s=ri(200000,900000),d=ri(40,600);return {c,ship:s,def:d,ppm:Math.round(d/s*1e6),top:pick(DEFECTS),trend:rf(-30,25,1)}}),noFoot:true});
+  wireRPick(page);
+};
+SCREENS['rpt-scrap']=(page,item)=>{
+  page.innerHTML=pageHead(item,reportPicker(item)+exportBtns())+`<div class="card" style="padding:16px 20px;margin-bottom:14px"><div class="row wrap" style="gap:16px">${stepsH(['작성','팀장 검토','공장장 승인','완료'],1)}<span class="spacer"></span><span class="t-caption">결재 번호 SC-2610-018</span></div></div>
+  <div class="grid g3" style="margin-bottom:14px">${[['폐기 수량','4,218 EA',''],['폐기 금액',`<span class="blind">${ic('lock',14)}●●●●●</span>`,'단가·금액은 경영진과 원가 담당 부서만 볼 수 있습니다.'],['전월 대비','-12.4%','']].map(([a,b,h])=>`<div class="card stat"><span class="t-label">${a}</span><div class="num-sm">${b}</div>${h?`<span class="t-caption">${h}</span>`:''}</div>`).join('')}</div><div id="sct"></div>`;
+  mountTable($('#sct',page),{select:true,cols:[{key:'date',title:'일자',w:110},{key:'proc',title:'공정',w:100},{key:'name',title:'제품명',w:150},{key:'reason',title:'폐기 사유',w:140},{key:'qty',title:'수량',num:1,w:90},{key:'amt',title:'금액',num:1,w:110,sort:false,fmt:()=>`<span class="blind">●●●●</span>`},{key:'by',title:'등록자',w:90},{key:'st',title:'상태',w:100,sort:false,fmt:v=>badge(v,v==='반려'?'danger':v==='승인'?'success':'warning')}],
+    rows:[...Array(26)].map((_,i)=>({date:day(i%9),proc:pick(PROCS),name:pick(PRODUCTS)[1],reason:pick(['치수 불량','표면 손상','공정 시험품','재작업 불가','고객 반품']),qty:ri(20,480),by:pick(NAMES),st:pick(['검토 중','검토 중','승인','반려'])}))});
+  wireRPick(page);
+};
+
+/* ---------- 시스템 관리 ---------- */
+function accountForm(r={}){return `<div class="stack">${field('사번',input('예) 20140901',{val:r.id||''}),{req:1})}${field('이름',input('이름',{val:r.name||''}),{req:1})}${field('부서',select(DEPTS,r.dept||DEPTS[0]),{req:1})}${field('권한',radio('role',['일반','팀장','관리자'],r.role||'일반'))}${field('사용 여부',sw(r.use!==false,'계정 사용'))}${field('알림 받기',`<div class="stack" style="gap:8px">${chk('이상 알림 (긴급)',true)}${chk('일일 보고서 결재',true)}${chk('데이터 연동 오류',false)}</div>`)}${r.id?hintBox('그룹웨어에서 들어온 계정은 이름과 부서를 그룹웨어 기준으로 맞춥니다.','link'):''}</div>`}
+SCREENS['sys-account']=(page,item)=>{
+  seed=31;const rows=[...Array(46)].map((_,i)=>({id:String(20100000+ri(100,99999)),name:pick(NAMES),dept:pick(DEPTS),role:pick(['일반','일반','팀장','관리자']),src:pick(['그룹웨어','그룹웨어','직접 등록']),last:day(ri(0,20))+' '+String(ri(7,19)).padStart(2,'0')+':'+String(ri(0,59)).padStart(2,'0'),use:rnd()>.12}));
+  page.innerHTML=pageHead(item,btn('계정 등록',{v:'primary',icon:'plus',attrs:'id="addAcc"'}))+filterBar({fields:field('검색',`<span class="inp-ic">${ic('search',15)}${input('사번·이름',{sm:1})}</span>`,{cls:'w-lg'})+field('부서',select(['전체',...DEPTS],'전체',{sm:1}))+field('상태',seg(['전체','사용','중지'],0,{cls:'sm'}))})+`<div id="at"></div>`;
+  const open=r=>openDrawer({title:r?'계정 수정':'계정 등록',sub:r?`${r.id} · ${r.name}`:'새 사용자를 직접 등록합니다',body:accountForm(r||{}),foot:(r?btn('비밀번호 초기화',{v:'danger',attrs:'data-reset-pw style="margin-right:auto"'}):'')+btn('취소',{attrs:'data-close'})+btn('저장',{v:'primary',attrs:'data-save'}),
+    onMount:(root,close)=>{$('[data-save]',root).onclick=e=>{const b=e.currentTarget;b.classList.add('loading');setTimeout(()=>{close();toast(r?'계정 정보를 저장했습니다.':'계정을 등록했습니다.')},500)};const rp=$('[data-reset-pw]',root);rp&&(rp.onclick=()=>confirmBox('비밀번호를 초기화할까요?','임시 비밀번호가 사내 메일로 발송됩니다. 되돌릴 수 없습니다.','초기화',()=>toast('임시 비밀번호를 발송했습니다.')))}});
+  mountTable($('#at',page),{select:true,cols:[{key:'id',title:'사번',w:110,fmt:v=>`<span class="num-t">${v}</span>`},{key:'name',title:'이름',w:90},{key:'dept',title:'부서',w:130},{key:'role',title:'권한',w:90,fmt:v=>v==='관리자'?badge(v,'brand',{icon:'shield'}):v==='팀장'?badge(v,'line',{icon:null}):esc(v)},{key:'src',title:'가입 경로',w:110},{key:'last',title:'최근 접속',w:150,fmt:v=>`<span class="num-t fg2">${v}</span>`},{key:'use',title:'사용',w:80,center:1,sort:false,fmt:v=>`<span class="sw-row" style="justify-content:center"><button class="sw" role="switch" aria-checked="${v}" aria-label="사용 여부"><span class="knob"></span></button></span>`}],rows,onRow:r=>open(r)});
+  $('#addAcc',page).onclick=()=>open(null);wireFilters(page);
+};
+function confirmBox(title,msg,ok,cb){openModal({title,w:420,body:`<p class="t-body">${msg}</p>`,foot:btn('취소',{attrs:'data-close'})+btn(ok,{v:'primary',attrs:'data-ok'}),onMount:(r,close)=>{$('[data-ok]',r).onclick=()=>{close();cb&&cb()}}})}
+SCREENS['sys-gw-dept']=(page,item)=>{
+  const GW=['경영지원본부','생산1팀','생산2팀','품질보증팀','QC파트','표면처리파트','설비보전파트','영업1팀','영업2팀','전산팀'];
+  page.innerHTML=pageHead(item,btn('그룹웨어 다시 읽기',{icon:'refresh',attrs:'id="gwr"'}))+`<div class="grid g-2-1"><div>${card('부서 매핑',`<div class="tbl"><div class="tbl-scroll"><table style="width:100%;min-width:520px"><colgroup><col style="width:44%"><col style="width:40px"><col><col style="width:90px"></colgroup><thead><tr><th>그룹웨어 부서</th><th></th><th>AX 부서</th><th class="c">인원</th></tr></thead><tbody>${GW.map((g,i)=>`<tr><td>${g}</td><td class="c fg3">${ic('arrowRight',15)}</td><td style="padding:4px 12px">${select(['(미지정)',...DEPTS],i===4||i===9?'(미지정)':DEPTS[Math.min(i,7)],{sm:1})}</td><td class="c num-c">${ri(3,40)}</td></tr>`).join('')}</tbody></table></div></div>`,{sub:'자동 가입 때 이 표를 따라 부서가 정해집니다',right:badge('2건 미지정','warning')})}</div>
+  ${card('미배정 계정',`<p class="t-sm fg3" style="margin-bottom:10px">부서를 고르면 칩이 해당 부서로 옮겨집니다.</p><div class="chips" id="ua">${['김*수 · QC파트','이*진 · 전산팀','박*호 · QC파트','최*영 · 전산팀','정*민 · QC파트'].map(n=>`<span class="chip">${ic('user',14)}${n}<button class="x" aria-label="배정">${ic('arrowRight',12,2.2)}</button></span>`).join('')}</div><div class="field" style="margin-top:14px"><label>옮길 부서</label>${select(DEPTS,'품질보증팀',{id:'toDept'})}</div>`)}</div>`;
+  const ua=$('#ua',page);ua.addEventListener('click',e=>{const x=e.target.closest('.x');if(!x)return;const c=x.closest('.chip');c.classList.add('leave');const nm=c.textContent.trim().split(' · ')[0];setTimeout(()=>{flip(ua,()=>c.remove());toast(`${nm} 님을 ${$('#toDept',page).value}(으)로 옮겼습니다.`);if(!$('.chip',ua))ua.innerHTML=empty('미배정 계정이 없습니다.','checkCircle')},130)});
+  $('#gwr',page).onclick=e=>{const b=e.currentTarget;b.classList.add('loading');setTimeout(()=>{b.classList.remove('loading');toast('그룹웨어 인사정보를 다시 읽었습니다. 변경 0건.',{tone:'info'})},800)};
+};
+function permMatrix(rowsL,colsL,{sw:useSw,seedv=5}={}){seed=seedv;
+  return `<div class="tbl perm"><div class="tbl-scroll" style="max-height:560px"><table style="width:max(100%,${200+colsL.length*112}px)"><colgroup><col style="width:220px">${colsL.map(()=>'<col style="width:112px">').join('')}</colgroup><thead><tr><th class="sticky-l">${useSw?'데이터 항목':'메뉴'}</th>${colsL.map(c=>`<th class="c">${c}</th>`).join('')}</tr></thead><tbody>${rowsL.map(r=>`<tr><td class="sticky-l">${r.g?`<span class="t-caption" style="display:block;line-height:14px">${r.g}</span>`:''}${r.n}</td>${colsL.map((_,ci)=>`<td class="c">${useSw?`<span class="sw-row" style="justify-content:center"><button class="sw" role="switch" aria-checked="${ci===0||rnd()>.55}" aria-label="${r.n}"><span class="knob"></span></button></span>`:chk('',ci===0||rnd()>.4,{attrs:`aria-label="${r.n}"`})}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`}
+SCREENS['sys-menu']=(page,item)=>{
+  page.innerHTML=pageHead(item,btn('변경 취소',{v:'ghost'})+btn('저장',{v:'primary',icon:'save',attrs:'data-psave'}))+hintBox('부서가 많아 표가 가로로 넘칩니다. 첫 열(메뉴)은 고정되어 스크롤해도 보입니다.','info')+`<div style="margin-top:12px">${permMatrix(MENU.flatMap(g=>g.items.map(i=>({g:g.g,n:i.name}))),DEPTS)}</div>`;
+  $('[data-psave]',page).onclick=()=>toast('메뉴 접근 권한을 저장했습니다. 다음 로그인부터 적용됩니다.');
+};
+SCREENS['sys-data']=(page,item)=>{
+  page.innerHTML=pageHead(item,btn('항목 관리',{icon:'settings',attrs:'id="fm"'})+btn('저장',{v:'primary',attrs:'data-psave'}))+`<div style="margin-bottom:12px">${seg(['금액·원가','고객 정보','개인정보'],0,{cls:'line'})}</div>${permMatrix(['제품 단가','판매 금액','재료 원가','폐기 금액','가공비','고객사명','작업자 이름'].map(n=>({n})),DEPTS,{sw:1,seedv:9})}`;
+  $('[data-psave]',page).onclick=()=>toast('데이터 접근 권한을 저장했습니다.');
+  $('#fm',page).onclick=()=>openModal({title:'항목 관리 — 화면 보고 가리기',w:560,body:`<p class="t-sm fg3" style="margin-bottom:12px">가릴 항목을 고르면 해당 화면에서 값이 ●●● 로 보입니다.</p><div class="stack" style="gap:10px">${['실적 집계·조회 › 금액','폐기 보고서 › 금액','고객사별 LRR › 고객사명','실적 집계·조회 › 작업자'].map((t,i)=>chk(t,i!==2)).join('')}</div>`,foot:btn('닫기',{attrs:'data-close'})+btn('적용',{v:'primary',attrs:'data-close'})});
+};
+function condForm(){return `<div class="stack">${field('조건 이름',input('예) PRESS 금형 온도 상한'),{req:1})}<div class="grid g3">${field('대상 지표',select(['금형 온도','불량률','가동률','도금 두께 편차','재검 전환율'],'금형 온도'))}${field('비교',select(['초과','미만','변화율 초과'],'초과'))}${field('임계값',input('185',{val:'185'}),{hint:'단위 ℃'})}</div>${field('지속 시간',seg(['즉시','5분','10분','30분'],1,{cls:'sm'}))}${field('심각도',radio('lv',['긴급','주의','정보'],'긴급'))}${field('발송 채널',`<div class="row wrap" style="gap:16px">${chk('앱 알림',true)}${chk('사내 메신저',true)}${chk('문자',false)}${chk('메일',false)}</div>`)}${field('사용',sw(true,'조건 사용'))}</div>`}
+SCREENS['alert-cond']=(page,item)=>{
+  page.innerHTML=pageHead(item,btn('조건 등록',{v:'primary',icon:'plus',attrs:'id="ac"'}))+`<div id="act"></div>`;
+  const open=()=>openModal({title:'발송 조건 등록',w:640,body:condForm(),foot:btn('취소',{attrs:'data-close'})+btn('등록',{v:'primary',attrs:'data-ok'}),onMount:(r,close)=>{$('[data-ok]',r).onclick=()=>{const f=$('input.inp',r);if(!f.value.trim()){const fd=f.closest('.field');fd.classList.add('has-err');if(!$('.err',fd))fd.insertAdjacentHTML('beforeend',`<div class="err">${ic('alert',14,2)}조건 이름을 입력하십시오.</div>`);fd.classList.remove('shake');void fd.offsetWidth;fd.classList.add('shake');f.focus();return}close();toast('발송 조건을 등록했습니다.')}}});
+  $('#ac',page).onclick=open;seed=61;
+  mountTable($('#act',page),{cols:[{key:'n',title:'조건 이름',w:220},{key:'m',title:'대상 지표',w:130},{key:'r',title:'조건',w:140},{key:'lv',title:'심각도',w:96,fmt:v=>badge(v,LV_TONE[v])},{key:'ch',title:'채널',w:160},{key:'cnt',title:'최근 7일 발송',num:1,w:120},{key:'use',title:'사용',w:80,center:1,sort:false,fmt:v=>`<span class="sw-row" style="justify-content:center"><button class="sw" role="switch" aria-checked="${v}" aria-label="사용"><span class="knob"></span></button></span>`}],
+    rows:[['PRESS 금형 온도 상한','금형 온도','185℃ 초과 5분'],['공정 불량률 관리 한계','불량률','2.5% 초과 10분'],['설비 가동률 저하','가동률','70% 미만 30분'],['도금 두께 편차','도금 두께 편차','0.35㎛ 초과'],['AOI 재검 전환율','재검 전환율','8% 초과 30분'],['MES 연동 지연','연동 지연','10분 초과']].map(([n,m,r])=>({n,m,r,lv:pick(['긴급','주의','정보']),ch:pick(['앱 · 메신저','앱','앱 · 메신저 · 문자']),cnt:ri(0,24),use:rnd()>.2})),onRow:()=>open()});
+};
+SCREENS['sys-recip']=(page,item)=>{
+  const G=['PRESS 긴급 대응','품질 이상 공유','일일 보고 결재','IT 연동 담당'];
+  page.innerHTML=pageHead(item,btn('그룹 추가',{icon:'plus'})+btn('수신자 추가',{v:'primary',icon:'plus'}))+`<div class="grid g-1-2">${card('수신 그룹',`<div class="stack" style="gap:4px" id="rg">${G.map((g,i)=>`<button class="sb-item ${i===0?'active':''}" data-g="${i}" style="height:44px">${ic('users',16)}<span class="sb-label" style="flex:1">${g}</span><span class="badge">${ri(3,12)}</span></button>`).join('')}</div>`)}<div id="rt"></div></div>`;
+  const draw=gi=>{seed=200+gi;mountTable($('#rt',page),{cols:[{key:'n',title:'이름',w:90},{key:'d',title:'부서',w:120},{key:'ph',title:'연락처',w:140,fmt:v=>`<span class="num-t">${v}</span>`},{key:'ch',title:'채널',w:150},{key:'sub',title:'대리 수신자',w:110},{key:'on',title:'수신',w:80,center:1,sort:false,fmt:v=>`<span class="sw-row" style="justify-content:center"><button class="sw" role="switch" aria-checked="${v}" aria-label="수신"><span class="knob"></span></button></span>`}],rows:[...Array(ri(4,9))].map(()=>({n:pick(NAMES),d:pick(DEPTS),ph:'010-****-'+ri(1000,9999),ch:pick(['앱 · 메신저','앱 · 문자','메일']),sub:rnd()>.5?pick(NAMES):'—',on:rnd()>.15})),noFoot:true})};
+  draw(0);$('#rg',page).addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b)return;$$('[data-g]',page).forEach(x=>x.classList.toggle('active',x===b));draw(+b.dataset.g)});
+};
+SCREENS['sys-gloss']=(page,item)=>{
+  page.innerHTML=pageHead(item,btn('용어 등록',{v:'primary',icon:'plus'}))+filterBar({fields:field('검색',`<span class="inp-ic">${ic('search',15)}${input('용어·유사어',{sm:1})}</span>`,{cls:'w-lg'})+field('분류',select(['전체','공정','불량','설비','지표'],'전체',{sm:1}))})+`<div id="gt"></div>`;
+  const T=[['찍힘','불량',['덴트','눌림','dent']],['버(Burr)','불량',['바리','거스러미']],['LRR','지표',['라인 불량률','Line Reject Rate']],['수율','지표',['양품률','yield']],['금형','설비',['다이','몰드','die']],['도금','공정',['플레이팅','plating']],['재검','공정',['리체크','2차 검사']],['폐기','공정',['스크랩','scrap']]];
+  mountTable($('#gt',page),{cols:[{key:'t',title:'공식 용어',w:140,fmt:v=>`<b>${v}</b>`},{key:'c',title:'분류',w:90,fmt:v=>badge(v,'line',{icon:null})},{key:'s',title:'현장 유사어',w:320,sort:false,fmt:v=>`<span class="chips" style="flex-wrap:nowrap">${v.map(x=>`<span class="badge">${esc(x)}</span>`).join('')}</span>`},{key:'by',title:'등록자',w:90},{key:'at',title:'수정일',w:110,fmt:v=>`<span class="num-t fg2">${v}</span>`}],rows:T.map(([t,c,s])=>({t,c,s,by:pick(NAMES),at:day(ri(1,60))})),noFoot:true});
+  wireFilters(page);
+};
+SCREENS['chat-history']=(page,item)=>{
+  seed=88;page.innerHTML=pageHead(item,exportBtns())+filterBar({fields:field('기간',`<div class="row" style="gap:6px">${dateInp(day(6),{sm:1})}<span class="fg3">~</span>${dateInp(day(0),{sm:1})}</div>`,{cls:'w-lg'})+field('평가',select(['전체','도움됨','아쉬움','평가 없음'],'전체',{sm:1}))})+`<div id="ch"></div>`;
+  const Q=['오늘 불량률 추이와 원인을 알려줘','공정별 수율 현황을 정리해줘','PRESS-07 최근 정지 이력','이번 주 LRR 상위 고객사','어제 대비 생산량이 줄어든 제품은?','AOI 재검 물량 추이'];
+  mountTable($('#ch',page),{cols:[{key:'at',title:'시각',w:150,fmt:v=>`<span class="num-t">${v}</span>`},{key:'u',title:'사용자',w:90},{key:'d',title:'부서',w:120},{key:'q',title:'질의',w:300},{key:'ms',title:'응답 시간',num:1,w:100,fmt:v=>(v/1000).toFixed(1)+'초'},{key:'fb',title:'평가',w:100,sort:false,fmt:v=>v==='도움됨'?badge(v,'success',{icon:'thumbsUp'}):v==='아쉬움'?badge(v,'danger',{icon:'thumbsDown'}):'<span class="fg3">—</span>'}],
+    rows:[...Array(36)].map((_,i)=>({at:day(i%6)+' '+String(ri(7,19)).padStart(2,'0')+':'+String(ri(0,59)).padStart(2,'0'),u:pick(NAMES),d:pick(DEPTS),q:pick(Q),ms:ri(1200,6400),fb:pick(['도움됨','도움됨','아쉬움','—'])})),
+    onRow:r=>openDrawer({title:'질의 상세',sub:`${r.at} · ${r.u}`,body:`<div class="stack"><div class="msg user"><div class="bubble">${esc(r.q)}</div></div><div class="msg ai">${orb()}<div class="body"><div>${(ANSWERS.find(a=>a.re.test(r.q))||DEFAULT_ANS).text}</div><div class="src-chips">${['MES 생산실적','설비 센서'].map(s=>`<span class="badge b-line">${ic('database',12)}${s}</span>`).join('')}</div></div></div><dl class="kv" style="margin-top:8px"><dt>응답 시간</dt><dd>${(r.ms/1000).toFixed(1)}초</dd><dt>사용 모델</dt><dd>claude-sonnet-5-5</dd><dt>조회 테이블</dt><dd>tb_prod_result 외 2</dd></dl></div>`,foot:btn('닫기',{attrs:'data-close'})})});
+  wireFilters(page);
+};
+function logScreen(page,item,{cols,rows,timeline}){
+  page.innerHTML=pageHead(item,exportBtns())+filterBar({fields:field('기간',`<div class="row" style="gap:6px">${dateInp(day(6),{sm:1})}<span class="fg3">~</span>${dateInp(day(0),{sm:1})}</div>`,{cls:'w-lg'})+field('검색',`<span class="inp-ic">${ic('search',15)}${input('사용자·대상',{sm:1})}</span>`)})+`<div id="lg"></div>`;
+  mountTable($('#lg',page),{cols,rows,onRow:r=>openDrawer({title:'상세 이력',sub:r.at||r.id,body:`<div class="tl">${timeline(r).map(([t,s,c])=>`<div class="tl-i ${c||''}"><div class="t">${t}</div><div class="t-sm">${s}</div></div>`).join('')}</div>`,foot:btn('닫기',{attrs:'data-close'})})});
+  wireFilters(page);
+}
+const ts=()=>day(ri(0,6))+' '+String(ri(0,23)).padStart(2,'0')+':'+String(ri(0,59)).padStart(2,'0')+':'+String(ri(0,59)).padStart(2,'0');
+SCREENS['sys-audit']=(page,item)=>{seed=12;logScreen(page,item,{cols:[{key:'at',title:'시각',w:170,fmt:v=>`<span class="num-t">${v}</span>`},{key:'u',title:'사용자',w:90},{key:'ip',title:'접속 IP',w:130,fmt:v=>`<span class="mono">${v}</span>`},{key:'ev',title:'이벤트',w:150},{key:'tg',title:'대상',w:200},{key:'rs',title:'결과',w:96,fmt:v=>badge(v,v==='성공'?'success':'danger')}],
+  rows:[...Array(60)].map(()=>({at:ts(),u:pick(NAMES),ip:'10.0.'+ri(1,40)+'.'+ri(2,250),ev:pick(['로그인','로그인 실패','권한 변경','데이터 열람','파일 내려받기']),tg:pick(['실적 집계·조회','폐기 보고서 › 금액','계정 관리','메뉴 접근 권한']),rs:rnd()>.12?'성공':'차단'})),
+  timeline:r=>[[r.at,`${r.ev} — ${r.tg}`,'on'],['','접속 IP '+r.ip],['','결과: '+r.rs,r.rs==='성공'?'ok':'on']]})};
+SCREENS['sys-dl']=(page,item)=>{seed=13;logScreen(page,item,{cols:[{key:'at',title:'시각',w:170,fmt:v=>`<span class="num-t">${v}</span>`},{key:'u',title:'사용자',w:90},{key:'d',title:'부서',w:120},{key:'f',title:'파일',w:260},{key:'sz',title:'크기',num:1,w:90,fmt:v=>v+' KB'},{key:'mask',title:'가림 적용',w:100,fmt:v=>v?badge('적용','brand',{icon:'lock'}):'<span class="fg3">—</span>'}],
+  rows:[...Array(44)].map(()=>({at:ts(),u:pick(NAMES),d:pick(DEPTS),f:pick(['일일생산현황_20261001.xlsx','폐기보고서_SC-2610-018.xlsx','실적집계_주간.xlsx','고객사별LRR_9월.xlsx']),sz:ri(40,880),mask:rnd()>.5})),
+  timeline:r=>[[r.at,'내려받기 요청','on'],['','권한 확인 — 가림 '+(r.mask?'적용':'없음'),'ok'],['',r.f+' 생성 · '+r.sz+' KB','ok']]})};
+SCREENS['sys-upload-doc']=(page,item)=>{seed=14;logScreen(page,item,{cols:[{key:'f',title:'문서',w:260},{key:'v',title:'버전',w:80,center:1,fmt:v=>badge('v'+v,'line',{icon:null})},{key:'u',title:'올린 사람',w:100},{key:'at',title:'올린 시각',w:170,fmt:v=>`<span class="num-t">${v}</span>`},{key:'rows',title:'행 수',num:1,w:90},{key:'st',title:'반영',w:100,fmt:v=>badge(v,v==='반영 완료'?'success':'warning')}],
+  rows:[...Array(18)].map(()=>({f:pick(['월간 생산계획','고객사 출하계획','원가 기준표','설비 보전 계획'])+'.xlsx',v:ri(1,7),u:pick(NAMES),at:ts(),rows:ri(40,2400),st:rnd()>.2?'반영 완료':'검토 중'})),
+  timeline:r=>[...Array(r.v)].map((_,i)=>[day(i*3)+' 09:'+String(10+i).padStart(2,'0'),`v${r.v-i} 업로드`,i===0?'on':'ok'])})};
+SCREENS['sys-sync']=(page,item)=>{seed=15;
+  page.innerHTML='';const top=document.createElement('div');page.append(top);
+  logScreen(top,item,{cols:[{key:'at',title:'시작 시각',w:170,fmt:v=>`<span class="num-t">${v}</span>`},{key:'job',title:'작업',w:200},{key:'src',title:'원천',w:110},{key:'n',title:'건수',num:1,w:100},{key:'ms',title:'소요',num:1,w:90,fmt:v=>v+'초'},{key:'st',title:'결과',w:100,fmt:v=>badge(v,v==='성공'?'success':v==='지연'?'warning':'danger')}],
+  rows:[...Array(70)].map(()=>({at:ts(),job:pick(['생산실적 이관','AOI 판정 이관','설비 센서 집계','불량 상세 이관','출하 실적 이관']),src:pick(['MES','MSSQL','NAS']),n:ri(120,48000),ms:ri(3,240),st:pick(['성공','성공','성공','성공','지연','실패'])})),
+  timeline:r=>[[r.at,'연동 시작','ok'],['',`${r.src}에서 ${nf(r.n)}건 읽음`,'ok'],['','AX 계층 적재',r.st==='실패'?'on':'ok'],['','결과: '+r.st,r.st==='성공'?'ok':'on']]});
+};
+
+/* ---------- 알림 목록·상세 ---------- */
+SCREENS['alert-list']=(page,item)=>{
+  page.innerHTML=pageHead(item,btn('모두 확인 처리',{icon:'check',attrs:'id="readAll"'}))+`<div style="margin-bottom:14px">${seg(['전체','미확인','처리 중','완료'],0,{cls:'line',id:'af'})}</div><div class="grid g-1-2"><div class="stack" style="gap:8px" id="al"></div><div id="ad"></div></div>`;
+  let f=null,cur=ALERTS[0].id;
+  const list=()=>{const L=ALERTS.filter(a=>!f||a.st===f);$('#al',page).innerHTML=L.length?L.map(a=>`<button class="card" data-a="${a.id}" style="text-align:left;padding:14px 16px;display:flex;flex-direction:column;gap:6px;transition:border-color var(--t),background-color var(--t);${a.id===cur?'border-color:rgba(221,45,74,.4);background:var(--tint-bg)':''}"><span class="row">${badge(a.lv,LV_TONE[a.lv])}${badge(a.st,ST_TONE[a.st],{icon:null})}<span class="spacer"></span><span class="t-caption num-t">${a.time}</span></span><span class="h-card" style="font-size:15px">${a.title}</span><span class="t-caption">${a.eq} · ${a.id}</span></button>`).join(''):`<div class="card">${empty('해당 상태의 알림이 없습니다.','bell')}</div>`};
+  const detail=()=>{const a=ALERTS.find(x=>x.id===cur);if(!a){$('#ad',page).innerHTML='';return}
+    $('#ad',page).innerHTML=card(a.title,`<div class="stack"><div class="row">${badge(a.lv,LV_TONE[a.lv])}${badge(a.st,ST_TONE[a.st],{icon:null})}<span class="t-caption">${a.eq} · ${a.id}</span></div><p class="t-body">${a.desc}</p><div class="chart-box" id="adc"></div><div><div class="h-card" style="margin-bottom:10px">처리 이력</div><div class="tl"><div class="tl-i on"><div class="t">${a.time}</div><div class="t-sm">알림 발생 — 수신 그룹 「PRESS 긴급 대응」 5명에게 발송</div></div>${a.st!=='미확인'?`<div class="tl-i"><div class="t">+6분</div><div class="t-sm">박*호 님이 확인</div></div>`:''}${a.st==='완료'?`<div class="tl-i ok"><div class="t">+42분</div><div class="t-sm">조치 완료 — 정상 범위로 돌아옴</div></div>`:''}</div></div>${field('조치 내용',`<textarea class="inp" rows="3" placeholder="조치 내용을 남기면 이력에 기록됩니다"></textarea>`)}<div class="row" style="justify-content:flex-end">${btn('덕반장 AI에 묻기',{icon:'sparkles',attrs:'data-ai'})}${a.st==='완료'?'':btn(a.st==='미확인'?'확인':'완료 처리',{v:'primary',attrs:'data-adv'})}</div></div>`,{cls:'',attrs:'style="animation:fadeUp .25s var(--ease) both"'});
+    mountChart($('#adc',page),lineChart({labels:hours.slice(0,8),series:[{name:'측정값',color:'#DD2D4A',data:hours.slice(0,8).map((_,i)=>+(170+i*2.6+rnd()*2).toFixed(1))}],limit:185,limitLabel:'상한',vFmt:v=>v,yFmt:v=>v.toFixed(0),h:170}));
+    const adv=$('[data-adv]',page);adv&&(adv.onclick=()=>{a.st=a.st==='미확인'?'처리 중':'완료';if(unread>0)setUnread(unread-1);list();detail();toast(`알림을 「${a.st}」 상태로 바꿨습니다.`)})};
+  list();detail();
+  $('#al',page).addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;cur=b.dataset.a;list();detail()});
+  $('#af',page).addEventListener('segchange',e=>{f=[null,'미확인','처리 중','완료'][e.detail];flip($('#al',page),list)});
+  $('#readAll',page).onclick=()=>{ALERTS.forEach(a=>{if(a.st==='미확인')a.st='처리 중'});setUnread(0);list();detail();toast('미확인 알림을 모두 확인 처리했습니다.')};
+};
+
+/* ---------- 컴포넌트·토큰 ---------- */
+SCREENS['gallery']=(page,item)=>{
+  const sws=[['primary','#880D1E','기본·채움 버튼'],['accent','#DD2D4A','포커스·활성 지시자'],['spark','#F26A8D','데이터 강조'],['tint','#F49CBB','선택 배경(투명도)'],['mute','#D1D5DE','비강조 데이터'],['blush','#EDE3E9','캔버스 원색'],['bg','#F6F1F4','캔버스'],['fg','#1E1418','본문'],['fg3','#7A6E74','캡션·라벨'],['success','#2E9E57','성공'],['warning','#E8A33D','주의'],['danger','#C81E1E','오류']];
+  const TY=[['display 30','display','현장의 답은 데이터 안에'],['h-lg 26','h-lg','통합관리자님, 좋은 아침입니다.'],['h-page 22','h-page','실적 집계·조회'],['h-sec 18','h-sec','발송 조건 등록'],['h-card 16','h-card','시간대별 불량률'],['body 15 (기본)','t-body','PRESS 공정의 찍힘 불량이 06시 이후 늘었습니다.'],['sm 14','t-sm','표 본문 · 칩 · 보조 문장'],['label 13.5','t-label','입력 라벨 · 소제목'],['xs 13','t-xs','표 헤더 · 힌트'],['caption 12.5','t-caption','출처 · 시각 · 단위'],['num 26','num','128,430'],['num-sm 20','num-sm','98.42%']];
+  page.innerHTML=pageHead(item)+`<div class="stack" style="gap:18px">
+  ${card('컬러',`<div class="sw-grid">${sws.map(([n,c,u])=>`<div class="swatch"><i style="background:${c}"></i><div><b>${n}</b><span class="mono fg3">${c}</span><span class="t-caption">${u}</span></div></div>`).join('')}</div>${srcNote('차트 계열 순서: #880D1E → #DD2D4A → #F26A8D → #F49CBB → #8A93A6 → #2E9E57')}`)}
+  ${card('타이포그래피 — 기본 15px',TY.map(([a,c,t])=>`<div class="type-row"><span class="t-caption mono">${a}</span><span class="${c}">${t}</span></div>`).join(''))}
+  <div class="grid g2">
+  ${card('버튼',`<div class="gal-sec"><div class="row wrap">${btn('주요 동작',{v:'primary'})}${btn('보조',{})}${btn('고스트',{v:'ghost'})}${btn('삭제',{v:'danger',icon:'trash'})}</div><div class="row wrap">${btn('작게',{v:'primary',sm:1})}${btn('아이콘',{sm:1,icon:'download'})}${btn('로딩 보기',{v:'primary',attrs:'id="gLoad"'})}${iconBtn('refresh','새로고침',{cls:'spin-on-press'})}${iconBtn('settings','설정')}</div><div class="row wrap t-sm"><a class="lnk" href="#/gallery">밑줄이 그려지는 링크</a></div></div>`)}
+  ${card('배지 · 상태',`<div class="gal-sec"><div class="row wrap">${badge('성공','success')}${badge('주의','warning')}${badge('오류','danger')}${badge('브랜드','brand',{icon:'sparkles'})}${badge('기본')}${badge('외곽선','line',{icon:null})}</div>${hintBox('오류·주의는 색만으로 구분하지 않고 아이콘을 함께 둡니다.','info')}<div class="alert-box error">${ic('alert',16,2)}<span>사번 또는 비밀번호가 일치하지 않습니다.</span></div></div>`)}
+  ${card('입력',`<div class="gal-sec">${field('텍스트',input('입력하십시오'),{req:1,hint:'도움말 문장'})}${field('오류 상태',input('',{val:'잘못된 값'}),{err:'값을 다시 확인하십시오.'})}<div class="grid g2">${field('선택',select(DEPTS,DEPTS[1]))}${field('날짜',dateInp(day(0)))}</div></div>`)}
+  ${card('선택 컨트롤',`<div class="gal-sec"><div class="row wrap" style="gap:16px">${chk('체크박스',true)}${chk('선택 안 함',false)}</div>${radio('g',['라디오 1','라디오 2','라디오 3'],'라디오 1')}<div class="row wrap" style="gap:16px">${sw(true,'스위치 켜짐')}${sw(false,'꺼짐')}</div>${seg(['일','주','월','분기'],0)}${seg(['개요','상세','이력'],0,{cls:'line'})}</div>`)}
+  ${card('오버레이',`<div class="row wrap">${btn('토스트',{attrs:'id="gT"'})}${btn('주의 토스트',{attrs:'id="gT2"'})}${btn('모달',{attrs:'id="gM"'})}${btn('확인 창',{attrs:'id="gC"'})}${btn('드로어',{attrs:'id="gD"'})}${btn('팝오버',{attrs:'id="gP"'})}</div>`)}
+  ${card('AI 오브 · 진행',`<div class="gal-sec"><div class="row wrap" style="gap:24px">${['idle','thinking','done'].map(s=>`<div class="stack" style="align-items:center;gap:6px">${orb('lg',s)}<span class="t-caption">${{idle:'대기',thinking:'생각 중',done:'완료'}[s]}</span></div>`).join('')}${btn('완료 다시 보기',{sm:1,attrs:'id="gO"'})}</div>${stepsH(['작성','검토','승인'],1)}${prog(64)}<div class="stack" style="gap:8px"><div class="sk" style="height:14px;width:60%"></div><div class="sk" style="height:14px"></div><div class="sk" style="height:14px;width:80%"></div></div></div>`)}
+  </div>
+  ${card('빈 상태 · 권한 없음',`<div class="grid g2">${empty('조회된 데이터가 없습니다.','search',btn('조건 초기화',{sm:1}))}${empty('이 화면은 품질보증팀만 볼 수 있습니다.','lock',btn('권한 요청',{sm:1}))}</div>`)}
+  ${card('아이콘 '+Object.keys(ICON).length+'종',`<div class="ic-grid">${Object.keys(ICON).map(k=>`<div class="ic-cell">${ic(k,20)}<span>${k}</span></div>`).join('')}</div>`,{sub:'stroke 1.75 · round · 크기 14/16/18/20'})}
+  </div>`;
+  $('#gLoad',page).onclick=e=>{const b=e.currentTarget;b.classList.add('loading');setTimeout(()=>b.classList.remove('loading'),1200)};
+  $('#gT',page).onclick=()=>toast('저장했습니다.',{title:'완료'});
+  $('#gT2',page).onclick=()=>toast('도금 두께 편차가 관리 한계를 넘었습니다.',{tone:'warning',title:'새 알림'});
+  $('#gM',page).onclick=e=>openModal({title:'모달',from:e.currentTarget,body:`<p class="t-body">버튼 위치에서 펼쳐지는 전환입니다. Esc 로 닫힙니다.</p>`,foot:btn('닫기',{attrs:'data-close'})});
+  $('#gC',page).onclick=()=>confirmBox('삭제할까요?','삭제한 조건은 되돌릴 수 없습니다.','삭제',()=>toast('삭제했습니다.'));
+  $('#gD',page).onclick=()=>openDrawer({title:'드로어',sub:'오른쪽에서 들어옵니다',body:accountForm({}),foot:btn('닫기',{attrs:'data-close'})});
+  $('#gP',page).onclick=e=>openPop(e.currentTarget,`<div class="pop-h"><b class="t-sm">팝오버</b></div><div style="padding:12px 14px" class="t-sm fg2">트리거 쪽에서 솟아납니다.</div>`,{w:240,align:'start'});
+  $('#gO',page).onclick=()=>{const o=$$('.orb.lg',page)[2];o.dataset.state='idle';void o.offsetWidth;o.dataset.state='done'};
+};
+
+/* ---------- 404 ---------- */
+function notFound(page){
+  seed=404;let dots='';for(let y=0;y<16;y++)for(let x=0;x<44;x++){const d=Math.hypot(x-22,(y-8)*2.2)/24;const v=Math.max(0,1-d)+(rnd()-.5)*.3;if(v>.15)dots+=`<circle cx="${x*12+6}" cy="${y*12+6}" r="${(v*4.2).toFixed(2)}" fill="${v>.7?'#880D1E':v>.45?'#DD2D4A':v>.3?'#F26A8D':'#F49CBB'}" opacity="${(.35+v*.6).toFixed(2)}"/>`}
+  page.innerHTML=`<div class="nf"><svg viewBox="0 0 528 192" width="528">${dots}<text x="264" y="122" text-anchor="middle" font-family="Inter" font-weight="600" font-size="88" fill="#fff" letter-spacing="-3">404</text></svg><h1 class="h-page">화면을 찾을 수 없습니다</h1><p class="t-sm fg3">주소가 바뀌었거나 제거된 화면입니다. 메뉴에서 다시 찾아 주십시오.</p><div class="row">${btn('이전 화면',{icon:'arrowLeft',attrs:'onclick="history.back()"'})}${btn('홈으로',{v:'primary',attrs:'data-href="#/ai/chat"'})}</div></div>`;
+}
+
+/* =========================================================
+   10. 셸 · 라우팅
+   ========================================================= */
+const app=$('#app'),auth=$('#auth'),content=$('#content');
+function buildSidebar(){
+  $('#sbNav').innerHTML=MENU.map(g=>g.items.length===1&&g.g===g.items[0].name
+    ?`<div class="sb-group open" style="margin-bottom:4px">${sbItem(g.items[0])}</div>`
+    :`<div class="sb-group open"><button class="sb-gh" aria-expanded="true"><span>${g.g}</span>${ic('chevronDown',14)}</button><div class="sb-items"><div>${g.items.map(sbItem).join('')}</div></div></div>`).join('');
+  $$('.sb-gh').forEach(h=>h.onclick=()=>{const gr=h.parentElement;gr.classList.toggle('open');h.setAttribute('aria-expanded',gr.classList.contains('open'))});
+  const gl=$('.sb-foot [data-id="gallery"]');gl.innerHTML=`${ic('grid',18)}<span class="sb-label">컴포넌트·토큰</span>`;
+  const tg=$('#sbToggle');tg.innerHTML=`${ic('panelLeft',18)}<span class="sb-label">메뉴 접기</span>`;
+  tg.onclick=()=>{app.classList.toggle('collapsed');store.set('ax.sb',app.classList.contains('collapsed')?'1':'0');tg.dataset.tip=app.classList.contains('collapsed')?'메뉴 펼치기':'메뉴 접기';setTimeout(()=>$$('[data-seg].ready').forEach(s=>placeInd(s,$(':scope>button[aria-selected="true"]',s),false)),220)};
+  if(store.get('ax.sb')==='1')app.classList.add('collapsed');
+}
+const sbItem=i=>`<a class="sb-item" href="#${i.path}" data-id="${i.id}" data-tip="${i.name}" data-sbtip>${ic(i.icon,18)}<span class="sb-label">${i.name}</span>${i.tag?`<span class="tag-new" style="margin-left:auto">${i.tag}</span>`:''}</a>`;
+function setUnread(n){unread=n;const b=$('#bellBadge');b.textContent=n;b.hidden=n<=0;b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump')}
+function skeleton(){return `<div class="sk-page"><div class="sk" style="height:14px;width:120px"></div><div class="sk" style="height:26px;width:260px"></div><div class="grid g4" style="margin-top:8px">${'<div class="sk" style="height:108px;border-radius:14px"></div>'.repeat(4)}</div><div class="grid g-1-2"><div class="sk" style="height:260px;border-radius:14px"></div><div class="sk" style="height:260px;border-radius:14px"></div></div></div>`}
+function renderScreen(item){
+  cleanups.forEach(f=>{try{f()}catch(e){}});cleanups=[];closePop();
+  progStart();content.innerHTML=skeleton();content.scrollTop=0;
+  setTimeout(()=>{
+    content.innerHTML='';const page=document.createElement('div');page.className='page page-in';content.append(page);
+    try{item?(SCREENS[item.id]||notFound)(page,item):notFound(page)}catch(err){console.error(err);page.innerHTML=empty('화면을 그리는 중 문제가 생겼습니다.','alert')}
+    if(item&&item.id==='ai-chat')content.style.overflow='hidden';else content.style.overflow='';
+    wireCommon(page);progDone();
+  },RM?0:300);
+}
+function setActive(item){
+  $$('.sb-item').forEach(a=>a.classList.toggle('active',!!item&&a.dataset.id===item.id));
+  $('#crumb').innerHTML=item?`<span>${item.g}</span>${ic('chevronRight',14)}<b>${item.name}</b>`:`<b>화면을 찾을 수 없음</b>`;
+  document.title=(item?item.name+' · ':'')+'덕우전자 AX';
+  app.classList.remove('mob-nav');
+}
+let authed=store.get('ax.auth')==='1';
+function route(){
+  const h=location.hash.slice(1)||'/login';
+  if(['/login','/signup','/forgot'].includes(h)){
+    if(authed&&h==='/login'){location.hash='#/ai/chat';return}
+    showAuth(h);return;
+  }
+  if(!authed){location.hash='#/login';return}
+  if(app.hidden){auth.hidden=true;stopBrand();app.hidden=false}
+  const item=BY_PATH[h];setActive(item);renderScreen(item);
+}
+addEventListener('hashchange',route);
+document.addEventListener('click',e=>{const h=e.target.closest('[data-href]');if(h){e.preventDefault();location.hash=h.dataset.href}
+  const a=e.target.closest('[data-ai]');if(a)openRail()});
+
+/* 상단바 */
+function initTopbar(){
+  $('#mobMenu').innerHTML=ic('menu',18);$('#railClose').innerHTML=ic('close',16);fillIcons($('.topbar'));
+  $('#mobMenu').onclick=()=>app.classList.add('mob-nav');$('#sbScrim').onclick=()=>app.classList.remove('mob-nav');
+  $('#bell').onclick=e=>{const b=e.currentTarget;const p=openPop(b,`<div class="pop-h"><b class="h-card" style="flex:1">알림</b>${badge(unread+'건 미확인','danger')}</div><div style="padding:4px 0">${ALERTS.slice(0,5).map(a=>`<a class="pop-item" href="#/alert/list" style="align-items:flex-start">${badge(a.lv,LV_TONE[a.lv])}<span style="flex:1;min-width:0"><span style="display:block">${a.title}</span><span class="t-caption">${a.eq} · ${a.time}</span></span>${a.st==='미확인'?'<span class="dot" style="background:var(--accent);margin-top:7px"></span>':''}</a>`).join('')}</div><div class="pop-sep"></div><a class="pop-item" href="#/alert/list" style="justify-content:center;color:var(--primary);font-weight:600">전체 보기${ic('arrowRight',14)}</a>`,{w:360});
+    p&&p.addEventListener('click',e=>{if(e.target.closest('a'))closePop()})};
+  $('#userBtn').onclick=e=>{const p=openPop(e.currentTarget,`<div class="pop-h"><span class="avatar" style="margin:0">관</span><div><div class="h-card" style="font-size:15px">통합관리자</div><div class="t-caption num-t">20140901 · 경영지원팀</div></div></div><div style="padding:4px 0"><a class="pop-item" href="#/gallery">${ic('grid',16)}컴포넌트·토큰 보기</a><a class="pop-item" href="#/system/account">${ic('settings',16)}계정 설정</a><div class="pop-sep"></div><button class="pop-item" data-logout>${ic('logout',16)}로그아웃</button></div>`,{w:260});
+    p&&p.addEventListener('click',e=>{if(e.target.closest('[data-logout]')){closePop();authed=false;store.del('ax.auth');app.hidden=true;location.hash='#/login'}else if(e.target.closest('a'))closePop()})};
+  $('#railBtn').onclick=()=>app.classList.contains('rail-open')?closeRail():openRail();
+  $('#railClose').onclick=closeRail;
+  // 화면 검색 — ⌘K
+  const q=$('#q');let kb=0,res=[];
+  const showRes=()=>{const v=q.value.trim();res=ALL.filter(i=>!v||i.name.includes(v)||i.g.includes(v)).slice(0,9);kb=0;
+    const html=`<div style="padding:4px 0">${res.length?res.map((i,k)=>`<a class="pop-item ${k===0?'kb':''}" href="#${i.path}">${ic(i.icon,16)}<span style="flex:1">${i.name}</span><span class="t-caption">${i.g}</span></a>`).join(''):`<div class="t-sm fg3" style="padding:14px">「${esc(v)}」에 맞는 화면이 없습니다.</div>`}</div>`;
+    if(curPop&&curPop.trigger===$('#searchBox'))curPop.el.innerHTML=html;else{const p=openPop($('#searchBox'),html,{w:340,align:'start'});p&&p.addEventListener('click',e=>{if(e.target.closest('a')){closePop();q.value='';q.blur()}})}};
+  q.addEventListener('focus',showRes);q.addEventListener('input',showRes);
+  q.addEventListener('keydown',e=>{const items=curPop?$$('.pop-item',curPop.el):[];if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!items.length)return;kb=(kb+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;items.forEach((x,i)=>x.classList.toggle('kb',i===kb))}
+    if(e.key==='Enter'&&items[kb]){location.hash=items[kb].getAttribute('href');closePop();q.value='';q.blur()}if(e.key==='Escape'){closePop();q.blur()}});
+  document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'&&!app.hidden){e.preventDefault();q.focus()}});
+}
+let railChat=null;
+function openRail(){app.classList.add('rail-open');$('#railBtn').classList.add('on');if(!railChat)railChat=createChat($('#railChat'),{compact:true});setTimeout(()=>{$$('[data-seg].ready').forEach(s=>placeInd(s,$(':scope>button[aria-selected="true"]',s),false));const t=$('#railChat textarea');t&&t.focus()},240)}
+function closeRail(){app.classList.remove('rail-open');$('#railBtn').classList.remove('on');setTimeout(()=>$$('[data-seg].ready').forEach(s=>placeInd(s,$(':scope>button[aria-selected="true"]',s),false)),240)}
+/* 새 알림 흉내 — 45초마다 */
+setInterval(()=>{if(app.hidden||!authed)return;const n={id:'AL-2610-0'+(143+ALERTS.length),lv:'주의',title:pick(['COATING 막 두께 하한 근접','PRESS-02 타발 속도 저하','AOI-01 판정 지연']),eq:pick(EQUIP),time:'방금',st:'미확인',desc:'측정값이 관리 한계에 가까워지고 있습니다.'};ALERTS.unshift(n);setUnread(unread+1);
+  const b=$('#bell');b.classList.remove('ring-bell');void b.offsetWidth;b.classList.add('ring-bell');toast(n.title,{tone:'warning',title:'새 알림 · '+n.eq})},45000);
+
+/* =========================================================
+   11. 인증 화면
+   ========================================================= */
+function showAuth(h){
+  app.hidden=true;auth.hidden=false;auth.classList.remove('leaving');startBrand();
+  const v=$('#authView');v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');
+  if(h==='/signup')signupView(v);else if(h==='/forgot')resetView(v);else loginView(v);
+  document.title=({'/signup':'회원가입','/forgot':'비밀번호 찾기'}[h]||'로그인')+' · 덕우전자 AX';
+}
+const pwField=(label,id,ph='비밀번호',{err,hint,req=1}={})=>field(label,`<div class="inp-wrap"><input class="inp" type="password" id="${id}" placeholder="${ph}" autocomplete="current-password"><button type="button" class="icon-btn eye" tabindex="-1" aria-label="비밀번호 표시" data-eye="${id}">${ic('eye',16)}</button></div>`,{req,err,hint});
+function wireEyes(r){$$('[data-eye]',r).forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.eye);const s=i.type==='password';i.type=s?'text':'password';b.innerHTML=ic(s?'eyeOff':'eye',16);b.setAttribute('aria-label',s?'비밀번호 숨기기':'비밀번호 표시')})}
+function shake(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake')}
+function loginView(v){
+  const remembered=store.get('ax.id')||'';
+  v.innerHTML=`<div><div class="eyebrow">덕우전자 AX</div><h1 class="h-page" style="margin-top:4px">로그인</h1><p class="t-sm fg3" style="margin-top:4px">사내 사번과 비밀번호로 접속합니다.</p></div>
+  <form class="stack" id="lf" novalidate style="gap:14px"><div id="fa"></div>
+  <div id="fId">${field('사번',input('예) 20140901',{id:'lid',val:remembered,attrs:'autocomplete="username" inputmode="numeric"'}),{req:1})}</div>
+  <div id="fPw">${pwField('비밀번호','lpw')}</div>
+  <div class="row" style="justify-content:space-between">${chk('사번 기억하기',!!remembered,{attrs:'id="rem"'})}<a class="lnk t-sm" href="#/forgot">비밀번호 찾기</a></div>
+  <button class="btn btn-primary btn-block" type="submit" id="lb"><span>로그인</span></button>
+  </form>
+  <div class="auth-links">계정이 없으신가요? <a class="lnk" href="#/signup">회원가입</a></div>
+  ${acc(`<span class="t-sm fg2" style="font-weight:600">${ic('info',15)}</span><span class="t-sm fg2">데모 계정 — 아무 비밀번호나 됩니다 (wrong 은 실패)</span>`,`<div class="demo-acc">${[['20140901','통합관리자 — 전 화면'],['20180412','품질보증팀 팀장'],['20170905','생산관리팀 팀장'],['20110204','경영진 — 금액 열람']].map(([a,b])=>`<button type="button" data-demo="${a}"><b>${a}</b>${b}</button>`).join('')}</div>`)}`;
+  wireEyes(v);wireAcc(v);
+  $$('[data-demo]',v).forEach(b=>b.onclick=()=>{$('#lid').value=b.dataset.demo;$('#lpw').value='demo1234';$('#lpw').focus()});
+  setTimeout(()=>(remembered?$('#lpw'):$('#lid')).focus(),100);
+  $('#lf').onsubmit=e=>{e.preventDefault();
+    const id=$('#lid').value.trim(),pw=$('#lpw').value;
+    $('#fId').innerHTML=field('사번',input('예) 20140901',{id:'lid',val:id,attrs:'autocomplete="username" inputmode="numeric"'}),{req:1,err:id?'':'사번을 입력하십시오.'});
+    $('#fPw').innerHTML=pwField('비밀번호','lpw','비밀번호',{err:pw?'':'비밀번호를 입력하십시오.'});$('#lpw').value=pw;wireEyes(v);
+    $('#fa').innerHTML='';
+    if(!id||!pw){shake($('#lf'));(id?$('#lpw'):$('#lid')).focus();return}
+    const b=$('#lb');b.classList.add('loading');
+    setTimeout(()=>{
+      if(pw==='wrong'){b.classList.remove('loading');$('#fa').innerHTML=`<div class="alert-box error" role="alert">${ic('alert',16,2)}<span>사번 또는 비밀번호가 일치하지 않습니다.</span></div>`;shake($('#lf'));$('#lpw').select();return}
+      if($('#rem').checked)store.set('ax.id',id);else store.del('ax.id');
+      authed=true;store.set('ax.auth','1');
+      // 로그인 → 메인 진입 1회만 블러 페이드
+      auth.classList.add('leaving');
+      setTimeout(()=>{auth.hidden=true;stopBrand();app.hidden=false;app.classList.add('entering');setTimeout(()=>app.classList.remove('entering'),600);if(location.hash==='#/ai/chat')route();else location.hash='#/ai/chat'},RM?0:420);
+    },750);
+  };
+}
+function otpH(){return `<div class="otp" role="group" aria-label="인증 코드 6자리">${[...Array(6)].map((_,i)=>`<input inputmode="numeric" maxlength="1" aria-label="${i+1}번째 숫자">`).join('')}</div>`}
+function wireOtp(r,onFull){const ins=$$('.otp input',r);ins.forEach((inp,i)=>{
+  inp.oninput=()=>{inp.value=inp.value.replace(/\D/g,'').slice(-1);inp.classList.toggle('filled',!!inp.value);if(inp.value&&ins[i+1])ins[i+1].focus();if(ins.every(x=>x.value))onFull&&onFull()};
+  inp.onkeydown=e=>{if(e.key==='Backspace'&&!inp.value&&ins[i-1])ins[i-1].focus()};
+  inp.onpaste=e=>{const t=(e.clipboardData.getData('text')||'').replace(/\D/g,'').slice(0,6);if(!t)return;e.preventDefault();t.split('').forEach((c,k)=>{if(ins[k]){ins[k].value=c;ins[k].classList.add('filled')}});(ins[t.length]||ins[5]).focus();if(t.length===6)onFull&&onFull()}})}
+function pwMeter(r,id){const i=$('#'+id,r),m=$('.pw-meter',r),lab=$('[data-pwl]',r);i.addEventListener('input',()=>{const v=i.value;const s=(v.length>=8)+/[A-Za-z]/.test(v)+/\d/.test(v)+/[^A-Za-z0-9]/.test(v);const c=['var(--danger)','var(--warning)','var(--warning)','var(--success)'][Math.max(0,s-1)];$$('i',m).forEach((x,k)=>x.style.background=k<s?c:'');lab.textContent=v?['매우 약함','약함','보통','좋음','강함'][s]:'영문·숫자·특수문자를 섞어 8자 이상'})}
+function emailStep(v,{title,desc,next}){
+  v.innerHTML=`<div><a class="lnk t-sm row" style="display:inline-flex;gap:4px" href="#/login">${ic('arrowLeft',14)}로그인으로</a></div><div><h1 class="h-page">${title}</h1><p class="t-sm fg3" style="margin-top:4px">${desc}</p></div><div id="st"></div>
+  <div class="stack" style="gap:14px">${field('사내 메일',`<div class="row" style="gap:6px"><input class="inp" id="em" type="email" placeholder="name@deokwoo.co.kr" style="flex:1">${btn('코드 받기',{attrs:'id="sendCode" type="button"'})}</div>`,{req:1})}
+  <div class="collapse" id="codeBox"><div><div class="stack" style="gap:8px;padding-top:2px"><label class="t-label" style="color:var(--fg2);font-weight:600">인증 코드 <span class="t-caption" id="timer"></span></label>${otpH()}<span class="t-caption">메일로 받은 6자리 숫자를 입력하십시오. 데모는 아무 숫자나 됩니다.</span></div></div></div>
+  ${btn('다음',{v:'primary',attrs:'id="n1" disabled'}).replace('btn-primary ','btn-primary btn-block ')}</div>
+  <div class="auth-links">이미 계정이 있으신가요? <a class="lnk" href="#/login">로그인</a></div>`;
+  const sc=$('#sendCode',v);sc.onclick=()=>{const em=$('#em',v);const f=em.closest('.field');
+    if(!/^\S+@\S+\.\S+$/.test(em.value)){f.classList.add('has-err');if(!$('.err',f))f.insertAdjacentHTML('beforeend',`<div class="err">${ic('alert',14,2)}메일 주소 형식을 확인하십시오.</div>`);shake(f);em.focus();return}
+    f.classList.remove('has-err');$('.err',f)&&$('.err',f).remove();sc.classList.add('loading');
+    setTimeout(()=>{sc.classList.remove('loading');sc.querySelector('span').textContent='다시 받기';$('#codeBox',v).classList.add('open');$('.otp input',v).focus();toast('인증 코드를 메일로 보냈습니다.',{tone:'info'});
+      let s=300;const tm=$('#timer',v);clearInterval(v._iv);v._iv=setInterval(()=>{s--;tm.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;if(s<=0)clearInterval(v._iv)},1000)},700)};
+  wireOtp(v,()=>{$('#n1',v).disabled=false});
+  $('#n1',v).onclick=()=>{clearInterval(v._iv);next()};
+}
+function doneView(v,{title,msg}){v.innerHTML=`<div class="stack" style="align-items:center;text-align:center;gap:14px;padding:20px 0"><div class="done-ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2E9E57" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle pathLength="1" cx="12" cy="12" r="10"/><path pathLength="1" d="m8 12.5 2.6 2.6L16 9.5"/></svg></div><h1 class="h-page">${title}</h1><p class="t-sm fg3">${msg}</p>${btn('로그인으로',{v:'primary',attrs:'data-href="#/login" style="min-width:200px"'})}</div>`}
+function signupView(v){
+  const labels=['본인 확인','정보 입력','완료'];
+  emailStep(v,{title:'회원가입',desc:'사내 메일로 본인을 확인한 뒤 계정을 신청합니다.',next:step2});
+  $('#st',v).innerHTML=stepsH(labels,0);
+  function step2(){
+    v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');
+    v.innerHTML=`<div><h1 class="h-page">회원가입</h1><p class="t-sm fg3" style="margin-top:4px">관리자가 승인하면 사용할 수 있습니다.</p></div>${stepsH(labels,1)}
+    <form class="stack" style="gap:14px" id="sf" novalidate><div class="grid g2" style="gap:12px">${field('사번',input('예) 20240315'),{req:1})}${field('이름',input('이름'),{req:1})}</div>${field('부서',select(DEPTS,DEPTS[1]),{req:1})}
+    ${pwField('비밀번호','spw','8자 이상')}<div class="pw-meter"><i></i><i></i><i></i><i></i></div><span class="t-caption" data-pwl>영문·숫자·특수문자를 섞어 8자 이상</span>
+    ${pwField('비밀번호 확인','spw2','한 번 더')}
+    ${chk('개인정보 수집·이용에 동의합니다 (필수)',false,{attrs:'id="agree"'})}
+    <div class="row">${btn('이전',{attrs:'type="button" id="back"'})}${btn('가입 신청',{v:'primary',attrs:'type="submit" id="sb" style="flex:1"'})}</div></form>`;
+    wireEyes(v);pwMeter(v,'spw');$('#back',v).onclick=()=>{v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');signupView(v)};
+    $('#sf',v).onsubmit=e=>{e.preventDefault();if(!$('#agree',v).checked||$('#spw',v).value.length<8||$('#spw',v).value!==$('#spw2',v).value){shake($('#sf',v));toast(!$('#agree',v).checked?'개인정보 수집·이용에 동의해야 신청할 수 있습니다.':'비밀번호를 8자 이상, 두 칸 똑같이 입력하십시오.',{tone:'error'});return}
+      $('#sb',v).classList.add('loading');setTimeout(()=>{v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');doneView(v,{title:'가입 신청을 받았습니다',msg:'관리자 승인이 끝나면 사내 메일로 알려 드립니다.'});v.insertAdjacentHTML('afterbegin',stepsH(labels,3).replace('class="steps"','class="steps" style="justify-content:center"'))},700)};
+  }
+}
+function resetView(v){
+  const labels=['본인 확인','새 비밀번호','완료'];
+  emailStep(v,{title:'비밀번호 찾기',desc:'가입한 사내 메일로 본인을 확인한 뒤 새 비밀번호를 정합니다.',next:step2});
+  $('#st',v).innerHTML=stepsH(labels,0);
+  function step2(){v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');
+    v.innerHTML=`<div><h1 class="h-page">새 비밀번호</h1><p class="t-sm fg3" style="margin-top:4px">이전에 쓰던 비밀번호는 다시 쓸 수 없습니다.</p></div>${stepsH(labels,1)}<form class="stack" style="gap:14px" id="rf">${pwField('새 비밀번호','rpw','8자 이상')}<div class="pw-meter"><i></i><i></i><i></i><i></i></div><span class="t-caption" data-pwl>영문·숫자·특수문자를 섞어 8자 이상</span>${pwField('새 비밀번호 확인','rpw2','한 번 더')}${btn('비밀번호 바꾸기',{v:'primary',attrs:'type="submit" id="rb"'})}</form>`;
+    wireEyes(v);pwMeter(v,'rpw');
+    $('#rf',v).onsubmit=e=>{e.preventDefault();if($('#rpw',v).value.length<8||$('#rpw',v).value!==$('#rpw2',v).value){shake($('#rf',v));toast('비밀번호를 8자 이상, 두 칸 똑같이 입력하십시오.',{tone:'error'});return}
+      $('#rb',v).classList.add('loading');setTimeout(()=>{v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');doneView(v,{title:'비밀번호를 바꿨습니다',msg:'새 비밀번호로 다시 로그인하십시오.'})},700)};}
+}
+
+/* 브랜드 영역 — WebGL 셰이더 그라디언트(미지원 시 CSS 그라디언트) + 성좌 파티클 */
+let brandRaf=0,gl=null,glProg=null,glU={};
+function initShader(){
+  const c=$('#shader');try{gl=c.getContext('webgl',{premultipliedAlpha:false,antialias:false})}catch(e){gl=null}
+  if(!gl)return;
+  const vs='attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+  const fs=`precision mediump float;uniform vec2 r;uniform float t;
+  vec3 c0=vec3(.965,.945,.957),c1=vec3(.929,.890,.914),c2=vec3(.957,.612,.733),c3=vec3(.949,.416,.553);
+  float n(vec2 u){return sin(u.x*2.3+t*.13)*.5+sin(u.y*3.1-t*.11)*.5+sin((u.x+u.y)*1.7+t*.08)*.5;}
+  void main(){vec2 u=gl_FragCoord.xy/r;u.x*=r.x/r.y;float a=n(u+vec2(n(u*1.3)*.35,n(u.yx)*.3));a=a*.33+.5;
+  vec3 col=mix(c0,c1,smoothstep(.0,1.,u.y*.8+.2));col=mix(col,c2,smoothstep(.62,.98,a)*.55);col=mix(col,c3,smoothstep(.86,1.04,a)*.22);
+  gl_FragColor=vec4(col,1.);}`;
+  const sh=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s};
+  glProg=gl.createProgram();gl.attachShader(glProg,sh(gl.VERTEX_SHADER,vs));gl.attachShader(glProg,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(glProg);
+  if(!gl.getProgramParameter(glProg,gl.LINK_STATUS)){gl=null;return}
+  gl.useProgram(glProg);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  const loc=gl.getAttribLocation(glProg,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  glU={r:gl.getUniformLocation(glProg,'r'),t:gl.getUniformLocation(glProg,'t')};
+}
+let pts=[];const mouse={x:-999,y:-999};
+function startBrand(){
+  if(brandRaf)return;const sc=$('#shader'),cc=$('#constel');const ctx=cc.getContext('2d');
+  if(!gl&&!glProg)initShader();
+  const box=$('.auth-brand');box.onpointermove=e=>{const r=box.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top};box.onpointerleave=()=>{mouse.x=mouse.y=-999};
+  const size=()=>{const r=box.getBoundingClientRect(),dpr=Math.min(2,devicePixelRatio||1);[sc,cc].forEach(c=>{c.width=r.width*dpr;c.height=r.height*dpr});ctx.setTransform(dpr,0,0,dpr,0,0);
+    const n=Math.round(r.width*r.height/9000);pts=[...Array(Math.min(90,n))].map(()=>({x:Math.random()*r.width,y:Math.random()*r.height,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,s:Math.random()<.18}))};
+  size();box._ro=new ResizeObserver(size);box._ro.observe(box);
+  const t0=performance.now();
+  const frame=t=>{const r=box.getBoundingClientRect();const W=r.width,H=r.height;
+    if(gl){gl.viewport(0,0,sc.width,sc.height);gl.uniform2f(glU.r,sc.width,sc.height);gl.uniform1f(glU.t,(t-t0)/1000*(RM?0:1));gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{if(!RM){p.x+=p.vx;p.y+=p.vy}const dx=mouse.x-p.x,dy=mouse.y-p.y,d=Math.hypot(dx,dy);if(d<140&&!RM){p.x+=dx*.004;p.y+=dy*.004}if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1});
+    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const a=pts[i],b=pts[j],d=Math.hypot(a.x-b.x,a.y-b.y);if(d<110){ctx.strokeStyle=`rgba(136,13,30,${(1-d/110)*.16})`;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}
+    pts.forEach(p=>{ctx.fillStyle=p.s?'rgba(242,106,141,.85)':'rgba(136,13,30,.32)';ctx.beginPath();ctx.arc(p.x,p.y,p.s?2.4:1.6,0,7);ctx.fill()});
+    brandRaf=requestAnimationFrame(frame)};
+  brandRaf=requestAnimationFrame(frame);
+}
+function stopBrand(){if(brandRaf)cancelAnimationFrame(brandRaf);brandRaf=0;const b=$('.auth-brand');b&&b._ro&&b._ro.disconnect()}
+
+/* =========================================================
+   12. 시작
+   ========================================================= */
+$$('[data-logo]').forEach(e=>e.innerHTML=LOGO());
+$('#heroPts').innerHTML=[['sparkles','자연어로 묻고 근거와 함께 답을 받습니다'],['bell','이상은 먼저 알려 드립니다'],['file','보고서는 스스로 정리됩니다']].map(([i,t])=>`<div><span class="pi">${ic(i,15)}</span>${t}</div>`).join('');
+buildSidebar();initTopbar();setUnread(unread);
+route();
+</script>
+</body>
+</html>

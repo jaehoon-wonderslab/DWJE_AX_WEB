@@ -29,6 +29,8 @@ const EMPTY_GUIDE = '권한이 있는 담당자가 정해진 엑셀 포맷으로
 
 export default function UploadReportView({
   canUpload, uploading,
+  /** 쓰기 권한(R-06 · UPD-14) — 없으면 업로드 단추를 숨기지 않고 비활성으로 두고 옆에 안내합니다 */
+  canWriteUpload = canUpload, writeDeniedText = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.',
   docs = [], docsLoading, docsError, doc, docId, docOptions = [],
   versions = [], version, versionInfo, versionOptions = [],
   report, reportLoading, reportError,
@@ -70,8 +72,11 @@ export default function UploadReportView({
           placeholder={docId ? (versions.length ? '버전 선택' : '불러오는 중…') : '—'}
           style={{ minWidth: 240 }}
         />
-        {canUpload ? <Button label="엑셀 업로드" variant="primary" icon="upload" onPress={uploadNew} disabled={uploading} /> : null}
-        {canUpload ? <Button label="새 버전 업로드" icon="plus" onPress={uploadVersion} disabled={uploading || !doc} /> : null}
+        {canUpload ? <Button label="엑셀 업로드" variant="primary" icon="upload" onPress={uploadNew} disabled={uploading || !canWriteUpload} /> : null}
+        {canUpload ? <Button label="새 버전 업로드" icon="plus" onPress={uploadVersion} disabled={uploading || !doc || !canWriteUpload} /> : null}
+        {canUpload && !canWriteUpload ? (
+          <Text accessibilityRole="text" style={[s.textSm, { color: theme.color.mutedForeground, alignSelf: 'center' }]}>{writeDeniedText}</Text>
+        ) : null}
         <Button label="원본 다운로드" variant="ghost" icon="download" onPress={downloadOriginal} disabled={!doc || !version} />
         <Button label="인쇄 · PDF" variant="ghost" icon="printer" onPress={print} disabled={!report} />
       </Filters>
@@ -84,7 +89,8 @@ export default function UploadReportView({
           <EmptyState text={EMPTY_GUIDE} />
           {canUpload ? (
             <View style={{ alignItems: 'center', marginTop: -12, marginBottom: 12 }}>
-              <Button label="엑셀 업로드" variant="primary" icon="upload" onPress={uploadNew} disabled={uploading} />
+              <Button label="엑셀 업로드" variant="primary" icon="upload" onPress={uploadNew} disabled={uploading || !canWriteUpload} />
+              {!canWriteUpload ? <Text style={[s.textSm, { color: theme.color.mutedForeground, marginTop: 6 }]}>{writeDeniedText}</Text> : null}
             </View>
           ) : (
             <Hint>업로드 권한은 시스템관리 › 메뉴 접근 권한의 「AI 통합 대시보드 › 업로드 리포트 업로드」 행에서 부서 단위로 지정합니다. {FORMAT_RULE}</Hint>
@@ -102,6 +108,8 @@ export default function UploadReportView({
               {[
                 doc.memo || null,
                 versionInfo ? `v${versionInfo.version} · ${versionInfo.uploadedByName || versionInfo.uploadedBy || '—'} · ${versionInfo.uploadedAt || ''}` : null,
+                // 버전 메모(UPD-02) — 서버가 저장·반환하면 고른 버전의 변경 메모를 함께 보여 줍니다
+                versionInfo?.memo ? `메모 ${versionInfo.memo}` : null,
                 versionInfo?.fileName || null,
                 versionInfo ? formatBytes(versionInfo.sizeBytes) : null,
                 `버전 ${comma(doc.versionCnt ?? versions.length)}개`,

@@ -6,6 +6,7 @@
 export { default as Icon } from './Icon';
 export { default as Hoverable } from './Hoverable';
 export { default as Button, IconButton, ButtonRow } from './Button';
+export { default as ExportMenuButton } from './ExportMenuButton';
 export { default as Card, CardBody, SourceNote } from './Card';
 export { default as StatCard } from './StatCard';
 export { default as Badge, StateBadge, Dot } from './Badge';

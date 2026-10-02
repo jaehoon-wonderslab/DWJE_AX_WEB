@@ -1,14 +1,14 @@
-> **이 문서는 2026-09-28 기준으로 실제 코드와 대조해 갱신했습니다.**
-> 명세 원본(ver01)은 화면 36 + API 236 이었고, 실서버 화면 목록에 맞춰 정리한 결과는
-> **메뉴 27건 · API 209건**입니다. 제거된 화면은 아래에 「제거된 화면」 으로 표시했습니다.
+> **이 문서는 2026-10-01 기준으로 실제 코드와 대조해 갱신했습니다.**
+> 명세 원본(ver01)은 화면 36 + API 236 이었고, 실서버 화면 목록에 맞춰 정리하고 시스템관리 개선을 반영한 결과는
+> **메뉴 29건 · API 244건**입니다. 제거된 화면은 아래에 「제거된 화면」 으로 표시했습니다.
 
 # 덕우전자 AX — WEB 화면별 개발 목록 (URL 기준)
 
 `004. 개발/WEB-ai_concep_design` 프로젝트의 **URL(화면) 단위 개발 명세**입니다.
 각 문서는 ① 컴포넌트 ② 화면 출력 정보 ③ 버튼·페이징 ④ 그 밖의 기능 ⑤ 사용 API ⑥ 개발 체크리스트 순서로 되어 있습니다.
 
-- 메뉴 **27건** (사이드바 25 + 하위 화면 2) · 인증 3화면 별도
-- API 카탈로그 **209건** (`src/services/api/endpoints.js`)
+- 메뉴 **29건** (사이드바 27 + 하위 화면 2) · 인증 4화면 별도(로그인 · 회원가입 · 비밀번호 찾기/잠금 해제 · 초기 비밀번호 변경)
+- API 카탈로그 **244건** (`src/services/api/endpoints.js`)
 - **대시보드 2화면(`/dashboard/ai` · `/dashboard/process`)과 품질 화면의 차트는 d3.js (웹 전용)** — [40. 차트 d3 전환 명세](./40_charts_d3.md)
 - 공통 규약은 **[00. 공통](./00_공통.md)** 에 모아 두었고, 화면 문서에서는 반복하지 않습니다.
 - 서버 주소(로컬/실서버)는 이 문서 범위가 아닙니다 — `README.md` §2 와 `scripts/targets.cjs` 를 보십시오.
@@ -85,18 +85,29 @@
 
 | URL | 화면 ID | 화면명 | 문서 | API |
 | :--- | :--- | :--- | :--- | :--- |
-| `/system/account` | `sys-account` | 계정 관리 | [25](./25_system_account.md) | 15 |
+| `/system/account` | `sys-account` | 계정 관리 | [25](./25_system_account.md) | 16 |
+| `/system/gw-dept-map` | `sys-gw-dept` | 그룹웨어 부서 매핑 | [42](./42_system_gw-dept-map.md) | 7 |
 | `/system/menu-perm` | `sys-menu` | 메뉴 접근 권한 | [26](./26_system_menu-perm.md) | 5 |
-| `/system/data-perm` | `sys-data` | 데이터 접근 권한 | [27](./27_system_data-perm.md) | 12 |
-| `/system/alert-condition` | `alert-cond` | 이상 알림 발송 조건 관리 | [28](./28_system_alert-condition.md) | 8 |
-| `/system/recipient` | `sys-recip` | 알림 수신자 관리 | [29](./29_system_recipient.md) | 11 |
-| `/system/glossary` | `sys-gloss` | 용어 사전 관리 | [30](./30_system_glossary.md) | 11 |
-| `/system/chat-history` | `chat-history` | 자연어 질의 이력 | [32](./32_system_chat-history.md) | 4 |
-| `/system/audit-log` | `sys-audit` | 보안 감사 로그 | [33](./33_system_audit-log.md) | 1 |
-| `/system/download-log` | `sys-dl` | 보고서 다운로드 이력 | [38](./38_system_download-log.md) | 4 |
-| `/system/upload-doc` | `sys-upload-doc` | 업로드 문서 목록 (읽기 전용) | — | 2 |
-| `/system/sync-history` | `sys-sync` | 데이터 연동 이력 (조건부 30초 폴링) | [39](./39_system_sync-history.md) | 12 |
-| `/system/upload-doc` | | 2 | | ● | | xls | | |
+| `/system/data-perm` | `sys-data` | 데이터 접근 권한 | [27](./27_system_data-perm.md) | 13 |
+| `/system/alert-condition` | `alert-cond` | 이상 알림 발송 조건 관리 | [28](./28_system_alert-condition.md) | 9 |
+| `/system/recipient` | `sys-recip` | 알림 수신자 관리 | [29](./29_system_recipient.md) | 16 |
+| `/system/glossary` | `sys-gloss` | 용어 사전 관리 | [30](./30_system_glossary.md) | 13 |
+| `/system/audit-log` | `sys-audit` | 보안 감사 로그 | [33](./33_system_audit-log.md) | 3 |
+| `/system/download-log` | `sys-dl` | 보고서 다운로드 이력 | [38](./38_system_download-log.md) | 6 |
+| `/system/upload-doc` | `sys-upload-doc` | 업로드 문서 목록 (읽기 전용) | [41](./41_system_upload-doc.md) | 2 |
+| `/system/sync-history` | `sys-sync` | 데이터 연동 이력 (조건부 30초 폴링) | [39](./39_system_sync-history.md) | 13 |
+
+## 8-1. 자연어 질의 이력 (2026-10-01 시스템관리에서 이동, 허브 `/menu/history`)
+
+| URL | 화면 ID | 화면명 | 문서 | API |
+| :--- | :--- | :--- | :--- | :--- |
+| `/history/chat` | `chat-history` | 자연어 질의 이력 (세션별 조회 · 옛 주소 `/system/chat-history` 는 리다이렉트) | [32](./32_system_chat-history.md) | 10 |
+
+## 8-2. 용어 사전 (2026-10-01 신설, 허브 `/menu/glossary`)
+
+| URL | 화면 ID | 화면명 | 문서 | API |
+| :--- | :--- | :--- | :--- | :--- |
+| `/glossary/view` | `gloss-view` | 용어 사전 조회 (조회 전용 · 관리 화면 `/system/glossary` 와 조회 API 공유) | [43](./43_glossary_view.md) | 2 |
 
 ### 제거된 화면 (2026-09 정리)
 
@@ -146,7 +157,7 @@
 | `/system/alert-condition` | 3 | 4 | | 1 | △ | 모달 2 | xls | | |
 | `/system/recipient` | 2+탭 | 4 | | 4 | △ | 모달 4 | xls | | |
 | `/system/glossary` | 3 | 4 | | 1 | **●** | 모달 4 | xls | | |
-| `/system/chat-history` | 3 | 4 | | 1 | **●** | 모달 1 | xls·jsonl | | |
+| `/history/chat` | 3 | 4 | | 1 | **●** | 모달 1 | xls·jsonl | | |
 | `/system/audit-log` | 4 | | | 1 | **●** | | xls | | |
 | `/system/download-log` | 5 | 2 | | 1 | | 모달 1 | xls | | |
 | `/system/sync-history` | 1 | 2 | | 2 | △ | 모달 3 | xls | | **조건부 30초** |
@@ -169,7 +180,7 @@
 
 | 구분 | 대상 화면 | 내용 |
 | :--- | :--- | :--- |
-| 페이징 미노출 | `/production/result`, `/alert/list`, `/system/account`, `/system/data-perm`, `/system/alert-condition`, `/system/recipient`, `/system/sync-history` | 서버 API 는 `page`/`size` 를 받지만 `Pagination` 미적용 |
+| 페이징 미노출 | `/production/result`, `/alert/list`, `/system/account`, `/system/data-perm`, `/system/alert-condition`, `/system/recipient` (`/system/sync-history` 는 2026-10-01 작업·실행 이력 모두 적용) | 서버 API 는 `page`/`size` 를 받지만 `Pagination` 미적용 |
 | 선택지 하드코딩 | `/report/ship-plan`(모델·고객사), `/system/alert-condition`(심각도·채널) | 서버 기준정보/공통코드 연동 필요 |
 | 서버 export 미사용 | `/production/result` | `postProductionResultsExport` 대신 클라이언트 xls 생성 중 — 대용량 대비 필요 |
 | 미노출 필드 | `/system/data-perm`(미리보기 대상 계정 선택) | 컨트롤러/API 에는 있으나 화면 UI 없음 |

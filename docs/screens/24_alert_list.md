@@ -34,6 +34,18 @@
 | 설비 | `전체` | **조회 결과 `eqptCd` 유니크** (범위 표기로는 서버가 못 거름) |
 | 기간 | `오늘` | 오늘 / 최근 7일 / 최근 30일 | |
 
+### 2-1a. 주소 파라미터 (2026-10-01, 기획 05)
+
+다른 화면에서 건너온 조건을 조회 조건으로 씁니다. 화면 위에 「발송 조건 #N 의 알림만 보고 있습니다」 같은 안내와 `모든 알림 보기`(파라미터를 지움)를 보입니다.
+
+| 파라미터 | 어디서 | 처리 |
+| :--- | :--- | :--- |
+| `condId` | 발송 조건 관리 「최근 7일」 | `GET /alerts?condId=` · 기간 「최근 7일」 · 탭 「전체」 로 시작 |
+| `alertId` | 발송 조건·수신 그룹 테스트 결과 「알림 목록에서 보기」 | `GET /alerts?alertId=` — 서버가 기간·테스트 여부와 무관하게 그 한 건을 줍니다. 목록에 오면 상세를 바로 엽니다 |
+| `includeTest` | 같은 링크 | `true` 면 테스트 알림도 함께. 기본 목록은 테스트 알림을 뺍니다 |
+
+테스트 알림(`test=true`)은 제목 옆과 발송 로그 결과 옆에 「테스트」 배지를 붙입니다.
+
 ### 2-2. 알림 목록 (`GET /alerts`)
 
 | 열 | 폭 | 렌더 |
@@ -93,7 +105,7 @@
 
 | # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
 |---|---|---|---|---|---|---|---|---|---|
-| 102 | `getAlerts` | 알림 목록 조회 | GET | `/api/v1/alerts` | type(CRIT|WARN|LOW), eqptCd, period(today|7d|30d), ackState(OPEN|ACKED|CLOSED), page, size | items[{alertId,level,type,eqptCd,basisValue,threshold,agent,occurredAt,elapsed,ackState}], meta | 전 부서 | — | 1 |
+| 102 | `getAlerts` | 알림 목록 조회 | GET | `/api/v1/alerts` | type(CRIT|WARN|LOW), eqptCd, period(today|7d|30d), ackState(OPEN|ACKED|CLOSED), condId, alertId, includeTest, page, size | items[{alertId,level,type,eqptCd,basisValue,threshold,agent,occurredAt,elapsed,ackState}], meta | 전 부서 | — | 1 |
 | 103 | `getAlertsByAlertId` | 알림 상세 조회 | GET | `/api/v1/alerts/{alertId}` | — | eqptCd, eqptNm, lotNo, basisValue, threshold, mainDefectType, causeCandidates[], recommendation, agent | 전 부서 | yield, mold | 1 |
 | 104 | `postAlertsByAlertIdAck` | 알림 확인 처리 | POST | `/api/v1/alerts/{alertId}/ack` | actionNote | ackAt, ackBy | 전 부서 | — | 1 |
 | 105 | `getAlertsEscalationTargets` | 승격 대상 조회 | GET | `/api/v1/alerts/escalation-targets` | — | stages[{stage,waitMin,targets[]}] | 전 부서 | — | 2 |

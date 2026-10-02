@@ -14,13 +14,16 @@
  *  1) 로그인 여부 — 비로그인이면 /login 으로 보냅니다 (가려던 주소는 next 로 넘겨 로그인 후 복귀)
  *  2) 실적 보유 기간 — 화면마다 날짜 기본값을 잡아야 하므로 본문보다 먼저 받아 둡니다
  *  3) 메뉴 접근 권한 — 권한이 없는 화면은 주소로 직접 들어와도 기본 화면으로 되돌립니다
+ *     기본 화면은 덕반장 AI 이고, 그 권한이 없는 부서는 메뉴 순서상 첫 허용 화면입니다(homeScreenFor).
+ *
+ * 초기 비밀번호를 바꾸기 전(pwdChangeRequired)이면 이 레이아웃을 아예 그리지 않고 비밀번호 변경 화면으로 보냅니다.
+ * 서버가 그 상태의 API 를 모두 막으므로(403 E-AUTH-006, 기획 R-04) 사이드바·알림 종·AI 패널도 내지 않습니다.
  */
 import React, { useEffect, useRef } from 'react';
 import { Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Redirect, Slot, usePathname } from 'expo-router';
-import { HOME_SCREEN_ID } from '@shared/constants/menu';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
-import { hubGroupOf, MENU } from '@shared/navigation/routes';
+import { homeScreenFor, hubGroupOf, MENU } from '@shared/navigation/routes';
 import { useDataRangeBootstrap } from '@domains/common/controller/useDataRangeBootstrap';
 import PageTransition from '@shared/components/brand/PageTransition';
 import Sidebar from '@shared/components/layout/Sidebar';
@@ -72,6 +75,8 @@ export default function MainLayout() {
   const can = useAuthStore((state) => state.can);
   const menuPerms = useAuthStore((state) => state.menuPerms);
   const dept = useAuthStore((state) => state.userInfo?.dept);
+  const unassigned = useAuthStore((state) => state.unassigned);
+  const pwdChangeRequired = useAuthStore((state) => state.pwdChangeRequired);
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const navDrawerOpen = useUiStore((state) => state.navDrawerOpen);
   const closeNavDrawer = useUiStore((state) => state.closeNavDrawer);
@@ -86,13 +91,14 @@ export default function MainLayout() {
     ? MENU.find((group) => group.group === hubGroup)?.items.some((item) => can(item.id))
     : can(currentScreenId);
 
-  // 권한 없는 화면으로 들어오면 기본 화면으로 돌려보냅니다
+  // 권한 없는 화면으로 들어오면 기본 화면으로 돌려보냅니다 (덕반장 AI, 그 권한이 없으면 첫 허용 화면)
+  const homeScreenId = homeScreenFor(can);
   useEffect(() => {
-    if (!allowed && (hubGroup || currentScreenId !== HOME_SCREEN_ID) && menuPerms?.length) {
-      toast('접근 권한이 없는 화면입니다 — 덕반장 AI 화면으로 이동합니다');
-      goToScreen(HOME_SCREEN_ID);
+    if (!allowed && (hubGroup || currentScreenId !== homeScreenId) && menuPerms?.length) {
+      toast('접근 권한이 없는 화면입니다 — 기본 화면으로 이동합니다');
+      goToScreen(homeScreenId);
     }
-  }, [allowed, currentScreenId, hubGroup, menuPerms, goToScreen, toast]);
+  }, [allowed, currentScreenId, hubGroup, homeScreenId, menuPerms, goToScreen, toast]);
 
   // 좁은 화면(태블릿 세로 이하)에서는 사이드바를 옆에 두지 않고, 상단바의 햄버거로 여는 덮개(서랍)로 띄웁니다
   const narrow = width <= NARROW_MAX;
@@ -115,7 +121,8 @@ export default function MainLayout() {
   const onChatScreen = currentScreenId === 'ai-chat' && !hubGroup;
   // 대메뉴 선택 화면과 시스템관리에서는 레일도 세로 단추도 내지 않습니다
   const railOff = !!hubGroup || RAIL_OFF_SCREEN_IDS.has(currentScreenId);
-  const railAvailable = !onChatScreen && !railOff && width >= 900;
+  // 덕반장 AI 권한(ai-chat)이 없는 부서에는 레일도 세로 단추도 내지 않습니다 — 열어도 API 가 막습니다(기획 D-26)
+  const railAvailable = !onChatScreen && !railOff && width >= 900 && can('ai-chat');
   const chatOpen = aiChatOpen && railAvailable;
 
   // 레일 폭 한계 — 창 폭의 40% 를 넘지 않고 본문도 최소 폭을 남깁니다
@@ -136,6 +143,11 @@ export default function MainLayout() {
     return <Redirect href={{ pathname: '/login', params: { next: attemptedPath(pathname) } }} />;
   }
 
+  // 초기 비밀번호 변경 전 — 어떤 주소로 들어와도 비밀번호 변경 화면만 보여 줍니다 (기획 R-04)
+  if (pwdChangeRequired) {
+    return <Redirect href="/change-password" />;
+  }
+
   return (
     <View style={s.app}>
       {showSidebar ? <Sidebar collapsed={collapsed} /> : null}
@@ -147,7 +159,7 @@ export default function MainLayout() {
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             {!allowed ? (
               <View style={s.content}>
-                <NoAccess dept={dept} />
+                <NoAccess dept={dept} unassigned={unassigned} onGoChat={() => goToScreen('ai-chat')} />
               </View>
             ) : rangeReady ? (
               // 경로가 바뀔 때마다 본문이 떠오르며 전환됩니다

@@ -15,9 +15,17 @@ const ok = response => { assert(response.body.success, JSON.stringify({ status: 
     ok(await send('PUT', '/system/menu-perms', { deptId, screenId: 'dash-ai', allowed: true }));
     ok(await send('POST', '/system/users', { empNo, name: empNo, deptId, pos: 'STAFF', state: 'ACTIVE', password: PASSWORD, extraMenuIds: [] }));
     created = true;
-    const login = await fetch(`${BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: empNo, password: PASSWORD }) });
-    const loginBody = await login.json(); assert(loginBody.success);
-    const token = loginBody.data.accessToken;
+    const signIn = async (password) => {
+      const login = await fetch(`${BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: empNo, password }) });
+      const loginBody = await login.json(); assert(loginBody.success, JSON.stringify(loginBody));
+      return loginBody.data.accessToken;
+    };
+    // 관리자가 만든 계정은 초기 비밀번호를 바꾸기 전까지 권한이 비어 있습니다(R-04) — 먼저 바꾸고 다시 로그인합니다
+    const newPassword = `${PASSWORD}x`;
+    const first = await signIn(PASSWORD);
+    const changed = await fetch(`${BASE}/api/v1/auth/password`, { method: 'POST', headers: { Authorization: `Bearer ${first}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: PASSWORD, newPassword, newPasswordConfirm: newPassword }) });
+    assert((await changed.json()).success, 'initial password change');
+    const token = await signIn(newPassword);
     const asUser = async (path, method = 'GET', data) => {
       const response = await fetch(`${BASE}/api/v1${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
       return { status: response.status, body: await response.json() };

@@ -10,13 +10,24 @@
  * [보안] 1단계는 사번·이메일이 일치하지 않아도 성공 응답이 옵니다(계정 열거 방지).
  *        그래서 화면은 결과를 구분하지 않고 언제나 "메일을 확인하세요" 로 안내하고
  *        다음 단계로 넘어갑니다. 계정이 없으면 코드가 오지 않을 뿐입니다.
+ *
+ * 「잠금 해제」 모드 (`?mode=unlock&empNo=…`, 2026-10-01 기획 AUD-16)
+ *   로그인 5회 실패로 잠긴 계정이 같은 화면으로 잠금을 풉니다. 새 라우트를 만들지 않습니다.
+ *   1단계 입력이 사번 하나뿐이고(등록 이메일로 보냄), 세 단계 API 가 /auth/unlock/* 입니다.
+ *   잠금을 풀 때도 새 비밀번호를 반드시 정합니다 — 5회 실패는 비밀번호 대입일 수 있기 때문입니다.
  */
 import { useCallback, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { needsReverify, toFormError } from '../model/authError';
 import { PURPOSE } from '../model/emailVerifyRepository';
 import { checkEmailFormat, checkPassword } from '../model/passwordPolicy';
-import { requestResetCode, resetPassword } from '../model/passwordRepository';
+import {
+  completeUnlock,
+  requestResetCode,
+  requestUnlockCode,
+  resetPassword,
+  verifyUnlockCode,
+} from '../model/passwordRepository';
 import { useEmailVerification } from './useEmailVerification';
 
 /** 마법사 단계 표시용 */
@@ -26,11 +37,21 @@ export const RESET_STEPS = [
   { title: '새 비밀번호', sub: '재설정' },
 ];
 
+/** 잠금 해제 모드의 단계 표시 */
+export const UNLOCK_STEPS = [
+  { title: '사번 확인', sub: '사번' },
+  { title: '이메일 인증', sub: '인증 코드' },
+  { title: '새 비밀번호', sub: '잠금 해제' },
+];
+
 export function usePasswordResetController() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const unlockMode = params?.mode === 'unlock';
 
   const [step, setStep] = useState(1);
-  const [empNo, setEmpNo] = useState('');
+  // 잠금 해제는 로그인 화면에서 사번을 넘겨받습니다
+  const [empNo, setEmpNo] = useState(typeof params?.empNo === 'string' ? params.empNo : '');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -40,16 +61,21 @@ export function usePasswordResetController() {
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState(null);
 
-  // 이메일 인증 단계 — 발송은 /auth/password/forgot 이 대신 처리합니다
-  const sender = useCallback((args) => requestResetCode(args), []);
-  const verification = useEmailVerification({ purpose: PURPOSE.PASSWORD_RESET, sender });
+  // 이메일 인증 단계 — 발송은 /auth/password/forgot(잠금 해제는 /auth/unlock/request) 이 대신 처리합니다
+  const sender = useCallback((args) => (unlockMode ? requestUnlockCode(args) : requestResetCode(args)), [unlockMode]);
+  const verifier = useCallback(({ args, code }) => verifyUnlockCode({ empNo: args.empNo, code }), []);
+  const verification = useEmailVerification({
+    purpose: unlockMode ? PURPOSE.ACCOUNT_UNLOCK : PURPOSE.PASSWORD_RESET,
+    sender,
+    verifier: unlockMode ? verifier : undefined,
+  });
 
   // ── 1단계 : 본인 확인 ────────────────────────────────────
 
   const requestCode = useCallback(async () => {
     const errors = {};
     if (!empNo.trim()) errors.empNo = '사번을 입력해 주세요.';
-    const emailError = checkEmailFormat(email);
+    const emailError = unlockMode ? '' : checkEmailFormat(email);
     if (emailError) errors.email = emailError;
     if (Object.keys(errors).length) {
       setFormError('');
@@ -60,9 +86,9 @@ export function usePasswordResetController() {
     setFormError('');
     setFieldErrors({});
     // 일치하는 계정이 없어도 성공 응답이 오므로, 결과와 무관하게 2단계로 넘어갑니다
-    const sent = await verification.send({ empNo: empNo.trim(), email: email.trim() });
+    const sent = await verification.send(unlockMode ? { empNo: empNo.trim() } : { empNo: empNo.trim(), email: email.trim() });
     if (sent) setStep(2);
-  }, [empNo, email, verification]);
+  }, [empNo, email, verification, unlockMode]);
 
   // ── 2단계 : 이메일 인증 ──────────────────────────────────
 
@@ -92,11 +118,8 @@ export function usePasswordResetController() {
     setFormError('');
     setFieldErrors({});
     try {
-      const res = await resetPassword({
-        verificationToken: verification.verificationToken,
-        newPassword,
-        newPasswordConfirm,
-      });
+      const payload = { verificationToken: verification.verificationToken, newPassword, newPasswordConfirm };
+      const res = unlockMode ? await completeUnlock(payload) : await resetPassword(payload);
 
       if (!res.ok) {
         // 토큰이 만료·재사용된 경우에만 코드 검증부터 다시
@@ -117,11 +140,12 @@ export function usePasswordResetController() {
     } finally {
       setPending(false);
     }
-  }, [newPassword, newPasswordConfirm, empNo, verification]);
+  }, [newPassword, newPasswordConfirm, empNo, verification, unlockMode]);
 
   return {
+    unlockMode,
     step,
-    steps: RESET_STEPS,
+    steps: unlockMode ? UNLOCK_STEPS : RESET_STEPS,
     result,
     empNo,
     setEmpNo: (v) => {

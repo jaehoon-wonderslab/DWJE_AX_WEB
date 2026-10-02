@@ -11,6 +11,10 @@ import { clearSession, saveSession } from '@shared/utils/authStorage';
  *  · menuPerms — 접근 가능한 화면 ID 배열 ('*' 는 전체)
  *  · dataPerms — 접근 가능한 데이터 항목 key 배열 ('*' 는 전체)
  *  · dataFields — 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
+ *  · writePerms — 쓰기(등록·수정·삭제 등) 가능한 화면 ID 배열 ('*' 는 전체, 통합관리자). 2026-10-01 R-06
+ *  · pwdChangeRequired — 초기 비밀번호를 바꾸기 전인지. true 이면 서버가 거의 모든 API 를 막으므로(R-04)
+ *    레이아웃이 비밀번호 변경 화면 말고는 아무것도 그리지 않습니다.
+ *  · unassigned — 그룹웨어 자동 가입 후 부서 배정 전(미배정) 계정인지. 허용 화면이 고정되어 있습니다(R-11)
  *
  * dataFields 의 `attrs` 는 그 항목에 해당하는 **API 응답 필드명** 입니다(unitPrice · lotNo …).
  * 이것으로 「응답 필드명 → 항목」 맵을 만들어 표·엑셀이 스스로 마스킹을 판정합니다.
@@ -34,6 +38,9 @@ export const useAuthStore = create((set, get) => ({
   /** 응답 필드명 → 항목 key. dataFields 에서 파생합니다 (조회할 때마다 훑지 않으려고 미리 만듭니다) */
   attrIndex: {},
   servingModelVer: '', // 현재 서비스 중인 AI 모델 버전 (사이드바 표기용)
+  writePerms: [], // 쓰기 가능한 화면 ID 목록
+  pwdChangeRequired: false, // 초기 비밀번호 변경 전
+  unassigned: false, // 미배정 부서 소속
 
   // ── 2. 상태 변경 함수 ───────────────────────────────────
 
@@ -70,7 +77,13 @@ export const useAuthStore = create((set, get) => ({
       dataFields: me?.dataFields || [],
       attrIndex: indexAttrs(me?.dataFields),
       servingModelVer: me?.servingModelVer || '',
+      writePerms: me?.writePerms || [],
+      pwdChangeRequired: !!(me?.pwdChangeRequired ?? me?.user?.pwdChangeRequired),
+      unassigned: !!(me?.dept?.unassigned ?? me?.unassigned ?? me?.user?.unassigned),
     }),
+
+  /** 서버가 E-AUTH-006 을 주면 client.js 가 켜고, 비밀번호를 바꾸면 끕니다 */
+  setPwdChangeRequired: (v) => set({ pwdChangeRequired: !!v }),
 
   /**
    * 계정 전환 (CM-02) — 부서가 바뀌면 권한도 함께 바뀝니다.
@@ -88,6 +101,7 @@ export const useAuthStore = create((set, get) => ({
         // 권한은 서버가 DB(부서 권한 표)에서 내려준 값만 씁니다 — 없으면 아무것도 열지 않습니다
         menuPerms: perms?.menuPerms ?? [],
         dataPerms: perms?.dataPerms ?? [],
+        writePerms: perms?.writePerms ?? [],
       };
     }),
 
@@ -103,6 +117,9 @@ export const useAuthStore = create((set, get) => ({
       dataFields: [],
       attrIndex: {},
       servingModelVer: '',
+      writePerms: [],
+      pwdChangeRequired: false,
+      unassigned: false,
     });
   },
 
@@ -115,6 +132,19 @@ export const useAuthStore = create((set, get) => ({
   can: (screenId) => {
     const perms = get().menuPerms;
     return perms === '*' || (Array.isArray(perms) && perms.indexOf(screenId) >= 0);
+  },
+
+  /**
+   * 화면에서 쓰기(등록·수정·삭제·상태 전환 등)를 할 수 있는지 판정합니다. (쓰기 권한, R-06)
+   *
+   * 서버도 같은 판정으로 막습니다(403 E-AUTH-004). 화면은 버튼을 숨기지 않고 비활성으로 그려
+   * 「왜 안 되는지」 를 툴팁으로 알려 줍니다. 엑셀 내려받기는 쓰기가 아니므로 이 판정을 쓰지 않습니다(R-10).
+   *
+   * @param {string} screenId 화면 ID
+   */
+  canWrite: (screenId) => {
+    const perms = get().writePerms;
+    return perms === '*' || (Array.isArray(perms) && (perms.indexOf('*') >= 0 || perms.indexOf(screenId) >= 0));
   },
 
   /**

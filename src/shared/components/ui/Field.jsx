@@ -4,13 +4,17 @@
  * 기존 웹의 `<div class="field"><label>…</label><input></div>` 구조에 대응합니다.
  * React Native 에는 <select> 가 없어 눌렀을 때 목록을 펼치는 방식으로 구현했습니다.
  */
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppStore } from '@shared/stores/useAppStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import DatePickerPopover from './DatePickerPopover';
 import Icon from './Icon';
+
+// 웹에서만 포털을 씁니다 (react-dom 은 웹 번들에만 있습니다)
+// eslint-disable-next-line global-require
+const createPortal = Platform.OS === 'web' ? require('react-dom').createPortal : null;
 
 /**
  * 라벨 + 입력요소를 묶는 껍데기
@@ -87,6 +91,25 @@ export function SelectField({ label, value, options = [], onChange, style, input
   const s = useCommonStyles();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
+  // 웹: 팝오버를 document.body 에 포털로 띄웁니다 — RN-web View 가 저마다 쌓임 맥락을 만들어
+  // 칸 바로 아래에 그리면 뒤에 오는 카드·표에 가려 고를 수 없었습니다(2026-10-01).
+  const anchorRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
+  const portalWeb = Platform.OS === 'web' && typeof document !== 'undefined';
+  useLayoutEffect(() => {
+    if (!open || !portalWeb) return undefined;
+    const measure = () => {
+      const r = anchorRef.current?.getBoundingClientRect?.();
+      if (r) setAnchorRect({ top: r.bottom + 4, left: r.left, width: r.width, bottomSpace: window.innerHeight - r.bottom });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [open, portalWeb]);
 
   const items = (options || [])
     .filter((o) => o !== null && o !== undefined)
@@ -117,6 +140,7 @@ export function SelectField({ label, value, options = [], onChange, style, input
       hint={hint}
     >
       <TouchableOpacity
+        ref={anchorRef}
         style={[
           s.input,
           { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -134,7 +158,8 @@ export function SelectField({ label, value, options = [], onChange, style, input
         <Icon name="chevronDown" size={13} color={theme.color.mutedForeground} />
       </TouchableOpacity>
 
-      {open && (
+      {open && (portalWeb
+        ? (anchorRect ? createPortal(
         <>
           {/* 바깥 클릭 시 닫히도록 투명 백드롭 */}
           <Pressable
@@ -153,11 +178,85 @@ export function SelectField({ label, value, options = [], onChange, style, input
           {/* 컴포넌트 바로 아래 열리는 드롭다운 팝오버 */}
           <View
             style={{
-              position: 'absolute',
-              top: '100%',
+              ...(portalWeb && anchorRect
+                ? { position: 'fixed', top: anchorRect.top, left: anchorRect.left, minWidth: anchorRect.width, maxWidth: Math.max(anchorRect.width, 360) }
+                : { position: 'absolute', top: '100%', left: 0, minWidth: '100%', marginTop: 4 }),
+              backgroundColor: theme.color.popover,
+              borderRadius: theme.metrics.radiusSm + 2,
+              borderWidth: 1,
+              borderColor: theme.hairlineStrong,
+              padding: 4,
+              ...theme.shadow,
+              maxHeight: 280,
+              zIndex: 9999,
+              overflow: 'hidden',
+            }}
+          >
+            <ScrollView style={{ maxHeight: 280 }}>
+              {items.map((o) => {
+                const isSelected = String(o.value) === String(value);
+                return (
+                  <TouchableOpacity
+                    key={String(o.value)}
+                    style={{
+                      paddingVertical: 9,
+                      paddingHorizontal: 12,
+                      borderRadius: theme.metrics.radiusXs,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      backgroundColor: isSelected ? theme.alpha('primary', 0.12) : 'transparent',
+                    }}
+                    onPress={() => {
+                      onChange?.(o.value, o);
+                      setOpen(false);
+                    }}
+                    activeOpacity={0.65}
+                  >
+                    <Text
+                      style={[
+                        s.textSm,
+                        {
+                          flex: 1,
+                          fontSize: 17,
+                          fontWeight: isSelected ? '500' : '400',
+                          color: theme.color.foreground,
+                        },
+                      ]}
+                    >
+                      {o.label}
+                    </Text>
+                    {isSelected ? <Icon name="check" size={13} color={theme.color.primary || theme.color.foreground} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>,
+          document.body,
+        ) : null)
+        : (
+        <>
+          {/* 바깥 클릭 시 닫히도록 투명 백드롭 */}
+          <Pressable
+            style={{
+              position: 'fixed',
+              top: 0,
               left: 0,
-              minWidth: '100%',
-              marginTop: 4,
+              right: 0,
+              bottom: 0,
+              zIndex: 9998,
+              backgroundColor: 'transparent',
+            }}
+            onPress={() => setOpen(false)}
+          />
+
+          {/* 컴포넌트 바로 아래 열리는 드롭다운 팝오버 */}
+          <View
+            style={{
+              ...(portalWeb && anchorRect
+                ? { position: 'fixed', top: anchorRect.top, left: anchorRect.left, minWidth: anchorRect.width, maxWidth: Math.max(anchorRect.width, 360) }
+                : { position: 'absolute', top: '100%', left: 0, minWidth: '100%', marginTop: 4 }),
               backgroundColor: theme.color.popover,
               borderRadius: theme.metrics.radiusSm + 2,
               borderWidth: 1,
@@ -210,7 +309,7 @@ export function SelectField({ label, value, options = [], onChange, style, input
             </ScrollView>
           </View>
         </>
-      )}
+        ))}
     </Field>
   );
 }

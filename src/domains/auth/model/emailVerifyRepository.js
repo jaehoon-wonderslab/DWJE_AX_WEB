@@ -12,6 +12,8 @@ import * as commonService from '@services/api/commonService';
 export const PURPOSE = {
   SIGNUP: 'SIGNUP',
   PASSWORD_RESET: 'PASSWORD_RESET',
+  /** 로그인 5회 실패로 잠긴 계정의 해제 (2026-10-01 AUD-16). 공개 발송 경로(/auth/email/*)로는 보내지 않습니다 */
+  ACCOUNT_UNLOCK: 'ACCOUNT_UNLOCK',
 };
 
 /**

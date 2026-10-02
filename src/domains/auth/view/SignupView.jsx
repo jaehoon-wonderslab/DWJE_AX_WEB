@@ -79,6 +79,10 @@ export default function SignupView(c) {
             {c.empNoCheck.checked && c.empNoCheck.available ? (
               <Text style={[s.textXs, { fontSize: 15.5, color: theme.color.success }]}>{c.empNoCheck.message}</Text>
             ) : null}
+            {/* 그룹웨어 자동 가입 계정 — 회원가입 대신 로그인 후 비밀번호 변경 (ACC-13) */}
+            {c.empNoCheck.checked && c.empNoCheck.reason === 'GROUPWARE_JOINED' ? (
+              <Button label="로그인 화면으로" variant="ghost" size="sm" onPress={c.goLogin} />
+            ) : null}
           </View>
 
           <TextField

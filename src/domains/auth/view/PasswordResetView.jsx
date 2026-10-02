@@ -6,6 +6,9 @@
  *
  * [보안] 1단계는 사번·이메일이 일치하지 않아도 성공 응답이 옵니다(계정 열거 방지).
  *        그래서 언제나 "메일을 확인하세요" 로 안내하고 다음 단계로 넘어갑니다.
+ *
+ * `c.unlockMode` 이면 「계정 잠금 해제」 화면으로 그립니다(로그인 5회 실패로 잠긴 계정, 기획 AUD-16).
+ * 1단계에서 이메일을 받지 않고, 화면에 이메일 원문을 보여 주지 않습니다.
  */
 import React from 'react';
 import { Text } from 'react-native';
@@ -20,13 +23,23 @@ export default function PasswordResetView(c) {
 
   // ── 4단계 : 완료 ─────────────────────────────────────────
   if (c.step === 4) {
+    if (c.unlockMode) {
+      return (
+        <AuthCard title="잠금이 해제되었습니다" desc="새 비밀번호로 로그인해 주세요." width={440}>
+          <FormAlert tone="success">
+            {c.result?.message || '잠금이 해제되었습니다. 새 비밀번호로 로그인해 주세요.'}
+          </FormAlert>
+          <Button label="로그인 화면으로" variant="primary" onPress={c.goLogin} style={{ height: 40 }} />
+        </AuthCard>
+      );
+    }
     return (
       <AuthCard title="비밀번호가 재설정되었습니다" desc="새 비밀번호로 로그인해 주세요." width={440}>
         <FormAlert tone="success">
           {c.result?.message || '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.'}
         </FormAlert>
         <Text style={[s.textXs, { fontSize: 15.5, lineHeight: 18 }]}>
-          연속 로그인 실패로 정지된 계정이었다면 이번 재설정으로 함께 풀립니다.
+          잠긴 계정이었다면 이번 재설정으로 함께 풀립니다.
         </Text>
         <Button label="로그인 화면으로" variant="primary" onPress={c.goLogin} style={{ height: 40 }} />
       </AuthCard>
@@ -35,8 +48,8 @@ export default function PasswordResetView(c) {
 
   return (
     <AuthCard
-      title="비밀번호 찾기"
-      desc="등록된 이메일로 본인 확인 후 비밀번호를 다시 설정합니다."
+      title={c.unlockMode ? '계정 잠금 해제' : '비밀번호 찾기'}
+      desc={c.unlockMode ? '등록된 이메일로 본인 확인 후 새 비밀번호를 정합니다.' : '등록된 이메일로 본인 확인 후 비밀번호를 다시 설정합니다.'}
       width={480}
       footer={<AuthLinks links={[{ label: '로그인으로 돌아가기', onPress: c.goLogin }]} />}
     >
@@ -55,9 +68,11 @@ export default function PasswordResetView(c) {
             autoCapitalize="none"
             autoComplete="username"
             error={c.fieldErrors.empNo}
+            onSubmitEditing={c.unlockMode ? c.requestCode : undefined}
             required
             full
           />
+          {c.unlockMode ? null : (
           <TextField
             label="등록된 이메일"
             value={c.email}
@@ -73,6 +88,7 @@ export default function PasswordResetView(c) {
             required
             full
           />
+          )}
           <Button
             label={c.verification.sending ? '인증 코드 발송 중…' : '인증 코드 받기'}
             variant="primary"
@@ -81,7 +97,9 @@ export default function PasswordResetView(c) {
             style={{ height: 40, marginTop: 2 }}
           />
           <Text style={[s.textXs, { fontSize: 15, lineHeight: 17 }]}>
-            보안을 위해 입력한 정보가 실제 계정과 일치하는지 알려 주지 않습니다. 일치하는 계정이 있을 때만 코드가 발송됩니다.
+            {c.unlockMode
+              ? '잠긴 계정이면 등록된 이메일로 인증 코드를 보냅니다. 보안을 위해 계정이 잠겼는지 여부는 알려 주지 않습니다.'
+              : '보안을 위해 입력한 정보가 실제 계정과 일치하는지 알려 주지 않습니다. 일치하는 계정이 있을 때만 코드가 발송됩니다.'}
           </Text>
         </>
       ) : null}
@@ -93,7 +111,9 @@ export default function PasswordResetView(c) {
             verification={c.verification}
             notice={
               c.verification.sentInfo?.message ||
-              '입력하신 정보와 일치하는 계정이 있으면 인증 코드를 보냈습니다. 메일함을 확인해 주세요.'
+              (c.unlockMode
+                ? '잠긴 계정이면 등록된 이메일로 인증 코드를 보냈습니다. 메일함을 확인해 주세요.'
+                : '입력하신 정보와 일치하는 계정이 있으면 인증 코드를 보냈습니다. 메일함을 확인해 주세요.')
             }
           />
           <ButtonRow style={{ marginTop: 2 }}>
@@ -106,13 +126,18 @@ export default function PasswordResetView(c) {
               style={{ flex: 2, height: 40 }}
             />
           </ButtonRow>
+          {c.unlockMode ? (
+            <Text style={[s.textXs, { fontSize: 15, lineHeight: 17 }]}>메일이 오지 않으면 전산팀에 잠금 해제를 요청하세요.</Text>
+          ) : null}
         </>
       ) : null}
 
       {/* ── 3단계 : 새 비밀번호 ─────────────────────────── */}
       {c.step === 3 ? (
         <>
-          <FormAlert tone="success">본인 확인이 끝났습니다. 새로 사용할 비밀번호를 정해 주세요.</FormAlert>
+          <FormAlert tone="success">
+            {c.unlockMode ? '이메일 인증이 끝났습니다. 새 비밀번호를 정하면 잠금이 풀립니다.' : '본인 확인이 끝났습니다. 새로 사용할 비밀번호를 정해 주세요.'}
+          </FormAlert>
 
           <PasswordFields
             label="새 비밀번호"
@@ -128,7 +153,7 @@ export default function PasswordResetView(c) {
           />
 
           <Button
-            label={c.pending ? '변경 중…' : '비밀번호 변경'}
+            label={c.pending ? '변경 중…' : c.unlockMode ? '잠금 해제하고 비밀번호 변경' : '비밀번호 변경'}
             variant="primary"
             onPress={c.submit}
             disabled={c.pending}

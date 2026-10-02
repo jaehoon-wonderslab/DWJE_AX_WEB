@@ -2,7 +2,11 @@
  * [Controller] DB-01 업로드 리포트 탭
  *
  * 문서 선택 → 버전 선택 → 파싱 데이터(블록) 를 순서대로 가져오고,
- * `dash-ai-upload` 동작 권한이 있는 계정에게만 업로드 흐름(파일 선택 → 제목·메모 → 업로드 → 결과)을 열어 줍니다.
+ * `dash-ai-upload` 화면 권한이 있는 계정에게 업로드 단추를 보여 주고, 그 화면의 **쓰기 권한**(R-06 · UPD-14)이
+ * 있을 때만 업로드 흐름(파일 선택 → 제목·메모 → 업로드 → 결과)을 열어 줍니다. 쓰기 권한이 없으면 단추를 숨기지 않고
+ * 비활성으로 두고 옆에 안내를 붙입니다. 서버(requireWrite)가 정본이고 화면 표시는 보조입니다.
+ *
+ * 매크로 포함 통합문서(xlsm)는 서버가 400 으로 막습니다(UPD-03). 화면도 고르는 단계에서 먼저 안내합니다.
  *
  * 업로드는 웹 전용입니다 — 숨은 <input type="file"> 을 만들어 고르게 하고 File 객체를 그대로 서비스로 넘깁니다.
  */
@@ -21,8 +25,14 @@ import { docOptionLabel, formatBytes, versionOptionLabel } from '../model/upload
 /** 업로드 상한 (요청 B3 — 20MB · xlsx 만) */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
+/** 버전 메모 상한 (UPD-02 — 서버 varchar(1000), 초과 400) */
+export const MAX_MEMO_LEN = 1000;
+
+/** 쓰기 권한이 없을 때 단추 옆 안내 (공통 문서 9.7 · R-06) */
+export const WRITE_DENIED_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+
 /** 엑셀 포맷 규칙 안내 (API 회신 2026-09-10 확정 — 시트명에 `[ ]` 는 엑셀이 허용하지 않아 `#` 접미어) */
-export const FORMAT_RULE = '엑셀 규칙 — 시트 1행은 헤더, 1열은 X축, 나머지 숫자 열이 시리즈입니다. 시트명 끝에 #line · #bar · #grouped · #donut · #table 을 붙여 차트 종류를 정하고(예: 월별 불량률 #line), 접미어가 없으면 시리즈 1개 → 막대, 여러 개 → 선, 숫자 열 없음 → 표로 자동 판정합니다. 시트명은 31자까지, 파일은 xlsx · 20MB 이하.';
+export const FORMAT_RULE = '엑셀 규칙 — 시트 1행은 헤더, 1열은 X축, 나머지 숫자 열이 시리즈입니다. 시트명 끝에 #line · #bar · #grouped · #donut · #table 을 붙여 차트 종류를 정하고(예: 월별 불량률 #line), 접미어가 없으면 시리즈 1개 → 막대, 여러 개 → 선, 숫자 열 없음 → 표로 자동 판정합니다. 시트명은 31자까지, 파일은 xlsx · 20MB 이하. 매크로 포함 통합문서(xlsm)는 올릴 수 없습니다 — 매크로 없는 xlsx 로 저장해 올려 주세요.';
 
 /** 인쇄 영역 id — 뷰의 본문 카드 묶음에 nativeID 로 붙습니다 */
 export const PRINT_NODE_ID = 'upload-report-print';
@@ -73,9 +83,17 @@ function showParseResult(data) {
   });
 }
 
+/** 메모 길이 — 폼 검증 (서버도 1000자 초과를 400 으로 막습니다) */
+function memoError(values) {
+  const memo = String(values?.memo || '').trim();
+  return memo.length > MAX_MEMO_LEN ? { memo: `메모는 ${MAX_MEMO_LEN.toLocaleString('ko-KR')}자까지 쓸 수 있습니다 (지금 ${memo.length.toLocaleString('ko-KR')}자)` } : {};
+}
+
 /** 파일이 규칙에 맞는지 — 확장자 · 크기 */
 function fileError(file) {
   if (!file) return '파일을 선택하지 않았습니다';
+  // 매크로 포함 통합문서는 서버가 거부합니다(UPD-03) — 올리기 전에 이유를 알려 줍니다
+  if (/\.xlsm$/i.test(file.name || '')) return '매크로 포함 통합문서(xlsm)는 올릴 수 없습니다 — 엑셀에서 「Excel 통합 문서(*.xlsx)」 로 다시 저장해 올려 주세요';
   if (!/\.xlsx$/i.test(file.name || '')) return 'xlsx 파일만 업로드할 수 있습니다';
   if (file.size > MAX_UPLOAD_BYTES) return `파일이 너무 큽니다 (${formatBytes(file.size)}) — 20MB 이하만 올릴 수 있습니다`;
   return '';
@@ -85,7 +103,10 @@ export function useUploadReportController() {
   const toast = useUiStore((state) => state.toast);
   const can = useAuthStore((state) => state.can);
   const role = useAuthStore((state) => state.userInfo?.dept);
+  const canWrite = useAuthStore((state) => state.canWrite);
+  // 단추 노출은 화면 권한, 실제 업로드는 쓰기 권한 (UPD-14 · R-06)
   const canUpload = can('dash-ai-upload');
+  const canWriteUpload = canUpload && canWrite('dash-ai-upload');
 
   const [docId, setDocId] = useState('');
   const [version, setVersion] = useState(null);
@@ -167,7 +188,9 @@ export function useUploadReportController() {
       return;
     }
     const data = res.data;
-    toast(res.message || `v${data.version} 을 업로드했습니다`);
+    // 같은 문서의 앞 버전과 같은 파일이면 서버가 duplicateOf 를 줍니다 — 저장은 됐고 안내만 덧붙입니다(UPD-10)
+    const dup = data.duplicateOf != null ? ` · v${data.duplicateOf} 과 같은 파일입니다` : '';
+    toast(`${res.message || `v${data.version} 을 업로드했습니다`}${dup}`);
     if (data.warnings.length || data.parseState === 'FAIL') showParseResult(data);
     preloaded.current = { key: `${data.docId}:${data.version}`, report: data };
     pendingSelect.current = { docId: data.docId, version: Number(data.version) };
@@ -179,7 +202,7 @@ export function useUploadReportController() {
    * 권한이 없으면 버튼이 보이지 않지만, 혹시 호출되면 한 번 더 막습니다.
    */
   const uploadNew = useCallback(async () => {
-    if (!canUpload) { toast('업로드 권한이 없습니다 — 시스템관리 > 메뉴 접근 권한에서 지정합니다'); return; }
+    if (!canWriteUpload) { toast(WRITE_DENIED_TEXT); return; }
     if (Platform.OS !== 'web') { toast('엑셀 업로드는 웹에서 이용하세요'); return; }
     const file = await pickXlsxFile();
     if (!file) return;
@@ -195,11 +218,12 @@ export function useUploadReportController() {
         { key: 'memo', label: '메모', type: 'textarea', placeholder: '어떤 자료인지 · 기준 기간 · 출처 등', full: true },
       ],
       note: `${FORMAT_RULE} 파일은 서버에 저장되고 버전으로 관리됩니다.`,
+      validate: memoError,
       submitLabel: '업로드',
       onSubmit: async (values) => {
         setUploading(true);
         try {
-          const res = await repo.uploadNewDoc({ file, title: values.title.trim(), memo: values.memo || '' });
+          const res = await repo.uploadNewDoc({ file, title: values.title.trim(), memo: String(values.memo || '').trim() });
           await applyUploaded(res);
           return res.ok ? undefined : false;
         } finally {
@@ -207,11 +231,11 @@ export function useUploadReportController() {
         }
       },
     });
-  }, [canUpload, toast, applyUploaded]);
+  }, [canWriteUpload, toast, applyUploaded]);
 
   /** 선택한 문서에 새 버전 업로드 — 파일 선택 → 메모 → 업로드 */
   const uploadVersion = useCallback(async () => {
-    if (!canUpload) { toast('업로드 권한이 없습니다 — 시스템관리 > 메뉴 접근 권한에서 지정합니다'); return; }
+    if (!canWriteUpload) { toast(WRITE_DENIED_TEXT); return; }
     if (!doc) { toast('먼저 문서를 선택하세요'); return; }
     if (Platform.OS !== 'web') { toast('엑셀 업로드는 웹에서 이용하세요'); return; }
     const file = await pickXlsxFile();
@@ -226,12 +250,13 @@ export function useUploadReportController() {
         { key: 'file', label: '파일', type: 'static', value: `${file.name} (${formatBytes(file.size)})`, full: true },
         { key: 'memo', label: '변경 메모', type: 'textarea', placeholder: '무엇이 바뀌었는지 (예: 8/31 실적 추가)', full: true },
       ],
-      note: '이전 버전은 그대로 남고, 버전 드롭다운에서 언제든 다시 볼 수 있습니다.',
+      note: '이전 버전은 그대로 남고, 버전 드롭다운에서 언제든 다시 볼 수 있습니다. 변경 메모는 버전 이력(시스템관리 › 업로드 문서 목록)에도 보입니다.',
+      validate: memoError,
       submitLabel: '업로드',
       onSubmit: async (values) => {
         setUploading(true);
         try {
-          const res = await repo.uploadNewVersion({ docId: doc.docId, file, memo: values.memo || '' });
+          const res = await repo.uploadNewVersion({ docId: doc.docId, file, memo: String(values.memo || '').trim() });
           await applyUploaded(res);
           return res.ok ? undefined : false;
         } finally {
@@ -239,7 +264,7 @@ export function useUploadReportController() {
         }
       },
     });
-  }, [canUpload, doc, toast, applyUploaded]);
+  }, [canWriteUpload, doc, toast, applyUploaded]);
 
   const downloadOriginal = useCallback(async () => {
     if (!doc || !version) { toast('내려받을 문서·버전을 먼저 선택하세요'); return; }
@@ -254,6 +279,8 @@ export function useUploadReportController() {
 
   return {
     canUpload,
+    canWriteUpload,
+    writeDeniedText: WRITE_DENIED_TEXT,
     uploading,
     docs,
     docsLoading: docsQuery.loading,

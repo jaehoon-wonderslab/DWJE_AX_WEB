@@ -46,6 +46,8 @@ const GROUP_ICON = {
   대시보드: 'grid',
   '생산 및 품질 관리': 'activity',
   보고서: 'file',
+  '자연어 질의 이력': 'message',
+  '용어 사전': 'book',
   '이상 알림': 'bell',
   시스템관리: 'settings',
 };
@@ -182,8 +184,11 @@ export default function Sidebar({ collapsed = false, onClose }) {
 
           // 한 줄 그룹(보고서) — 허브로 가는 행 하나. 하위 보고서는 허브의 드롭다운에서 고릅니다
           if (g.single) {
+            // 허용 항목이 하나뿐인 그룹(자연어 질의 이력·용어 사전)은 허브를 건너뛰고 그 화면으로 바로 갑니다
+            // (13 기획서 GLV-11 · 8장 Q3 권장안). 허브 주소로 직접 들어오면 허브는 그대로 보입니다
+            const href = g.items.length === 1 ? g.items[0].path : g.hubPath;
             return (
-              <Link key={g.group} href={g.hubPath} asChild>
+              <Link key={g.group} href={href} asChild>
                 <Hoverable hoverStyle={({ hovered }) => navRow(theme, { on: hasActive, hovered, shrunk })} accessibilityLabel={g.group}>
                   <Icon name={icon} size={16} color={hasActive ? theme.color.primary : theme.color.secondaryForeground} />
                   {!shrunk ? <Text style={[navLabel(theme, hasActive), { flex: 1 }]} numberOfLines={1}>{g.group}</Text> : null}

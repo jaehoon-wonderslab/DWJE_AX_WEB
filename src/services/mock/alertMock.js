@@ -11,8 +11,12 @@ function store() {
 }
 
 export const alertMock = {
-  getAlerts: ({ state, type, target, period, page = 1, size = 50 }) => {
+  getAlerts: ({ state, type, target, period, condId, alertId, includeTest, page = 1, size = 50 }) => {
     let items = store().alerts;
+    // alertId 는 그 한 건만(기간·테스트 무관), condId 는 그 조건의 알림만, 테스트 알림은 includeTest 일 때만 (서버와 같게)
+    if (alertId) return { items: items.filter((a) => String(a.alertId) === String(alertId)), meta: { page: 1, size, total: items.filter((a) => String(a.alertId) === String(alertId)).length } };
+    if (condId) items = items.filter((a) => String(a.condId) === String(condId));
+    if (!(includeTest === true || includeTest === 'true')) items = items.filter((a) => !a.test);
     if (state && state !== '전체') items = items.filter((a) => a.state === state);
     if (type && type !== '전체') items = items.filter((a) => a.type === type);
     if (target && target !== '전체') {

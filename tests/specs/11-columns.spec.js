@@ -20,12 +20,15 @@ const CATALOG = path.join(__dirname, '..', '..', 'src', 'services', 'api', 'endp
  * 그때는 카탈로그에 적힌 응답 형태(`items[{a,b,c}]`)로 대신 확인합니다.
  * 로컬에 자료가 없는 화면이 많아, 이게 없으면 검사가 대부분 건너뜁니다.
  */
-function declaredFields(apiPath) {
+function declaredFields(apiPath, listKey) {
   const src = fs.readFileSync(CATALOG, 'utf8');
   const re = new RegExp(`path: '/api/v1${apiPath.replace(/[.*+?^$()|[\\]\\\\]/g, '\\$&')}',[\\s\\S]{0,400}?response: '([^']*)'`);
   const m = src.match(re);
   if (!m) return [];
-  const inner = m[1].match(/\{([^}]*)\}/);
+  // 목록 키가 있으면 그 목록의 항목 필드를, 없으면 첫 묶음을 봅니다
+  // (상세 응답은 첫 묶음이 본문이라 표 항목 목록이 뒤에 옵니다 — 예: 연동 작업 상세의 errors[])
+  const keyed = listKey ? m[1].match(new RegExp(`\\b${listKey}\\[\\{([^}]*)\\}`)) : null;
+  const inner = keyed || m[1].match(/\{([^}]*)\}/);
   if (!inner) return [];
   return inner[1].split(',').map((x) => x.split(':')[0].trim().replace(/\[\]$/, '')).filter(Boolean);
 }
@@ -38,7 +41,11 @@ function declaredFields(apiPath) {
  * [뷰 파일, [[엔드포인트, 파라미터, 목록 키], …]]
  */
 const TABLES = (f) => [
-  ['system/view/AuditLogView.jsx', [['/audit-logs', { size: 5 }, 'items']]],
+  ['system/view/AuditLogView.jsx', [
+    ['/audit-logs', { size: 5 }, 'items'],
+    // 보존 정책 모달의 원천별 표 (AUD-11)
+    ['/audit-logs/retention-policy', {}, 'sources'],
+  ]],
   ['system/view/ChatHistoryView.jsx', [['/ai/chat/history', { size: 5 }, 'items']]],
   ['production/view/ProductionMonitorView.jsx', [['/production/monitor/equipments', { size: 5 }, 'items']]],
   ['production/view/ProductionResultView.jsx', [['/production/results', { from: f.monthFrom, to: f.monthTo, unit: 'day' }, 'items']]],
@@ -55,6 +62,12 @@ const TABLES = (f) => [
     ['/sync/runs', { size: 5 }, 'items'],
     ['/sync/schema-drift', {}, 'items'],
     ['/sync/maps', {}, 'items'],
+    // 작업 상세의 오류 상세 표 (SYN-07) — 실패 작업 하나를 찾아 그 상세를 봅니다
+    ['/sync/jobs/{jobId}', {}, 'errors', async () => {
+      const jobs = await api.data('/sync/jobs', { state: 'FAIL', from: '2026-01-01', size: 1 }).catch(() => null);
+      const id = jobs?.items?.[0]?.jobId;
+      return id ? `/sync/jobs/${id}` : null;
+    }],
   ]],
   ['alert/view/AlertListView.jsx', [
     ['/alerts', { size: 5 }, 'items'],
@@ -63,6 +76,8 @@ const TABLES = (f) => [
   ]],
   ['system/view/AccountView.jsx', [
     ['/system/users', { size: 5 }, 'items'],
+    // 승인 대기 표 — 대기 계정이 없으면 카탈로그 응답 필드로 봅니다
+    ['/system/users/pending', { size: 5 }, 'items'],
     ['/system/depts', {}, 'items'],
     ['/system/perm-logs', { size: 5 }, 'items'],
   ]],
@@ -130,11 +145,13 @@ suite('표 컬럼 ↔ 응답 필드', () => {
     const empty = [];
     for (const [file, sources] of TABLES(ctx.f)) {
       const fields = new Set();
-      for (const [path_, params, listKey] of sources) {
-        const data = await api.data(path_, params).catch(() => null);
+      for (const [path_, params, listKey, resolvePath] of sources) {
+        // 경로 변수가 있는 상세 API 는 해석 함수가 실제 경로를 정합니다(못 정하면 카탈로그로)
+        const real = resolvePath ? await resolvePath() : path_;
+        const data = real ? await api.data(real, params).catch(() => null) : null;
         const row = (data?.[listKey] || data?.items || [])[0];
         if (row) Object.keys(row).forEach((k) => fields.add(k));
-        else declaredFields(path_).forEach((k) => fields.add(k)); // 자료가 없으면 카탈로그로
+        else declaredFields(path_, listKey).forEach((k) => fields.add(k)); // 자료가 없으면 카탈로그로
       }
       if (!fields.size) { empty.push(`${file} (${sources.map((x) => x[0]).join(', ')})`); continue; }
       const keys = columnKeys(file);

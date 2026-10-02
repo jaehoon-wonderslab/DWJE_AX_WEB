@@ -36,9 +36,11 @@ export default function LoginView({
   pending,
   formError,
   fieldErrors,
+  locked,
   submit,
   goSignup,
   goForgotPassword,
+  goUnlock,
 }) {
   const s = useCommonStyles();
 
@@ -56,6 +58,18 @@ export default function LoginView({
       }
     >
       {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
+
+      {/* 잠금 안내 (E-AUTH-005) — 이메일 해제를 쓸 수 없으면(SMTP 미설정 등) 전산팀 요청 문구만 둡니다 */}
+      {locked ? (
+        <FormAlert tone="error">
+          {locked.mailEnabled
+            ? `비밀번호를 여러 번 잘못 입력해 계정이 잠겼습니다. 등록된 이메일${locked.emailMasked ? `(${locked.emailMasked})` : ''}로 인증하면 잠금을 해제할 수 있습니다.`
+            : locked.message || '비밀번호를 여러 번 잘못 입력해 계정이 잠겼습니다. 전산팀에 잠금 해제를 요청해 주세요.'}
+        </FormAlert>
+      ) : null}
+      {locked?.mailEnabled ? (
+        <Button label="이메일 인증으로 잠금 해제" onPress={goUnlock} style={{ height: 38 }} />
+      ) : null}
 
       <TextField
         label="사번"
@@ -100,7 +114,7 @@ export default function LoginView({
         </FormAlert>
       ) : (
         <Text style={[s.caption, { textAlign: 'center' }]}>
-          비밀번호를 5회 잘못 입력하면 계정이 정지됩니다. 정지된 계정은 비밀번호 찾기로 다시 사용할 수 있습니다.
+          비밀번호를 5회 잘못 입력하면 계정이 잠깁니다. 잠긴 계정은 이메일 인증으로 풀 수 있습니다.
         </Text>
       )}
     </AuthCard>

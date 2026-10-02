@@ -57,6 +57,22 @@ export const MENU = [
     ],
   },
   {
+    // 시스템관리에 있던 화면 — 관리 설정이 아니라 모두가 보는 이력이라 대그룹으로 옮겼습니다 (2026-10-01 결정 R-08).
+    // 사이드바에는 그룹 한 줄 — 허브(/menu/history)에서 화면을 고릅니다 (보고서와 같은 방식). 화면 ID 는 그대로입니다.
+    group: '자연어 질의 이력',
+    hubPath: '/menu/history',
+    single: true,
+    items: [{ id: 'chat-history', name: '자연어 질의 이력', path: '/history/chat', tag: '수정', description: '전 사용자의 자연어 질의와 AI 응답 이력을 세션별로 조회합니다.' }],
+  },
+  {
+    // 공식 용어·유사어를 찾아보기만 하는 화면 — 등록·수정·삭제는 시스템관리 > 용어 사전 관리(sys-gloss) 입니다 (2026-10-01 결정 R-09·R-15).
+    // 사이드바에는 그룹 한 줄 — 허브(/menu/glossary)에서 화면을 고릅니다 (보고서와 같은 방식)
+    group: '용어 사전',
+    hubPath: '/menu/glossary',
+    single: true,
+    items: [{ id: 'gloss-view', name: '용어 사전 조회', path: '/glossary/view', tag: '신규', description: '공식 용어와 현장 유사어를 찾아봅니다.' }],
+  },
+  {
     group: '이상 알림',
     hubPath: '/menu/alert',
     // 사이드바에는 내지 않습니다 — 상단의 종(알림) 버튼으로 들어갑니다. 권한·라우트·브레드크럼은 그대로입니다.
@@ -72,15 +88,24 @@ export const MENU = [
       { id: 'sys-menu', name: '메뉴 접근 권한', path: '/system/menu-perm', tag: '신규', description: '부서별로 접근할 수 있는 화면 메뉴를 지정합니다.' },
       { id: 'sys-data', name: '데이터 접근 권한', path: '/system/data-perm', tag: '신규', description: '부서별로 열람할 수 있는 데이터 항목을 지정합니다.' },
       { id: 'alert-cond', name: '이상 알림 발송 조건 관리', path: '/system/alert-condition', tag: '신규', description: '이상 알림의 발생 기준·대상·발송 조건을 관리합니다.' },
-      { id: 'sys-recip', name: '알림 수신자 관리', path: '/system/recipient', tag: '신규', description: '알림 수신 그룹과 연락처·대리 수신자를 관리합니다.' },
+      { id: 'sys-recip', name: '알림 수신자 관리', path: '/system/recipient', tag: '신규', description: '알림 수신 그룹과 수신자 연락처를 관리합니다.' },
       { id: 'sys-gloss', name: '용어 사전 관리', path: '/system/glossary', tag: '신규', description: '공식 용어와 현장 유사어를 등록하고 관리합니다.' },
-        { id: 'chat-history', name: '자연어 질의 이력', path: '/system/chat-history', tag: '신규', description: '사용자의 자연어 질의와 AI 응답 이력을 조회합니다.' },
       { id: 'sys-audit', name: '보안 감사 로그', path: '/system/audit-log', tag: '신규', description: '사용자 접속·데이터 접근·보안 처리 이력을 확인합니다.' },
               { id: 'sys-dl', name: '보고서 다운로드 이력', path: '/system/download-log', tag: '신규', description: '사용자별 보고서·화면 파일 다운로드 이력을 조회합니다.' },
-      { id: 'sys-upload-doc', name: '업로드 문서 목록', path: '/system/upload-doc', tag: '신규', description: 'AI 통합 대시보드 업로드 리포트에 올라온 엑셀 문서와 버전 이력을 조회합니다(읽기 전용).' },
+      { id: 'sys-upload-doc', name: '업로드 문서 목록', path: '/system/upload-doc', tag: '신규', description: 'AI 통합 대시보드 업로드 리포트에 올라온 엑셀 문서와 버전 이력을 조회하고, 잘못 올린 문서를 숨기거나 복원합니다.' },
       { id: 'sys-sync', name: '데이터 연동 이력', path: '/system/sync-history', tag: '필수', description: 'MES에서 AX 계층으로 이관된 데이터 연동 결과와 오류를 확인합니다.' },
     ],
   },
+];
+
+/**
+ * 옛 주소 — 화면을 다른 대그룹으로 옮긴 뒤에도 북마크가 깨지지 않게 리다이렉트 라우트를 남겨 둔 경로입니다.
+ *  · 라우트 검사(check-routes)는 `from` 경로를 메뉴 정의 없음으로 보지 않습니다.
+ *  · 경로↔화면 ID 매핑(routes.js)에도 넣어, 리다이렉트 직전 한 프레임 동안 권한 판정이 엉뚱한 화면으로 보내지 않게 합니다.
+ * (키를 from/to/screen 으로 써서 check-routes 의 메뉴 정의 정규식 `id: …, name: …, path: …` 에 걸리지 않게 합니다)
+ */
+export const LEGACY_PATHS = [
+  { from: '/system/chat-history', to: '/history/chat', screen: 'chat-history' },
 ];
 
 /**

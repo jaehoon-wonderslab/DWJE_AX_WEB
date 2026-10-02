@@ -83,6 +83,18 @@ function briefingMasked(data) {
   };
 }
 
+/** 업로드 요청 거부 사유 (서버 계약과 같은 400) — 없으면 null */
+function uploadRejection(file, memo) {
+  const name = String(file?.name || '');
+  if (name && !/\.xlsx$/i.test(name)) {
+    return { success: false, code: 'E-VALID-001', message: 'xlsx 파일만 올릴 수 있습니다.', data: null, error: { code: 'E-VALID-001', field: 'file' } };
+  }
+  if (String(memo || '').trim().length > 1000) {
+    return { success: false, code: 'E-VALID-001', message: '메모는 1000자까지 입력할 수 있습니다.', data: null, error: { code: 'E-VALID-001', field: 'memo' } };
+  }
+  return null;
+}
+
 export const dashboardMock = {
   /* ───────── DB-01 AI 통합 대시보드 ───────── */
   getDashboardAiSummary: () => AI_SUMMARY,
@@ -339,26 +351,32 @@ export const dashboardMock = {
   }),
 
   /* ───────── DB-01 업로드 리포트 (엑셀 업로드 · 버전 · 파싱 데이터) ─────────
+   * 업로드 거부는 서버와 같은 400 E-VALID-001 — xlsx 가 아닌 파일(xlsm 포함, UPD-03) · 메모 1000자 초과(UPD-02).
    * 문서·버전은 data/uploads.js 의 세션 저장소에 쌓입니다 — 시스템관리 「업로드 문서 목록」 도 같은 것을 읽습니다.
    */
   getDashboardUploads: ({ keyword } = {}) => ({ items: listDocs({ keyword }) }),
   postDashboardUploads: ({ file, title, memo } = {}) => {
     const name = String(title || '').trim();
     if (!name) return { success: false, code: 'E-VALID-001', message: '제목을 입력해 주세요', data: null, error: { code: 'E-VALID-001', field: 'title' } };
+    const bad = uploadRejection(file, memo);
+    if (bad) return bad;
     const st = uploadStore();
     st.seq += 1;
     const docId = `UPD-2026-${String(st.seq).padStart(4, '0')}`;
     const stamp = nowStamp();
     const user = mockState.currentUser;
     st.docs.push({ docId, title: name, memo: memo || '', createdBy: user.empNo, createdByName: user.name, createdAt: stamp });
-    const data = addVersion(docId, { file, memo: '최초 등록', stamp, user });
+    // 입력 메모는 문서 메모와 버전 1 메모에 함께 들어갑니다 (서버 UPD-02 와 같게)
+    const data = addVersion(docId, { file, memo: String(memo || '').trim(), stamp, user });
     return { success: true, code: 'SUCCESS', message: uploadMessage(data), data };
   },
   // 새 버전 응답은 새 문서 업로드와 같은 전체 응답입니다 — 화면이 두 번째 조회 없이 바로 그립니다
   postDashboardUploadsByDocIdVersions: ({ docId, file, memo } = {}) => {
     const doc = uploadStore().docs.find((d) => d.docId === docId);
     if (!doc) return { success: false, code: 'E-NOTFOUND', message: '문서를 찾을 수 없습니다', data: null };
-    const data = addVersion(docId, { file, memo, stamp: nowStamp(), user: mockState.currentUser });
+    const bad = uploadRejection(file, memo);
+    if (bad) return bad;
+    const data = addVersion(docId, { file, memo: String(memo || '').trim(), stamp: nowStamp(), user: mockState.currentUser });
     return { success: true, code: 'SUCCESS', message: uploadMessage(data), data };
   },
   getDashboardUploadsByDocIdVersions: ({ docId } = {}) => versionsOf(docId),

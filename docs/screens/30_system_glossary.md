@@ -2,105 +2,126 @@
 
 | 항목 | 값 |
 | :--- | :--- |
-| URL | `/system/glossary` |
+| URL | `/system/glossary` (`?keyword=` 로 첫 검색어를 받습니다 — 용어 사전 조회의 「관리 화면에서 편집」) |
 | 화면 ID | `sys-gloss` |
 | 라우트 파일 | `app/(main)/system/glossary.jsx` |
-| MVC | `domains/system/view/GlossaryView.jsx` · `controller/useGlossaryController.js` |
+| MVC | `domains/system/view/GlossaryView.jsx` · `controller/useGlossaryController.js` · `model/systemRepository.js`(SY-06 구역) |
 | 기능 ID | SY-06 |
-| 접근 권한 | 전 부서 (공식 용어 등록·수정·삭제는 **통합관리자 전용**) |
+| 접근 권한 | `sys-gloss` 조회 권한. 공식 용어 등록·수정·삭제는 **통합관리자 전용**, 유사어 쓰기는 **`sys-gloss` 쓰기 권한**(2026-10-01 결정 R-06) |
 
-**권한 규칙 — 공식 용어는 통합관리자만 편집. 유사어는 누구나 등록하되 본인이 등록한 것만 수정·삭제.**
+**권한 규칙 — 공식 용어는 통합관리자만 편집(서버 403 `E-AUTH-004`). 유사어는 쓰기 권한이 있으면 등록하고, 본인이 등록한 것만 수정·삭제(통합관리자는 모두).**
+쓰기 권한 판정은 요약의 `canWriteVariant` 를 먼저 보고, 없으면 `/auth/me` 의 `writePerms` 로 합니다. 쓰기 권한이 없으면 유사어 버튼을 숨기지 않고 비활성으로 두고 「이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.」 를 알립니다.
+엑셀 내려받기는 조회 권한으로 받습니다(결정 R-10).
+
+조회 API(요약·분류·목록·상세·내려받기)는 용어 사전 조회 화면(`gloss-view`, `43_glossary_view.md`)과 같은 서버 API 를 씁니다. 이 화면의 쓰기 API 는 그 화면에 열지 않습니다.
+
+**고객사 용어 가림(2026-10-02 결정 R-18, 공통 11.2)** — `customer` 데이터 권한이 없으면 서버가 고객사 분류 용어를 `term`=「비공개 용어」, `definition`·`variants`=null, `blinded:true` 로 줍니다(통합관리자는 항상 봄). 화면은 그 행을 회색 「비공개 용어」·「비공개」 로 그리고, 유사어 추가·편집·삭제를 비활성 + 「고객사 데이터 권한이 없어 볼 수 없는 용어입니다」 로 둡니다(이력은 열림). 서버가 막으면 409 문구를 토스트로 보입니다. 변경 이력·유사어 폼의 공식 용어 후보·엑셀에서도 「비공개」 입니다.
 
 ## 1. 컴포넌트
 
-`PageHead`(+엑셀 다운로드 · 용어 임베딩 재생성 · 공식 용어 등록(권한자만) · `Button primary(유사어 등록)`) · `StatCard`×4 · `Hint` · `Card`(용어 정규화 미리보기) · `Filters`(검색 / 분류 / `CheckRow(내가 등록한 유사어만)`) · `Card(tight)`+`Table`+`Pagination` · `openFormModal`(용어/유사어) · `openConfirmModal`(삭제)
+`PageHead`(+`ExportMenuButton`(엑셀 다운로드 ▾) · 공식 용어 등록(통합관리자만) · `Button primary(유사어 등록)`(쓰기 권한 없으면 비활성 + `HelpTip`)) · `StatCard`×4 · 오류 줄(`FormAlert`) · 점검 필요 유사어 줄(통합관리자만) · `Hint` · `Card`(용어 정규화 미리보기) · `Filters`(검색 / 분류 / `CheckRow(내가 등록한 유사어만)`) · `Card(tight)`+`TabulatorGrid`+`Pagination` · `openFormModal`(용어/유사어) · `openConfirmModal`(삭제) · 점검 필요 유사어 모달(`Table`)
 
 ## 2. 화면에 출력해야 하는 정보
 
 ### 2-1. 요약 카드 (`GET /glossary/summary`)
 
-공식 용어(`termCnt`, 보조 "보고서 표기 기준") · 등록 유사어(`variantCnt`, 보조 `분류 N종`) · 내가 등록(`mineCnt`, 보조 "수정·삭제 가능") · 유사어 없음(`emptyCnt`, tone down)
+공식 용어(`termCnt`, 보조 `최근 변경 {lastChangedAt}` — 없으면 "보고서 표기 기준") · 등록 유사어(`variantCnt`, 보조 `분류 N종`) · 내가 등록(`myVariantCnt`, 보조 "수정·삭제 가능") · 유사어 없음(`noVariantTermCnt`, tone down)
+요약을 불러오지 못하면 카드 값은 `—`, 카드 위에 「요약을(를) 불러오지 못했습니다 — {message}」.
 
-### 2-2. 용어 정규화 미리보기 (`POST /glossary/normalize`)
+### 2-2. 점검 필요 유사어 (통합관리자 · `GET /glossary/variants/risks`)
+
+「점검 필요 유사어 N건 — 날짜·숫자·한 글자·공식 용어와 같은 낱말 [목록 보기]」. N 은 요약 `riskVariantCnt`(없으면 목록 건수).
+모달 표 : 유사어 120 · 공식 용어 160 · 등록자 120 · 사유 minWidth 200 · 관리 90(삭제 — 한 번 더 눌러 확인). 표 칩에도 점검 대상이면 `!` 와 사유 툴팁(통합관리자에게만).
+
+### 2-3. 용어 정규화 미리보기 (`POST /glossary/normalize`)
 
 - 입력 : `TextField(현장 표현)` — 기본 샘플 `"어제 캔 라인에서 찍힘 불량 나서 파카 써야 함. 쉴드캔 외관도 확인 필요"`
-- 출력 : 정규화된 문장 + 치환 칩 목록 (`{from}` 취소선 → `{to}` 초록 굵게). 치환 없으면 "바꿀 유사어를 찾지 못했습니다."
-- 각주 : "보고서 생성·자연어 질의 처리 시 같은 규칙으로 용어를 맞춥니다."
+- 출력 : 정규화된 문장 + 치환 칩(`{from}` 취소선 → `{to}` 초록 굵게) + **치환하지 않은 칩**(`skipped[]`, 회색 「치환하지 않음: {word} — {reason}」). 치환 없으면 "바꿀 유사어를 찾지 못했습니다."
+- 성공하면 토스트 없이 결과만, 실패할 때만 토스트.
+- 각주 : "저장하면 다음 AI 질의부터 의도 판단·문서 검색에 반영됩니다. 사내 LLM 모델의 용어 지식은 다음 학습 때 반영됩니다."
 
-### 2-3. 조회 조건
+### 2-4. 조회 조건
 
-검색(용어 · 뜻 · 유사어) · 분류(`전체` + `GET /glossary/domains` 의 `code[]`) · `내가 등록한 유사어만` 체크
+검색(용어 · 뜻 · 유사어 — Enter · 조회 · 입력 멈춤 400ms 로 확정, 입력 중 포커스 유지) · 분류(`전체` + `GET /glossary/domains` 의 `code[]`) · `내가 등록한 유사어만`(서버 `mineOnly`)
 
-### 2-4. 용어 · 유사어 표 (`GET /glossary/terms`)
+### 2-5. 용어 · 유사어 표 (`GET /glossary/terms`, `TabulatorGrid`, `renderVertical:'basic'`)
 
 | 열 | 폭 | 렌더 |
 | :--- | :--- | :--- |
-| 공식 용어 `term` | 130 | bold |
-| 뜻 `definition` | 280 | wrap |
-| 분류 `domain` | 110 | `Badge` |
-| **유사어 (등록자)** | flex | 칩 목록 — `word` + `byName`. **본인 것(`mine`)은 강조색 + × 삭제 아이콘, 클릭 시 수정 가능**. 남의 것은 회색·비활성. 없으면 "등록된 유사어 없음" |
-| 관리 | 150 | `유사어 추가` · (권한자) `편집` · `삭제` |
+| 공식 용어 `term` | minWidth 110 | bold |
+| 뜻 `definition` | minWidth 170 | wrap |
+| 분류 `domain` | minWidth 84 | tag |
+| **유사어 (등록자)** `variants` | minWidth 200 | 칩 — `word` + `byName`. 본인 것은 강조색 「내 등록」. **수정·삭제 가능(`editable` = 쓰기 권한 && 본인)이면 × 와 클릭 수정**. 없으면 "등록된 유사어 없음" |
+| 관리 `termId` | 260(통합관리자) / 170 | `유사어 추가`(쓰기 권한 없으면 비활성 + title 안내) · `이력` · (통합관리자) `편집` · `삭제` |
 
-빈 상태 : "검색 조건에 맞는 용어가 없습니다."
+재조회 중에는 표를 그대로 두고 카드 부제에 「조회 중…」. 빈 상태 : "검색 조건에 맞는 용어가 없습니다." / 내 것만이면 "내가 등록한 유사어가 없습니다."
+좁은 화면에서는 카드 안 가로 스크롤로 마지막 「관리」 열까지 봅니다(열을 숨기지 않음).
 
 ## 3. 버튼 및 페이징
 
 | 버튼 | 동작 |
 | :--- | :--- |
-| 공식 용어 등록 / 편집 | 폼 → `POST /glossary/terms` · `PUT /glossary/terms/{termId}` (통합관리자) |
+| 공식 용어 등록 / 편집 | 폼 → `POST /glossary/terms` · `PUT /glossary/terms/{termId}` (통합관리자). 403 이면 「공식 용어는 통합관리자만 편집할 수 있습니다.」 |
 | 공식 용어 삭제 | 확인 모달(danger) — **딸린 유사어 N개도 함께 빠진다고 안내** → `DELETE /glossary/terms/{termId}` |
-| 유사어 등록 / 수정 | 폼 → `POST /glossary/terms/{termId}/variants` · `PUT /glossary/variants/{variantId}` |
-| 유사어 삭제 (× 또는 버튼) | 확인 모달 → `DELETE /glossary/variants/{variantId}` |
+| 유사어 등록 / 수정 | 폼 → `POST /glossary/terms/{termId}/variants` · `PUT /glossary/variants/{variantId}`. 400(2자 미만·숫자·날짜형·공식 용어와 같은 낱말)은 서버 문구, 저장 후 `warnings[]` 는 토스트에 덧붙임 |
+| 유사어 삭제 (× ) | 확인 모달 → `DELETE /glossary/variants/{variantId}` |
 | 정규화 | `POST /glossary/normalize` |
-| 용어 임베딩 재생성 | `POST /glossary/reindex` → 토스트 |
-| 엑셀 다운로드 | 용어 사전 xls (공식 용어·뜻·분류·유사어·등록자) |
-| 조회 | `reload()` |
+| 용어 임베딩 재생성 | **제거됨**(2026-10, 처리기 없음 — 07 GLS-05). 컨트롤러 `reindex` 와 API 는 남김 |
+| 엑셀 다운로드 ▾ | 버튼 바로 아래 패널(바깥 클릭·Esc 로 닫힘). **조회 목록 다운로드(n건)** = 그리드에 보이는 행(정렬·열 순서 그대로, `attrs=['term','definition','domain','variants','byName']`, 등록자는 이름만), 이력 `scopeCd=VIEW`·조건 요약. **전체 다운로드(N건, N=termCnt)** = `POST /glossary/terms/export {scope:'ALL', menuId:'sys-gloss'}` 서버 생성(조건 무시, 상한 5,000, 이력은 서버가 기록). 서버 API 가 없으면 `size=0` 전체 조회로 브라우저에서 만듭니다 |
+| 변경 이력 (머리) · 이력 (행) | `GET /glossary/changes` — 머리는 최근 30일, 행은 그 용어(`termId`). 모달 표 : 시각 150 mono · 수행자 140 · 대상 90 · 구분 80 · 변경 전 minWidth 200 · 변경 후 minWidth 200, 표 minWidth 860, 좁은 화면 가로 스크롤. 실패하면 모달 안 안내 |
+| 조회 | 검색어 확정(같으면 다시 조회) |
 
 **페이징** — `usePaging({resetKey: keyword\|domain\|mineOnly})` + `Pagination`.
 
 ### 3-1. 폼 필드
 
-**공식 용어** — 공식 용어(필수, `예) Stiffener`) · 분류(select, 필수) · 뜻(textarea, 필수, `예) 스티프너 / FPCB 보강판 (Stiffener)`)
-안내 : "공식 용어는 보고서 표기와 AI 응답의 기준입니다. 현장 표현은 유사어로 등록하세요."
+**공식 용어** — 공식 용어(필수, 50자, `n/50자`) · 분류(select, 필수) · 뜻(여러 줄, 필수, 500자, `n/500자`) — 07 GLS-10.
 
-**유사어** — 공식 용어(select 전폭, 필수 — `{term} — {definition}`) · 유사어(필수, `예) 보강판 · 스티프너 · 찍힘`)
-안내 : "등록한 유사어는 자연어 질의와 보고서 생성 시 공식 용어로 자동 정규화됩니다."
+**유사어** — 머리 「유사어 등록」: 공식 용어 검색형 선택(2자 이상 입력 → `GET /glossary/terms?keyword=&size=20`, 2쪽 이후 용어도 고름 — GLS-11) · 유사어(필수, 50자). 행 「유사어 추가」: 그 용어로 고정. 수정: 공식 용어는 읽기 전용(바꾸려면 삭제 후 재등록), 유사어만.
+안내 : "2자 이상으로 적습니다. 숫자·날짜 표현과 다른 공식 용어와 같은 낱말은 등록할 수 없습니다."
 
 ## 4. 그 밖의 기능
 
-- **소프트 삭제 복원** — 지웠던 이름으로 다시 등록하면 서버가 그 용어를 되살립니다. 새로 만든 것과 되살아난 것을 구분해 알립니다 : "이전에 삭제한 용어를 되살렸습니다. 유사어 N개도 함께 돌아왔습니다."
-- 분류 선택지는 **기준정보 `/glossary/domains`** 에서 받습니다(등록된 용어에서 뽑으면 첫 용어를 만들 수 없음).
-- `canEditTerm` 은 `summary.canEditTerm` 서버 값.
+- **소프트 삭제 복원** — 지웠던 이름으로 다시 등록하면 서버가 그 용어를 되살립니다. "이전에 삭제한 용어를 되살렸습니다. 유사어 N개도 함께 돌아왔습니다."
+- 분류 선택지는 기준정보 `/glossary/domains` 에서 받습니다.
+- `canEditTerm` 은 `summary.canEditTerm`(없으면 `superAdmin`), `canWriteVariant` 는 `summary.canWriteVariant`(없으면 `writePerms`).
+- 「변경이 AI 에 반영되는 시점」 접이식 카드(GLS-06) : 즉시(미리보기·AI 질의 전처리·LLM 용어 대응표) / 다음 학습 때(사내 LLM 모델) / 반영 안 됨(저장된 질의 이력의 정규화 문장). 요약 부제에 `lastChangedBy` 가 오면 함께 적습니다.
+- 분류별 현황(GLS-13) 접이식 카드 : `Table` 분류 minWidth 140 · 용어 수 96 · 유사어 수 96 · 유사어 없음 110(오른쪽 정렬, 용어 수 내림차순). 행을 누르면 분류 필터가 그 분류로 바뀝니다. 서버가 분류별 `variantCnt`·`noVariantTermCnt` 를 아직 주지 않으면 `—`.
+- 변경 이력의 변경 전·후는 서버 JSON 키(`term`·`termDef`·`domainNm`·`word`·`restoredVariants`·`byAdmin`)를 「공식 용어·뜻·분류·유사어·되살린 유사어·관리자 대리 처리」 로 읽어 보입니다.
+- 재생성 API 응답의 상태는 `PENDING`(기획서 `QUEUED` 는 코드에 없어 서버가 바꿈). 화면 버튼은 제거됨이라 영향 없음.
 
 ## 5. 사용 API
 
-총 **11건**
+총 **14건** (화면에서 부르는 것 13건 + 버튼 제거된 재생성 1건)
 
-**용어 사전 관리** — 11건
-
-| # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
-|---|---|---|---|---|---|---|---|---|---|
-| 170 | `getGlossarySummary` | 용어 사전 요약 | GET | `/api/v1/glossary/summary` | — | termCnt, variantCnt, domainCnt, myVariantCnt, noVariantTermCnt, byDomain[] | 전 부서 | — | 2 |
-| 171 | `getGlossaryTerms` | 용어 목록 조회 | GET | `/api/v1/glossary/terms` | keyword, domainCd, page, size | items[{termId,term,definition,domain,variants[{variantId,word,byEmpNo,byName,at,editable}]}], meta | 전 부서 | — | 1 |
-| 171.5 | `getGlossaryDomains` | 용어 분류 목록 | GET | `/api/v1/glossary/domains` | — | domains[{domainId,code,name}] | 통합관리자 | — | 1 |
-| 172 | `postGlossaryTerms` | 공식 용어 등록 | POST | `/api/v1/glossary/terms` | term, definition, domainCd | termId | 통합관리자 | — | 1 |
-| 173 | `putGlossaryTermsByTermId` | 공식 용어 수정 | PUT | `/api/v1/glossary/terms/{termId}` | term, definition, domainCd | success | 통합관리자 | — | 1 |
-| 174 | `postGlossaryTermsByTermIdVariants` | 유사어 등록 | POST | `/api/v1/glossary/terms/{termId}/variants` | word | variantId | 전 부서 | — | 1 |
-| 175 | `putGlossaryVariantsByVariantId` | 유사어 수정 | PUT | `/api/v1/glossary/variants/{variantId}` | word | success | 전 부서 | — | 1 |
-| 176 | `deleteGlossaryVariantsByVariantId` | 유사어 삭제 | DELETE | `/api/v1/glossary/variants/{variantId}` | — | success | 전 부서 | — | 1 |
-| 176.5 | `deleteGlossaryTermsByTermId` | 공식 용어 삭제 | DELETE | `/api/v1/glossary/terms/{termId}` | — | success | 통합관리자 | — | 1 |
-| 177 | `postGlossaryNormalize` | 용어 정규화 미리보기 | POST | `/api/v1/glossary/normalize` | text | normalizedText, replacements[{from,to,termId}] | 전 부서 | — | 1 |
-| 178 | `postGlossaryReindex` | 용어 임베딩 재생성 | POST | `/api/v1/glossary/reindex` | — | jobId | 전산팀·통합관리자 | — | 2 |
-
+| # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 |
+|---|---|---|---|---|---|---|---|
+| 170 | `getGlossarySummary` | 용어 사전 요약 | GET | `/api/v1/glossary/summary` | — | termCnt, variantCnt, domainCnt, myVariantCnt, noVariantTermCnt, riskVariantCnt, canEditTerm, canWriteVariant, lastChangedAt, byDomain[] | sys-gloss 또는 gloss-view |
+| 171 | `getGlossaryTerms` | 용어 목록 조회 | GET | `/api/v1/glossary/terms` | keyword, domainCd, mineOnly, page, size | items[{termId,term,definition,domain,blinded,variants[{variantId,word,byEmpNo,byName,at,editable}]}], meta | sys-gloss 또는 gloss-view |
+| 171.5 | `getGlossaryDomains` | 용어 분류 목록 | GET | `/api/v1/glossary/domains` | — | domains[{domainId,code,name}] | sys-gloss 또는 gloss-view |
+| 172 | `postGlossaryTerms` | 공식 용어 등록 | POST | `/api/v1/glossary/terms` | term, definition, domainCd | termId | 통합관리자 |
+| 173 | `putGlossaryTermsByTermId` | 공식 용어 수정 | PUT | `/api/v1/glossary/terms/{termId}` | term, definition, domainCd | success | 통합관리자 |
+| 174 | `postGlossaryTermsByTermIdVariants` | 유사어 등록 | POST | `/api/v1/glossary/terms/{termId}/variants` | word | variantId, word, warnings[] | sys-gloss 쓰기 권한 |
+| 175 | `putGlossaryVariantsByVariantId` | 유사어 수정 | PUT | `/api/v1/glossary/variants/{variantId}` | word | success, warnings[] | 쓰기 권한 + 본인 |
+| 176 | `deleteGlossaryVariantsByVariantId` | 유사어 삭제 | DELETE | `/api/v1/glossary/variants/{variantId}` | — | success | 쓰기 권한 + 본인 |
+| 176.5 | `deleteGlossaryTermsByTermId` | 공식 용어 삭제 | DELETE | `/api/v1/glossary/terms/{termId}` | — | success | 통합관리자 |
+| 177 | `postGlossaryNormalize` | 용어 정규화 미리보기 | POST | `/api/v1/glossary/normalize` | text | normalizedText, replacements[{from,to,termId,variantId,start,end}], skipped[{word,termId,reasonCd,reason}] | sys-gloss 조회 |
+| 178 | `postGlossaryReindex` | 용어 임베딩 재생성(버튼 제거됨) | POST | `/api/v1/glossary/reindex` | — | jobId | 통합관리자 |
+| 신규 | `getGlossaryVariantsRisks` | 점검 필요 유사어 | GET | `/api/v1/glossary/variants/risks` | — | items[{variantId,word,termId,term,ownerName,riskCd,riskNm}] | 통합관리자 |
+| 신규 | `getGlossaryChanges` | 용어 사전 변경 이력 | GET | `/api/v1/glossary/changes` | termId, from, to, page, size | items[{changeId,at,actorId,actorNm,targetCd,actionCd,termId,term,variantId,before,after}], meta | sys-gloss 조회 |
+| 신규 | `postGlossaryTermsExport` | 용어 사전 내려받기 | POST | `/api/v1/glossary/terms/export` | scope, menuId, condSummary, keyword, domainCd, mineOnly, format | file(xlsx) | sys-gloss 또는 gloss-view |
 
 ## 6. 개발 체크리스트
 
-- [ ] 요약 4카드
-- [ ] 정규화 미리보기 (치환 칩)
-- [ ] 검색·분류·내 것만 필터 + 페이징
-- [ ] 용어 표 + 유사어 칩(본인/타인 구분, 인라인 수정·삭제)
-- [ ] 공식 용어 CRUD (통합관리자 권한 분기)
-- [ ] 유사어 CRUD (본인 것만)
-- [ ] 용어 삭제 시 딸린 유사어 수 안내
-- [ ] 소프트 삭제 복원 안내
-- [ ] 임베딩 재생성 · 엑셀 다운로드
+- [x] 요약 4카드(최근 변경, 실패 시 —)
+- [x] 정규화 미리보기 (치환 칩 + 치환하지 않음 칩)
+- [x] 검색 확정(400ms·Enter)·분류·내 것만(서버) 필터 + 페이징, `?keyword=` 첫 검색어
+- [x] 용어 표 + 유사어 칩(본인/타인, 쓰기 권한 있을 때만 수정·삭제)
+- [x] 공식 용어 CRUD (통합관리자, 403 안내)
+- [x] 유사어 쓰기 권한 UI(비활성 + 이유)
+- [x] 점검 필요 유사어 카드·모달(통합관리자)
+- [x] 엑셀 옵션 패널(조회 목록 / 전체)
+- [x] 임베딩 재생성 — 제거됨
+- [x] 변경 이력 모달(GLS-07) · 반영 시점 카드(GLS-06) · 입력 길이(GLS-10) · 공식 용어 검색 선택(GLS-11)
+- [x] 분류별 현황 (GLS-13) · 목 정합(GLS-15: 요약 필드명·`domainCd`·`mineOnly`·분류별 건수·`PENDING`)
+- 시험 : `tests/system/glossary-browser.cjs`(응답 고정) · `tests/system/gloss-chat-live-browser.cjs`(실 API 조회)

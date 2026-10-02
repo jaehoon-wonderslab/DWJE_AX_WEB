@@ -184,6 +184,40 @@ export function postAuthPasswordReset(params) {
 }
 
 /**
+ * 계정 잠금 해제 — 인증 코드 발송
+ *
+ * `POST /api/v1/auth/unlock/request`
+ * @param {object} params empNo
+ * @returns {Promise<object>} message, expireMinutes, resendAvailableInSec
+ * @remarks 계정 열거 방지 — 잠기지 않은 계정·없는 사번도 같은 성공 응답이 옵니다
+ */
+export function postAuthUnlockRequest(params) {
+  return request('postAuthUnlockRequest', params);
+}
+
+/**
+ * 계정 잠금 해제 — 인증 코드 검증
+ *
+ * `POST /api/v1/auth/unlock/verify`
+ * @param {object} params empNo, code
+ * @returns {Promise<object>} verificationToken, expireMinutes
+ */
+export function postAuthUnlockVerify(params) {
+  return request('postAuthUnlockVerify', params);
+}
+
+/**
+ * 계정 잠금 해제 — 새 비밀번호를 정하고 잠금을 풉니다
+ *
+ * `POST /api/v1/auth/unlock/complete`
+ * @param {object} params verificationToken, newPassword, newPasswordConfirm
+ * @returns {Promise<object>} empNo, message
+ */
+export function postAuthUnlockComplete(params) {
+  return request('postAuthUnlockComplete', params);
+}
+
+/**
  * 실적 데이터 보유 기간 조회
  *
  * `GET /api/v1/common/data-range`

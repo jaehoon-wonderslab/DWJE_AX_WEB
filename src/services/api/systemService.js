@@ -76,12 +76,24 @@ export function deleteSystemUsersByEmpNo(params) {
 }
 
 /**
+ * 계정 삭제 사전 확인 (2026-10-01 ACC-11)
+ *
+ * `GET /api/v1/system/users/{empNo}/delete-check`
+ * @param {object} params empNo
+ * @returns {Promise<object>} deletable, blocking{servingProfiles,docs}, cascade{recipients,menuGrants,usage}, joinSrc
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function getSystemUsersByEmpNoDeleteCheck(params) {
+  return request('getSystemUsersByEmpNoDeleteCheck', params);
+}
+
+/**
  * 계정 사용/정지
  *
  * `PATCH /api/v1/system/users/{empNo}/state`
- * @param {object} params state(사용|정지)
- * @returns {Promise<object>} success
- * @remarks 제약: 로그인 계정 정지 불가
+ * @param {object} params state(ACTIVE|SUSPENDED), reason?(정지 사유), resetPassword?(잠금 해제 시 비밀번호 초기화)
+ * @returns {Promise<object>} success, state, loginFailCnt, pwdChangeRequired, unlocked
+ * @remarks 제약: 로그인 계정 정지 불가. LOCKED 로 바꾸는 요청은 400. LOCKED → ACTIVE 는 관리자 잠금 해제(ACC-05)
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function patchSystemUsersByEmpNoState(params) {
@@ -327,6 +339,18 @@ export function patchSystemDataFieldsByFieldKeyApply(params) {
 }
 
 /**
+ * 「화면 열 → 종류」 매핑 원자 저장 (2026-10-01 신규, 기획 04 DTP-02)
+ *
+ * `PUT /api/v1/system/data-fields/mapping`
+ * @param {object} params newFields[{fieldKey,name,desc,category,grantAllDepts,apply}], moves[{attrName,toFieldKey,remark}], screenId
+ * @returns {Promise<object>} created[], moved[{attrName,from,to}], released[{attrName,from}], applied[], notApplied[]
+ * @remarks 한 트랜잭션 — 하나라도 실패하면 전부 되돌립니다. 쓰기 권한(requireWrite sys-data)
+ */
+export function putSystemDataFieldsMapping(params) {
+  return request('putSystemDataFieldsMapping', params);
+}
+
+/**
  * 데이터 권한 매트릭스 조회
  *
  * `GET /api/v1/system/data-perms`
@@ -427,6 +451,19 @@ export function getAlertConditions(params) {
 }
 
 /**
+ * 발송 조건 상세 — 편집 폼이 쓰는 전 필드
+ *
+ * `GET /api/v1/alert-conditions/{condId}`
+ * @param {object} params condId
+ * @returns {Promise<object>} condId, name, on, metricStdId, op, thresholdVal, targetScope, target, pickTargets[], channels[], groupIds[], groups[], …, updatedAt
+ * @remarks 2026-10-01 기획 05 ALC-04 신설
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
+ */
+export function getAlertConditionsByCondId(params) {
+  return request('getAlertConditionsByCondId', params);
+}
+
+/**
  * 발송 조건 등록
  *
  * `POST /api/v1/alert-conditions`
@@ -515,6 +552,19 @@ export function getAlertRecipientGroups(params) {
 }
 
 /**
+ * 수신 그룹 상세 — 편집 폼·부서 선택지·참조 정보
+ *
+ * `GET /api/v1/alert-recipient-groups/{groupId}`
+ * @param {object} params groupId
+ * @returns {Promise<object>} groupId, name, deptId, channels[], members[{empNo,name,dept,state,userState}], conds[], deptOptions[], updatedAt
+ * @remarks 2026-10-01 기획 06 RCP-02 신설
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
+ */
+export function getAlertRecipientGroupsByGroupId(params) {
+  return request('getAlertRecipientGroupsByGroupId', params);
+}
+
+/**
  * 수신 그룹 등록
  *
  * `POST /api/v1/alert-recipient-groups`
@@ -563,6 +613,19 @@ export function getAlertRecipients(params) {
 }
 
 /**
+ * 수신자 등록 후보 계정 — 아직 수신자가 아닌 사용 중 계정 (미배정 부서 소속 제외)
+ *
+ * `GET /api/v1/alert-recipients/candidates`
+ * @param {object} params keyword, deptId, size
+ * @returns {Promise<object>} items[{empNo,name,dept,posNm,email}], meta
+ * @remarks 2026-10-01 기획 06 RCP-06 신설, 결정 R-14
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function getAlertRecipientsCandidates(params) {
+  return request('getAlertRecipientsCandidates', params);
+}
+
+/**
  * 수신자 등록
  *
  * `POST /api/v1/alert-recipients`
@@ -597,6 +660,45 @@ export function putAlertRecipientsByRecipientId(params) {
  */
 export function patchAlertRecipientsByRecipientIdState(params) {
   return request('patchAlertRecipientsByRecipientIdState', params);
+}
+
+/**
+ * 수신자 영향 조회 — 부재·삭제 전에 받는 사람이 0명이 되는 그룹·조건
+ *
+ * `GET /api/v1/alert-recipients/{recipientId}/impact`
+ * @param {object} params recipientId
+ * @returns {Promise<object>} empNo, groups[], zeroGroups[], affectedConds[], affectedEscStages[]
+ * @remarks 2026-10-01 기획 06 RCP-07·08 신설
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function getAlertRecipientsByRecipientIdImpact(params) {
+  return request('getAlertRecipientsByRecipientIdImpact', params);
+}
+
+/**
+ * 수신자 삭제 — 영향이 있으면 force 없이 409
+ *
+ * `DELETE /api/v1/alert-recipients/{recipientId}`
+ * @param {object} params recipientId, force
+ * @returns {Promise<object>} success
+ * @remarks 2026-10-01 기획 06 RCP-08 신설
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function deleteAlertRecipientsByRecipientId(params) {
+  return request('deleteAlertRecipientsByRecipientId', params);
+}
+
+/**
+ * 수신 그룹 사용 중지/사용
+ *
+ * `PATCH /api/v1/alert-recipient-groups/{groupId}/state`
+ * @param {object} params groupId, on
+ * @returns {Promise<object>} useFlg, changed
+ * @remarks 2026-10-01 기획 06 RCP-08 신설
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function patchAlertRecipientGroupsByGroupIdState(params) {
+  return request('patchAlertRecipientGroupsByGroupIdState', params);
 }
 
 /**
@@ -649,6 +751,18 @@ export function getGlossarySummary(params) {
  */
 export function getGlossaryTerms(params) {
   return request('getGlossaryTerms', params);
+}
+
+/**
+ * 용어 상세 (용어 사전 조회 GL-01)
+ *
+ * `GET /api/v1/glossary/terms/{termId}`
+ * @param {object} params termId
+ * @returns {Promise<object>} termId, term, definition, domain, updatedAt, blinded, variants[], relatedTerms[]
+ * @privateRemarks 접근 권한 sys-gloss 또는 gloss-view · 2026-10-01 신규
+ */
+export function getGlossaryTermsByTermId(params) {
+  return request('getGlossaryTermsByTermId', params);
 }
 
 /**
@@ -762,6 +876,42 @@ export function postGlossaryReindex(params) {
   return request('postGlossaryReindex', params);
 }
 
+/**
+ * 점검 필요 유사어 (07 GLS-03, 2026-10-01 신규)
+ *
+ * `GET /api/v1/glossary/variants/risks`
+ * @param {object} [params] 요청 파라미터 없음
+ * @returns {Promise<object>} items[{variantId,word,termId,term,ownerName,riskCd,riskNm}]
+ * @privateRemarks 접근 권한 통합관리자 · 우선순위 1
+ */
+export function getGlossaryVariantsRisks(params) {
+  return request('getGlossaryVariantsRisks', params);
+}
+
+/**
+ * 용어 사전 내려받기 (07 GLS-12·18 · 13 GLV-05·13, 2026-10-01 신규)
+ *
+ * `POST /api/v1/glossary/terms/export` — 파일 응답이라 화면은 exportUtil.downloadFromServer 로 받습니다.
+ * @param {object} params scope, menuId, condSummary, keyword, domainCd, mineOnly, format
+ * @returns {Promise<object>} file(binary xlsx)
+ * @privateRemarks 접근 권한 sys-gloss 또는 gloss-view · 우선순위 2
+ */
+export function postGlossaryTermsExport(params) {
+  return request('postGlossaryTermsExport', params);
+}
+
+/**
+ * 용어 사전 변경 이력 (07 GLS-07, 2026-10-01 신규)
+ *
+ * `GET /api/v1/glossary/changes`
+ * @param {object} params termId, from, to, page, size
+ * @returns {Promise<object>} items[{changeId,at,actorId,actorNm,targetCd,actionCd,termId,term,variantId,before,after}], meta
+ * @privateRemarks 접근 권한 sys-gloss 조회 · 우선순위 2
+ */
+export function getGlossaryChanges(params) {
+  return request('getGlossaryChanges', params);
+}
+
 /* ───────── 자연어 질의 이력 ───────── */
 
 /**
@@ -813,19 +963,116 @@ export function postAiChatHistoryExportTrainset(params) {
   return request('postAiChatHistoryExportTrainset', params);
 }
 
+/**
+ * 질의 이력 세션 목록 (08 CHH-18, 2026-10-01 신규)
+ *
+ * `GET /api/v1/ai/chat/history/sessions`
+ * @param {object} params from, to, userGroup, empNo, keyword, page, size
+ * @returns {Promise<object>} items[{sessionKey,sessionId,startedAt,lastAskedAt,empNo,name,dept,questionCnt,firstQuestion,answeredCnt,usefulCnt,badCnt,reviewedCnt,hiddenCnt}], meta
+ * @privateRemarks 접근 권한 전 부서 · 우선순위 1
+ */
+export function getAiChatHistorySessions(params) {
+  return request('getAiChatHistorySessions', params);
+}
+
+/**
+ * 질의 이력 세션 상세 (08 CHH-18, 2026-10-01 신규)
+ *
+ * `GET /api/v1/ai/chat/history/sessions/{sessionKey}`
+ * @param {object} params sessionKey
+ * @returns {Promise<object>} sessionKey, sessionId, empNo, name, dept, startedAt, lastAskedAt, turns[]
+ * @privateRemarks 접근 권한 전 부서 · 우선순위 1
+ */
+export function getAiChatHistorySessionsBySessionKey(params) {
+  return request('getAiChatHistorySessionsBySessionKey', params);
+}
+
+/**
+ * 질의 관리자 검토 저장 (08 CHH-04, 2026-10-01 신규)
+ *
+ * `PUT /api/v1/ai/chat/history/{messageId}/review`
+ * @param {object} params messageId, reviewCd, comment
+ * @returns {Promise<object>} messageId, review, reviewedBy, reviewedAt
+ * @privateRemarks 접근 권한 chat-history 쓰기 권한 · 우선순위 1
+ */
+export function putAiChatHistoryByMessageIdReview(params) {
+  return request('putAiChatHistoryByMessageIdReview', params);
+}
+
+/**
+ * 질의 이력 엑셀 내려받기 (08 CHH-07·19, 2026-10-01 신규)
+ *
+ * `POST /api/v1/ai/chat/history/export` — 파일 응답이라 화면은 exportUtil.downloadFromServer 로 받습니다.
+ * @param {object} params view, scope, menuId, condSummary, from, to, userGroup, keyword, format
+ * @returns {Promise<object>} file(binary xlsx)
+ * @privateRemarks 접근 권한 전 부서 · 우선순위 2
+ */
+export function postAiChatHistoryExport(params) {
+  return request('postAiChatHistoryExport', params);
+}
+
+/**
+ * 질의 이력 사용자 그룹 선택지 (08 CHH-10, 2026-10-01 신규)
+ *
+ * `GET /api/v1/ai/chat/history/groups`
+ * @param {object} params from, to
+ * @returns {Promise<object>} items[{dept,cnt}]
+ * @privateRemarks 접근 권한 전 부서 · 우선순위 2
+ */
+export function getAiChatHistoryGroups(params) {
+  return request('getAiChatHistoryGroups', params);
+}
+
+/**
+ * 질의 디버그 진단 (08 CHH-05 — 카탈로그 등재. 화면은 상세의 debug 를 씁니다)
+ *
+ * `GET /api/v1/ai/chat/history/debug/{requestId}`
+ * @param {object} params requestId
+ * @returns {Promise<object>} route, parse, tool, result, errorCd, period, rows, docs, toolMs, totalMs
+ * @privateRemarks 접근 권한 chat-history 쓰기 권한 · 우선순위 3
+ */
+export function getAiChatHistoryDebugByRequestId(params) {
+  return request('getAiChatHistoryDebugByRequestId', params);
+}
+
 /* ───────── 보안 감사 로그 ───────── */
 
 /**
  * 감사 로그 조회
  *
  * `GET /api/v1/audit-logs`
- * @param {object} params from, to, type, userGroup, empNo, page, size
- * @returns {Promise<object>} items[{ts,type,empNo,dept,target,detail,ip}], meta
+ * @param {object} params from, to, type(쉼표 다중), userGroup, empNo, keyword, ip, result, excludeLoginSuccess, page, size
+ * @returns {Promise<object>} items[{id,src,ts,type,result,empNo,name,dept,menuId,menuNm,fieldKey,maskedCnt,target,detail,ip,ua}], meta
  * @remarks append-only. 수정·삭제 API 미제공
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function getAuditLogs(params) {
   return request('getAuditLogs', params);
+}
+
+/**
+ * 감사 로그 전체 내려받기 (2026-10-01 신규, 09 AUD-07)
+ *
+ * `POST /api/v1/audit-logs/export`
+ * @param {object} params scope(ALL), menuId(sys-audit), format(xlsx)
+ * @returns {Promise<object>} 파일(xlsx) — 화면은 exportUtil.downloadFromServer 로 받습니다
+ * @remarks 서버가 내려받기 이력을 직접 기록합니다
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function postAuditLogsExport(params) {
+  return request('postAuditLogsExport', params);
+}
+
+/**
+ * 감사 로그 보존 정책 조회 (2026-10-01 신규, 09 AUD-11)
+ *
+ * `GET /api/v1/audit-logs/retention-policy`
+ * @param {object} [params] 요청 파라미터 없음
+ * @returns {Promise<object>} retentionYears, enabled, sources[{src,totalCnt,expiredCnt,archivedCnt,oldestAt}], lastArchiveAt, nextArchiveAt, writeFailSinceBoot, mailFailSinceBoot
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function getAuditLogsRetentionPolicy(params) {
+  return request('getAuditLogsRetentionPolicy', params);
 }
 
 /* ───────── 보고서 다운로드 이력 ───────── */
@@ -846,8 +1093,8 @@ export function getDownloadLogsSummary(params) {
  * 다운로드 이력 조회
  *
  * `GET /api/v1/download-logs`
- * @param {object} params from, to, reportId, deptId, format, page, size
- * @returns {Promise<object>} items[{ts,empNo,name,dept,report,format,scope,rowCnt,blindCnt,ip}], meta
+ * @param {object} params from, to, menuId, reportId(호환), deptId, format, scopeCd, keyword, empNo, blindOnly, origin, page, size
+ * @returns {Promise<object>} items[{dlId,ts,empNo,name,dept,report,menuId,menuNm,format,origin,scopeCd,condSummary,rowCnt,blindCnt,ip}], meta
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function getDownloadLogs(params) {
@@ -858,10 +1105,10 @@ export function getDownloadLogs(params) {
  * 다운로드 이력 기록
  *
  * `POST /api/v1/download-logs`
- * @param {object} params reportId, reportNm, format, scope, rowCnt, blindCnt
+ * @param {object} params menuId, reportNm, format(코드), scopeCd, condSummary, scope(문구), rowCnt, blindCnt, fileSize, params
  * @returns {Promise<object>} logId
- * @remarks 엑셀·CSV·인쇄 모두 기록. 서버 내부 호출 권장
- * @privateRemarks 접근 권한 전 부서 · 우선순위 1
+ * @remarks 엑셀·CSV·인쇄·차트 이미지 모두 기록. 기록 성공 뒤에만 파일을 저장합니다(DLG-05)
+ * @privateRemarks 접근 권한 그 화면의 조회 권한 · 우선순위 1
  */
 export function postDownloadLogs(params) {
   return request('postDownloadLogs', params);
@@ -872,11 +1119,36 @@ export function postDownloadLogs(params) {
  *
  * `GET /api/v1/download-logs/retention-policy`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} retentionYears(3), archivedCnt, nextArchiveAt
+ * @returns {Promise<object>} retentionYears(3), enabled, totalCnt, expiredCnt, archivedCnt, archiveTargetCnt, oldestAt, lastArchiveAt, nextArchiveAt
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 3
  */
 export function getDownloadLogsRetentionPolicy(params) {
   return request('getDownloadLogsRetentionPolicy', params);
+}
+
+/**
+ * 다운로드 이력 상세 (2026-10-01 신규, 10 DLG-10)
+ *
+ * `GET /api/v1/download-logs/{dlId}`
+ * @param {object} params dlId
+ * @returns {Promise<object>} 목록 필드 + params, fileNm, fileSize, result, origin, blindFields[{fieldKey,fieldNm,cellCnt}]
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function getDownloadLogsByDlId(params) {
+  return request('getDownloadLogsByDlId', params);
+}
+
+/**
+ * 다운로드 이력 전체 내려받기 (2026-10-01 신규, 10 DLG-08)
+ *
+ * `POST /api/v1/download-logs/export`
+ * @param {object} params scope(ALL), menuId(sys-dl)
+ * @returns {Promise<object>} 파일(xlsx) — 화면은 exportUtil.downloadFromServer 로 받습니다
+ * @remarks 서버가 내려받기 이력을 직접 기록합니다
+ * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
+ */
+export function postDownloadLogsExport(params) {
+  return request('postDownloadLogsExport', params);
 }
 
 /* ───────── 데이터 연동 이력 ───────── */
@@ -992,6 +1264,19 @@ export function getSyncPolicy(params) {
 }
 
 /**
+ * 연동 이력 전체 내려받기 (서버 생성 xlsx, SYN-15)
+ *
+ * `POST /api/v1/sync/export`
+ * 화면은 파일(Blob)을 받기 위해 exportUtil.downloadFromServer 로 부릅니다 — 이 함수는 카탈로그·목 정합용입니다.
+ * @param {object} params target(JOBS|RUNS|DRIFTS), scope(ALL), menuId, condSummary
+ * @returns {Promise<object>} file(binary xlsx)
+ * @privateRemarks 접근 권한 sys-sync 조회 권한 · 우선순위 2
+ */
+export function postSyncExport(params) {
+  return request('postSyncExport', params);
+}
+
+/**
  * 스키마 드리프트 요약
  *
  * `GET /api/v1/sync/schema-drift/summary`
@@ -1061,6 +1346,31 @@ export function getSystemUploadsByDocIdVersions(params) {
   return request('getSystemUploadsByDocIdVersions', params);
 }
 
+/**
+ * 업로드 문서 숨기기 (R-19 · D-13)
+ *
+ * `DELETE /api/v1/system/uploads/{docId}` — 본문 `{ reason }`.
+ * 엔드포인트가 `deleteBody: true` 를 선언해 공통 request() 가 사유를 본문으로 보냅니다(주소에 남지 않게).
+ * @param {object} params docId, reason(필수 · 200자)
+ * @returns {Promise<object>} docId, deleted, deletedAt
+ * @privateRemarks 접근 권한 sys-upload-doc 쓰기 권한 · 우선순위 2
+ */
+export function deleteSystemUploadsByDocId(params) {
+  return request('deleteSystemUploadsByDocId', params);
+}
+
+/**
+ * 업로드 문서 복원 (R-19 · D-13)
+ *
+ * `POST /api/v1/system/uploads/{docId}/restore`
+ * @param {object} params docId
+ * @returns {Promise<object>} docId, deleted
+ * @privateRemarks 접근 권한 sys-upload-doc 쓰기 권한 · 우선순위 2
+ */
+export function postSystemUploadsByDocIdRestore(params) {
+  return request('postSystemUploadsByDocIdRestore', params);
+}
+
 /* ───────── 그룹웨어 부서 매핑 (SY-17) ───────── */
 
 /**
@@ -1128,10 +1438,22 @@ export function getSystemGwDeptMapsUnassignedUsers(params) {
  * 미배정 계정 매핑대로 재배정
  *
  * `POST /api/v1/system/gw-dept-maps/reassign`
- * @param {object} params empNos[] (비우면 제안 부서가 있는 미배정 계정 전체)
- * @returns {Promise<object>} movedCnt, skippedCnt, items[{empNo,deptNm}]
+ * @param {object} params empNos[] 또는 all:true — 빈 본문은 400 (2026-10-01 GWD-01, 최대 1,000개)
+ * @returns {Promise<object>} movedCnt, skippedCnt, items[{empNo,deptNm,gwDeptNm}], byDept[{deptNm,cnt}], skipped[{empNo,reason}]
  * @privateRemarks 접근 권한 sys-gw-dept 권한 · 우선순위 1
  */
 export function postSystemGwDeptMapsReassign(params) {
   return request('postSystemGwDeptMapsReassign', params);
+}
+
+/**
+ * 그룹웨어 부서 매핑 일괄 저장 (2026-10-01 GWD-05)
+ *
+ * `PUT /api/v1/system/gw-dept-maps/bulk`
+ * @param {object} params gwDeptNms[], deptId?, joinYn
+ * @returns {Promise<object>} savedCnt, items[{gwDeptNm,state}]
+ * @privateRemarks 접근 권한 sys-gw-dept 쓰기 권한 · 우선순위 2
+ */
+export function putSystemGwDeptMapsBulk(params) {
+  return request('putSystemGwDeptMapsBulk', params);
 }

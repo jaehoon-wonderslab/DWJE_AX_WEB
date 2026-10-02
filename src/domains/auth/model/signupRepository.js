@@ -18,7 +18,8 @@ export async function checkEmpNo(empNo) {
   if (!res.success || !res.data) {
     return { ok: false, available: false, res, message: res.message || '사번을 확인하지 못했습니다.' };
   }
-  return { ok: true, available: !!res.data.available, res, message: res.data.message || res.message };
+  // reason=GROUPWARE_JOINED — 그룹웨어 인사정보로 이미 계정이 있음(ACC-13). 화면이 로그인 안내를 보입니다
+  return { ok: true, available: !!res.data.available, reason: res.data.reason || '', res, message: res.data.message || res.message };
 }
 
 /**

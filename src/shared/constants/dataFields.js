@@ -63,25 +63,25 @@ export const DATA_SCOPE_DEFAULT = {
 export const MENU_ACCESS_DEFAULT = {
   품질보증팀: [
     'ai-chat', 'prod-result', 'qc-defect', 'qc-aoi', 'rpt-yield-model', 'rpt-lrr-customer',
-    'rpt-scrap', 'alert-list', 'sys-gloss', 'chat-history',
+    'rpt-scrap', 'alert-list', 'sys-gloss', 'gloss-view', 'chat-history',
   ],
   생산관리팀: [
     'ai-chat', 'dash-ai', 'dash-proc', 'prod-monitor', 'prod-result', 'qc-defect', 'qc-aoi',
     'prod-daily', 'rpt-press-morning', 'rpt-plating-morning', 'rpt-ship-plan', 'rpt-scrap',
-    'daily-history', 'alert-list', 'sys-gloss', 'chat-history',
+    'daily-history', 'alert-list', 'sys-gloss', 'gloss-view', 'chat-history',
   ],
   제조팀: [
     'ai-chat', 'dash-ai', 'dash-proc', 'prod-monitor', 'qc-defect', 'qc-aoi', 'rpt-press-morning',
-    'rpt-plating-morning', 'alert-list', 'sys-gloss', 'chat-history',
+    'rpt-plating-morning', 'alert-list', 'sys-gloss', 'gloss-view', 'chat-history',
   ],
   전산팀: [
     'ai-chat', 'dash-ai', 'dash-proc', 'dash-ai-upload', 'alert-list', 'sys-account', 'sys-gw-dept', 'sys-menu',
-    'sys-data', 'alert-cond', 'sys-recip', 'sys-gloss', 'chat-history', 'sys-audit', 'sys-dl',
+    'sys-data', 'alert-cond', 'sys-recip', 'sys-gloss', 'gloss-view', 'chat-history', 'sys-audit', 'sys-dl',
     'sys-upload-doc', 'sys-sync',
   ],
   경영진: [
     'ai-chat', 'dash-ai', 'dash-proc', 'prod-result', 'qc-defect', 'rpt-ship-plan',
-    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap', 'alert-list', 'sys-gloss', 'chat-history',
+    'rpt-yield-model', 'rpt-lrr-customer', 'rpt-scrap', 'alert-list', 'sys-gloss', 'gloss-view', 'chat-history',
   ],
   통합관리자: '*',
 };

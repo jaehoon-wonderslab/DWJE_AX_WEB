@@ -579,6 +579,100 @@ export const SCREEN_COLUMNS = [
     ]
   },
   {
+    "id": "chat-history",
+    "name": "자연어 질의 이력",
+    "group": "자연어 질의 이력",
+    "columns": [
+      {
+        "title": "세션 시작",
+        "field": "startedAt"
+      },
+      {
+        "title": "부서·사용자",
+        "field": "name"
+      },
+      {
+        "title": "질의 수",
+        "field": "questionCnt"
+      },
+      {
+        "title": "첫 질문",
+        "field": "firstQuestion"
+      },
+      {
+        "title": "마지막 질의",
+        "field": "lastAskedAt"
+      },
+      {
+        "title": "응답",
+        "field": "answeredCnt"
+      },
+      {
+        "title": "평가 요약",
+        "field": "usefulCnt"
+      },
+      {
+        "title": "검토",
+        "field": "reviewedCnt"
+      },
+      {
+        "title": "시각",
+        "field": "ts"
+      },
+      {
+        "title": "질문",
+        "field": "question"
+      },
+      {
+        "title": "응답",
+        "field": "answer"
+      },
+      {
+        "title": "판단 근거",
+        "field": "judgmentBasis"
+      },
+      {
+        "title": "미응답 사유",
+        "field": "unansweredReason"
+      },
+      {
+        "title": "응답 시간",
+        "field": "responseSec"
+      },
+      {
+        "title": "평가",
+        "field": "rating"
+      },
+      {
+        "title": "검토",
+        "field": "review"
+      }
+    ]
+  },
+  {
+    "id": "gloss-view",
+    "name": "용어 사전 조회",
+    "group": "용어 사전",
+    "columns": [
+      {
+        "title": "공식 용어",
+        "field": "term"
+      },
+      {
+        "title": "뜻",
+        "field": "definition"
+      },
+      {
+        "title": "분류",
+        "field": "domain"
+      },
+      {
+        "title": "유사어",
+        "field": "variants"
+      }
+    ]
+  },
+  {
     "id": "alert-list",
     "name": "알림 목록·상세",
     "group": "이상 알림",
@@ -679,6 +773,10 @@ export const SCREEN_COLUMNS = [
         "field": "name"
       },
       {
+        "title": "이메일",
+        "field": "email"
+      },
+      {
         "title": "신청 부서",
         "field": "dept"
       },
@@ -687,8 +785,24 @@ export const SCREEN_COLUMNS = [
         "field": "posNm"
       },
       {
+        "title": "신청 일시",
+        "field": "requestedAt"
+      },
+      {
         "title": "소속 부서",
         "field": "dept"
+      },
+      {
+        "title": "가입 경로",
+        "field": "joinSrc"
+      },
+      {
+        "title": "초기 비밀번호",
+        "field": "pwdChangeRequired"
+      },
+      {
+        "title": "추가 메뉴",
+        "field": "extraMenuIds"
       },
       {
         "title": "로그인 실패",
@@ -713,6 +827,14 @@ export const SCREEN_COLUMNS = [
       {
         "title": "소속 계정",
         "field": "userCnt"
+      },
+      {
+        "title": "메뉴 권한",
+        "field": "menuCnt"
+      },
+      {
+        "title": "데이터 권한",
+        "field": "dataCnt"
       },
       {
         "title": "시각",
@@ -786,6 +908,10 @@ export const SCREEN_COLUMNS = [
         "field": "stateNm"
       },
       {
+        "title": "초기 비밀번호",
+        "field": "pwdChangeRequired"
+      },
+      {
         "title": "가입 일시",
         "field": "joinedAt"
       },
@@ -800,6 +926,26 @@ export const SCREEN_COLUMNS = [
       {
         "title": "관리",
         "field": "empNo"
+      },
+      {
+        "title": "시각",
+        "field": "ts"
+      },
+      {
+        "title": "그룹웨어 부서",
+        "field": "target"
+      },
+      {
+        "title": "변경 내용",
+        "field": "detail"
+      },
+      {
+        "title": "수행자",
+        "field": "by"
+      },
+      {
+        "title": "구분",
+        "field": "actNm"
       }
     ]
   },
@@ -808,6 +954,22 @@ export const SCREEN_COLUMNS = [
     "name": "메뉴 접근 권한",
     "group": "시스템관리",
     "columns": [
+      {
+        "title": "시각",
+        "field": "ts"
+      },
+      {
+        "title": "대상",
+        "field": "targetLabel"
+      },
+      {
+        "title": "변경 내용",
+        "field": "detailLabel"
+      },
+      {
+        "title": "수행자",
+        "field": "byLabel"
+      },
       {
         "title": "메뉴 그룹",
         "field": "group"
@@ -819,6 +981,10 @@ export const SCREEN_COLUMNS = [
       {
         "title": "구분",
         "field": "kindLabel"
+      },
+      {
+        "title": "개인 허용",
+        "field": "grantCount"
       }
     ]
   },
@@ -828,12 +994,48 @@ export const SCREEN_COLUMNS = [
     "group": "시스템관리",
     "columns": [
       {
+        "title": "시각",
+        "field": "ts"
+      },
+      {
+        "title": "대상",
+        "field": "targetLabel"
+      },
+      {
+        "title": "변경 내용",
+        "field": "detailLabel"
+      },
+      {
+        "title": "수행자",
+        "field": "byLabel"
+      },
+      {
+        "title": "데이터 종류",
+        "field": "name"
+      },
+      {
+        "title": "적용",
+        "field": "appliedLabel"
+      },
+      {
+        "title": "결과",
+        "field": "result"
+      },
+      {
         "title": "데이터 항목",
         "field": "name"
       },
       {
+        "title": "분류",
+        "field": "categoryNm"
+      },
+      {
+        "title": "적용",
+        "field": "applyLabel"
+      },
+      {
         "title": "포함 데이터",
-        "field": "desc"
+        "field": "included"
       },
       {
         "title": "이 화면에 보이는 열",
@@ -867,6 +1069,10 @@ export const SCREEN_COLUMNS = [
     "group": "시스템관리",
     "columns": [
       {
+        "title": "상태",
+        "field": "on"
+      },
+      {
         "title": "조건명",
         "field": "name"
       },
@@ -899,6 +1105,10 @@ export const SCREEN_COLUMNS = [
         "field": "groups"
       },
       {
+        "title": "수신 인원",
+        "field": "receivingCnt"
+      },
+      {
         "title": "유효 시간대",
         "field": "validWindow"
       },
@@ -907,8 +1117,16 @@ export const SCREEN_COLUMNS = [
         "field": "dedupMin"
       },
       {
-        "title": "상태",
-        "field": "on"
+        "title": "판정",
+        "field": "evalState"
+      },
+      {
+        "title": "마지막 평가",
+        "field": "lastEvalAt"
+      },
+      {
+        "title": "최근 7일",
+        "field": "alert7dCnt"
       }
     ]
   },
@@ -938,8 +1156,24 @@ export const SCREEN_COLUMNS = [
         "field": "memberCnt"
       },
       {
+        "title": "수신 가능",
+        "field": "receivableLabel"
+      },
+      {
+        "title": "사용 조건",
+        "field": "condCnt"
+      },
+      {
+        "title": "승격 대상",
+        "field": "escLabel"
+      },
+      {
         "title": "구성원",
         "field": "memberNames"
+      },
+      {
+        "title": "상태",
+        "field": "useLabel"
       },
       {
         "title": "수신 그룹",
@@ -958,6 +1192,10 @@ export const SCREEN_COLUMNS = [
         "field": "posLabel"
       },
       {
+        "title": "계정",
+        "field": "accountLabel"
+      },
+      {
         "title": "메일",
         "field": "mail"
       },
@@ -972,6 +1210,10 @@ export const SCREEN_COLUMNS = [
       {
         "title": "상태",
         "field": "stateLabel"
+      },
+      {
+        "title": "비고",
+        "field": "remark"
       }
     ]
   },
@@ -999,49 +1241,58 @@ export const SCREEN_COLUMNS = [
       {
         "title": "관리",
         "field": "termId"
-      }
-    ]
-  },
-  {
-    "id": "chat-history",
-    "name": "자연어 질의 이력",
-    "group": "시스템관리",
-    "columns": [
+      },
+      {
+        "title": "용어 수",
+        "field": "termCnt"
+      },
+      {
+        "title": "유사어 수",
+        "field": "variantCnt"
+      },
+      {
+        "title": "유사어 없음",
+        "field": "noVariantTermCnt"
+      },
+      {
+        "title": "유사어",
+        "field": "word"
+      },
+      {
+        "title": "등록자",
+        "field": "ownerName"
+      },
+      {
+        "title": "사유",
+        "field": "riskNm"
+      },
+      {
+        "title": "관리",
+        "field": "variantId"
+      },
       {
         "title": "시각",
-        "field": "ts"
+        "field": "at"
       },
       {
-        "title": "질문",
-        "field": "question"
+        "title": "수행자",
+        "field": "actorNm"
       },
       {
-        "title": "응답",
-        "field": "answer"
+        "title": "대상",
+        "field": "targetCd"
       },
       {
-        "title": "판단 근거",
-        "field": "judgmentBasis"
+        "title": "구분",
+        "field": "actionCd"
       },
       {
-        "title": "미응답 사유",
-        "field": "unansweredReason"
+        "title": "변경 전",
+        "field": "before"
       },
       {
-        "title": "응답 시간",
-        "field": "responseSec"
-      },
-      {
-        "title": "답변 평가 기준",
-        "field": "evaluationCriteria"
-      },
-      {
-        "title": "사용자",
-        "field": "name"
-      },
-      {
-        "title": "평가",
-        "field": "rating"
+        "title": "변경 후",
+        "field": "after"
       }
     ]
   },
@@ -1051,6 +1302,26 @@ export const SCREEN_COLUMNS = [
     "group": "시스템관리",
     "columns": [
       {
+        "title": "원천",
+        "field": "src"
+      },
+      {
+        "title": "보관 중",
+        "field": "totalCnt"
+      },
+      {
+        "title": "경과(대기)",
+        "field": "expiredCnt"
+      },
+      {
+        "title": "아카이브",
+        "field": "archivedCnt"
+      },
+      {
+        "title": "가장 오래된 기록",
+        "field": "oldestAt"
+      },
+      {
         "title": "시각",
         "field": "ts"
       },
@@ -1059,12 +1330,20 @@ export const SCREEN_COLUMNS = [
         "field": "type"
       },
       {
-        "title": "대상",
-        "field": "target"
+        "title": "계정",
+        "field": "empNo"
       },
       {
-        "title": "사용자 그룹",
+        "title": "이름",
+        "field": "name"
+      },
+      {
+        "title": "부서",
         "field": "dept"
+      },
+      {
+        "title": "대상",
+        "field": "target"
       },
       {
         "title": "처리 결과",
@@ -1103,15 +1382,19 @@ export const SCREEN_COLUMNS = [
       },
       {
         "title": "화면",
-        "field": "reportId"
+        "field": "menuId"
       },
       {
         "title": "형식",
         "field": "format"
       },
       {
-        "title": "대상 범위",
-        "field": "scope"
+        "title": "범위",
+        "field": "scopeCd"
+      },
+      {
+        "title": "조회 조건",
+        "field": "condSummary"
       },
       {
         "title": "행 수",
@@ -1120,6 +1403,10 @@ export const SCREEN_COLUMNS = [
       {
         "title": "blind 항목",
         "field": "blindCnt"
+      },
+      {
+        "title": "출처",
+        "field": "origin"
       }
     ]
   },
@@ -1274,6 +1561,22 @@ export const SCREEN_COLUMNS = [
       {
         "title": "주기",
         "field": "schedule"
+      },
+      {
+        "title": "순번",
+        "field": "rowNo"
+      },
+      {
+        "title": "오류 코드",
+        "field": "code"
+      },
+      {
+        "title": "메시지",
+        "field": "message"
+      },
+      {
+        "title": "원본 키",
+        "field": "srcKey"
       }
     ]
   }

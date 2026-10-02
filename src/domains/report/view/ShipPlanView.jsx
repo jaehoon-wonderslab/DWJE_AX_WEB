@@ -114,7 +114,7 @@ export default function ShipPlanView({
         desc="모델 × 고객사 × 월 단위 연간 출하계획(회계연도 8월 시작 12개월)입니다. 계획 수량은 출하 계획(plan) 데이터 권한이 있는 계정에만 표시됩니다."
         actions={
           <>
-            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title, role })} />
+            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title, role, rowCount: exportRows.length })} />
             <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `출하계획_${yearNum}`, head: exportHead, rows: exportRows, blindCount: blindCnt })} />
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: title, head: exportHead, rows: exportRows, blindCount: blindCnt })} />
           </>

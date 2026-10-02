@@ -98,7 +98,7 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
         desc="고객사 출하수량(Ship Q'ty) 대비 고객사 라인 불량 통보 수량(LRR Q'ty)을 불량 유형·기간·고객사별로 집계한 품질보증팀 LRR 현황표입니다."
         actions={
           <>
-            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: '고객사별 LRR', role })} />
+            <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: '고객사별 LRR', role, rowCount: exportRows.length })} />
             <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `고객사별LRR_${baseYear}`, head: exportHead, rows: exportRows })} />
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: '고객사별 LRR', head: exportHead, rows: exportRows })} />
           </>

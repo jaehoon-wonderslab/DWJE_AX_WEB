@@ -9,6 +9,11 @@ const { open, WEB } = require('../lib/browser');
   const depts = Array.from({ length: 32 }, (_, i) => ({ deptId: i + 1, deptNm: `검증부서 ${i}`, abbr: `D${i}`, desc: `부서 설명 ${i}`, userCnt: i }));
   const logs = Array.from({ length: 32 }, (_, i) => ({ ts: `2026-09-13 10:00:${i}`, target: `대상 ${i}`, actType: 'ACCOUNT', detail: `변경내용 ${i}`, by: `수행자 ${i}` }));
   let saved, savedDept;
+  // 앱 번들은 8080 을 부릅니다 — API_URL 이 다르면(예: 18081) 그쪽으로 돌립니다. 아래의 화면별 가로채기가 먼저 걸립니다
+  const apiTarget = (process.env.API_URL || 'http://localhost:8080').replace(/\/$/, '');
+  if (!apiTarget.endsWith('localhost:8080')) {
+    await page.route('http://localhost:8080/**', (r) => r.continue({ url: r.request().url().replace('http://localhost:8080', apiTarget) }));
+  }
   const requests = [];
   await page.route('**/api/v1/system/**', async route => {
     const request = route.request(), url = new URL(request.url());
@@ -21,7 +26,7 @@ const { open, WEB } = require('../lib/browser');
     if (path === 'accounts/summary') return ok({ userCnt: { active: 32, pending: 32 }, deptCnt: 32, canChangePassword: true });
     if (path === 'menu-perms') return ok({ screens: [{ id: 'dash-ai', name: 'AI 통합 대시보드', group: '대시보드' }, { id: 'prod-result', name: '실적 집계·조회', group: '생산' }, { id: 'qc-defect', name: '불량 현황 조회', group: '품질' }], matrix: { 1: ['prod-result'], 2: ['dash-ai'] } });
     let rows = path === 'users' || path === 'users/pending' ? users : path === 'depts' ? depts : path === 'perm-logs' ? logs : null;
-    if (!rows) return route.continue();
+    if (!rows) return route.fallback();
     const keyword = url.searchParams.get('keyword') || '', current = Number(url.searchParams.get('page') || 1), size = Number(url.searchParams.get('size') ?? 10);
     requests.push({ path, keyword, page: current, size });
     rows = rows.filter(row => Object.values(row).join(' ').includes(keyword));

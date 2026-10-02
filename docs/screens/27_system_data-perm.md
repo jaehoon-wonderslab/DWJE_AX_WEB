@@ -5,77 +5,95 @@
 | URL | `/system/data-perm` |
 | 화면 ID | `sys-data` |
 | 라우트 파일 | `app/(main)/system/data-perm.jsx` |
-| MVC | `domains/system/view/DataPermView.jsx` · `controller/useDataPermController.js` |
+| MVC | `domains/system/view/DataPermView.jsx` · `DataPermGrid.jsx` · `DataFieldManager.jsx` · `controller/useDataPermController.js` · `controller/useDataFieldManagerController.js` |
 | 기능 ID | SY-03 |
-| 접근 권한 | 전산팀 · 통합관리자 |
+| 접근 권한 | 조회 — `sys-data` 조회 권한 / 편집 — `sys-data` 쓰기 권한(R-06). 화면 권한의 부여·회수는 통합관리자만(R-07) |
 
-부서별로 열람 가능한 **데이터 항목 7종**을 지정합니다. 허용되지 않은 항목은 메뉴 접근이 가능해도 **화면·보고서·인쇄물·CSV 전 구간에서 blind** 처리됩니다.
+부서별로 열람할 수 있는 **데이터 종류**(기본 7종 + 운영 중 추가 종류)를 지정합니다. 허용되지 않은 종류는 메뉴 접근이 가능해도 서버 응답에서 가려지고(값 `null`), 화면·보고서·인쇄물·엑셀에는 「비공개」 로 보입니다.
+서버 응답에는 다음 조회부터 적용됩니다. 다른 사용자의 화면에 「비공개」 표시가 나오기까지는 그 사용자가 화면을 다시 열어야 합니다(그 전에는 빈칸으로 보입니다).
+
+2026-10-01 시스템관리 개선 기획 04(DTP-01·02·03·16·17·18)를 반영했습니다.
 
 ## 1. 컴포넌트
 
-`PageHead`(+엑셀 다운로드 · 메뉴 접근 권한 · `Button primary(변경 저장)`) · `Hint` · `Card(tight)`+`PermMatrix` · `Grid cols=2` → `Card`(적용 미리보기, `KeyValue`+`BlindValue`) / `Card(tight)`(계정별 적용 결과, `Table`) · `Card(tight)`+`Table`(데이터 접근 감사)
+`PageHead`(엑셀 다운로드 ▾ · 메뉴 접근 권한 · 항목 관리) · (읽기 전용이면) `FormAlert` · `Hint` · `Card` + `DataPermGrid`(공통 `TabulatorGrid`) · 모달 `DataFieldManager`
 
-## 2. 화면에 출력해야 하는 정보
+## 2. 부서 × 종류 표 (`GET /system/data-perms`)
 
-### 2-1. 권한 매트릭스 (`GET /system/data-perms`, `GET /system/data-fields`)
+| 열 | 내용 | width / minWidth |
+| :--- | :--- | :--- |
+| 데이터 항목 | 이름 + 기본 7종 `(기본)` | 170 / 140 |
+| 분류 | `categoryNm` | 110 / 100 |
+| 적용 | `적용 중` / `미적용` + 「켜기」/「끄기」. 기본 7종은 `적용 중 (고정)` 이고 끄기 버튼이 없음(DTP-05) | 110 / 100 |
+| 포함 데이터 | `desc`, 없으면 가리는 값을 화면 열 제목으로 요약(`model/dataFieldModel`, DTP-07) | — / 260 (widthGrow 2) |
+| 부서 n개 | 머리글 「부서명 · n명」. 통합관리자 「전 권한」, 미배정 「0건 고정」 | 150 / 120 |
 
-- 행 : `fields[{key, name, desc}]` — 7종 (`qty`·`yield`·`price`·`customer`·`plan`·`mold`·`worker`), 행 라벨 폭 150, 설명(`descOf`) 표시
-- 열 : 부서 (`adminDepts` 잠금)
-- 푸터 : `허용 항목 수`
+- 표가 카드보다 넓으면 표 안에서 가로로 스크롤하고 헤더와 본문이 함께 움직입니다. 열을 줄이거나 숨기지 않습니다.
+- 셀 체크 → `PUT /system/data-perms {deptId, fieldKey, allowed}` → 목록 + `/auth/me` 재조회. 저장 중에는 칸을 잠그고(「저장 중…」) 응답 전 두 번째 클릭은 요청을 만들지 않습니다. 재조회 중에도 표를 다시 만들지 않아 스크롤 위치가 유지됩니다.
+- 서버가 거부하면(409 등) 체크 상태를 유지하고 서버 메시지를 토스트로 보입니다. 네트워크 예외는 토스트 후 다시 읽습니다.
+- 잠금(판정은 서버 응답 `depts[].locked` 만 씁니다)
+  - 통합관리자 열: 전 권한, 모든 칸 잠금.
+  - 미배정 열: 데이터 권한 0건 고정(R-11). 응답 `matrix` 와 관계없이 모든 칸이 꺼진 채 잠기고, title 은 「미배정 부서는 데이터 접근 권한이 없습니다(모든 종류 비공개)」.
+- 빈 데이터면 「데이터 종류가 없습니다 — 항목 관리에서 만드세요」, 최초 조회 실패면 오류와 「다시 시도」.
 
-`Hint` : "체크를 바꾸면 해당 부서 전 계정의 화면에 즉시 반영됩니다. 현재 로그인 계정은 {name} · {dept} 입니다 — 아래 적용 미리보기에서 결과를 바로 확인할 수 있습니다."
+- 적용 전환(DTP-04): 「켜기」 는 확인 창에 가리는 값 수·이름, 열람 허용 부서 수, 가려지는 부서(계정 수, 미배정은 항상 포함 · 「미배정은 고정」)를 보인 뒤 `PATCH /system/data-fields/{key}/apply {on}` 을 부릅니다. 가리는 값이 없는 종류는 켤 수 없습니다. 미적용 행은 흐리게 그리고, 체크 title 에 「미적용 — 체크해도 아직 가려지지 않습니다」 를 붙입니다.
 
-### 2-2. 적용 미리보기 (`GET /system/data-perms/preview?empNo=`)
+## 2-1. 계정으로 확인 · 최근 변경 이력 (DTP-10)
 
-`items[{field, label, value}]` → `KeyValue` + `BlindValue` 로 **실제 렌더 결과**를 그대로 보여 줍니다.
-각주 : "blind 항목은 값 자체가 화면·인쇄물·CSV 어디에도 포함되지 않습니다."
+- 계정으로 확인: 사번을 넣고 「확인」 → `GET /system/data-perms/preview?empNo=` 결과를 종류 · 적용 · 결과(`원본 노출` / `●●●● 비공개` / `미적용 — 가리지 않음`) 표로 보입니다. 서버가 행마다 `applied` 와 `masked`(= applied && 열람 불가)를 줍니다(API 3단계). `applied` 가 없는 구 응답이면 매트릭스의 적용 여부로 대신합니다. 이름 검색은 계정 목록 권한(sys-account)이 필요해 사번 입력으로 두었습니다.
+- 최근 변경 이력: `GET /system/perm-logs?actType=DATA_PERM&size=20`, 시각 · 대상 · 변경 내용 · 수행자. 저장할 때마다 다시 읽고, `sys-audit` 권한이 있으면 「보안 감사 로그에서 더 보기」.
+- 두 카드 모두 공통 `TabulatorGrid autoWidth` 이고 좁은 화면에서는 표 안에서 가로로 스크롤합니다. 넓은 화면은 나란히, 1100px 아래는 위아래로 놓습니다.
 
-### 2-3. 계정별 적용 결과 (`GET /system/data-perms/by-user`)
+## 3. 읽기 전용
 
-계정(`name` + `pos`) · 부서 · 허용 항목 수(`allowedCnt` 또는 `allowedFields.length`) · 비공개(`maskedFields` 를 ` · ` 로 연결, 없으면 `—`)
+`/auth/me` 의 `writePerms` 에 `sys-data` 가 없으면 매트릭스 체크와 「항목 관리」 의 체크·종류 선택·저장·삭제를 모두 비활성으로 두고 「읽기 전용 — 이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.」 를 보입니다. 「항목 관리」 는 열어서 볼 수 있습니다. 엑셀 다운로드는 조회 권한으로 판정하므로 그대로 쓸 수 있습니다(R-10).
 
-### 2-4. 데이터 접근 감사 (`GET /system/data-perms/audit`)
+## 4. 항목 관리 — 화면 보고 가리기 (`DataFieldManager`)
 
-시각(mono) · 계정 · 부서 · 화면 · 항목 · 결과(`열람`→green / 그 외 기본) · 비고
+- 화면 선택지에서 시스템관리 화면(계정 관리 · 메뉴 접근 권한 …)을 뺍니다(DTP-01).
+- `GET /system/data-fields` 응답의 `reservedAttrs`(로그인·권한 응답·공통 키)에 든 필드는 체크할 수 없고 「가릴 수 없음」 을 보입니다. WEB 에 예약어 목록을 따로 두지 않습니다.
+- 저장은 `PUT /system/data-fields/mapping` **1회**입니다(DTP-02). 서버가 새 종류 등록 · 새 종류 부서 허용(통합관리자·미배정 제외) · 필드명 이동 · 명시한 종류 적용을 한 트랜잭션에서 처리하고, 하나라도 실패하면 전부 되돌립니다. 실패하면 서버 메시지를 보이고 고른 내용(바꾼 열·새 종류)을 그대로 둡니다.
+- 꺼져 있던 종류에 값을 붙여도 자동으로 켜지 않습니다. 응답 `notApplied` 가 있으면 「「OO」 종류는 미적용 상태입니다 — 바깥 표에서 적용을 켜야 가려집니다」 를 안내합니다. 새 종류만 요청에서 `apply:true` 로 켭니다.
+- 바꾼 열이 있는데 화면을 바꾸거나 모달 아래 「닫기」 를 누르면 확인 창을 띄웁니다(DTP-14). 바깥 영역·× 로 닫는 것은 공통 모달이 가로채지 못해 막지 못합니다.
+- 종류 편집(DTP-11): 종류 목록의 「편집」 → 이름(필수 50자) · 설명(300자) · 분류(공통코드 `DATA_FIELD_CATEGORY`)를 `PUT /system/data-fields/{key}` 로 저장합니다. 길이는 화면에서 먼저 막고, 서버 오류는 토스트로 보입니다. 설명·분류를 비우면 빈 값을 그대로 보냅니다. 새 종류 만들기도 같은 칸을 받습니다. key 는 바꾸지 않습니다.
+- 상태·요청은 `useDataFieldManagerController` 가 맡고, 뷰는 그리기만 합니다.
 
-## 3. 버튼 및 페이징
+## 5. 엑셀 다운로드
 
-| 버튼 | 동작 |
-| :--- | :--- |
-| 셀 체크 | `PUT /system/data-perms` (deptId · fieldKey · allowed) → 목록 + `/auth/me` 재조회 |
-| 변경 저장 | 안내 토스트 ("데이터 접근 권한을 저장했습니다 — 변경 이력은 감사 로그에 기록됩니다") — 실제 저장은 셀 단위 즉시 반영 |
-| 엑셀 다운로드 | `데이터 항목 · 포함 데이터 · 부서별 O/-` xls |
-| 메뉴 접근 권한 | `/system/menu-perm` |
+공통 `ExportMenuButton`(「엑셀 다운로드 ▾」). 열은 데이터 항목 · 분류 · 적용 · 포함 데이터 · 부서별(열람/비공개, 통합관리자 「전 권한」). `attrs` 를 열 순서대로 넘깁니다(예약어·관리 화면 키라 가려지는 칸은 0건).
 
-페이징 없음 (감사·계정별 API 는 `page`/`size` 지원 → **개선 항목**).
+- 조회 목록(VIEW): 그리드에 보이는 종류 행 그대로.
+- 전체(ALL): `GET /system/data-fields` 로 미적용 종류까지 넣고(메모는 `attrDetails[{attrName, remark}]` 에서 읽음), 표 아래에 「가리는 값」 구획(종류 · 응답 필드명 · 화면 열 제목 · 메모)을 붙입니다. 공통 `downloadXls` 가 시트를 하나만 만들어 별도 시트 대신 같은 시트 아래에 둡니다.
 
-## 4. 그 밖의 기능
+## 6. 사용 API
 
-- 마스킹은 **원칙적으로 API 응답 생성 단계**에서 수행되고(응답의 `masked` 배열로 통보), 프론트는 `비공개` 배지로 렌더합니다.
-- 미리보기 대상 사번(`previewEmpNo`)은 기본값이 로그인 계정 — 컨트롤러에 `setPreviewEmpNo` 가 있으나 화면 UI 미노출. → **개선 항목**
+| # | 서비스 함수 | API 명 | Method | Path | 요청 | 응답 주요 필드 |
+|---|---|---|---|---|---|---|
+| 145 | `getSystemDataFields` | 데이터 항목 목록 | GET | `/api/v1/system/data-fields` | — | items[{key,name,desc,category,categoryNm,attrs[],applyFlg,builtIn}], reservedAttrs[] |
+| 145.7 | `putSystemDataFieldsMapping` | 화면 열 → 종류 매핑 저장 (2026-10-01 신규) | PUT | `/api/v1/system/data-fields/mapping` | newFields[], moves[], screenId | created[], moved[], released[], applied[], notApplied[] |
+| 146 | `getSystemDataPerms` | 데이터 권한 매트릭스 조회 | GET | `/api/v1/system/data-perms` | — | fields[], depts[{deptId,deptNm,superAdmin,unassigned,locked,userCnt}], matrix |
+| 147 | `putSystemDataPerms` | 데이터 권한 변경 | PUT | `/api/v1/system/data-perms` | deptId, fieldKey, allowed | success |
+| 145.1~145.6 | `postSystemDataFields` 외 | 종류 등록·수정·삭제 · 필드명 등록/해제 · 적용 전환 | — | `/api/v1/system/data-fields/*` | — | 하위 호환으로 유지 |
 
-## 5. 사용 API
+편집 API 는 모두 쓰기 권한(`requireWrite(sys-data)`)이 필요하고 거부되면 403 `E-AUTH-004` 입니다. 통합관리자·미배정 부서 대상 변경은 409 `E-RULE-001` 입니다.
 
-총 **6건**
+## 7. 제거됨
 
-**데이터 접근 권한** — 6건
+- 「적용 미리보기」·「계정별 적용 결과」·「데이터 접근 감사」 카드 — 화면에서 걷어냈습니다(서버 API 148·149·150 은 그대로 있습니다). 계정 기준 미리보기·변경 이력 카드는 기획 04 DTP-10(P1)에서 다시 다룹니다.
+- 「변경 저장」 버튼 — 체크가 곧 저장이라 두지 않습니다.
+- 항목 관리의 「등록 → 부서 허용 → 필드명 이동 → 적용」 개별 요청 반복과 자동 적용 켜기 — 매핑 API 1회로 바꿨습니다.
+- `systemRepository.toggleDataPerm` — 호출처가 없어 주석으로만 남겼습니다.
 
-| # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
-|---|---|---|---|---|---|---|---|---|---|
-| 145 | `getSystemDataFields` | 데이터 항목 목록 | GET | `/api/v1/system/data-fields` | — | items[{key,name,desc,columns[]}] | 전산팀·통합관리자 | — | 1 |
-| 146 | `getSystemDataPerms` | 데이터 권한 매트릭스 조회 | GET | `/api/v1/system/data-perms` | — | fields[], depts[], matrix{deptId:[fieldKey]} | 전산팀·통합관리자 | — | 1 |
-| 147 | `putSystemDataPerms` | 데이터 권한 변경 | PUT | `/api/v1/system/data-perms` | deptId, fieldKey, allowed | success | 전산팀·통합관리자 | — | 1 |
-| 148 | `getSystemDataPermsPreview` | 적용 미리보기 | GET | `/api/v1/system/data-perms/preview` | empNo | items[{fieldKey,name,rendered,masked}] | 전산팀·통합관리자 | — | 2 |
-| 149 | `getSystemDataPermsByUser` | 계정별 적용 결과 | GET | `/api/v1/system/data-perms/by-user` | page, size | items[{empNo,name,dept,allowedFields[],maskedFields[]}], meta | 전산팀·통합관리자 | — | 2 |
-| 150 | `getSystemDataPermsAudit` | 데이터 접근 감사 조회 | GET | `/api/v1/system/data-perms/audit` | from, to, empNo, fieldKey, page, size | items[{ts,empNo,dept,fieldKey,screen,action}], meta | 전산팀·통합관리자 | — | 1 |
+## 8. 검증
 
+실 API(읽기만): `API_URL=http://localhost:18081 WEB_URL=http://localhost:8093 node tests/system/perm-screens-live-browser.cjs`
 
-## 6. 개발 체크리스트
+fixture:
 
-- [ ] 데이터 항목 7종 × 부서 매트릭스 (설명 · 관리자 열 잠금 · 푸터 합계)
-- [ ] 셀 변경 즉시 반영 + `/auth/me` 재조회
-- [ ] 적용 미리보기 (`BlindValue` 실렌더)
-- [ ] 계정별 적용 결과 표
-- [ ] 데이터 접근 감사 표
-- [ ] 엑셀 다운로드
-- [ ] (개선) 미리보기 대상 계정 선택 UI · 감사/계정별 페이징
+`WEB_URL=http://localhost:8081 node tests/system/data-perm-browser.cjs` (로컬 대상 개발 서버 `npm run web`. 목 모드 서버는 API 를 네트워크로 부르지 않아 가로챌 수 없습니다)
+
+로그인 세션과 API 를 모두 fixture 로 흉내 내 머리글·잠금(통합관리자·미배정 0건), 저장 중 단일 요청과 표 유지, 409 시 상태 유지, 분류·적용 열, 항목 관리(시스템관리 화면 없음·예약어 잠금·매핑 요청 1건·실패 시 유지·미적용 안내·자동 적용 없음), 엑셀 VIEW/ALL·blindCnt 0, 읽기 전용, 390px 가로 스크롤을 확인합니다. 실제 DB 는 바꾸지 않습니다.
+
+## 9. 남은 일
+
+- 모달 바깥·× 닫기 가로채기(공통 모달에 닫기 전 확인 훅이 필요합니다). DTP-09 의 브라우저 공통 부분(`exportUtil.applyMask` 가 서버가 비운 칸도 「비공개」 로 세기)은 공통 소관입니다.
