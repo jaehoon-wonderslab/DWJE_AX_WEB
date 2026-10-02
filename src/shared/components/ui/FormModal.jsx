@@ -65,7 +65,8 @@ function FormBody({ fields, initial, note, onReady }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
         {fields.map((f) => {
           // full 이면 한 줄 전체, 아니면 2열 그리드 (좁은 화면에서는 자동으로 1열이 됩니다)
-          const cellStyle = f.full ? { width: '100%' } : { flexGrow: 1, flexBasis: 220, minWidth: 200 };
+          // f.cellStyle 로 칸마다 여백을 더할 수 있습니다(예: 묶음 사이 위쪽 여백)
+          const cellStyle = { ...(f.full ? { width: '100%' } : { flexGrow: 1, flexBasis: 220, minWidth: 200 }), ...f.cellStyle };
           // key 는 스프레드에 섞지 않고 각 요소에 직접 줍니다 (React 경고 방지)
           const common = { label: f.label, required: f.required, style: cellStyle, error: errors[f.key] };
           if (f.type === 'custom') {

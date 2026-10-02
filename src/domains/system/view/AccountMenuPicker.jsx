@@ -1,11 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { FormAlert, TextField } from '@shared/components/ui';
+import { FormAlert, HelpTip } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
 /** 관리 화면 4종 — 부서 권한·계정 추가 허용은 통합관리자만 부여·회수합니다(R-07, 서버 MenuId.ADMIN_SCREENS 와 같은 목록) */
 export const ADMIN_SCREENS = ['sys-account', 'sys-menu', 'sys-data', 'sys-gw-dept'];
+
+/** 수동 메뉴 설정 도움말 — 문장마다 줄을 바꿉니다 */
+const PICKER_HELP = [
+  '체크한 메뉴는 이 계정에만 추가로 허용됩니다.',
+  '같은 부서의 다른 계정에는 적용되지 않습니다.',
+  '부서 기본 메뉴는 여기에서 해제할 수 없으며, 소속 부서에서 변경 해 주세요.',
+].join('\n');
 
 /** 미배정 계정 안내 (ACC-14, R-11) */
 export const UNASSIGNED_PICKER_NOTE = '미배정 계정은 대시보드 3개·덕반장 AI·자연어 질의 이력만 볼 수 있고 데이터 값은 모두 비공개입니다. 추가 메뉴는 실제 부서로 옮긴 뒤 지정하십시오.';
@@ -27,7 +34,6 @@ export default function AccountMenuPicker({ value = [], onChange, deptId, option
     if (reasons) reasons[id] = next[id];
   };
   const grantOf = (id) => grants.find((g) => g.id === id);
-  const [keyword, setKeyword] = useState('');
   const s = useCommonStyles();
   const theme = useTheme();
 
@@ -52,33 +58,35 @@ export default function AccountMenuPicker({ value = [], onChange, deptId, option
   const screens = options.screens || [];
   const extra = new Set(value);
   const groups = {};
-  screens.filter(menu => `${menu.group} ${menu.name} ${menu.id}`.toLowerCase().includes(keyword.toLowerCase().trim()))
-    .forEach(menu => { (groups[menu.group || '기타'] ||= []).push(menu); });
+  // 메뉴 검색칸은 뺐습니다(2026-10-02) — 메뉴 수가 많지 않아 그룹별 목록만 둡니다
+  screens.forEach(menu => { (groups[menu.group || '기타'] ||= []).push(menu); });
   const locked = readOnly || unassigned;
   const toggle = id => onChange(extra.has(id) ? value.filter(x => x !== id) : [...value, id]);
   return (
     <View style={{ gap: 12 }} nativeID="account-menu-picker">
-      <Text style={[s.text, { fontWeight: '700' }]}>수동 메뉴 설정</Text>
+      {/* 안내 문장은 제목 옆 [!] 에 마우스를 올리면 보입니다(2026-10-02) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 10 }}>
+        <Text style={[s.text, { fontWeight: '700' }]}>수동 메뉴 설정</Text>
+        {!unassigned && !readOnly ? <HelpTip text={PICKER_HELP} mark="!" size={22} align="left" maxWidth={520} /> : null}
+      </View>
       <Text style={s.textSm}>부서 기본 권한 {inherited.size}개 · 수동 허용 {value.length}개</Text>
       {unassigned ? (
         <FormAlert tone="info">{UNASSIGNED_PICKER_NOTE}</FormAlert>
       ) : readOnly ? (
         <FormAlert tone="info">{readOnlyNote || '이 계정의 수동 메뉴는 바꿀 수 없습니다.'}</FormAlert>
-      ) : (
-        <Text style={s.textSm}>체크한 메뉴는 소속 부서 권한에 추가됩니다. 부서 기본 메뉴는 해제할 수 없으며, 부서를 바꾸면 기본 메뉴도 바뀝니다.</Text>
-      )}
+      ) : null}
       {unassigned && revokedCnt ? <FormAlert>{`저장하면 수동 허용 ${revokedCnt}개가 회수됩니다.`}</FormAlert> : null}
-      <TextField value={keyword} onChangeText={setKeyword} placeholder="메뉴 이름 또는 그룹 검색" accessibilityLabel="수동 허용 메뉴 검색" full />
-      <div style={{ color: theme.color.foreground, fontSize: 16, maxHeight: 330, overflowY: 'auto', border: `1px solid ${theme.hairlineStrong}`, borderRadius: 10, padding: 14, opacity: locked ? 0.72 : 1 }}>
+      <div style={{ color: theme.color.foreground, fontSize: 16, maxHeight: 400, overflowY: 'auto', border: `1px solid ${theme.hairlineStrong}`, borderRadius: 10, padding: 14, opacity: locked ? 0.72 : 1 }}>
         {Object.entries(groups).map(([group, menus]) => (
-          <section key={group} style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>{group}</div>
+          // 메뉴 줄이 붙어 보이지 않게 줄마다 위아래 14px, 그룹 사이 24px 를 둡니다(2026-10-02)
+          <section key={group} style={{ marginBottom: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{group}</div>
             {menus.map(menu => {
               const base = inherited.has(menu.id);
               const adminLock = !superAdmin && ADMIN_SCREENS.includes(menu.id);
               const disabled = locked || adminLock || (base && !extra.has(menu.id));
               return (
-                <label key={menu.id} title={adminLock ? '관리 화면 권한은 통합관리자만 부여하거나 회수할 수 있습니다' : undefined} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '9px 8px', borderBottom: `1px solid ${theme.hairline}`, cursor: disabled ? 'default' : 'pointer' }}>
+                <label key={menu.id} title={adminLock ? '관리 화면 권한은 통합관리자만 부여하거나 회수할 수 있습니다' : undefined} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '14px 8px', borderBottom: `1px solid ${theme.hairline}`, cursor: disabled ? 'default' : 'pointer' }}>
                   <input type="checkbox" aria-label={`${menu.name} 추가 허용`} checked={base || extra.has(menu.id)} disabled={disabled} onChange={() => toggle(menu.id)} style={{ width: 18, height: 18, flexShrink: 0, accentColor: theme.color.primary }} />
                   <span style={{ flex: 1 }}>{menu.name}</span>
                   <span style={{ fontSize: 13, color: theme.color.mutedForeground }}>

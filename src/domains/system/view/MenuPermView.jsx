@@ -8,12 +8,12 @@
  *  · sys-menu 쓰기 권한이 없으면 읽기 전용입니다(엑셀 다운로드는 그대로)
  * 사용 API — GET/PUT /api/v1/system/menu-perms · PUT …/group · POST …/copy(미리보기·실행)
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, Card, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, StatCard, TabulatorGrid, openConfirmModal,
+  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, StatCard, TabulatorGrid, openConfirmModal,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -30,6 +30,10 @@ const LOG_COLUMNS = [
   { title: '수행자', field: 'byLabel', minWidth: 150, headerSort: false },
 ];
 
+/** 탭 — 값은 시험에서 쓰는 이름입니다(2026-10-02 「부서 × 화면」 · 「최근 변경 이력」 을 탭으로 나눔) */
+const TAB_MATRIX = 'matrix';
+const TAB_LOGS = 'logs';
+
 export default function MenuPermView({
   loading, loadError, reload, busy, readOnly, isSuperAdmin, screens, depts, collapsed, toggleCollapsed,
   cellValue, lockReason, cellWarn, groupLockReason, grantCounts, myDept, myCount, myWriteCount, avgCount,
@@ -40,6 +44,7 @@ export default function MenuPermView({
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
   const openModal = useUiStore((state) => state.openModal);
+  const [tab, setTab] = useState(TAB_MATRIX);
 
   /** 칸 변경 — 확인이 필요한 변경(조회 해제·관리 화면)은 확인 창을 거칩니다 */
   const onToggle = (screenId, deptId, perm) => {
@@ -116,17 +121,33 @@ export default function MenuPermView({
   const actionCnt = screens.filter((r) => r.action).length;
   const userTotal = depts.reduce((n, d) => n + Number(d.userCnt || 0), 0);
 
+  /** 탭 머리 오른쪽 — 그 탭의 표에 쓰는 단추만 둡니다(예전 머리말·카드 오른쪽 단추를 옮김) */
+  const tabActions = {
+    [TAB_MATRIX]: (
+      <>
+        {busy ? <Text style={s.textXs}>저장 중…</Text> : null}
+        <ExportMenuButton viewCount={viewCount} totalCount={totalCount} onExportView={exportView} onExportAll={exportAll} />
+        <Button label="부서 권한 복사" size="sm" variant="primary" icon="copy" disabled={busy || readOnly || !depts.length} onPress={openCopyForm} />
+      </>
+    ),
+    [TAB_LOGS]: canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null,
+  };
+  /** 탭 내용 첫 줄 — 예전 카드 부제 */
+  const tabSub = {
+    [TAB_MATRIX]: '메뉴 그룹의 +/− 버튼으로 펼치거나 접습니다. 그룹 일괄 변경은 접힌 화면을 포함한 그룹 전체(동작 행 제외)에 적용됩니다.',
+    [TAB_LOGS]: '메뉴 접근 권한 변경 최근 20건',
+  };
+
   return (
     <View>
       <PageHead
-        title="메뉴 접근 권한"
+        title="부서별 메뉴 접근 권한"
         desc="부서별로 화면마다 조회·쓰기 권한을 지정합니다. 부서 기본 권한을 변경하며, 계정별 추가 허용 메뉴는 계정 관리에서 별도로 설정합니다."
         actions={
+          // 다른 화면으로 가는 단추만 머리말에 둡니다 — 표에 쓰는 단추(엑셀·부서 권한 복사)는 탭 머리로 옮겼습니다
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <ExportMenuButton viewCount={viewCount} totalCount={totalCount} onExportView={exportView} onExportAll={exportAll} />
             <Button label="계정 관리" size="sm" icon="users" onPress={() => goToScreen('sys-account')} />
             <Button label="데이터 접근 권한" size="sm" icon="eyeOff" onPress={() => goToScreen('sys-data')} />
-            <Button label="부서 권한 복사" size="sm" variant="primary" icon="copy" disabled={busy || readOnly || !depts.length} onPress={openCopyForm} />
           </View>
         }
       />
@@ -151,56 +172,56 @@ export default function MenuPermView({
       </Hint>
 
       <Gap size={20} />
-      <Card
-        title="부서 × 화면"
-        sub="메뉴 그룹의 +/− 버튼으로 펼치거나 접습니다. 그룹 일괄 변경은 접힌 화면을 포함한 그룹 전체(동작 행 제외)에 적용됩니다."
-        right={busy ? <Text style={s.textXs}>저장 중…</Text> : null}
-        bodyStyle={{ padding: 20, minWidth: 0 }}
+      <CardTabs
+        id="menu-perm"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: TAB_MATRIX, label: '부서 × 화면', icon: 'grid', count: screens.length },
+          { value: TAB_LOGS, label: '최근 변경 이력', icon: 'history', count: logsLoading ? undefined : logs.length },
+        ]}
+        right={tabActions[tab]}
       >
-        {loadError ? (
-          <View style={{ gap: 10 }}>
-            <FormAlert>{loadError}</FormAlert>
-            <View style={{ flexDirection: 'row' }}><Button label="다시 시도" size="sm" icon="refresh" onPress={reload} /></View>
-          </View>
-        ) : !screens.length || !depts.length ? (
-          <EmptyState text="화면 또는 부서가 없습니다 — DB 화면 행(ax.tb_sys_menu)을 확인하세요" />
-        ) : (
-          <MenuPermGrid
-            screens={screens}
-            depts={depts}
-            collapsed={collapsed}
-            toggleCollapsed={toggleCollapsed}
-            cellValue={cellValue}
-            lockReason={lockReason}
-            cellWarn={cellWarn}
-            groupLockReason={groupLockReason}
-            grantCounts={grantCounts}
-            onToggle={onToggle}
-            onToggleGroup={toggleGroup}
-            onShowGrants={showGrants}
-          />
-        )}
-      </Card>
-
-      <Gap size={20} />
-      <Card
-        title="최근 변경 이력"
-        sub="메뉴 접근 권한 변경 최근 20건"
-        right={canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null}
-        bodyStyle={{ padding: 20, minWidth: 0 }}
-      >
-        {logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
-          <TabulatorGrid
-            autoWidth
-            bordered
-            headerFilter={false}
-            rows={logs}
-            rowKey="_key"
-            emptyText="변경 이력이 없습니다."
-            columns={LOG_COLUMNS}
-          />
-        )}
-      </Card>
+        <Text style={[s.textSm, { marginBottom: 12 }]}>{tabSub[tab]}</Text>
+        {tab === TAB_MATRIX ? (
+          loadError ? (
+            <View style={{ gap: 10 }}>
+              <FormAlert>{loadError}</FormAlert>
+              <View style={{ flexDirection: 'row' }}><Button label="다시 시도" size="sm" icon="refresh" onPress={reload} /></View>
+            </View>
+          ) : !screens.length || !depts.length ? (
+            <EmptyState text="화면 또는 부서가 없습니다 — DB 화면 행(ax.tb_sys_menu)을 확인하세요" />
+          ) : (
+            <MenuPermGrid
+              screens={screens}
+              depts={depts}
+              collapsed={collapsed}
+              toggleCollapsed={toggleCollapsed}
+              cellValue={cellValue}
+              lockReason={lockReason}
+              cellWarn={cellWarn}
+              groupLockReason={groupLockReason}
+              grantCounts={grantCounts}
+              onToggle={onToggle}
+              onToggleGroup={toggleGroup}
+              onShowGrants={showGrants}
+            />
+          )
+        ) : null}
+        {tab === TAB_LOGS ? (
+          logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
+            <TabulatorGrid
+              autoWidth
+              bordered
+              headerFilter={false}
+              rows={logs}
+              rowKey="_key"
+              emptyText="변경 이력이 없습니다."
+              columns={LOG_COLUMNS}
+            />
+          )
+        ) : null}
+      </CardTabs>
     </View>
   );
 }

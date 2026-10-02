@@ -37,8 +37,11 @@ export function Hint({ children, style, icon = 'info' }) {
  *
  * @param {string} text 띄울 설명
  * @param {number} [size] 물음표 단추 한 변 (옆 버튼 높이에 맞춥니다)
+ * @param {string} [mark] 물음표 대신 보일 글자(예: '!')
+ * @param {'left'|'right'} [align] 말풍선을 맞출 쪽 — 'left' 면 단추 왼쪽 끝에 맞춰 오른쪽으로 펼칩니다(제목 옆에 둘 때)
+ * @param {number} [maxWidth] 말풍선 최대 폭
  */
-export function HelpTip({ text, size = 34, style }) {
+export function HelpTip({ text, size = 34, style, mark, align = 'right', maxWidth = 340 }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -62,7 +65,11 @@ export function HelpTip({ text, size = 34, style }) {
           ...(Platform.OS === 'web' ? { cursor: 'help' } : null),
         }}
       >
-        <Icon name="help" size={17} color={open ? theme.color.primary : theme.color.mutedForeground} />
+        {mark ? (
+          <Text style={{ fontSize: Math.round(size * 0.6), lineHeight: size - 2, fontWeight: '800', color: open ? theme.color.primary : theme.color.mutedForeground }}>{mark}</Text>
+        ) : (
+          <Icon name="help" size={17} color={open ? theme.color.primary : theme.color.mutedForeground} />
+        )}
       </View>
       {open ? (
         // 말풍선은 아래로 펼치고 오른쪽 끝을 맞춥니다 — 조회 줄 오른편에 붙어 화면 밖으로 나가지 않습니다
@@ -71,10 +78,11 @@ export function HelpTip({ text, size = 34, style }) {
           style={{
             position: 'absolute',
             top: size + 8,
-            right: 0,
+            ...(align === 'left' ? { left: 0 } : { right: 0 }),
             zIndex: 200,
             minWidth: 220,
-            maxWidth: 340,
+            maxWidth,
+            ...(Platform.OS === 'web' ? { width: 'max-content' } : null),
             paddingVertical: 10,
             paddingHorizontal: 13,
             borderRadius: theme.metrics.radiusSm,

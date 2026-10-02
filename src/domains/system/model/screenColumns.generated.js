@@ -852,19 +852,7 @@ export const SCREEN_COLUMNS = [
         "field": "gwDeptNm"
       },
       {
-        "title": "재직",
-        "field": "activeCnt"
-      },
-      {
-        "title": "가입 계정",
-        "field": "joinedCnt"
-      },
-      {
-        "title": "미배정 계정",
-        "field": "unassignedCnt"
-      },
-      {
-        "title": "AX 부서",
+        "title": "부서",
         "field": "deptNm"
       },
       {
@@ -900,40 +888,12 @@ export const SCREEN_COLUMNS = [
         "field": "pwdChangeRequired"
       },
       {
-        "title": "가입 일시",
-        "field": "joinedAt"
-      },
-      {
         "title": "최근 로그인",
         "field": "lastLoginAt"
       },
       {
-        "title": "매핑대로 옮길 부서",
-        "field": "suggestDeptNm"
-      },
-      {
         "title": "관리",
         "field": "empNo"
-      },
-      {
-        "title": "시각",
-        "field": "ts"
-      },
-      {
-        "title": "그룹웨어 부서",
-        "field": "target"
-      },
-      {
-        "title": "변경 내용",
-        "field": "detail"
-      },
-      {
-        "title": "수행자",
-        "field": "by"
-      },
-      {
-        "title": "구분",
-        "field": "actNm"
       }
     ]
   },

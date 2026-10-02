@@ -49,7 +49,7 @@ const MAP_EXPORT = {
   activeCnt: [{ head: '재직 인원', attr: 'activeCnt' }],
   joinedCnt: [{ head: '가입 계정', attr: 'joinedCnt' }],
   unassignedCnt: [{ head: '미배정 계정', attr: 'unassignedCnt' }],
-  deptNm: [{ head: 'AX 부서', attr: 'deptNm', value: (m) => (m.state === 'EXCLUDED' ? '가입 안 함' : m.deptNm || '') }],
+  deptNm: [{ head: '부서', attr: 'deptNm', value: (m) => (m.state === 'EXCLUDED' ? '가입 안 함' : m.deptNm || '') }],
   state: [{ head: '상태', attr: 'state', value: (m) => gwStateLabel(m.state) }],
   remark: [{ head: '메모', attr: 'remark' }],
   updDate: [
@@ -68,9 +68,8 @@ const USER_EXPORT = {
   pwdChangeRequired: [{ head: '초기 비밀번호', attr: 'pwdChangeRequired', value: (u) => (u.pwdChangeRequired ? '변경 전' : '') }],
   joinedAt: [{ head: '가입 일시', attr: 'joinedAt' }],
   lastLoginAt: [{ head: '최근 로그인', attr: 'lastLoginAt' }],
-  suggestDeptNm: [{ head: '매핑대로 옮길 부서', attr: 'suggestDeptNm', value: (u) => u.suggestDeptNm || '' }],
 };
-const USER_ORDER = ['empNo', 'name', 'gwDeptNm', 'posNm', 'stateNm', 'pwdChangeRequired', 'joinedAt', 'lastLoginAt', 'suggestDeptNm'];
+const USER_ORDER = ['empNo', 'name', 'gwDeptNm', 'posNm', 'stateNm', 'pwdChangeRequired', 'joinedAt', 'lastLoginAt'];
 
 /** 미배정 계정 상태 표기 (GWD-12) — 그룹웨어 원천에서 사라진 정지 계정은 「퇴사」 */
 export const userStateLabel = (u) => (u.retired || u.stateReason === 'RETIRED' ? '퇴사' : u.stateNm || USER_STATE_NM[u.state] || u.state || '');
@@ -338,6 +337,28 @@ export function useGwDeptMapController() {
     return after(res);
   };
 
+  /**
+   * 체크한 여러 명을 같은 부서로 옮깁니다(2026-10-02). 일괄 API 가 없어 한 명씩(PUT /system/users/{empNo}/dept) 차례로 부르고,
+   * 다 끝난 뒤 한 번만 다시 조회합니다. 실패한 사람은 사번과 사유를 돌려줍니다.
+   * @returns {Promise<{ok:boolean, moved:number, failed:Array<{empNo:string,name:string,message:string}>}>}
+   */
+  const moveUsers = async (empNos, deptId) => {
+    let moved = 0;
+    const failed = [];
+    for (const empNo of empNos) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await repo.moveUserDept(empNo, deptId);
+      if (res.ok) moved += 1;
+      else {
+        const name = allUsers.find((u) => u.empNo === empNo)?.name || '';
+        failed.push({ empNo, name, message: res.code === 'E-AUTH-002' ? '미배정 계정만 옮길 수 있습니다' : res.message || '실패' });
+      }
+    }
+    toast(failed.length ? `${moved}명을 옮겼고 ${failed.length}명은 옮기지 못했습니다.` : `${moved}명을 옮겼습니다.`);
+    if (moved) { setSelectedUsers([]); reload(); }
+    return { ok: !failed.length, moved, failed };
+  };
+
   /** 이름 변경 이어받기 후보 (GWD-11) — 매핑 행이 없는 그룹웨어 부서, 사업장 표시를 뗀 이름이 같은 것 먼저 */
   const inheritCandidates = useCallback((oldName) => {
     const base = baseName(oldName);
@@ -459,6 +480,7 @@ export function useGwDeptMapController() {
     removeMap,
     reassign,
     moveUser,
+    moveUsers,
   };
 }
 

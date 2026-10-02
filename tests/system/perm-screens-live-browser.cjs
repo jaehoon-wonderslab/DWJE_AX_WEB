@@ -62,7 +62,9 @@ async function openLive(empNo = '10004') {
     await page.reload();
     await table.waitFor({ timeout: 60000 });
     assert(await logsReq, 'live logs request with multi actType');
-    const logGrid = page.locator('.tabulator').nth(1);
+    // 「최근 변경 이력」 은 탭입니다(2026-10-02)
+    await page.locator('#menu-perm-tab-logs').click();
+    const logGrid = page.locator('[id="menu-perm-panel-logs"] .tabulator');
     await logGrid.locator('.tabulator-row').first().waitFor({ timeout: 30000 });
     assert((await logGrid.locator('.tabulator-row').count()) > 0, 'live menu change logs');
     assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 1, 'audit link for 전산팀');

@@ -1,8 +1,7 @@
 /*
  * 그룹웨어 부서 매핑 2026-10 개선 회귀 (기획 02 GWD-01·02·03·08·14·15)
  *
- *  · 미배정 탭 검색 후 선택 없이 재배정 → 요청 본문 사번 = 보이는 행 중 제안 부서가 있는 것 (G-01 재현 방지)
- *  · 대상 0명이면 재배정 버튼 비활성, 요청 없음
+ *  · 미배정 탭 — 검색 · 상태 칸과 [매핑대로 재배정] 은 없음(2026-10-02), 체크한 계정은 [선택 n명 부서 지정] 으로 옮김
  *  · 부서 선택지(지정·부서 지정)에 통합관리자 없음
  *  · health 이상 경고, 미배정 표기 「고정 5개 화면 · 데이터 비공개」
  *  · 엑셀 옵션 패널: 조회 목록 = 보이는 행, 전체 = 조건 무시, 이력 VIEW/ALL
@@ -66,6 +65,8 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
         const items = (body.empNos || []).map((empNo) => ({ empNo, deptNm: '제조팀' }));
         return ok({ movedCnt: items.length, skippedCnt: 0, items, byDept: [{ deptNm: '제조팀', cnt: items.length }], skipped: [] }, undefined, `미배정 계정 ${items.length}명을 옮겼습니다.`);
       }
+      // 체크한 계정 일괄 부서 지정 — IP1 은 실패를 흉내 냅니다(2026-10-02)
+      if (path === 'users/IP1/dept') return route.fulfill({ status: 409, json: { success: false, code: 'E-CONFLICT', message: '이미 다른 부서입니다' } });
       return ok({});
     }
     const kw = url.searchParams.get('keyword') || '';
@@ -110,9 +111,11 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
 
     // GWD-03 · GWD-08 표기
     assert(body.includes('그룹웨어 인사정보가 아직 들어오지 않았습니다'), '원천 없음 경고');
-    assert(body.includes('고정 5개 화면 · 데이터 비공개 · 옮길 수 있음 5명'), '미배정 요약 부제');
-    assert(body.includes('대시보드·덕반장 AI·질의 이력만 쓸 수 있고 데이터 값은 비공개인'), '머리말 미배정 설명');
-    assert(body.includes('실제 부서로 옮겨야 그 부서 권한이 적용됩니다'), '안내 문구');
+    // 2026-10-02 — 요약 카드 부제 · 머리말 설명은 뺐고, 안내는 두 줄로 줄였습니다
+    assert(!body.includes('옮길 수 있음'), '미배정 요약 부제 없음');
+    assert(!body.includes('그룹웨어 인사정보를 받아 올 때'), '머리말 설명 없음');
+    assert(body.includes('매핑은 엔진을 통해 자동 가입을 하는 순간에 사용됩니다.'), '안내 1줄');
+    assert(body.includes('이미 미배정으로 분류된 계정은 계정 관리에서 부서 지정이 가능합니다.'), '안내 2줄');
 
     // GWD-02 지정 모달 부서 선택지에 통합관리자 없음
     await page.locator('.tabulator-row', { hasText: 'IPQC파트(M)' }).getByRole('button', { name: '지정', exact: true }).click();
@@ -134,8 +137,11 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     // 미배정 탭
     await page.getByText(/^미배정 계정 \d+$/).click();
     await page.locator('.tabulator-row', { hasText: 'IP0' }).waitFor();
-    const reassignBtn = page.getByRole('button', { name: /매핑대로 재배정/ });
-    assert((await reassignBtn.innerText()).includes('보이는 11명 중 5명'), await reassignBtn.innerText());
+    // 검색 · 상태 칸과 [매핑대로 재배정] 은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터, 옮기기는 [선택 n명 부서 지정]
+    assert.equal(await page.getByRole('button', { name: /매핑대로 재배정/ }).count(), 0, '재배정 단추 없음');
+    assert.equal(await page.getByPlaceholder('사번 · 이름 · 그룹웨어 부서').count(), 0, '검색칸 없음');
+    // 「상태」 글자는 표 머리글 하나만 남습니다(위쪽 상태 선택 없음)
+    assert.equal(await page.getByText('상태', { exact: true }).count(), 1, '위쪽 상태 선택 없음');
 
     // 부서 지정 모달 — 통합관리자 없음
     await page.locator('.tabulator-row', { hasText: 'MF0' }).getByRole('button', { name: '부서 지정', exact: true }).click();
@@ -143,27 +149,9 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     assert(!moveOpts.includes('통합관리자'), `부서 지정 선택지: ${moveOpts}`);
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
-    // 검색 IPQC → 제안 0명 → 비활성, 요청 없음 (G-01)
-    await page.getByPlaceholder('사번 · 이름 · 그룹웨어 부서').fill('IP');
-    await page.waitForTimeout(800);
-    await page.locator('.tabulator-row', { hasText: 'IP0' }).waitFor();
-    assert((await reassignBtn.innerText()).includes('보이는 6명 중 0명'), await reassignBtn.innerText());
-    assert(await reassignBtn.isDisabled(), '대상 0명이면 비활성');
-    const before = sent.length;
-    await reassignBtn.click({ force: true }).catch(() => {});
-    await page.waitForTimeout(200);
-    assert.equal(sent.length, before, '요청 없음');
-
-    // 검색을 지우고 열 검색으로 좁힘 → 보이는 행 기준
-    await page.getByPlaceholder('사번 · 이름 · 그룹웨어 부서').fill('');
-    await page.waitForTimeout(800);
-    await page.locator('.tabulator-col[tabulator-field="empNo"] input').first().fill('MF');
-    await page.waitForTimeout(500);
+    // 열 검색으로 좁힘 → 조회 목록 = 보이는 행 (GWD-15)
     await page.locator('.tabulator-col[tabulator-field="empNo"] input').first().fill('MF1');
     await page.waitForTimeout(500);
-    assert((await reassignBtn.innerText()).includes('보이는 1명 중 1명'), await reassignBtn.innerText());
-
-    // GWD-15 미배정 탭 조회 목록 = 보이는 행
     await exportBtn.click();
     assert((await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).innerText()).includes('1건'));
     const view = await readDownload(/조회 목록 다운로드/);
@@ -176,19 +164,28 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     const uAll = await readDownload(/전체 다운로드/);
     assert.equal(uAll.body.length, users.length, '전체 = 조건 무시');
     assert.equal(listCalls.at(-1).kw, '');
+    assert.equal(sent.filter((x) => x.path === 'gw-dept-maps/reassign').length, 0, '재배정 요청 없음');
 
-    await reassignBtn.click();
-    await page.getByText('옮길 사람 — 제조1(MF1)').waitFor();
-    await page.getByRole('button', { name: '재배정', exact: true }).last().click();
-    await page.getByText('재배정 결과').waitFor();
-    assert.deepEqual(sent.at(-1).body, { empNos: ['MF1'] }, '보이는 행 중 제안 있는 사번만 명시');
-    assert(await page.getByText('옮김 1명 — 제조팀 1').count(), '결과 모달');
-    // GWD-07 옮긴 목록 엑셀 — 패널과 별개, 이력 VIEW · 「재배정 결과」
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '옮긴 목록 엑셀', exact: true }).click()]);
-    assert(fs.readFileSync(await dl.path(), 'utf8').includes('MF1'), '결과 파일에 옮긴 사번');
-    await page.waitForTimeout(300);
-    assert.equal(logs.at(-1).condSummary, '재배정 결과');
-    assert.equal(logs.at(-1).scopeCd, 'VIEW');
+    // 체크한 계정 일괄 부서 지정(2026-10-02) — 고른 부서 하나로, 한 명씩 PUT users/{empNo}/dept
+    await page.locator('.tabulator-col[tabulator-field="empNo"] input').first().fill('IP');
+    await page.waitForTimeout(500);
+    const bulkBtn = page.getByRole('button', { name: /^선택 \d+명 부서 지정$/ });
+    assert(await bulkBtn.isDisabled(), '체크 전에는 비활성');
+    for (const empNo of ['IP0', 'IP1', 'IP2']) await page.locator('.tabulator-row', { hasText: empNo }).locator('input[type="checkbox"]').check();
+    assert.equal((await bulkBtn.innerText()).trim(), '선택 3명 부서 지정');
+    await bulkBtn.click();
+    await page.getByText('선택 계정 부서 지정').waitFor();
+    const bulkOpts = await page.getByRole('combobox', { name: 'AX 부서', exact: true }).locator('option').allTextContents();
+    assert(!bulkOpts.includes('통합관리자'), `일괄 지정 선택지: ${bulkOpts}`);
+    await page.getByText('아이피0(IP0), 아이피1(IP1), 아이피2(IP2)').waitFor();
+    await page.getByRole('combobox', { name: 'AX 부서', exact: true }).selectOption('2');
+    const sentBefore = sent.length;
+    await page.getByRole('button', { name: '3명 옮기기', exact: true }).click();
+    await page.getByText('부서 지정 결과').waitFor();
+    const moves = sent.slice(sentBefore).filter((x) => /^users\/IP\d\/dept$/.test(x.path));
+    assert.deepEqual(moves.map((x) => [x.method, x.path, x.body.deptId]), [['PUT', 'users/IP0/dept', 2], ['PUT', 'users/IP1/dept', 2], ['PUT', 'users/IP2/dept', 2]], JSON.stringify(moves));
+    assert(await page.getByText('옮김 2명 · 옮기지 못함 1명').count(), '일괄 지정 결과 모달');
+    assert(await page.getByText('아이피1(IP1) — 이미 다른 부서입니다').count(), '실패 사유');
     await page.getByRole('button', { name: '닫기', exact: true }).last().click();
 
     // 좁은 화면 — 두 표 마지막 열
@@ -212,14 +209,13 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     assert.equal(await edit.getAttribute('title'), WRITE_DENIED);
     assert(await page.locator('.tabulator-row', { hasText: '제조1파트(M)' }).getByRole('button', { name: '삭제', exact: true }).isDisabled());
     assert.equal(await page.locator('.tabulator-row input[type="checkbox"], .tabulator-row .tabulator-row-handle').count(), 0, '선택 칸 없음');
-    const bulk = page.getByRole('button', { name: /일괄 지정/ });
-    assert(await bulk.isDisabled());
-    assert.equal(await titleOf(bulk), WRITE_DENIED);
+    // 일괄 지정 단추는 화면에서 뺐습니다(2026-10-02)
+    assert.equal(await page.getByRole('button', { name: /일괄 지정/ }).count(), 0, '일괄 지정 단추 없음');
     assert(await exportBtn.isEnabled(), '엑셀은 조회 권한으로 활성');
     await page.getByText(/^미배정 계정 \d+$/).click();
     await page.locator('.tabulator-row', { hasText: 'MF0' }).waitFor();
-    assert(await page.getByRole('button', { name: /매핑대로 재배정/ }).isDisabled());
     assert(await page.locator('.tabulator-row', { hasText: 'MF0' }).getByRole('button', { name: '부서 지정', exact: true }).isDisabled());
+    assert(await page.getByRole('button', { name: /^선택 \d+명 부서 지정$/ }).isDisabled(), '조회 전용이면 일괄 부서 지정 비활성');
 
     // GWD-03 미배정 부서 없음 경고
     summary.health = { ...summary.health, unassignedDeptFound: false, sourceRowCnt: 373 };
@@ -227,7 +223,7 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     await page.getByText("미배정 부서('미배정')를 찾지 못했습니다", { exact: false }).waitFor();
 
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('PASS: gw-dept-map — 보이는 행 재배정·0명 비활성·통합관리자 선택지 제외·health 경고·미배정 표기·엑셀 VIEW/ALL·조회 전용·좁은 화면');
+    console.log('PASS: gw-dept-map — 선택 계정 일괄 부서 지정·재배정 단추 없음·통합관리자 선택지 제외·health 경고·미배정 표기·엑셀 VIEW/ALL·조회 전용·좁은 화면');
   } finally {
     await browser.close();
   }

@@ -253,8 +253,6 @@ export function useAccountController() {
       setLogFilter({ ...f, target: String(f.target || '').trim() });
       return '';
     },
-    /** 편집 모달의 「이 계정의 최근 이력」 — 대상 사번으로 이력을 거릅니다 */
-    showLogsFor: (empNo) => { logGrid.paging.reset(); setLogFilter((f) => ({ ...f, target: empNo })); },
     actOptions: (codes?.SYS_PERM_ACT || []).map((c) => ({ value: c.value, label: c.label })),
     actName: (code) => (codes?.SYS_PERM_ACT || []).find((c) => c.value === code)?.label || code || '—',
     isUnassignedDept,

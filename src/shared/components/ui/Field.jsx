@@ -82,6 +82,9 @@ export function TextAreaField({ label, value, onChangeText, placeholder, rows = 
   );
 }
 
+/** 기본 선택창(nativeSelect) 화살표 — 아래 꺾쇠 SVG 를 배경 그림으로 씁니다 */
+const selectArrow = (color) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>`)}")`;
+
 /**
  * 선택 목록 (HTML 의 <select>)
  *
@@ -121,8 +124,11 @@ export function SelectField({ label, value, options = [], onChange, style, input
     return <Field label={label} style={style} required={required} full={full} error={error} hint={hint}>
       <select aria-label={label || placeholder} value={value == null ? '' : String(value)}
         onChange={event => onChange?.(items.find(item => String(item.value) === event.target.value)?.value)}
-        style={{ width: '100%', minWidth: 0, minHeight: 38, padding: '8px 12px', font: 'inherit', fontSize: 16,
-          borderRadius: 10, border: `1px solid ${theme.hairlineStrong}`, background: theme.color.popover, color: theme.color.foreground }}>
+        // 브라우저 기본 화살표는 오른쪽 끝에 붙어 있어 숨기고, 오른쪽 12px 안쪽에 같은 모양 화살표를 그립니다(2026-10-02)
+        style={{ width: '100%', minWidth: 0, minHeight: 38, padding: '8px 36px 8px 12px', font: 'inherit', fontSize: 16,
+          borderRadius: 10, border: `1px solid ${theme.hairlineStrong}`, color: theme.color.foreground,
+          appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+          background: `${theme.color.popover} ${selectArrow(theme.color.mutedForeground)} no-repeat right 12px center / 14px 14px` }}>
         {!items.some(item => String(item.value) === String(value ?? '')) && <option value="" disabled>{placeholder}</option>}
         {items.map(item => <option key={String(item.value)} value={String(item.value)}>{item.label}</option>)}
       </select>

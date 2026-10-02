@@ -60,7 +60,7 @@ const SELF_EDIT_NOTE = '본인 계정의 부서와 추가 메뉴는 다른 관�
 const UNASSIGNED_EDIT_NOTE = '이 계정은 그룹웨어 자동 가입으로 들어와 미배정 상태입니다. 같은 그룹웨어 부서 사람을 한꺼번에 옮기려면 부서 매핑 화면을 쓰십시오.';
 /** 요약 카드가 칸 높이를 채우게 합니다 — 세 카드 높이를 같게(가장 높은 카드 기준) */
 const STAT_FILL = { flex: 1 };
-/** 요약 카드 머리 줄 높이 — 「부서 매핑 →」 단추가 있는 카드와 없는 카드의 숫자 줄을 맞춥니다 */
+/** 요약 카드 머리 줄 높이 — 세 카드의 숫자 줄을 맞춥니다(미배정 카드의 「부서 매핑 →」 단추는 2026-10-02 에 뺐습니다) */
 const STAT_LABEL = { minHeight: 32 };
 
 /** 탭 — 값은 시험·주소에서 쓰는 이름입니다 */
@@ -80,7 +80,7 @@ export default function AccountView({
   userExportRef, userViewCount, onUserActiveChange, userTotal, exportView, exportAll,
   submitUser, submitDept, removeUser, removeDept, activateUser, suspendUser, unlockUser,
   approveSignup, rejectSignup, userGrid, deptGrid, logGrid, loadMenuOptions,
-  unassignedCnt, canGoGwDept, logFilter, applyLogFilter, showLogsFor, actName,
+  unassignedCnt, canGoGwDept, logFilter, applyLogFilter, actName,
   loadDeleteCheck,
 }) {
   const s = useCommonStyles();
@@ -149,13 +149,15 @@ export default function AccountView({
           ? { key: 'stateStatic', label: '상태', type: 'static', full: true, value: '잠김 — 로그인 5회 실패로 잠겼습니다. 계정 표의 [잠금 해제] 로 풉니다.' }
           : { key: 'state', label: '상태', type: 'radio', options: STATE_OPTIONS, full: true },
         ...(row ? [
-          ...(row.remark ? [{ key: 'remarkStatic', label: '비고 (기록)', type: 'static', full: true, value: row.remark }] : []),
-          { key: 'remarkAdd', label: '비고 추가', full: true, placeholder: '예) 10월 말까지 겸직 — 저장하면 날짜와 함께 기록에 덧붙습니다' },
+          // 상태와 비고 사이를 띄웁니다(2026-10-02) — 위쪽 여백은 비고 묶음의 첫 칸에 둡니다
+          ...(row.remark ? [{ key: 'remarkStatic', label: '비고 (기록)', type: 'static', full: true, value: row.remark, cellStyle: { marginTop: 10 } }] : []),
+          { key: 'remarkAdd', label: '비고', full: true, cellStyle: row.remark ? undefined : { marginTop: 10 }, placeholder: '예) 10월 말까지 겸직 — 저장하면 날짜와 함께 기록에 덧붙습니다' },
         ] : []),
         {
           key: 'extraMenuIds',
           type: 'custom',
           full: true,
+          cellStyle: { marginTop: 18 },
           render: ({ value, onChange, values }) => (
             <AccountMenuPicker
               value={value}
@@ -172,22 +174,7 @@ export default function AccountView({
             />
           ),
         },
-        ...(row ? [{
-          key: 'recentLogs', type: 'custom', full: true,
-          render: () => (
-            <Button
-              label="이 계정의 최근 이력"
-              size="sm"
-              variant="ghost"
-              icon="clock"
-              onPress={() => {
-                useUiStore.getState().closeModal();
-                showLogsFor(row.empNo);
-                setTab(TAB_LOGS);
-              }}
-            />
-          ),
-        }] : []),
+        // [이 계정의 최근 이력] 단추는 뺐습니다(2026-10-02) — 이력은 「계정·권한 변경 이력」 탭의 대상 열 필터로 찾습니다
       ],
       note: row
         ? '수동 허용 체크를 해제하면 계정에 추가한 권한만 제거합니다. 부서 기본 권한과 데이터 접근 권한은 부서 설정을 따릅니다.'
@@ -569,7 +556,6 @@ export default function AccountView({
           unit="명"
           style={STAT_FILL}
           labelStyle={STAT_LABEL}
-          right={unassignedCnt && canGoGwDept ? <Button label="부서 매핑 →" size="sm" variant="ghost" onPress={() => goToScreen('sys-gw-dept')} /> : null}
         />
         <StatCard label="부서" value={summary?.deptCnt ?? 0} unit="개" style={STAT_FILL} labelStyle={STAT_LABEL} />
       </Grid>
@@ -637,12 +623,12 @@ export default function AccountView({
 /**
  * 이력 조건 — 기간(최대 365일, 기본 최근 7일) (ACC-09)
  * 구분 · 대상 사번 칸은 뺐습니다(2026-10-02) — 구분 · 대상은 표의 열 머리글 필터로 거릅니다.
- * 편집 폼의 「이 계정의 최근 이력」 으로 들어오면 대상 사번 조건이 걸리고, 조건 줄에 표시와 [해제] 가 붙습니다.
+ * 편집 폼의 [이 계정의 최근 이력] 도 뺐으므로(2026-10-02) 대상 사번 조건 표시 · [해제] 도 두지 않습니다.
  */
 function LogFilterBar({ filter, onApply }) {
   const [draft, setDraft] = useState(filter);
   const [error, setError] = useState('');
-  // 바깥(「이 계정의 최근 이력」)에서 조건을 바꾸면 입력칸도 맞춥니다
+  // 바깥에서 조건을 바꾸면 입력칸도 맞춥니다
   const [seen, setSeen] = useState(filter);
   if (seen !== filter) { setSeen(filter); setDraft(filter); }
   const apply = () => setError(onApply(draft) || '');
@@ -652,12 +638,6 @@ function LogFilterBar({ filter, onApply }) {
         <DateField label="시작" min={null} max={null} value={draft.from} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} />
         <DateField label="종료" min={null} max={null} value={draft.to} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} />
         <Button label="조회" variant="primary" onPress={apply} />
-        {filter.target ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Badge tone="blue">{`대상 사번 ${filter.target}`}</Badge>
-            <Button label="해제" size="sm" variant="ghost" onPress={() => setError(onApply({ ...draft, target: '' }) || '')} />
-          </View>
-        ) : null}
       </Filters>
       {error ? <FormAlert>{error}</FormAlert> : null}
     </View>

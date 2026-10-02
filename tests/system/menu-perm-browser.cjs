@@ -202,10 +202,16 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     await page.getByRole('button', { name: '닫기', exact: true }).last().click();
     await page.getByText('개인허용자 (10009) · 검증부서').waitFor({ state: 'detached' });
     assert.equal(await table.locator('.tabulator-cell[tabulator-field="kindLabel"]', { hasText: '동작(쓰기)' }).count(), 1, 'action row label');
-    const logCard = page.locator('.tabulator').nth(1);
+    // 2026-10-02 — 「부서 × 화면」 · 「최근 변경 이력」 은 탭으로 나뉩니다. 감사 로그 링크는 이력 탭 머리에 있습니다
+    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'audit link only on logs tab');
+    await page.locator('#menu-perm-tab-logs').click();
+    const logCard = page.locator('[id="menu-perm-panel-logs"] .tabulator');
     await logCard.getByText('검증부서 / 실적 집계·조회').waitFor();
     assert.equal(await logCard.getByText('최전산 (10004)').count(), 1, 'log performer — 「이름 (사번)」');
     assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 1, 'audit link with sys-audit');
+    assert.equal(await page.getByRole('button', { name: '부서 권한 복사', exact: true }).count(), 0, 'copy button only on matrix tab');
+    await page.locator('#menu-perm-tab-matrix').click();
+    await table.waitFor();
     assert((state.logReads || 0) >= 2, 'logs reloaded after save');
     assert.equal(state.logActType, 'MENU_PERM,USER_MENU_PERM', 'logs include account grants');
 

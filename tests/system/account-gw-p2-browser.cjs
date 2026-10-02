@@ -133,20 +133,25 @@ const { BASE } = require('../lib/api');
     await page.goto(`${WEB}/system/gw-dept-map`);
     await page.locator('.tabulator-row').first().waitFor({ timeout: 60000 });
     const card = page.locator('[id="gw-sync-card"]');
-    assert(await card.getByText('완료', { exact: true }).count(), '동기화 완료 배지');
-    assert(await card.getByRole('button', { name: '연동 이력 보기', exact: true }).count(), 'sys-sync 권한이면 링크');
+    // 「완료」 배지는 두지 않습니다(2026-10-02) — 실패·중단·진행 중일 때만 배지
+    await card.getByText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/).first().waitFor();
+    assert.equal(await card.getByText('완료', { exact: true }).count(), 0, '완료 배지 없음');
+    // 2026-10-02 — 동기화 카드의 가입 요약·[연동 이력 보기], 「최근 매핑 변경」 접이 카드, 상단 검색·일괄 지정 줄은 뺐습니다
+    assert.equal(await card.getByRole('button', { name: '연동 이력 보기', exact: true }).count(), 0, '연동 이력 링크 없음');
+    assert.equal(await page.getByRole('button', { name: /최근 매핑 변경/ }).count(), 0, '최근 매핑 변경 카드 없음');
+    assert.equal(await page.getByPlaceholder('그룹웨어 부서 · AX 부서 · 메모').count(), 0, '상단 검색칸 없음');
 
-    // GWD-10 최근 매핑 변경 (접힘 → 펼침), 지정 모달의 최근 이력
-    await page.getByRole('button', { name: /최근 매핑 변경/ }).click();
-    await page.locator('[id="gw-map-logs"]').getByText('그룹웨어 부서 매핑 → 품질보증팀').first().waitFor();
-    assert(await page.locator('[id="gw-map-logs"]').getByText('그룹웨어 부서 매핑', { exact: true }).count(), '구분 이름');
+    // 지정 모달의 「최근 이력」 칸은 뺐습니다(2026-10-02)
     await page.locator('.tabulator-row', { hasText: 'IPQC파트(M)' }).first().getByRole('button', { name: '지정', exact: true }).click();
-    await page.getByText('2026-10-01 10:00:00 · 그룹웨어 부서 매핑 → 품질보증팀 · 최전산').waitFor();
+    await page.getByRole('combobox', { name: 'AX 부서', exact: true }).waitFor();
+    assert.equal(await page.getByText('2026-10-01 10:00:00 · 그룹웨어 부서 매핑 → 품질보증팀 · 최전산').count(), 0, '지정 모달 최근 이력 없음');
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
     // GWD-10 수정 열 이름, GWD-11 이어받기
     const oldRow = page.locator('.tabulator-row', { hasText: OLD });
-    await page.getByPlaceholder('그룹웨어 부서 · AX 부서 · 메모').fill('품질보증(구)');
+    // 찾기는 열 머리글 필터로 합니다(상단 검색칸 제거)
+    const gwFilter = page.locator('.tabulator-col[tabulator-field="gwDeptNm"] .tabulator-header-filter input').first();
+    await gwFilter.fill('품질보증(구)');
     await page.waitForTimeout(600);
     assert(await oldRow.getByText('최전산').count(), '수정자 이름');
     await oldRow.getByRole('button', { name: '이어받기', exact: true }).click();
@@ -157,38 +162,39 @@ const { BASE } = require('../lib/api');
     await page.waitForTimeout(600);
     assert.deepEqual({ path: writes.at(-1).path, from: writes.at(-1).body.fromGwDeptNm, to: writes.at(-1).body.gwDeptNm, remark: writes.at(-1).body.remark },
       { path: 'gw-dept-maps', from: OLD, to: firstOpt, remark: '옛 이름' });
-    await page.getByPlaceholder('그룹웨어 부서 · AX 부서 · 메모').fill('');
+    await gwFilter.fill('');
 
-    // GWD-12 미배정 표 — 상태 배지·초기 비밀번호 열·상태 필터·「매핑 없음」 → 지정 모달
+    // GWD-12 미배정 표 — 상태 배지·초기 비밀번호 열·상태 목록 필터. 「매핑대로 옮길 부서」 열은 뺐습니다(2026-10-02)
     await page.getByText(/^미배정 계정 \d+$/).click();
     await page.locator('.tabulator-row').first().waitFor();
     assert(await page.locator('.tabulator-col[tabulator-field="pwdChangeRequired"]').count(), '초기 비밀번호 열');
+    assert.equal(await page.locator('.tabulator-col[tabulator-field="suggestDeptNm"]').count(), 0, '매핑대로 옮길 부서 열 없음');
     assert(await page.locator('.tabulator-row').first().locator('.tabulator-cell[tabulator-field="stateNm"] .tag').count(), '상태 배지');
-    const total = await page.locator('.tabulator-row').count();
-    await page.getByText('전체', { exact: true }).first().click();
-    await page.getByText('정지', { exact: true }).last().click();
-    await page.waitForTimeout(600);
-    assert((await page.locator('.tabulator-row').count()) <= total, '정지 필터');
-    await page.getByText('정지', { exact: true }).first().click().catch(() => {});
-    await page.getByText('전체', { exact: true }).last().click().catch(() => {});
-    await page.waitForTimeout(600);
-    const noMap = page.locator('.tabulator-row button', { hasText: '매핑 없음 →' }).first();
-    if (await noMap.count()) {
-      const gw = await noMap.locator('xpath=ancestor::div[contains(@class,"tabulator-row")]').locator('.tabulator-cell[tabulator-field="gwDeptNm"]').innerText();
-      await noMap.click();
-      await page.getByText('부서 매핑 지정').waitFor();
-      assert(await page.getByText(gw.trim(), { exact: true }).count(), '그 그룹웨어 부서의 지정 모달');
-      await page.getByRole('button', { name: '취소', exact: true }).last().click();
+    // 그룹웨어 부서 · 직위 · 상태 머리글은 목록 필터입니다
+    for (const field of ['gwDeptNm', 'posNm', 'stateNm']) {
+      assert(await page.locator(`.tabulator-col[tabulator-field="${field}"].ax-list-filter`).count(), `${field} 목록 필터`);
     }
+    const total = await page.locator('.tabulator-row').count();
+    await page.locator('.tabulator-col[tabulator-field="stateNm"] .tabulator-header-filter input').click();
+    const firstState = page.locator('.tabulator-edit-list-item').nth(1);
+    const stateText = (await firstState.innerText()).trim();
+    await firstState.click();
+    await page.waitForTimeout(600);
+    const shownStates = await page.locator('.tabulator-row .tabulator-cell[tabulator-field="stateNm"]').allInnerTexts();
+    assert(shownStates.length && shownStates.length <= total && shownStates.every((t) => t.trim() === stateText), `상태 목록 필터 ${stateText}: ${[...new Set(shownStates)]}`);
+    await page.locator('.tabulator-col[tabulator-field="stateNm"] .tabulator-header-filter input').click();
+    await page.locator('.tabulator-edit-list-item', { hasText: '전체' }).first().click();
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator('.tabulator-row').count(), total, '상태 필터 풀기');
 
-    // GWD-09 실패 상태 — 실패 배지와 직전 성공 요약
+    // GWD-09 실패 상태 — 실패 배지(부제의 가입 요약·직전 성공 요약은 2026-10-02 에 뺐습니다)
     syncFail = true;
     await page.goto(`${WEB}/system/gw-dept-map`);
     await card.getByText('실패', { exact: true }).waitFor({ timeout: 60000 });
-    assert(await card.getByText('직전 성공 2026-09-30 14:38', { exact: false }).count(), '직전 성공 요약');
+    assert.equal(await card.getByText('직전 성공', { exact: false }).count(), 0, '부제 없음');
 
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('PASS: P2 — 정지 1회 요청 4건·부여 사유·삭제 사전 확인·부서 넘김·회원가입 안내 / 동기화 카드·매핑 이력·수정자 이름·이어받기·미배정 표 보강·실패 상태');
+    console.log('PASS: P2 — 정지 1회 요청 4건·부여 사유·삭제 사전 확인·부서 넘김·회원가입 안내 / 동기화 카드·지정 모달 이력·수정자 이름·이어받기·미배정 표 보강·실패 상태');
   } finally {
     await browser.close();
   }

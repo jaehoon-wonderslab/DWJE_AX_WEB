@@ -11,7 +11,7 @@ import { Text, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import BlindValue from './BlindValue';
 
-export default function StatCard({ label, value, unit, sub, tone = '', field, style, right, labelStyle }) {
+export default function StatCard({ label, value, unit, sub, tone = '', field, style, right, labelStyle, valueStyle }) {
   const s = useCommonStyles();
   return (
     <View style={[s.cardNested, s.stat, style]}>
@@ -21,7 +21,8 @@ export default function StatCard({ label, value, unit, sub, tone = '', field, st
         {right}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 12 }}>
-        <BlindValue field={field} value={value} textStyle={s.statValue} />
+        {/* valueStyle — 날짜처럼 긴 값을 한 줄에 넣을 때 글자 크기를 줄입니다 */}
+        <BlindValue field={field} value={value} textStyle={valueStyle ? [s.statValue, valueStyle] : s.statValue} />
         {unit ? <Text style={s.statUnit}>{unit}</Text> : null}
       </View>
       {sub ? (

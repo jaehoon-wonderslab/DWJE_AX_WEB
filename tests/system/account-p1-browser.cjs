@@ -74,7 +74,7 @@ const { BASE } = require('../lib/api');
     // ACC-08 요약 3카드 — 미배정 계정 수 = API 의 미배정 부서 소속 수
     const text = await page.locator('body').innerText();
     assert(new RegExp(`미배정 계정\\n(부서 매핑 →\\n)?${unassignedUsers.length}\\n명`).test(text), `미배정 계정 ${unassignedUsers.length}`);
-    assert(text.includes('부서 매핑 →'), '미배정 카드 링크(sys-gw-dept 권한)');
+    assert(!text.includes('부서 매핑 →'), '미배정 카드 링크 없음(2026-10-02 삭제)');
     // 요약 카드 부제와 계정 탭 머리의 「사용 n」 · 「정지 n」 배지는 뺐습니다(2026-10-02)
     assert(!/사용 \d+ · 잠김 \d+ · 정지 \d+/.test(text), '가입 계정 카드 부제 없음');
     assert(!/(사용|정지) \d+/.test(await page.locator('[id="account-panel-users"]').evaluate((el) => el.parentElement.innerText)), '계정 탭 머리 사용·정지 배지 없음');
@@ -104,25 +104,19 @@ const { BASE } = require('../lib/api');
     const cmp = await page.locator('[id="dept-compare"]').innerText();
     assert(/이동 후 메뉴 \d+개\(현재 부서 대비 \+\d+\/-\d+\) · 데이터 항목 \d+개/.test(cmp), cmp);
 
-    // ACC-09 「이 계정의 최근 이력」 → 대상 사번 조건
-    await page.getByRole('button', { name: '이 계정의 최근 이력', exact: true }).click();
-    await page.waitForTimeout(1200);
-    assert.equal(logCalls.at(-1).targetUserId, target.empNo, '이력 대상 사번(targetUserId)');
-    assert(logCalls.at(-1).from && logCalls.at(-1).to, '기간 조건');
+    // 편집 폼의 [이 계정의 최근 이력] 단추는 뺐습니다(2026-10-02)
+    assert.equal(await page.getByRole('button', { name: '이 계정의 최근 이력', exact: true }).count(), 0, '최근 이력 단추 없음');
+    await page.getByRole('button', { name: '취소', exact: true }).last().click();
     assert.equal(writes.length, 0, '편집 모달을 닫기만 했으므로 쓰기 없음');
 
-    // ACC-09 기간 365일 초과
-    // 「이 계정의 최근 이력」 은 이력 탭으로 옮겨 줍니다
-    assert.equal(await page.locator('#account-tab-logs').getAttribute('aria-selected'), 'true', '최근 이력 → 이력 탭 열림');
+    // ACC-09 기간 365일 초과 — 이력 탭에서
+    await openAccountTab(page, '변경 이력');
     const logCard = page.locator('[id="account-panel-logs"]');
     // 구분 · 대상 사번 칸과 검색줄은 뺐습니다(2026-10-02) — 대상 사번 조건은 표시와 [해제] 로만 보입니다
     assert.equal(await logCard.getByRole('textbox', { name: '대상 사번', exact: true }).count(), 0, '대상 사번 칸 없음');
     assert.equal(await logCard.getByRole('combobox', { name: '구분', exact: true }).count(), 0, '구분 칸 없음');
     assert.equal(await logCard.getByRole('textbox', { name: '변경 이력 검색', exact: true }).count(), 0, '이력 검색칸 없음');
-    await logCard.getByText(`대상 사번 ${target.empNo}`, { exact: true }).waitFor();
-    await logCard.getByRole('button', { name: '해제', exact: true }).click();
-    await page.waitForTimeout(1200);
-    assert.equal(logCalls.at(-1).targetUserId, undefined, '[해제] 하면 대상 사번 조건 없음');
+    assert.equal(await logCard.getByText(/^대상 사번 /).count(), 0, '대상 사번 조건 표시 없음');
     await logCard.locator('input').nth(0).fill('2024-01-01');
     await logCard.getByRole('button', { name: '조회', exact: true }).click();
     await logCard.getByText('기간은 최대 365일까지 조회할 수 있습니다.').waitFor();
@@ -152,7 +146,7 @@ const { BASE } = require('../lib/api');
     assert.deepEqual({ path: writes.at(-1).path, body: writes.at(-1).body }, { path: 'users/P30001/approve', body: { approve: true, deptId: other.deptId } });
 
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log(`PASS: account P1 (실 API) — 요약 미배정 ${unassignedUsers.length}명·빠른 필터·가입 경로·권한 수 비교·최근 이력·이력 기간/구분·승인 부서 선택`);
+    console.log(`PASS: account P1 (실 API) — 요약 미배정 ${unassignedUsers.length}명·빠른 필터·가입 경로·권한 수 비교·최근 이력 단추 없음·이력 기간/구분·승인 부서 선택`);
   } finally {
     await browser.close();
   }
