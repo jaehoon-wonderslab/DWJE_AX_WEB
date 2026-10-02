@@ -194,6 +194,7 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
         : await streamLlmChat({
             messages: [...history, { role: 'user', content: question }],
             context: evidence,
+            chatRoute: manual ? 'rag' : meta.chatRoute,
             messageId: meta.messageId,
             sessionId: meta.sessionId || sessionId,
             signal: abort.signal,
@@ -215,7 +216,7 @@ export function useChatController({ consumeRouteQuery = true } = {}) {
       setPhase('idle');
 
       // 후속 질의 — 답을 본 사내 LLM 이 만듭니다(고정 문장 없음). 입력을 막지 않도록 뒤에서 받습니다.
-      if (result.status === 'done' && result.text) {
+      if (meta.chatRoute !== 'general' && result.status === 'done' && result.text) {
         const key = localKey;
         loadFollowups(question, result.text).then((qs) => {
           // 그 사이 다른 질문을 보냈으면 늦게 온 후속 질의는 버립니다

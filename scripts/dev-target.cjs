@@ -68,16 +68,27 @@ try {
 process.stdout.write(banner(targetName));
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const child = spawn(npx, expoArgs, {
-  stdio: 'inherit',
-  env: { ...process.env, ...targetEnv(targetName) },
-});
+async function start() {
+  const { ensureLocalLlm } = require('./ensure-local-llm.cjs');
+  const proxy = target.id === 'local' && target.env.EXPO_PUBLIC_LLM_API_URL
+    ? await ensureLocalLlm(target.env.EXPO_PUBLIC_LLM_API_URL)
+    : null;
+  const child = spawn(npx, expoArgs, {
+    stdio: 'inherit',
+    env: { ...process.env, ...targetEnv(targetName) },
+  });
 
-child.on('exit', (code, signal) => {
-  process.exit(signal ? 1 : code ?? 0);
+  child.on('exit', (code, signal) => {
+    process.exit(signal ? 1 : code ?? 0);
+  });
+  ['SIGINT', 'SIGTERM'].forEach((sig) =>
+    process.on(sig, () => {
+      proxy?.kill(sig);
+      child.kill(sig);
+    }),
+  );
+}
+start().catch((error) => {
+  console.error(`[개발 서버] ${error.message}`);
+  process.exit(1);
 });
-['SIGINT', 'SIGTERM'].forEach((sig) =>
-  process.on(sig, () => {
-    child.kill(sig);
-  }),
-);

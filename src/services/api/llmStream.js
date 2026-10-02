@@ -13,8 +13,8 @@
  * 응답은 SSE 입니다 — `data: {...}` 줄마다 `choices[0].delta.content` 에 글 조각이 들어 있고
  * 마지막 줄이 `data: [DONE]` 입니다. `[DONE]` 없이 끝나면 중간에 끊긴 것입니다.
  *
- * **`role: "system"` 은 보내지 않습니다.** 모델에 내장된 덕우전자 지시문이 통째로 대체됩니다.
- * 근거는 `context` 로 보내면 서버가 마지막 질문을 `[근거] … [질문] …` 으로 감쌉니다.
+ * 문서 어시스턴트 system 원문은 API 또는 로컬 프록시가 넣습니다(vLLM LoRA에는 내장 지시문 없음).
+ * 근거는 API 경유 시 `context`, 로컬 프록시 경유 시 마지막 질문의 `[근거]`로 보냅니다.
  */
 import { API_BASE_URL, USE_MOCK, refreshAccessToken } from './client';
 import { useAuthStore } from '@shared/stores/useAuthStore';
@@ -43,7 +43,7 @@ export const LLM_ERRORS = {
  * @returns {Promise<{status:'done'|'aborted'|'interrupted'|'error', text:string, message?:string}>}
  *   던지지 않습니다. `error` 면 `message` 가 사용자에게 보여 줄 문구입니다.
  */
-export async function streamLlmChat({ messages, context, messageId, sessionId, signal, onDelta }) {
+export async function streamLlmChat({ messages, context, messageId, sessionId, chatRoute, signal, onDelta }) {
   if (USE_MOCK) return mockStream({ signal, onDelta });
 
   const body = JSON.stringify({
@@ -51,6 +51,9 @@ export async function streamLlmChat({ messages, context, messageId, sessionId, s
     ...(context && context.trim() ? { context } : null),
     ...(messageId ? { messageId } : null),
     ...(sessionId ? { sessionId } : null),
+    // chatRoute 는 로컬 프록시 직접 연결(toDirectLlmBody)에서만 씁니다. API(/api/ai/chat)는 messageId 로 저장된
+    // 경로를 스스로 찾고, 모르는 항목을 400 으로 막으므로(FAIL_ON_UNKNOWN_PROPERTIES) API 경유 때는 보내지 않습니다.
+    ...(DIRECT_LLM_BASE_URL && chatRoute ? { chatRoute } : null),
   });
 
   let res;
@@ -135,19 +138,19 @@ function toDirectLlmBody(body) {
   if (lastUser < 0) return JSON.stringify({ model: DIRECT_LLM_MODEL, messages, stream: true });
 
   messages.splice(lastUser + 1);
-  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+  const general = request.chatRoute === 'general';
   const question = messages[lastUser].content.trim();
   const context = request.context?.trim();
   messages[lastUser] = {
     role: 'user',
-    content: `[지시]\n오늘은 ${today}이다.${context ? `\n\n[근거]\n${context}` : ''}\n\n[질문]\n${question}`,
+    content: general ? question : `[질문]\n${question}\n\n[근거]\n${context || ''}`,
   };
   return JSON.stringify({
-    model: DIRECT_LLM_MODEL,
+    model: general ? 'google/gemma-4-26B-A4B-it' : DIRECT_LLM_MODEL,
     messages,
     stream: true,
-    reasoning_effort: 'none',
-    dwje: { rag: false, tools: false },
+    temperature: general ? 0.2 : 0,
+    max_tokens: 512,
   });
 }
 

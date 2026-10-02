@@ -145,7 +145,7 @@ npm run web:server            # ② 개발 서버(HMR) → http://localhost:8081
 | `EXPO_PUBLIC_LIVE_AUTH` | `true` | 목 모드에서도 인증 API 만 실 서버로 (`false` 면 인증도 목 + 자동 로그인) |
 | `EXPO_PUBLIC_API_TIMEOUT` | `45000` | 요청 제한 시간 (ms). 대용량 집계 조회가 있어 넉넉히 둡니다 |
 | `EXPO_PUBLIC_DEMO_AUTOLOGIN` | `true` | 목 인증에서 로그인 화면을 건너뛰고 자동 로그인 |
-| `EXPO_PUBLIC_LLM_API_URL` | (local) `http://localhost:8787` | 로컬 gateway proxy 주소. 실서버 대상은 비워 둡니다 |
+| `EXPO_PUBLIC_LLM_API_URL` | (local) `http://localhost:8787` | 로컬 LLM 프록시 주소. 실서버 대상은 비워 둡니다 |
 
 > **백엔드 연동 전환** — `EXPO_PUBLIC_USE_MOCK=false` 가 기본값입니다.
 > 화면·컨트롤러·리포지토리 코드는 고치지 않습니다.
@@ -154,20 +154,26 @@ npm run web:server            # ② 개발 서버(HMR) → http://localhost:8081
 배포된 화면이 `http://192.168.2.8:8081` 에서 열린다는 사실은 번들에 영향이 없습니다 —
 **8080(API)은 빌드 시점에 이미 정해져 있으므로**, 화면 포트와 API 포트를 혼동하지 마십시오 (§2).
 
-### 로컬 LLM 게이트웨이 확인
+### 로컬 LLM 프록시 확인
 
-웹앱의 LLM 요청만 로컬 프록시를 거쳐 원격 게이트웨이에 전달합니다.
+웹앱의 LLM 요청만 로컬 프록시를 거쳐 GPU 서버 vLLM 에 전달합니다(2026-10-02 게이트웨이 :11436 에서 옮김).
+vLLM 은 사내 실서버에 있어 **VPN 이 활성화되어 있어야** 연결됩니다. 주소는 `scripts/targets.cjs` 의 `SERVER_LLM_PORT`(채팅) · `SERVER_EMBED_PORT`(임베딩, API 전용)입니다.
 `npm run web`(local)가 `EXPO_PUBLIC_LLM_API_URL=http://localhost:8787` 을 자동으로 물립니다.
-별도 터미널에서 프록시를 먼저 띄우십시오.
+개발 서버가 프록시를 자동으로 시작합니다. 이미 실행 중인 프록시는 재사용하며, 직접 시작한 프록시만 개발 서버 종료 시 함께 종료합니다.
 
 ```bash
-# DWJE_GATEWAY_API_KEY는 비밀 저장소/실행 환경에서 프로세스에 주입
-npm run dev:gateway-proxy
 npm run web
+# 프록시만 별도로 확인하려면: npm run dev:gateway-proxy
 ```
 
-키는 프록시 프로세스 환경변수로만 전달하며 `.env`, `EXPO_PUBLIC_*`, 브라우저 입력란에 저장하지 않습니다.
+- 인사(`ㅎㅇ` 포함)·일상 대화·일반 지식은 기본 모델 `google/gemma-4-26B-A4B-it`을 호출하며 문서를 검색하지 않습니다. 사내 문서·규정·생산·품질 질문은 문서 검색 또는 권한을 적용한 DB 조회 근거를 붙여 `dwje-ax`(LoRA)를 호출합니다. 사내 근거가 없으면 기본 모델의 추측 답변으로 대체하지 않습니다.
+- API `/ai/chat/ask`의 `chatRoute`(`general` / `rag`)가 로컬 프록시의 모델 선택으로 이어집니다. API 채팅 경로는 본인 질의 이력의 분류를 확인해 모델을 선택합니다. 질문 분류에도 기본 모델을 사용하고, 짧은 인사만 분류 호출을 생략합니다.
+- vLLM 은 인증 키를 받지 않습니다. `DWJE_GATEWAY_API_KEY` 를 주면 프록시가 그대로 붙여 보내고, 없어도 동작합니다.
+- vLLM LoRA 에는 예전 Ollama 모델 같은 내장 지시문이 없습니다. 프록시는 요청에 system 이 없으면 기본 모델에는 일반 대화 지시문, LoRA에는 학습 데이터의 문서 어시스턴트 지시문을 넣습니다(`DWJE_LLM_SYSTEM_PROMPT` 로 바꿀 수 있고, 빈 값이면 넣지 않음). API 의 `app.llm.system-prompt` 와 같은 원문입니다.
+
 프록시 UI는 `http://localhost:8787`에서 헬스·모델 목록·채팅을 확인할 수 있습니다.
+
+실적 검색·AI 브리핑·문서 임베딩은 로컬 API의 LLM 설정도 사용합니다. IntelliJ의 API 실행 구성은 `dwje-api [local+실서버LLM]`을 사용하십시오(VPN 필요). 실행 구성 파일을 외부에서 수정했다면 IDE의 **Edit Configurations**에서도 채팅·임베딩 포트와 `AX_EMBED_MODEL=BAAI/bge-m3`, `AX_EMBED_API=openai`를 확인한 뒤 API를 재시작하십시오. IDE가 이전 값을 기억하고 있으면 파일만 바꿔도 실행 중인 요청 대상은 바뀌지 않습니다. `http://localhost:8080/api/ai/health`의 `ok: true`로 적용을 확인합니다.
 
 ### 실 API 연동 상태
 
@@ -266,7 +272,7 @@ scripts/
 ├── dev-target.cjs                    대상을 골라 개발 서버 실행 (npm run web) — 기본 8081
 ├── build-deploy.cjs                  대상을 골라 배포 빌드 (npm run build:web*)
 ├── check-target.cjs                  대상 접속 확인 + VPN 안내 (npm run env:check)
-├── local-gateway-proxy.cjs           로컬 LLM gateway 프록시 (비공개 키를 프로세스 안에만 둠)
+├── local-gateway-proxy.cjs           로컬 LLM 프록시 (GPU 서버 vLLM, 서버 주소를 번들 밖에 둠)
 ├── prepare-deploy.cjs                dist/ 에 배포 스크립트 배치 + zip 생성
 ├── check-*.cjs / build-screen-columns.cjs   정적 검사 5종
 ```

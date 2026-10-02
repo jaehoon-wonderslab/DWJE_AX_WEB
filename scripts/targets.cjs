@@ -28,6 +28,14 @@ const SERVER_HOST = '192.168.2.8';
 const SERVER_WEB_PORT = 8081;
 /** 사내 실서버의 API 포트 — 번들이 호출하는 주소 */
 const SERVER_API_PORT = 8080;
+/**
+ * GPU 서버 vLLM — 채팅(OpenAI 호환, 모델 dwje-ax · google/gemma-4-26B-A4B-it). VPN 필요.
+ * 번들은 이 주소를 부르지 않습니다. 로컬 LLM 프록시(scripts/local-gateway-proxy.cjs)만 씁니다.
+ * (2026-10-02 게이트웨이 :11436 에서 옮김)
+ */
+const SERVER_LLM_PORT = 8000;
+/** GPU 서버 임베딩(BAAI/bge-m3, /v1/embeddings) — API 서버만 부릅니다 */
+const SERVER_EMBED_PORT = 8001;
 
 const TARGETS = {
   local: {
@@ -138,6 +146,8 @@ module.exports = {
   SERVER_HOST,
   SERVER_WEB_PORT,
   SERVER_API_PORT,
+  SERVER_LLM_PORT,
+  SERVER_EMBED_PORT,
   TARGETS,
   TargetError,
   DEFAULT_TARGET,
