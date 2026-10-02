@@ -1,12 +1,13 @@
 /* UI contract regression: independent server search/paging, resize/scroll, additive menu edit. */
 const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
+const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
 (async () => {
   const { browser, page } = await open();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const users = Array.from({ length: 32 }, (_, i) => ({ empNo: `UI${i}`, name: `검증계정 ${i}`, deptId: 2, dept: '품질보증팀', pos: 'STAFF', posNm: '사원', state: 'ACTIVE', stateNm: '사용', loginFailCnt: i, lastLoginAt: '2026-09-13 10:00:00', extraMenuIds: i === 0 ? ['prod-result'] : [] }));
-  const depts = Array.from({ length: 32 }, (_, i) => ({ deptId: i + 1, deptNm: `검증부서 ${i}`, abbr: `D${i}`, desc: `부서 설명 ${i}`, userCnt: i }));
+  const depts = Array.from({ length: 32 }, (_, i) => ({ deptId: i + 1, deptNm: `검증부서 ${i}`, desc: `부서 설명 ${i}`, userCnt: i }));
   const logs = Array.from({ length: 32 }, (_, i) => ({ ts: `2026-09-13 10:00:${i}`, target: `대상 ${i}`, actType: 'ACCOUNT', detail: `변경내용 ${i}`, by: `수행자 ${i}` }));
   let saved, savedDept;
   // 앱 번들은 8080 을 부릅니다 — API_URL 이 다르면(예: 18081) 그쪽으로 돌립니다. 아래의 화면별 가로채기가 먼저 걸립니다
@@ -36,30 +37,49 @@ const { open, WEB } = require('../lib/browser');
   try {
     await page.goto(`${WEB}/system/account`);
     await page.locator('[id="account-grid-계정"] .tabulator-row').first().waitFor();
-    for (const label of ['가입 승인 대기', '계정', '부서', '변경 이력']) {
-      const grid = page.locator(`[id="account-grid-${label}"]`);
-      await grid.locator('.tabulator-row').first().waitFor();
-      assert.equal(await grid.locator('.tabulator-row').count(), 10, `${label} page size`);
-      await (label === '가입 승인 대기' ? grid.getByRole('button', { name: '다음 쪽', exact: true }) : grid.locator('.tabulator-page[data-page="next"]')).click();
+    // 2026-10-02 — 표가 탭으로 나뉘고 기본 100행입니다(가입 승인 대기 카드는 없앴습니다)
+    assert.equal(await page.locator('[id="account-grid-가입 승인 대기"]').count(), 0, 'pending card removed');
+    for (const label of ['계정', '부서', '변경 이력']) {
+      const grid = await openAccountTab(page, label);
+      assert.equal(await grid.locator('.tabulator-row').count(), 32, `${label} default page size 100 shows all 32`);
+      assert.equal(await grid.locator('.tabulator-page-size').inputValue(), '100', `${label} page size selector default`);
+      // 쪽 나눔은 그대로 — 10행으로 바꾸면 다음 쪽으로 넘어갑니다
+      await grid.locator('.tabulator-page-size').selectOption('10');
+      await page.waitForTimeout(250);
+      assert.equal(await grid.locator('.tabulator-row').count(), 10, `${label} page size 10`);
+      await grid.locator('.tabulator-page[data-page="next"]').click();
       await page.waitForTimeout(250);
       assert.equal(await grid.locator('.tabulator-row').count(), 10);
-      const input = grid.getByRole('textbox', { name: `${label} 검색`, exact: true });
-      await input.fill(label === '부서' ? '설명 31' : label === '변경 이력' ? '변경내용 31' : '검증계정 31'); await input.press('Enter');
-      await page.waitForTimeout(300);
-      assert.equal(await grid.locator('.tabulator-row').count(), 1, `${label} search over all pages`);
-      assert(await input.evaluate(el => el === document.activeElement), `${label} focus survives search`);
-      await grid.getByRole('button', { name: '초기화', exact: true }).click();
-      await page.waitForTimeout(250);
+      // 세 탭 모두 검색줄(검색칸 · 검색 · 초기화)을 두지 않습니다(2026-10-02) — 열 필터만 씁니다
+      assert.equal(await grid.getByRole('textbox', { name: `${label} 검색`, exact: true }).count(), 0, `${label} search box removed`);
+      assert.equal(await grid.getByRole('button', { name: '초기화', exact: true }).count(), 0, `${label} reset button removed`);
+      assert.equal(await grid.getByText('전체 목록에서 검색합니다', { exact: false }).count(), 0, `${label} search note removed`);
     }
-    const grid = page.locator('[id="account-grid-계정"]');
-    for (const [label, field, query] of [['계정', 'loginFailCnt', '31'], ['계정', 'name', '계정 31'], ['계정', 'state', '사용'], ['부서', 'name', '부서 31'], ['변경 이력', 'by', '수행자 31']]) {
-      const target = page.locator(`[id="account-grid-${label}"]`);
+    // 이력 기간은 처음에 오늘을 종료일로 최근 7일입니다(2026-10-02)
+    {
+      const logPanel = page.locator('[id="account-panel-logs"]');
+      const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const from = new Date(); from.setDate(from.getDate() - 7);
+      assert.equal(await logPanel.locator('input').nth(0).inputValue(), ymd(from), 'log period from = today - 7');
+      assert.equal(await logPanel.locator('input').nth(1).inputValue(), ymd(new Date()), 'log period to = today');
+    }
+    for (const [label, field, query] of [['계정', 'loginFailCnt', '31'], ['계정', 'name', '계정 31'], ['부서', 'name', '부서 31'], ['변경 이력', 'by', '수행자 31']]) {
+      const target = await openAccountTab(page, label);
       const input = target.locator(`.tabulator-col[tabulator-field="${field}"] input`);
       await input.fill(query); await page.waitForTimeout(400);
-      assert.equal(await target.locator('.tabulator-row').count(), field === 'state' ? 10 : 1, `${label}/${field} column filter over all pages`);
+      assert.equal(await target.locator('.tabulator-row').count(), 1, `${label}/${field} column filter over all pages`);
       assert(await input.evaluate(el => el === document.activeElement), 'column filter focus retained');
       await input.fill(''); await page.waitForTimeout(400);
     }
+    // 상태 · 직급 · 가입 경로 · 초기 비밀번호는 검색칸이 아니라 목록입니다(Tabulator list 머리글 필터)
+    const grid = await openAccountTab(page, '계정');
+    await pickListFilter(grid, 'state', '사용');
+    assert.equal(await grid.locator('.tabulator-row').count(), 32, 'state list filter keeps all ACTIVE rows');
+    await pickListFilter(grid, 'state', '전체');
+    // 「관리자」 는 직급이 아니라 따로 둔 열입니다(2026-10-02)
+    await pickListFilter(grid, 'admin', '일반');
+    assert.equal(await grid.locator('.tabulator-row').count(), 32, 'admin list filter 일반');
+    await pickListFilter(grid, 'admin', '전체');
     const firstCol = grid.locator('.tabulator-col[tabulator-field="empNo"]');
     await firstCol.scrollIntoViewIfNeeded();
     const width = await firstCol.evaluate(el => el.getBoundingClientRect().width);
@@ -69,8 +89,9 @@ const { open, WEB } = require('../lib/browser');
     await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height / 2, { steps: 10 }); await page.mouse.up();
     assert((await firstCol.evaluate(el => el.getBoundingClientRect().width)) > width + 50, 'column drag resizes');
     await page.setViewportSize({ width: 1000, height: 900 });
-    for (const label of ['가입 승인 대기', '계정', '부서', '변경 이력']) {
-      const root = page.locator(`[id="account-grid-${label}"]`);
+    await page.waitForTimeout(600); // 표가 새 폭으로 다시 그려질 때까지(이미 열린 탭은 다시 그리지 않음)
+    for (const label of ['계정', '부서', '변경 이력']) {
+      const root = await openAccountTab(page, label);
       const result = await root.evaluate(async root => {
         const scroll = [...root.querySelectorAll('div')].find(el => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth && (el.querySelector('.tabulator') || el.classList.contains('tabulator-tableholder')));
         if (!scroll) return { scroll: false };
@@ -85,6 +106,7 @@ const { open, WEB } = require('../lib/browser');
       assert.notEqual(result.border, '0px');
     }
     await page.setViewportSize({ width: 1440, height: 960 });
+    await openAccountTab(page, '계정');
     await grid.getByRole('button', { name: '편집', exact: true }).first().click();
     const added = page.getByRole('checkbox', { name: '실적 집계·조회 추가 허용', exact: true });
     await added.waitFor(); assert(await added.isChecked());
@@ -108,17 +130,19 @@ const { open, WEB } = require('../lib/browser');
     await page.waitForTimeout(300);
     assert.deepEqual(saved.extraMenuIds, [], 'empty selection explicitly removes extra grants');
     assert.equal(await page.getByRole('button', { name: '부서 이동', exact: true }).count(), 0);
+    await openAccountTab(page, '부서'); // 「부서 등록」 은 부서 탭 머리에 있습니다
     await page.getByRole('button', { name: '부서 등록', exact: true }).first().click();
     const select = page.getByRole('combobox', { name: '초기 권한 (복사해 올 부서)', exact: true });
     await select.selectOption('2'); assert.equal(await select.inputValue(), '2');
     await select.selectOption(''); assert.equal(await select.inputValue(), '');
     await select.selectOption('32'); assert.equal(await select.inputValue(), '32');
     await page.getByPlaceholder('예) 공정기술팀', { exact: true }).fill('선택검증부서');
-    await page.getByPlaceholder('예) PE', { exact: true }).fill('UI');
+    assert.equal(await page.getByPlaceholder('예) PE', { exact: true }).count(), 0, 'abbr field removed from dept form');
     await page.getByRole('button', { name: '등록', exact: true }).click();
     await page.waitForTimeout(300);
     assert.equal(savedDept.initPermFrom, 32, 'selected department ID submitted as number');
+    assert.equal('abbr' in savedDept, false, 'abbr not sent');
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('PASS: four grids search/paging, input focus, resize, narrow scroll/borders, manual menu save');
+    console.log('PASS: three tab grids (default 100 rows) search/paging, input focus, resize, narrow scroll/borders, manual menu save');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

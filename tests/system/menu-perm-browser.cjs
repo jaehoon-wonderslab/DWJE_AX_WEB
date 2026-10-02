@@ -204,7 +204,7 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     assert.equal(await table.locator('.tabulator-cell[tabulator-field="kindLabel"]', { hasText: '동작(쓰기)' }).count(), 1, 'action row label');
     const logCard = page.locator('.tabulator').nth(1);
     await logCard.getByText('검증부서 / 실적 집계·조회').waitFor();
-    assert.equal(await logCard.getByText('최전산(10004)').count(), 1, 'log performer');
+    assert.equal(await logCard.getByText('최전산 (10004)').count(), 1, 'log performer — 「이름 (사번)」');
     assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 1, 'audit link with sys-audit');
     assert((state.logReads || 0) >= 2, 'logs reloaded after save');
     assert.equal(state.logActType, 'MENU_PERM,USER_MENU_PERM', 'logs include account grants');

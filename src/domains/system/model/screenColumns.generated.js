@@ -773,11 +773,7 @@ export const SCREEN_COLUMNS = [
         "field": "name"
       },
       {
-        "title": "이메일",
-        "field": "email"
-      },
-      {
-        "title": "신청 부서",
+        "title": "소속 부서",
         "field": "dept"
       },
       {
@@ -785,12 +781,8 @@ export const SCREEN_COLUMNS = [
         "field": "posNm"
       },
       {
-        "title": "신청 일시",
-        "field": "requestedAt"
-      },
-      {
-        "title": "소속 부서",
-        "field": "dept"
+        "title": "관리자",
+        "field": "admin"
       },
       {
         "title": "가입 경로",
@@ -815,10 +807,6 @@ export const SCREEN_COLUMNS = [
       {
         "title": "부서",
         "field": "name"
-      },
-      {
-        "title": "약칭",
-        "field": "abbr"
       },
       {
         "title": "설명",
@@ -856,7 +844,7 @@ export const SCREEN_COLUMNS = [
   },
   {
     "id": "sys-gw-dept",
-    "name": "그룹웨어 부서 매핑",
+    "name": "부서 매핑",
     "group": "시스템관리",
     "columns": [
       {

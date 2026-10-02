@@ -34,10 +34,11 @@ const USER_EXPORT_COLUMNS = [
   { key: 'empNo', head: '아이디' },
   { key: 'name', head: '이름' },
   { key: 'dept', head: '소속 부서' },
-  { key: 'posNm', head: '직급' },
+  { key: 'posNm', head: '직급', value: (u) => u.posLabel || '—' },
+  { key: 'admin', head: '관리자', value: (u) => u.adminLabel },
   { key: 'state', head: '상태', attr: 'stateNm', value: (u) => u.stateLabel || u.stateNm },
   { key: 'joinSrc', head: '가입 경로', value: (u) => u.joinSrcLabel || '—' },
-  { key: 'pwdChangeRequired', head: '초기 비밀번호', value: (u) => u.pwdLabel || '—' },
+  { key: 'pwdChangeRequired', head: '초기 비밀번호', value: (u) => u.pwdStateLabel || '변경 완료' },
   { key: 'loginFailCnt', head: '로그인 실패', value: (u) => u.loginFailCnt ?? 0 },
   { key: 'lastLoginAt', head: '최근 접속', value: (u) => u.lastLoginAt || '—' },
 ];
@@ -56,8 +57,8 @@ const today = () => ymd(new Date());
 /** n 일 전 yyyy-MM-dd */
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
 
-/** 변경 이력 조회 기간 (ACC-09) — 기본 최근 90일, 최대 365일 */
-export const LOG_DEFAULT_DAYS = 90;
+/** 변경 이력 조회 기간 (ACC-09) — 기본은 오늘을 종료일로 최근 7일(2026-10-02), 최대 365일 */
+export const LOG_DEFAULT_DAYS = 7;
 export const LOG_MAX_DAYS = 365;
 
 /** 계정 표 빠른 필터 (ACC-08) */
@@ -65,6 +66,8 @@ export const QUICK_FILTERS = [
   { value: 'ALL', label: '전체' },
   { value: 'UNASSIGNED', label: '미배정' },
   { value: 'LOCKED_SUSPENDED', label: '잠김·정지' },
+  // 승인 대기 카드를 없애고(2026-10-02) 계정 표에서 승인·반려합니다 — 대기 계정만 모아 보는 길
+  { value: 'PENDING', label: '승인 대기' },
   { value: 'PWD_INIT', label: '초기 비밀번호' },
   { value: 'GROUPWARE', label: '자동 가입' },
 ];
@@ -75,7 +78,7 @@ export const QUICK_FILTERS = [
  */
 function useAccountList(loader, localFilters = false, extra = {}) {
   const [keyword, setKeyword] = useState('');
-  const paging = usePaging({ size: 10 });
+  const paging = usePaging({ size: 100 }); // 서버 쪽 나눔 표도 기본 100행(2026-10-02)
   const extraKey = JSON.stringify(extra);
   // 전량(size=0)일 때는 page 를 보내지 않습니다 — 서버 부서 목록이 page=1&size=0 을 1건으로 읽습니다(18081 확인)
   const result = useAsync(() => loader({ ...(localFilters ? { size: 0 } : paging.params), keyword, ...extra }), [keyword, paging.page, paging.size, extraKey]);
@@ -119,7 +122,6 @@ export function useAccountController() {
      「초기 비밀번호」 는 서버 조건이 없어 받은 전량에서 거릅니다. */
   const [quickFilter, setQuickFilter] = useState('ALL');
   const userGrid = useAccountList(repo.loadAccountUsers, true, quickParams(quickFilter, unassignedDeptId));
-  const pendingGrid = useAccountList(repo.loadAccountPending);
 
   /* 변경 이력 조건 (ACC-09) */
   const [logFilter, setLogFilter] = useState(() => ({ from: daysAgo(LOG_DEFAULT_DAYS), to: today(), actType: '', target: '' }));
@@ -135,7 +137,6 @@ export function useAccountController() {
   const summary = summaryQ.data;
   // 같은 배열을 유지해야 표가 렌더마다 자료를 갈아 끼우지 않습니다
   const users = useMemo(() => filterQuick(userGrid.rows, quickFilter, unassignedDeptId), [userGrid.rows, quickFilter, unassignedDeptId]);
-  const pending = pendingGrid.rows;
 
   /** 통합관리자인지 (ACC-02 · ACC-16) — 요약 currentUser.superAdmin 이 정본입니다 */
   const superAdmin = !!(summary?.currentUser?.superAdmin ?? me?.superAdmin ?? false);
@@ -148,7 +149,7 @@ export function useAccountController() {
 
   /**
    * 등록·수정·삭제 공통 처리 — 메시지 표시 후 그 동작이 바꾼 것만 다시 불러옵니다 (ACC-12)
-   * @param {string[]} [scope] 'users' · 'pending' · 'depts' (요약과 이력은 늘 다시 받습니다)
+   * @param {string[]} [scope] 'users' · 'depts' (요약과 이력은 늘 다시 받습니다)
    */
   const run = useCallback(
     async (fn, successMessage, scope = ['users']) => {
@@ -157,12 +158,11 @@ export function useAccountController() {
       if (res.ok) {
         summaryQ.reload(); logGrid.reload();
         if (scope.includes('users')) userGrid.reload();
-        if (scope.includes('pending')) pendingGrid.reload();
         if (scope.includes('depts')) deptGrid.reload();
       }
       return res;
     },
-    [toast, summaryQ.reload, userGrid.reload, pendingGrid.reload, deptGrid.reload, logGrid.reload]
+    [toast, summaryQ.reload, userGrid.reload, deptGrid.reload, logGrid.reload]
   );
 
   /* ───────── 엑셀 (ACC-17) ───────── */
@@ -214,7 +214,7 @@ export function useAccountController() {
   const userTotal = userCnt.total ?? ((userCnt.active ?? 0) + (userCnt.locked ?? 0) + (userCnt.suspended ?? 0) + (userCnt.pending ?? 0));
 
   return {
-    userGrid, pendingGrid, deptGrid, logGrid,
+    userGrid, deptGrid, logGrid,
     loadMenuOptions: repo.loadAccountMenuOptions,
     loading: summaryQ.loading && !summaryQ.data,
     me,
@@ -230,8 +230,6 @@ export function useAccountController() {
     mailLastFailAt: canWrite ? summary?.mailLastFailAt || null : null,
     users,
     depts: deptGrid.rows,
-    /** 승인 대기 계정 (회원가입 신청) */
-    pending,
     /** 부서 선택지 — 통합관리자·미배정 표시는 화면이 거릅니다(ACC-02). 권한 수는 이동 비교(ACC-06)에 씁니다 */
     deptOptions: depts.map((d) => ({ value: d.id, label: d.name, superAdmin: d.superAdmin, systemRole: d.systemRole, menuCnt: d.menuCnt, dataCnt: d.dataCnt })),
     /** 미배정 계정 수 (ACC-08) — 서버 unassignedCnt, 없으면 미배정 부서의 소속 계정 수 */
@@ -309,12 +307,13 @@ export function useAccountController() {
     /**
      * 부서 등록·수정
      *
-     * 서버는 `deptNm · abbr · desc · initPermFrom`(등록 시 초기 권한을 복사해 올 부서 ID)을 받습니다.
+     * 서버는 `deptNm · desc · initPermFrom`(등록 시 초기 권한을 복사해 올 부서 ID)을 받습니다.
+     * 약칭(abbr)은 2026-10-02 에 없앴습니다 — 보내지 않습니다(서버는 옛 화면 호환으로 받아도 무시합니다).
      * 화면 폼도 같은 키를 쓰므로 여기서는 빈 초기 권한('')만 걸러 냅니다.
      * 미배정 부서는 이름을 바꿀 수 없어(ACC-04) 폼에 부서명 칸이 없습니다 — 그때는 deptNm 을 보내지 않습니다.
      */
     submitDept: (deptId, v) => {
-      const body = { abbr: v.abbr, desc: v.desc };
+      const body = { desc: v.desc };
       if (v.deptNm !== undefined) body.deptNm = v.deptNm;
       if (!deptId && v.initPermFrom !== '' && v.initPermFrom !== undefined && v.initPermFrom !== null) {
         body.initPermFrom = Number(v.initPermFrom);
@@ -335,9 +334,9 @@ export function useAccountController() {
       (res) => res.message || '잠금을 해제했습니다. 첫 로그인 때 비밀번호를 바꿔야 합니다.',
     ),
     /** 가입 승인 — PENDING → ACTIVE. deptId 를 주면 승인과 함께 그 부서로 정합니다(ACC-07) */
-    approveSignup: (empNo, deptId) => run(() => repo.approveSignup(empNo, true, undefined, deptId), undefined, ['users', 'pending', 'depts']),
+    approveSignup: (empNo, deptId) => run(() => repo.approveSignup(empNo, true, undefined, deptId), undefined, ['users', 'depts']),
     /** 가입 반려 — PENDING → SUSPENDED (사유는 감사 로그에 남습니다) */
-    rejectSignup: (empNo, reason) => run(() => repo.approveSignup(empNo, false, reason), undefined, ['users', 'pending']),
+    rejectSignup: (empNo, reason) => run(() => repo.approveSignup(empNo, false, reason), undefined, ['users']),
   };
 }
 
@@ -346,6 +345,7 @@ function filterQuick(rows, quick, unassignedDeptId) {
   switch (quick) {
     case 'UNASSIGNED': return unassignedDeptId == null ? rows : rows.filter((u) => String(u.deptId) === String(unassignedDeptId));
     case 'LOCKED_SUSPENDED': return rows.filter((u) => u.state === 'LOCKED' || u.state === 'SUSPENDED');
+    case 'PENDING': return rows.filter((u) => u.state === 'PENDING');
     case 'PWD_INIT': return rows.filter((u) => u.pwdChangeRequired);
     case 'GROUPWARE': return rows.filter((u) => u.joinSrc === 'GROUPWARE');
     default: return rows;
@@ -356,6 +356,7 @@ function filterQuick(rows, quick, unassignedDeptId) {
 function quickParams(quick, unassignedDeptId) {
   if (quick === 'UNASSIGNED' && unassignedDeptId != null) return { deptId: unassignedDeptId };
   if (quick === 'LOCKED_SUSPENDED') return { state: 'LOCKED,SUSPENDED' };
+  if (quick === 'PENDING') return { state: 'PENDING' };
   if (quick === 'GROUPWARE') return { joinSrc: 'GROUPWARE' };
   return {};
 }

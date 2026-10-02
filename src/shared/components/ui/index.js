@@ -18,6 +18,7 @@ export { default as Pagination } from './Pagination';
 export { default as XlsTable, XlsLegend } from './XlsTable';
 export { default as PermMatrix } from './PermMatrix';
 export { default as Tabs } from './Tabs';
+export { default as CardTabs } from './CardTabs';
 export { default as KeyValue } from './KeyValue';
 export { default as ProgressBar } from './ProgressBar';
 export { default as Steps } from './Steps';

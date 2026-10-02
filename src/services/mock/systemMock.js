@@ -74,10 +74,10 @@ const MOCK_GROUP_IDS = {
 };
 /** 가릴 수 없는 응답 필드명 — 서버 DataFieldService.RESERVED_ATTRS (DTP-01 초기 목록) */
 const MOCK_RESERVED_ATTRS = [
-  'empNo', 'name', 'dept', 'deptId', 'deptNm', 'deptAbbr', 'pos', 'superAdmin', 'menuPerms', 'dataPerms', 'blindFields',
+  'empNo', 'name', 'dept', 'deptId', 'deptNm', 'pos', 'superAdmin', 'menuPerms', 'dataPerms', 'blindFields',
   'dataFields', 'attrs', 'impersonated', 'servingModelVer', 'userId',
   'id', 'key', 'group', 'groupId', 'label', 'screens', 'depts', 'matrix', 'fields', 'applyFlg', 'category', 'categoryNm',
-  'sortSeq', 'abbr', 'desc', 'userCnt', 'menuCnt', 'dataCnt',
+  'sortSeq', 'desc', 'userCnt', 'menuCnt', 'dataCnt',
   'items', 'meta', 'masked', 'success', 'message', 'code', 'ts', 'title', 'target', 'detail', 'by', 'state', 'status',
 ];
 // (키를 두 칸 들여 쓰면 check-mock 이 목 핸들러 키로 읽으므로 한 줄씩 대입합니다)
@@ -146,7 +146,7 @@ function permDeptRow(d) {
   const superAdmin = isSuperDept(d.id);
   const unassigned = isUnassignedDept(d.id);
   return {
-    deptId: d.id, deptNm: d.id, abbr: d.av, desc: d.desc,
+    deptId: d.id, deptNm: d.id, desc: d.desc,
     superAdmin, unassigned, locked: superAdmin ? 'SUPER_ADMIN' : unassigned ? 'UNASSIGNED' : null,
     userCnt: store().users.filter((u) => u.dept === d.id).length,
   };
@@ -609,20 +609,25 @@ export const systemMock = {
     })),
   }),
 
-  postSystemDepts: ({ name, av, desc, copyFrom }) => {
+  // 서버 요청 본문과 같은 키(deptNm · desc · initPermFrom)를 받습니다. 예전 키(name · copyFrom)도 받아 둡니다.
+  // 약칭은 2026-10-02 에 없앴습니다(DB 컬럼 삭제) — 보내도 무시합니다.
+  postSystemDepts: ({ deptNm, name: legacyName, desc, initPermFrom, copyFrom }) => {
     const st = store();
-    if (!name || !av) return fail('E-VALID-001', '부서명과 약칭은 필수입니다.');
+    const name = String(deptNm ?? legacyName ?? '').trim();
+    if (!name) return fail('E-VALID-001', '부서명을 입력해 주세요.');
     if (st.depts.some((d) => d.id === name)) return fail('E-VALID-002', '이미 등록된 부서명입니다.');
-    st.depts.push({ id: name, av: String(av).toUpperCase(), desc: desc || '—' });
+    st.depts.push({ id: name, desc: desc || '—' });
     // 권한 복사 대상이 있으면 그대로 가져오고, 없으면 기본 화면 하나만 엽니다
-    const src = copyFrom && copyFrom !== '빈 권한' ? copyFrom : null;
+    const from = initPermFrom ?? copyFrom;
+    const src = from && from !== '빈 권한' ? from : null;
     mockState.menuAccess[name] = src && mockState.menuAccess[src] !== '*' ? [...mockState.menuAccess[src]] : ['dash-ai'];
     mockState.dataScope[name] = src && mockState.dataScope[src] !== '*' ? [...mockState.dataScope[src]] : [];
     logPerm(name, '부서', `부서 신규 등록${src ? ` · ${src} 권한 복사` : ' · 빈 권한'}`);
     return ok(`${name} 부서를 등록했습니다 — 권한을 지정하세요.`, { deptId: name });
   },
 
-  putSystemDeptsByDeptId: ({ deptId, name, av, desc }) => {
+  putSystemDeptsByDeptId: ({ deptId, deptNm, name: legacyName, desc }) => {
+    const name = deptNm ?? legacyName;
     const st = store();
     const d = st.depts.find((x) => x.id === deptId);
     if (!d) return fail('E-NOTFOUND', '대상 부서를 찾을 수 없습니다.');
@@ -638,7 +643,6 @@ export const systemMock = {
       });
       d.id = name;
     }
-    if (av) d.av = String(av).toUpperCase();
     if (desc !== undefined) d.desc = desc;
     logPerm(d.id, '부서', '부서 정보 수정');
     return ok('부서를 수정했습니다.', { deptId: d.id });
@@ -2065,7 +2069,7 @@ function gwStore() {
   if (!st.gwMaps) {
     st.gwMaps = GW_DEPT_MAP_SEED.map((m) => ({ ...m, updDate: '2026-09-30 00:00', updUser: 'SYSTEM' }));
     if (!st.depts.some((d) => d.id === UNASSIGNED)) {
-      st.depts.push({ id: UNASSIGNED, av: 'NA', desc: '그룹웨어 자동 가입 계정 중 부서 매핑이 없는 사람 — 화면 권한 없음' });
+      st.depts.push({ id: UNASSIGNED, desc: '그룹웨어 자동 가입 계정 중, 부서 매핑이 없는 사람 — 고정 5개 화면' });
     }
     GW_UNASSIGNED_USERS.forEach((u) => {
       if (!st.users.some((x) => x.empNo === u.empNo)) {

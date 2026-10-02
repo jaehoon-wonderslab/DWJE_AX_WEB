@@ -27,7 +27,7 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
   afterAll(() => api.cleanup(ctx.trash, '쓰기 테스트가 만든 자료'));
 
   test('부서를 등록하면 목록에 나오고, 수정·삭제가 반영된다', async () => {
-    const created = await api.send('POST', '/system/depts', { deptNm: `${TAG}부서`, abbr: '자동', desc: '자동 테스트용' });
+    const created = await api.send('POST', '/system/depts', { deptNm: `${TAG}부서`, desc: '자동 테스트용' });
     eq(created.status, 200, `등록 실패: ${created.body?.message}`);
     const deptId = created.body?.data?.deptId;
     ok(deptId, '등록 응답이 deptId 를 줘야 화면이 방금 만든 부서를 가리킬 수 있습니다');
@@ -39,7 +39,7 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
     eq(found.deptNm, `${TAG}부서`, '등록한 이름 그대로 나와야 합니다');
 
     const renamed = `${TAG}수정`;
-    const updated = await api.send('PUT', `/system/depts/${deptId}`, { deptNm: renamed, abbr: '수정', desc: '수정됨' });
+    const updated = await api.send('PUT', `/system/depts/${deptId}`, { deptNm: renamed, desc: '수정됨' });
     eq(updated.status, 200, `수정 실패: ${updated.body?.message}`);
     const reread = await api.data('/system/depts');
     eq((reread.depts || reread.items || []).find((d) => d.deptId === deptId)?.deptNm, renamed, '수정이 반영되지 않았습니다');
@@ -281,7 +281,7 @@ suite('쓰기 — 안전장치', () => {
 
   test('권한 없는 부서는 계정을 만들 수 없다 (403)', async () => {
     // qa 계정은 품질보증팀입니다. 계정 관리는 통합관리자 전용입니다.
-    const r = await api.send('POST', '/system/depts', { deptNm: '권한없음', abbr: 'x' }, 'qa');
+    const r = await api.send('POST', '/system/depts', { deptNm: '권한없음' }, 'qa');
     ok(r.status === 403 || r.status === 401,
       `품질보증팀이 부서를 만들 수 있으면 안 됩니다 — HTTP ${r.status} ${r.body?.message}`);
   });

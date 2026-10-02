@@ -121,7 +121,7 @@ export function getAuthSignupCheckEmpNo(params) {
  *
  * `GET /api/v1/auth/signup/depts`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} depts[{deptId,deptNm,abbr,desc}]
+ * @returns {Promise<object>} depts[{deptId,deptNm,desc}]
  */
 export function getAuthSignupDepts(params) {
   return request('getAuthSignupDepts', params);

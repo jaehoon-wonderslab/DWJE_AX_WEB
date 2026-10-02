@@ -9,7 +9,7 @@ const ok = response => { assert(response.body.success, JSON.stringify({ status: 
     // Verify new contract before creating test data.
     const existing = ok(await get('/system/users', { size: 1 }));
     assert(Array.isArray(existing.items[0].extraMenuIds), 'Deploy account grant API before running this test');
-    const dept = ok(await send('POST', '/system/depts', { deptNm: empNo, abbr: `W${String(Date.now()).slice(-3)}`, desc: `${empNo} 검색검증` }));
+    const dept = ok(await send('POST', '/system/depts', { deptNm: empNo, desc: `${empNo} 검색검증` }));
     deptId = dept.deptId;
     assert(deptId);
     ok(await send('PUT', '/system/menu-perms', { deptId, screenId: 'dash-ai', allowed: true }));

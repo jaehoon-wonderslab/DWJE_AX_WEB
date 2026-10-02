@@ -30,8 +30,13 @@ function normalizeUser(u) {
     /** 화면·엑셀·열 필터가 쓰는 상태 표기 — 「정지 · 퇴사」 처럼 사유를 붙입니다 */
     stateLabel: reasonNm ? `${stateNm} · ${reasonNm}` : stateNm,
     /** 「초기 비밀번호」 열 표기 (ACC-03) */
-    pwdLabel: u.pwdChangeRequired ? '변경 전' : '',
+    /** 「초기 비밀번호」 열 목록 필터 값 — 빈 값 대신 「변경 완료」 로 고를 수 있게 합니다 */
+    pwdStateLabel: u.pwdChangeRequired ? '변경 전' : '변경 완료',
     posNm: u.posNm || u.pos || '',
+    /** 계정 표·엑셀의 「직급」 표기 — 직급 코드 ADMIN(관리자)은 직급이 아니라 「관리자」 열로 따로 보입니다(2026-10-02) */
+    posLabel: isAdminUser(u) ? '' : u.posNm || u.pos || '',
+    /** 계정 표·엑셀의 「관리자」 열 — 통합관리자 부서 소속이거나 직급 코드가 ADMIN 인 계정 */
+    adminLabel: isAdminUser(u) ? '관리자' : '일반',
     /** 계정 전환 목록에 노출되는 계정인지 (서버 `demo`) */
     switchable: !!(u.switchable ?? u.demo),
     /** 초기 비밀번호를 바꾸기 전인지 (ACC-03, R-04) */
@@ -46,6 +51,9 @@ function normalizeUser(u) {
     joinSrcLabel: JOIN_SRC_LABEL[u.joinSrc || (String(u.remark || '').startsWith('그룹웨어 자동 가입') ? 'GROUPWARE' : '')] || '',
   };
 }
+
+/** 관리자 계정인지 — 서버 `superAdmin`(통합관리자 부서) 또는 직급 코드 ADMIN */
+const isAdminUser = (u) => !!u.superAdmin || u.pos === 'ADMIN' || u.posNm === '관리자';
 
 /** 가입 경로 표기 (ACC-08) */
 export const JOIN_SRC_LABEL = { GROUPWARE: '자동 가입', SIGNUP: '회원가입', ADMIN: '관리자 등록' };
@@ -77,7 +85,6 @@ function normalizeDept(d) {
   return {
     id: d.deptId ?? d.id,
     name,
-    abbr: d.abbr ?? d.deptAbbr ?? d.av ?? '',
     desc: d.desc ?? '',
     superAdmin: !!d.superAdmin || systemRole === 'SUPER_ADMIN',
     systemRole,
@@ -114,7 +121,20 @@ export async function loadAccountDepts(params) {
  */
 export async function loadAccountLogs(params) {
   const result = await unwrapPaged(systemService.getSystemPermLogs(params));
-  return { ...result, items: result.items.map(l => ({ ...l, actNm: l.actNm || '', detail: screenIdsToNames(l.detail) })) };
+  return { ...result, items: result.items.map(l => ({ ...l, actNm: l.actNm || '', detail: screenIdsToNames(l.detail), byLabel: actorLabel(l) })) };
+}
+
+/**
+ * 「수행자」 칸 표기 — 「이름 (사번)」 (2026-10-02). 계정 관리 · 메뉴 접근 권한 · 데이터 접근 권한 이력이 같은 모양을 씁니다.
+ *
+ * 서버 `by` 는 수행자 이름이고, 계정이 지워졌으면 사번, 배치·엔진이면 `SYSTEM` 입니다. `byEmpNo` 는 수행자 사번입니다.
+ * 이름을 못 찾아 `by` 가 이미 사번이면(또는 사번이 없으면) 괄호를 붙이지 않습니다 — 「ZT1234 (ZT1234)」 처럼 겹치지 않게.
+ */
+export function actorLabel(l) {
+  const name = l?.by ?? '';
+  const empNo = l?.byEmpNo ?? '';
+  if (!empNo || String(empNo) === String(name)) return String(name || empNo || '');
+  return name ? `${name} (${empNo})` : String(empNo);
 }
 
 /** 이력 문장 속 `[chat-history]` 같은 화면 ID 표기를 화면 이름으로 바꿉니다 (ACC-16) */
@@ -209,7 +229,7 @@ export const deleteDept = (deptId) => command(systemService.deleteSystemDeptsByD
  * 권한 매트릭스 응답을 화면이 쓰는 모양으로 맞춥니다. (SY-02 · SY-03 공용)
  *
  * 서버는 부서를 객체 배열로 주고 매트릭스를 부서 ID 로 묶어 줍니다.
- * 화면은 `{ id, name, abbr }` 와 ID 로 묶인 매트릭스만 알면 되도록 여기서 한 번 정리합니다.
+ * 화면은 `{ id, name }` 와 ID 로 묶인 매트릭스만 알면 되도록 여기서 한 번 정리합니다(부서 약칭은 2026-10-02 에 없앴습니다).
  *
  * 2026-10-01 (기획 03 MNP-15·16 · 04 DTP-16) — 시스템 부서 잠금과 쓰기 칸을 함께 정리합니다.
  *  · `locked` — 'SUPER_ADMIN'(통합관리자, 전 권한) · 'UNASSIGNED'(미배정, 고정) · null(일반 부서).
@@ -220,12 +240,12 @@ export const deleteDept = (deptId) => command(systemService.deleteSystemDeptsByD
  *
  * @param {object} data 서버 응답 data
  * @param {'menu'|'data'} [kind] 어느 매트릭스인지
- * @returns {object} { ...data, depts:[{id,name,abbr,desc,superAdmin,unassigned,locked,userCnt}], matrix, writeMatrix, adminDepts:[id] }
+ * @returns {object} { ...data, depts:[{id,name,desc,superAdmin,unassigned,locked,userCnt}], matrix, writeMatrix, adminDepts:[id] }
  */
 function normalizePermMatrix(data, kind = 'menu') {
   if (!data) return data;
   const depts = (data.depts || []).map((d) => {
-    if (typeof d === 'string') return { id: d, name: d, abbr: d, superAdmin: false, unassigned: false, locked: null, userCnt: 0 };
+    if (typeof d === 'string') return { id: d, name: d, superAdmin: false, unassigned: false, locked: null, userCnt: 0 };
     const superAdmin = !!d.superAdmin || d.locked === 'SUPER_ADMIN';
     const unassigned = !!d.unassigned || d.locked === 'UNASSIGNED';
     return {
@@ -233,7 +253,6 @@ function normalizePermMatrix(data, kind = 'menu') {
       // 이름이 없으면 id 로 돌아갑니다 — 부서 id 자체가 이름인 원천이 있어,
       // 그대로 두면 권한 표의 열 머리글이 통째로 비어 어느 부서인지 알 수 없습니다
       name: d.deptNm ?? d.name ?? String(d.deptId ?? d.id ?? ''),
-      abbr: d.abbr ?? d.deptAbbr ?? d.av ?? '',
       desc: d.desc ?? '',
       superAdmin,
       unassigned,
@@ -357,7 +376,7 @@ export async function loadPermChangeLogs(actType, size = 20) {
       const name = permRows().find((r) => r.id === id)?.name;
       return name ? `${sep}${name}` : m;
     }),
-    byLabel: [l.by, l.byEmpNo ? `(${l.byEmpNo})` : ''].filter(Boolean).join(''),
+    byLabel: actorLabel(l),
     // 구분 이름(actNm, 서버 3단계)을 내용 앞에 붙여 부서 권한과 계정 추가 허용을 나눠 읽게 합니다
     detailLabel: l.actNm && actType.includes(',') ? `[${l.actNm}] ${l.detail || ''}` : (l.detail || ''),
   }));

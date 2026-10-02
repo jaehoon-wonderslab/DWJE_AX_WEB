@@ -115,7 +115,7 @@ module.exports = (f) => ({
   /* ── 시스템관리 ────────────────────────────────────── */
   '/system/users': { params: { size: 5 }, fields: ['items[].empNo', 'items[].name', 'items[].dept', 'items[].stateNm', 'items[].posNm'] },
   '/system/users/pending': { fields: ['items'] },
-  '/system/depts': { fields: ['items[].deptId', 'items[].deptNm', 'items[].abbr'] },
+  '/system/depts': { fields: ['items[].deptId', 'items[].deptNm'] }, // 약칭(abbr)은 2026-10-02 삭제
   '/system/accounts/summary': { fields: ['userCnt.active', 'deptCnt'] },
   '/system/menu-perms': { fields: ['screens[].id', 'screens[].name', 'depts[].deptId', 'depts[].deptNm', 'matrix'] },
   '/system/data-perms': { fields: ['fields[].key', 'fields[].name', 'depts[].deptId', 'matrix'] },

@@ -2,8 +2,13 @@
  * [View] SY-01 계정 관리 (경로: /system/account)
  *
  * 부서 기본 메뉴 권한에 계정별 수동 허용 메뉴를 추가할 수 있습니다.
- * 회원가입(/signup)으로 들어온 신청은 승인 대기 상태로 쌓이며, 이 화면에서 승인해야 로그인할 수 있습니다.
- * 사용 API — /api/v1/system/users, /system/users/pending, /system/depts, /system/perm-logs
+ * 회원가입(/signup)으로 들어온 신청은 승인 대기 상태로 쌓이며, 계정 표의 [승인]·[반려] 로 처리합니다.
+ * 사용 API — /api/v1/system/users, /system/depts, /system/perm-logs
+ *
+ * 화면 구성(2026-10-02 개편) — 요약 카드 아래에 「계정 · 부서 · 계정·권한 변경 이력」 을 탭으로 나눕니다.
+ *  · 표마다 쓰는 단추(엑셀·계정 등록 / 부서 등록)는 그 탭 머리 오른쪽에 둡니다
+ *  · 표는 창 높이에 맞춰 세로로 길게, 기본 100행(AccountGrid)
+ *  · 「가입 승인 대기」 카드·「승인 대기」 요약 카드·안내 문단은 뺐습니다 — 대기 계정은 「상태」 열 필터 「승인 대기」 로 모아 봅니다
  *
  * 「읽기 전용」 상태(기획 4.3) — 버튼을 숨기지 않고 비활성으로 두며 이유를 툴팁으로 보입니다.
  *  · 쓰기 권한 없음(R-06) → 등록·편집·상태·삭제·승인·반려 전부. 엑셀·검색·필터는 그대로(R-10)
@@ -15,12 +20,11 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, ChipRow, DateField, ExportMenuButton, Filters, FormAlert, Hint, Icon, Loading, SelectChip, SelectField, StatCard, TextField, openConfirmModal, openFormModal } from '@shared/components/ui';
+import { Badge, Button, CardTabs, DateField, ExportMenuButton, Filters, FormAlert, Icon, Loading, StatCard, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { POSITIONS } from '@shared/constants/accounts';
 import { pageName } from '@shared/constants/menu';
 import { STATE_REASON_LABEL } from '../model/systemRepository';
-import { QUICK_FILTERS } from '../controller/useAccountController';
 import AccountGrid from './AccountGrid';
 import AccountMenuPicker from './AccountMenuPicker';
 import { GuardedButton, WRITE_DENIED, useDomTitle } from './WriteGuard';
@@ -37,29 +41,51 @@ const STATE_OPTIONS = [
   { value: 'SUSPENDED', label: '정지' },
 ];
 
+/**
+ * 부서 [삭제] 를 끄는 이유 — 시스템 부서(ACC-04) · 소속 계정이 있는 부서(서버도 409 로 막음).
+ * 그룹웨어 매핑·알림 수신 그룹 참조는 목록에 수가 없어 서버가 판정합니다(확인창 안내).
+ */
+const deptDeleteBlock = (r) => {
+  if (r.systemRole) return SYSTEM_DEPT_DELETE;
+  if (Number(r.userCnt) > 0) return `소속 계정 ${r.userCnt}명이 있어 삭제할 수 없습니다. 계정을 다른 부서로 옮긴 뒤 삭제하세요.`;
+  return undefined;
+};
+
 /** 시스템 부서 보호 안내 (ACC-04) */
 const SYSTEM_DEPT_DELETE = '통합관리자·미배정 부서는 삭제할 수 없습니다. 자동 가입과 권한 판정이 이 부서를 씁니다.';
 const UNASSIGNED_NAME_LOCK = '미배정 부서는 이름을 바꿀 수 없습니다. 자동 가입과 권한 판정이 이 부서를 씁니다.';
 /** 본인 계정 편집 안내 (ACC-02) */
 const SELF_EDIT_NOTE = '본인 계정의 부서와 추가 메뉴는 다른 관리자가 바꿔야 합니다.';
 /** 미배정 계정 편집 안내 (ACC-08) */
-const UNASSIGNED_EDIT_NOTE = '이 계정은 그룹웨어 자동 가입으로 들어와 미배정 상태입니다. 같은 그룹웨어 부서 사람을 한꺼번에 옮기려면 그룹웨어 부서 매핑 화면을 쓰십시오.';
-/** 승인 대기 카드 위치 (계정 표의 [승인 처리] 가 이리로 옮깁니다, ACC-07) */
-const PENDING_CARD_ID = 'account-pending-card';
-const LOG_CARD_ID = 'account-log-card';
+const UNASSIGNED_EDIT_NOTE = '이 계정은 그룹웨어 자동 가입으로 들어와 미배정 상태입니다. 같은 그룹웨어 부서 사람을 한꺼번에 옮기려면 부서 매핑 화면을 쓰십시오.';
+/** 요약 카드가 칸 높이를 채우게 합니다 — 세 카드 높이를 같게(가장 높은 카드 기준) */
+const STAT_FILL = { flex: 1 };
+/** 요약 카드 머리 줄 높이 — 「부서 매핑 →」 단추가 있는 카드와 없는 카드의 숫자 줄을 맞춥니다 */
+const STAT_LABEL = { minHeight: 32 };
+
+/** 탭 — 값은 시험·주소에서 쓰는 이름입니다 */
+const TAB_USERS = 'users';
+const TAB_DEPTS = 'depts';
+const TAB_LOGS = 'logs';
+
+/** 계정 표 목록 필터 순서 (`filter: 'list'`) — 표에 있는 값만 이 순서로 보이고 나머지는 뒤에 붙습니다 */
+const STATE_FILTER_ORDER = ['사용', '잠김', '정지', '승인 대기'];
+const PWD_FILTER_ORDER = ['변경 전', '변경 완료'];
+const JOIN_FILTER_ORDER = ['자동 가입', '회원가입', '관리자 등록'];
+const ADMIN_FILTER_ORDER = ['관리자', '일반'];
 
 export default function AccountView({
-  loading, me, summary, users, depts, pending, deptOptions, positionOptions, logs,
+  loading, me, summary, users, depts, deptOptions, positionOptions, logs,
   canWrite, superAdmin, mailEnabled, mailLastFailAt, isUnassignedDept, initialPasswordOf,
   userExportRef, userViewCount, onUserActiveChange, userTotal, exportView, exportAll,
   submitUser, submitDept, removeUser, removeDept, activateUser, suspendUser, unlockUser,
-  approveSignup, rejectSignup, userGrid, pendingGrid, deptGrid, logGrid, loadMenuOptions,
-  unassignedCnt, canGoGwDept, quickFilter, setQuickFilter, logFilter, applyLogFilter, showLogsFor, actOptions, actName,
+  approveSignup, rejectSignup, userGrid, deptGrid, logGrid, loadMenuOptions,
+  unassignedCnt, canGoGwDept, logFilter, applyLogFilter, showLogsFor, actName,
   loadDeleteCheck,
 }) {
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
-  const pendingTotal = summary?.userCnt?.pending ?? pendingGrid.meta?.total ?? 0;
+  const [tab, setTab] = useState(TAB_USERS);
   const posOptions = positionOptions?.length ? positionOptions : POSITION_FALLBACK;
   const cnt = summary?.userCnt || {};
 
@@ -101,7 +127,7 @@ export default function AccountView({
           render: () => (
             <View style={{ gap: 8 }}>
               <FormAlert tone="info">{UNASSIGNED_EDIT_NOTE}</FormAlert>
-              {canGoGwDept ? <Button label="그룹웨어 부서 매핑으로 이동" size="sm" onPress={() => { useUiStore.getState().closeModal(); goToScreen('sys-gw-dept'); }} /> : null}
+              {canGoGwDept ? <Button label="부서 매핑으로 이동" size="sm" onPress={() => { useUiStore.getState().closeModal(); goToScreen('sys-gw-dept'); }} /> : null}
             </View>
           ),
         }] : []),
@@ -157,7 +183,7 @@ export default function AccountView({
               onPress={() => {
                 useUiStore.getState().closeModal();
                 showLogsFor(row.empNo);
-                if (typeof document !== 'undefined') document.getElementById(LOG_CARD_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setTab(TAB_LOGS);
               }}
             />
           ),
@@ -173,19 +199,18 @@ export default function AccountView({
   };
 
   /* ───────── 부서 등록·편집 ───────── */
-  // 폼 키는 서버 요청 본문(deptNm · abbr · desc · initPermFrom)과 같게 둡니다.
+  // 폼 키는 서버 요청 본문(deptNm · desc · initPermFrom)과 같게 둡니다. 약칭은 없앴습니다(2026-10-02, DB 컬럼 삭제).
   // 예전엔 name · av · copyFrom 으로 보내서 서버가 받는 항목이 하나도 없었습니다.
   const openDeptForm = (row) => {
     const nameLocked = row?.systemRole === 'UNASSIGNED';
     openFormModal({
       title: row ? '부서 편집' : '부서 등록',
       sub: '시스템관리 > 계정 관리',
-      initial: row ? { deptNm: row.name, abbr: row.abbr, desc: row.desc } : { initPermFrom: '' },
+      initial: row ? { deptNm: row.name, desc: row.desc } : { initPermFrom: '' },
       fields: [
         nameLocked
           ? { key: 'deptNmStatic', label: '부서명', type: 'static', value: `${row.name} — ${UNASSIGNED_NAME_LOCK}` }
           : { key: 'deptNm', label: '부서명', required: true, placeholder: '예) 공정기술팀' },
-        { key: 'abbr', label: '약칭 (최대 4자)', required: true, placeholder: '예) PE' },
         { key: 'desc', label: '설명', full: true, placeholder: '예) 공정 조건 · 금형 관리' },
         row
           ? { key: 'perm', label: '권한', type: 'static', full: true, value: row.systemRole === 'UNASSIGNED' ? '미배정 부서의 권한은 고정입니다 — 대시보드 3개·덕반장 AI·자연어 질의 이력 조회, 데이터 권한 0건' : '권한은 메뉴 접근 권한 / 데이터 접근 권한 화면에서 설정합니다' }
@@ -199,9 +224,8 @@ export default function AccountView({
             },
       ],
       note: row
-        ? (nameLocked ? '약칭과 설명은 바꿀 수 있습니다.' : '부서명을 바꾸면 소속 계정과 권한 설정이 함께 따라갑니다.')
+        ? (nameLocked ? '설명은 바꿀 수 있습니다.' : '부서명을 바꾸면 소속 계정과 권한 설정이 함께 따라갑니다.')
         : '초기 권한을 고르면 그 부서의 메뉴 접근 권한을 그대로 복사해 시작합니다. 데이터 접근 권한은 데이터 접근 권한 화면에서 따로 지정하세요.',
-      validate: (v) => (String(v.abbr || '').trim().length > 4 ? { abbr: '부서 약칭은 4자 이내여야 합니다.' } : {}),
       submitLabel: row ? '수정' : '등록',
       onSubmit: async (v) => (await submitDept(row?.id, v)).ok,
     });
@@ -315,17 +339,15 @@ export default function AccountView({
       onConfirm: () => removeDept(row.id),
     });
 
-  /** 계정 행의 상태 버튼 — 잠김은 [잠금 해제], 승인 대기는 가입 승인·반려로 처리 */
+  /** 계정 행의 상태 버튼 — 잠김은 [잠금 해제], 승인 대기는 [승인]·[반려](승인 대기 카드를 없애 표에서 바로 처리, ACC-07) */
   const stateButton = (r) => {
     if (r.state === 'LOCKED') return <GuardedButton allowed={canWrite} label="잠금 해제" size="sm" onPress={() => openUnlockForm(r)} />;
     if (r.state === 'PENDING') {
       return (
-        <GuardedButton
-          allowed={canWrite}
-          label="승인 처리"
-          size="sm"
-          onPress={() => { if (typeof document !== 'undefined') document.getElementById(PENDING_CARD_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-        />
+        <>
+          <GuardedButton allowed={canWrite} label="승인" size="sm" variant="primary" icon="check" onPress={() => confirmApprove(r)} />
+          <GuardedButton allowed={canWrite} label="반려" size="sm" variant="danger" onPress={() => openRejectForm(r)} />
+        </>
       );
     }
     if (r.state === 'ACTIVE') return <GuardedButton allowed={canWrite} label="정지" size="sm" onPress={() => openSuspendForm(r)} />;
@@ -334,19 +356,188 @@ export default function AccountView({
 
   if (loading) return <Loading />;
 
+  /* ───────── 탭별 표 ───────── */
+  const userColumns = [
+    { key: 'empNo', title: '아이디', width: 150, minWidth: 110, mono: true },
+    {
+      key: 'name',
+      title: '이름',
+      width: 130,
+      render: (r) => (
+        <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
+          <Text style={[s.td, { fontWeight: '600', paddingHorizontal: 0, flexShrink: 1 }]}>{r.name}</Text>
+          {r.empNo === me?.empNo ? <Badge tone="blue">현재</Badge> : null}
+        </View>
+      ),
+    },
+    { key: 'dept', title: '소속 부서', width: 180 },
+    // 아래 4개 열은 머리글이 검색칸이 아니라 목록입니다 — 눌러서 값을 고릅니다(Tabulator list 머리글 필터)
+    // 「관리자」 는 직급이 아니라 따로 둔 열로 보이고 거릅니다(2026-10-02) — 직급 목록 필터에서도 뺍니다
+    { key: 'posNm', title: '직급', width: 110, filter: 'list', filterField: 'posLabel', filterOptions: posOptions.filter((o) => o.value !== 'ADMIN' && o.label !== '관리자').map((o) => o.label), render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.posLabel || '—'}</Text> },
+    {
+      key: 'admin',
+      title: '관리자',
+      width: 110,
+      filter: 'list',
+      filterField: 'adminLabel',
+      filterOptions: ADMIN_FILTER_ORDER,
+      // 표 글자는 목록 필터 값(관리자 / 일반)과 같게 씁니다
+      render: (r) => (r.adminLabel === '관리자' ? <Badge tone="blue">관리자</Badge> : <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.adminLabel || '일반'}</Text>),
+    },
+    {
+      key: 'state',
+      title: '상태',
+      width: 150,
+      filter: 'list',
+      filterField: 'stateNm',
+      filterOptions: STATE_FILTER_ORDER,
+      render: (r) => <UserStateBadge row={r} />,
+    },
+    { key: 'joinSrc', title: '가입 경로', width: 120, filter: 'list', filterField: 'joinSrcLabel', filterOptions: JOIN_FILTER_ORDER, render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.joinSrcLabel || '—'}</Text> },
+    {
+      key: 'pwdChangeRequired',
+      title: '초기 비밀번호',
+      width: 130,
+      filter: 'list',
+      filterField: 'pwdStateLabel',
+      filterOptions: PWD_FILTER_ORDER,
+      // 표 글자는 목록 필터 값(변경 전 / 변경 완료)과 같게 씁니다
+      render: (r) => (r.pwdChangeRequired ? <Badge tone="amber">변경 전</Badge> : <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.pwdStateLabel || '변경 완료'}</Text>),
+    },
+    {
+      key: 'extraMenuIds',
+      title: '추가 메뉴',
+      width: 110,
+      align: 'right',
+      filterable: false,
+      render: (r) => <ExtraMenuBadge row={r} />,
+    },
+    {
+      key: 'loginFailCnt',
+      title: '로그인 실패',
+      width: 140,
+      align: 'right',
+      render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.loginFailCnt ?? 0}</Text>,
+    },
+    { key: 'lastLoginAt', title: '최근 접속', width: 210, mono: true },
+    {
+      key: 'action',
+      title: '관리',
+      width: 300,
+      render: (r) => (
+        <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+          <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openUserForm(r)} />
+          {stateButton(r)}
+          <GuardedButton allowed={canWrite} label="삭제" size="sm" variant="danger" onPress={() => confirmDeleteUser(r)} />
+        </View>
+      ),
+    },
+  ];
+
+  // 열 폭 합계 1,070px — 탭 안(1616px 창에서 약 1,240px)에 「관리」 열의 [삭제] 까지 들어오게 맞췄습니다(2026-10-02).
+  // 「약칭」 열은 없앴습니다(2026-10-02, DB 컬럼 삭제).
+  // 더 좁은 창에서는 표 안에서 가로로 스크롤합니다.
+  const deptColumns = [
+    {
+      key: 'name',
+      title: '부서',
+      width: 250,
+      render: (r) => (
+        <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Text style={[s.td, { fontWeight: '600', paddingHorizontal: 0, flexShrink: 1 }]}>{r.name}</Text>
+          {/* 「현재 소속」·「전 권한」·「시스템」 배지는 뺐습니다(2026-10-02 디자인 피드백). 미배정의 고정 권한 배지만 남깁니다 */}
+          {r.systemRole === 'UNASSIGNED' ? <FixedPermBadge fixedMenus={r.fixedMenus} /> : null}
+        </View>
+      ),
+    },
+    { key: 'desc', title: '설명', flex: 1, minWidth: 170 },
+    // 소속 계정 · 메뉴 권한 · 데이터 권한은 숫자라 열 필터를 두지 않습니다(2026-10-02)
+    { key: 'userCnt', title: '소속 계정', width: 100, align: 'right', num: true, filterable: false },
+    {
+      key: 'menuCnt',
+      title: '메뉴 권한',
+      width: 100,
+      align: 'right',
+      filterable: false,
+      render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{permCountText(r, 'menu')}</Text>,
+    },
+    {
+      key: 'dataCnt',
+      title: '데이터 권한',
+      width: 100,
+      align: 'right',
+      filterable: false,
+      render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{permCountText(r, 'data')}</Text>,
+    },
+    {
+      key: 'action',
+      title: '관리',
+      width: 350,
+      render: (r) => (
+        <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+          <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openDeptForm(r)} />
+          {/* 받는 화면이 이 부서 열을 강조합니다(ACC-10, 받는 화면 쪽 변경은 03·04 소관) */}
+          <Button label="메뉴 권한" size="sm" onPress={() => goToScreen('sys-menu', { deptId: r.id })} />
+          <Button label="데이터 권한" size="sm" onPress={() => goToScreen('sys-data', { deptId: r.id })} />
+          <GuardedButton allowed={canWrite} reason={deptDeleteBlock(r)} label="삭제" size="sm" variant="danger" onPress={() => confirmDeleteDept(r)} />
+        </View>
+      ),
+    },
+  ];
+
+  const logColumns = [
+    { key: 'ts', title: '시각', width: 210, mono: true },
+    { key: 'target', title: '대상', width: 170 },
+    {
+      key: 'act',
+      title: '구분',
+      width: 190,
+      filterField: 'actNm',
+      render: (r) => {
+        const label = r.actNm || actName(r.actType);
+        return <Badge tone={r.actType === 'ACCOUNT' ? 'blue' : r.actType === 'DEPT' ? 'amber' : ''}>{label}</Badge>;
+      },
+    },
+    { key: 'detail', title: '변경 내용', flex: 1, minWidth: 250, wrap: true },
+    // 「이름 (사번)」 — 열 키는 by 그대로 두고(열 필터·시험 호환) 보이는 값과 필터 값만 byLabel 로 씁니다(2026-10-02)
+    {
+      key: 'by',
+      title: '수행자',
+      width: 190,
+      filterField: 'byLabel',
+      render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.byLabel || r.by || '—'}</Text>,
+    },
+  ];
+
+  /** 탭 머리 오른쪽 — 그 탭의 표에 쓰는 단추만 둡니다(예전 머리말·카드 오른쪽 단추를 옮김) */
+  const tabActions = {
+    [TAB_USERS]: (
+      <>
+        {/* 「사용 n」 · 「정지 n」 배지는 뺐습니다(2026-10-02) — 손볼 일이 있는 잠김 · 승인 대기만 있을 때 보입니다 */}
+        {cnt.locked ? <Badge tone="amber">{`잠김 ${cnt.locked}`}</Badge> : null}
+        {cnt.pending ? <Badge tone="amber">{`승인 대기 ${cnt.pending}`}</Badge> : null}
+        {/* 엑셀은 조회 권한이면 받을 수 있습니다(R-10) — 쓰기 권한과 무관 */}
+        <ExportMenuButton viewCount={userViewCount} totalCount={userTotal} onExportView={exportView} onExportAll={exportAll} />
+        <GuardedButton allowed={canWrite} label="계정 등록" size="sm" variant="primary" icon="plus" onPress={() => openUserForm(null)} />
+      </>
+    ),
+    [TAB_DEPTS]: <GuardedButton allowed={canWrite} label="부서 등록" size="sm" variant="primary" icon="plus" onPress={() => openDeptForm(null)} />,
+    [TAB_LOGS]: null,
+  };
+
+  /** 탭 내용 첫 줄 — 예전 카드 부제 */
+  const tabSub = {
+    [TAB_USERS]: null,
+    [TAB_DEPTS]: '권한 부여 단위 · 소속 계정이 있으면 삭제할 수 없습니다',
+    // 기간은 위 조건 줄에 보이므로 따로 적지 않습니다(2026-10-02)
+    [TAB_LOGS]: null,
+  };
+
   return (
     <View>
       <PageHead
         title="계정 관리"
         desc="로그인 아이디와 소속 부서를 등록·수정·삭제합니다. 부서 기본 권한에 계정별 메뉴 접근을 추가로 허용할 수 있습니다."
-        actions={
-          <>
-            {/* 엑셀은 조회 권한이면 받을 수 있습니다(R-10) — 쓰기 권한과 무관 */}
-            <ExportMenuButton viewCount={userViewCount} totalCount={userTotal} onExportView={exportView} onExportAll={exportAll} />
-            <GuardedButton allowed={canWrite} label="부서 등록" size="sm" icon="plus" onPress={() => openDeptForm(null)} />
-            <GuardedButton allowed={canWrite} label="계정 등록" size="sm" variant="primary" icon="plus" onPress={() => openUserForm(null)} />
-          </>
-        }
       />
 
       {/* 메일 발송 실패 경고 (R-17) — 쓰기 권한자에게만(컨트롤러가 거름) */}
@@ -363,269 +554,92 @@ export default function AccountView({
         </>
       ) : null}
 
-      <Grid cols={4}>
+      <Grid cols={3}>
+        {/* 부제는 두지 않습니다(2026-10-02) — 상태별 수는 계정 탭 머리의 배지가 보입니다. 세 카드는 높이를 맞춥니다(flex 1) */}
         <StatCard
           label="가입 계정"
           value={(cnt.active ?? 0) + (cnt.locked ?? 0) + (cnt.suspended ?? 0) + (cnt.pending ?? 0)}
           unit="개"
-          sub={`사용 ${cnt.active ?? 0} · 잠김 ${cnt.locked ?? 0} · 정지 ${cnt.suspended ?? 0} · 승인 대기 ${cnt.pending ?? 0}`}
-        />
-        <StatCard
-          label="승인 대기"
-          value={pendingTotal}
-          unit="건"
-          sub={pendingTotal ? '승인해야 로그인할 수 있습니다' : '대기 중인 신청 없음'}
-          tone={pendingTotal ? 'down' : undefined}
-          right={pendingTotal ? <Badge tone="amber">승인 필요</Badge> : null}
+          style={STAT_FILL}
+          labelStyle={STAT_LABEL}
         />
         <StatCard
           label="미배정 계정"
           value={unassignedCnt}
           unit="명"
-          tone={unassignedCnt ? 'down' : undefined}
-          sub={`화면 5개·데이터 0건${summary?.pwdChangeRequiredCnt ? ` · 초기 비밀번호 ${summary.pwdChangeRequiredCnt}` : ''}`}
-          right={unassignedCnt && canGoGwDept ? <Button label="그룹웨어 부서 매핑 →" size="sm" variant="ghost" onPress={() => goToScreen('sys-gw-dept')} /> : null}
+          style={STAT_FILL}
+          labelStyle={STAT_LABEL}
+          right={unassignedCnt && canGoGwDept ? <Button label="부서 매핑 →" size="sm" variant="ghost" onPress={() => goToScreen('sys-gw-dept')} /> : null}
         />
-        <StatCard label="부서" value={summary?.deptCnt ?? 0} unit="개" sub="권한 부여 단위 · 시스템 부서(통합관리자·미배정) 포함" />
+        <StatCard label="부서" value={summary?.deptCnt ?? 0} unit="개" style={STAT_FILL} labelStyle={STAT_LABEL} />
       </Grid>
       <Gap size={24} />
 
-      <Hint>
-        메뉴 접근은 소속 부서의 기본 권한을 따릅니다. 특정 계정에 추가 메뉴가 필요하면 편집의 수동 메뉴 설정에서 허용하세요. 데이터 접근 권한은 부서 설정을 유지합니다. 새로 등록한 계정은 초기 비밀번호({initialPasswordOf('사번')})로 로그인한 뒤 비밀번호를 바꿔야 다른 화면을 쓸 수 있습니다.
-      </Hint>
-      <Gap size={24} />
-
-      {/* 회원가입 신청 — 승인해야 로그인할 수 있으므로 계정 목록보다 위에 둡니다 */}
-      {(pendingGrid.meta?.total || pendingGrid.keyword || summary?.userCnt?.pending) ? (
-        <>
-          <View nativeID={PENDING_CARD_ID}>
-          <Card
-            title="가입 승인 대기"
-            sub="회원가입 화면에서 들어온 신청입니다. 승인해야 로그인할 수 있습니다"
-            bodyStyle={{ padding: 20, minWidth: 0 }}
-            right={<Badge tone="amber">{`${pendingGrid.meta?.total ?? 0}건`}</Badge>}
-          >
-            <AccountGrid grid={pendingGrid} label="가입 승인 대기"
-              minWidth={1110}
-              keyExtractor={(r) => r.empNo}
-              columns={[
-                { key: 'empNo', title: '아이디', width: 110, mono: true },
-                { key: 'name', title: '이름', width: 120 },
-                { key: 'email', title: '이메일', width: 200, minWidth: 160 },
-                { key: 'dept', title: '신청 부서', width: 130 },
-                { key: 'posNm', title: '직급', width: 90 },
-                { key: 'requestedAt', title: '신청 일시', width: 150, mono: true },
-                {
-                  key: 'state',
-                  title: '상태',
-                  width: 96,
-                  render: () => <Badge tone="amber">승인 대기</Badge>,
-                },
-                {
-                  key: 'action',
-                  title: '처리',
-                  flex: 1,
-                  minWidth: 180,
-                  render: (r) => (
-                    <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-                      <GuardedButton allowed={canWrite} label="승인" size="sm" variant="primary" icon="check" onPress={() => confirmApprove(r)} />
-                      <GuardedButton allowed={canWrite} label="반려" size="sm" variant="danger" onPress={() => openRejectForm(r)} />
-                    </View>
-                  ),
-                },
-              ]}
-              rows={pending}
-            />
-            <View style={{ padding: 14 }}>
-              <Hint>
-                승인할 때 부서를 고를 수 있습니다. 고른 부서의 메뉴 접근 권한과 데이터 접근 권한이 그대로 적용됩니다. 이메일은 가린 값입니다.
-              </Hint>
-            </View>
-          </Card>
+      <CardTabs
+        id="account"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: TAB_USERS, label: '계정', icon: 'users', count: userTotal },
+          { value: TAB_DEPTS, label: '부서', icon: 'layers', count: summary?.deptCnt ?? depts.length },
+          { value: TAB_LOGS, label: '계정·권한 변경 이력', icon: 'history', count: logGrid.meta?.total ?? logs.length },
+        ]}
+        right={tabActions[tab]}
+      >
+        {tab === TAB_DEPTS ? (
+          // 삭제 제약은 놓치면 안 되는 규칙이라 강조합니다(2026-10-02)
+          <View style={{ marginBottom: 12 }}>
+            <FormAlert tone="info">{tabSub[tab]}</FormAlert>
           </View>
-          <Gap size={24} />
-        </>
-      ) : null}
-
-      <Card
-        title="계정"
-        sub="아이디 · 부서 등록 · 수정 · 삭제"
-        bodyStyle={{ padding: 20, minWidth: 0 }}
-        right={
+        ) : tabSub[tab] ? (
+          <Text style={[s.textSm, { marginBottom: 12 }]}>{tabSub[tab]}</Text>
+        ) : null}
+        {tab === TAB_USERS ? (
+          <AccountGrid grid={userGrid} label="계정"
+            exportRef={userExportRef}
+            onActiveChange={onUserActiveChange}
+            // 검색줄(검색칸 · 검색 · 초기화)과 빠른 필터는 뺐습니다(2026-10-02) — 열 머리글 필터로 거릅니다
+            searchable={false}
+            minWidth={1840}
+            keyExtractor={(r) => r.empNo}
+            columns={userColumns}
+            rows={users}
+          />
+        ) : null}
+        {tab === TAB_DEPTS ? (
+          <AccountGrid grid={deptGrid} label="부서"
+            // 부서는 몇 개뿐이라 검색줄(검색칸 · 검색 · 초기화)과 안내 문장을 두지 않습니다 — 열 필터만 씁니다
+            searchable={false}
+            minWidth={1070}
+            keyExtractor={(r) => r.id}
+            columns={deptColumns}
+            rows={depts}
+          />
+        ) : null}
+        {tab === TAB_LOGS ? (
           <>
-            <Badge tone="green">{`사용 ${cnt.active ?? 0}`}</Badge>
-            {cnt.locked ? <Badge tone="amber">{`잠김 ${cnt.locked}`}</Badge> : null}
-            <Badge>{`정지 ${cnt.suspended ?? 0}`}</Badge>
+            <LogFilterBar filter={logFilter} onApply={applyLogFilter} />
+            <AccountGrid grid={logGrid} label="변경 이력"
+              // 검색줄과 안내 문장은 뺐습니다(2026-10-02) — 기간 조건과 열 머리글 필터로 거릅니다
+              searchable={false}
+              minWidth={840}
+              keyExtractor={(r, i) => `${r.ts}-${i}`}
+              columns={logColumns}
+              rows={logs}
+            />
           </>
-        }
-      >
-        <AccountGrid grid={userGrid} label="계정"
-          exportRef={userExportRef}
-          onActiveChange={onUserActiveChange}
-          toolbar={(
-            <ChipRow>
-              {QUICK_FILTERS.map((f) => <SelectChip key={f.value} small label={f.label} on={quickFilter === f.value} onPress={() => setQuickFilter(f.value)} />)}
-            </ChipRow>
-          )}
-          minWidth={1670}
-          keyExtractor={(r) => r.empNo}
-          columns={[
-            { key: 'empNo', title: '아이디', width: 150, minWidth: 110, mono: true },
-            {
-              key: 'name',
-              title: '이름',
-              width: 130,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
-                  <Text style={[s.td, { fontWeight: '600', paddingHorizontal: 0, flexShrink: 1 }]}>{r.name}</Text>
-                  {r.empNo === me?.empNo ? <Badge tone="blue">현재</Badge> : null}
-                </View>
-              ),
-            },
-            { key: 'dept', title: '소속 부서', width: 180 },
-            { key: 'posNm', title: '직급', width: 110 },
-            {
-              key: 'state',
-              title: '상태',
-              width: 150,
-              filterField: 'stateLabel',
-              render: (r) => <UserStateBadge row={r} />,
-            },
-            { key: 'joinSrc', title: '가입 경로', width: 110, filterField: 'joinSrcLabel', render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.joinSrcLabel || '—'}</Text> },
-            {
-              key: 'pwdChangeRequired',
-              title: '초기 비밀번호',
-              width: 110,
-              filterField: 'pwdLabel',
-              render: (r) => (r.pwdChangeRequired ? <Badge tone="amber">변경 전</Badge> : <Text style={[s.td, { paddingHorizontal: 0 }]}>—</Text>),
-            },
-            {
-              key: 'extraMenuIds',
-              title: '추가 메뉴',
-              width: 110,
-              align: 'right',
-              filterable: false,
-              render: (r) => <ExtraMenuBadge row={r} />,
-            },
-            {
-              key: 'loginFailCnt',
-              title: '로그인 실패',
-              width: 140,
-              align: 'right',
-              render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.loginFailCnt ?? 0}</Text>,
-            },
-            { key: 'lastLoginAt', title: '최근 접속', width: 210, mono: true },
-            {
-              key: 'action',
-              title: '관리',
-              width: 270,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-                  <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openUserForm(r)} />
-                  {stateButton(r)}
-                  <GuardedButton allowed={canWrite} label="삭제" size="sm" variant="danger" onPress={() => confirmDeleteUser(r)} />
-                </View>
-              ),
-            },
-          ]}
-          rows={users}
-        />
-      </Card>
-      <Gap size={24} />
-
-      <Card
-        title="부서"
-        sub="권한 부여 단위 · 소속 계정이 있으면 삭제할 수 없습니다"
-        bodyStyle={{ padding: 20, minWidth: 0 }}
-        right={<GuardedButton allowed={canWrite} label="부서 등록" size="sm" icon="plus" onPress={() => openDeptForm(null)} />}
-      >
-        <AccountGrid grid={deptGrid} label="부서"
-          minWidth={1200}
-          keyExtractor={(r) => r.id}
-          columns={[
-            {
-              key: 'name',
-              title: '부서',
-              width: 320,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Text style={[s.td, { fontWeight: '600', paddingHorizontal: 0, flexShrink: 1 }]}>{r.name}</Text>
-                  {r.name === me?.dept ? <Badge tone="blue">현재 소속</Badge> : null}
-                  {r.superAdmin ? <Badge tone="blue">전 권한</Badge> : null}
-                  {r.systemRole ? <Badge>시스템</Badge> : null}
-                  {r.systemRole === 'UNASSIGNED' ? <FixedPermBadge fixedMenus={r.fixedMenus} /> : null}
-                </View>
-              ),
-            },
-            { key: 'abbr', title: '약칭', width: 100, mono: true },
-            { key: 'desc', title: '설명', flex: 1, minWidth: 190 },
-            { key: 'userCnt', title: '소속 계정', width: 140, align: 'right', num: true },
-            {
-              key: 'menuCnt',
-              title: '메뉴 권한',
-              width: 110,
-              align: 'right',
-              render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{permCountText(r, 'menu')}</Text>,
-            },
-            {
-              key: 'dataCnt',
-              title: '데이터 권한',
-              width: 110,
-              align: 'right',
-              render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{permCountText(r, 'data')}</Text>,
-            },
-            {
-              key: 'action',
-              title: '관리',
-              width: 360,
-              render: (r) => (
-                <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-                  <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openDeptForm(r)} />
-                  {/* 받는 화면이 이 부서 열을 강조합니다(ACC-10, 받는 화면 쪽 변경은 03·04 소관) */}
-                  <Button label="메뉴 권한" size="sm" onPress={() => goToScreen('sys-menu', { deptId: r.id })} />
-                  <Button label="데이터 권한" size="sm" onPress={() => goToScreen('sys-data', { deptId: r.id })} />
-                  <GuardedButton allowed={canWrite} reason={r.systemRole ? SYSTEM_DEPT_DELETE : undefined} label="삭제" size="sm" variant="danger" onPress={() => confirmDeleteDept(r)} />
-                </View>
-              ),
-            },
-          ]}
-          rows={depts}
-        />
-      </Card>
-      <Gap size={24} />
-
-      <View nativeID={LOG_CARD_ID}>
-      <Card title="계정·권한 변경 이력" sub={`${logFilter.from} ~ ${logFilter.to}${logFilter.target ? ` · 대상 ${logFilter.target}` : ''}`} bodyStyle={{ padding: 20, minWidth: 0 }}>
-        <LogFilterBar filter={logFilter} onApply={applyLogFilter} actOptions={actOptions} />
-        <AccountGrid grid={logGrid} label="변경 이력"
-          minWidth={840}
-          keyExtractor={(r, i) => `${r.ts}-${i}`}
-          columns={[
-            { key: 'ts', title: '시각', width: 210, mono: true },
-            { key: 'target', title: '대상', width: 170 },
-            {
-              key: 'act',
-              title: '구분',
-              width: 190,
-              filterField: 'actNm',
-              render: (r) => {
-                const label = r.actNm || actName(r.actType);
-                return <Badge tone={r.actType === 'ACCOUNT' ? 'blue' : r.actType === 'DEPT' ? 'amber' : ''}>{label}</Badge>;
-              },
-            },
-            { key: 'detail', title: '변경 내용', flex: 1, minWidth: 250, wrap: true },
-            { key: 'by', title: '수행자', width: 160 },
-          ]}
-          rows={logs}
-        />
-      </Card>
-      </View>
+        ) : null}
+      </CardTabs>
     </View>
   );
 }
 
-/** 이력 조건 — 기간(최대 365일) · 구분 · 대상 사번 (ACC-09) */
-function LogFilterBar({ filter, onApply, actOptions }) {
+/**
+ * 이력 조건 — 기간(최대 365일, 기본 최근 7일) (ACC-09)
+ * 구분 · 대상 사번 칸은 뺐습니다(2026-10-02) — 구분 · 대상은 표의 열 머리글 필터로 거릅니다.
+ * 편집 폼의 「이 계정의 최근 이력」 으로 들어오면 대상 사번 조건이 걸리고, 조건 줄에 표시와 [해제] 가 붙습니다.
+ */
+function LogFilterBar({ filter, onApply }) {
   const [draft, setDraft] = useState(filter);
   const [error, setError] = useState('');
   // 바깥(「이 계정의 최근 이력」)에서 조건을 바꾸면 입력칸도 맞춥니다
@@ -637,9 +651,13 @@ function LogFilterBar({ filter, onApply, actOptions }) {
       <Filters>
         <DateField label="시작" min={null} max={null} value={draft.from} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} />
         <DateField label="종료" min={null} max={null} value={draft.to} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} />
-        <SelectField label="구분" value={draft.actType || ''} options={[{ value: '', label: '전체' }, ...actOptions]} onChange={(v) => setDraft((d) => ({ ...d, actType: v }))} nativeSelect />
-        <TextField label="대상 사번" value={draft.target} onChangeText={(v) => setDraft((d) => ({ ...d, target: v }))} onSubmitEditing={apply} placeholder="예) 10003" accessibilityLabel="대상 사번" style={{ minWidth: 140 }} />
         <Button label="조회" variant="primary" onPress={apply} />
+        {filter.target ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Badge tone="blue">{`대상 사번 ${filter.target}`}</Badge>
+            <Button label="해제" size="sm" variant="ghost" onPress={() => setError(onApply({ ...draft, target: '' }) || '')} />
+          </View>
+        ) : null}
       </Filters>
       {error ? <FormAlert>{error}</FormAlert> : null}
     </View>

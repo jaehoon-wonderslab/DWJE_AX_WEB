@@ -10,6 +10,11 @@
  *    채운 뒤에는 행 높이를 다시 재서 두 줄 셀이 잘리지 않게 합니다.
  *  · `render` 가 없는 열은 값을 글자로 적고, 비어 있으면 '—' 를 놓습니다.
  *  · `filterable` 을 주면 머리글에 검색 입력칸이 붙습니다.
+ *    열에 `filter: 'list'` 를 주면 입력칸 대신 선택 목록이 붙습니다
+ *    (Tabulator 6.x 예제 filter-header 의 gender 열과 같은 list 머리글 필터 — 값 목록 · 정확히 일치 · × 로 지우기).
+ *    머리글 칸을 누르면 그 열에 실제로 있는 값(`filterField` 가 있으면 그 값)이 목록으로 열리고,
+ *    고른 값과 **같은** 행만 남습니다. 맨 위 「전체」 를 고르면 필터가 풀립니다.
+ *    목록 순서를 정하려면 `filterOptions: ['사용','잠김',…]` 을 줍니다(없으면 표 값을 가나다순으로).
  *
  * 사용 예)
  *   <Table
@@ -106,7 +111,7 @@ export default function Table({
    * 열의 **모양**이 바뀔 때만 표를 다시 만듭니다. 화면들이 render 마다 새 배열을 넘기므로
    * 정의 자체를 의존성으로 두면 키 입력마다 표가 부서지고 정렬이 풀립니다.
    */
-  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num, c.sortable, c.filterable, c.filterField].join(':')).join('|');
+  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num, c.sortable, c.filterable, c.filterField, c.filter, (c.filterOptions || []).join(',')].join(':')).join('|');
   const tabColumns = useMemo(
     () => {
       // 모든 열이 고정 폭이면 표 오른쪽이 비어 버립니다 — 마지막 열이 남는 폭을 채우게 합니다
@@ -120,14 +125,16 @@ export default function Table({
           hozAlign: align,
           headerHozAlign: align,
           headerSort: col.sortable !== false,
-          headerFilter: filterable && col.filterable !== false && (!col.render || col.filterable === true) ? 'input' : false,
-          ...(col.filterField ? { headerFilterFunc: (query, _value, row) => String(row[col.filterField] ?? '').toLocaleLowerCase().includes(String(query).toLocaleLowerCase()) } : {}),
+          headerFilter: filterable && col.filterable !== false && (!col.render || col.filterable === true || col.filter === 'list') ? (col.filter === 'list' ? 'list' : 'input') : false,
+          ...(col.filter === 'list' ? listFilter(col, rowsRef) : col.filterField ? { headerFilterFunc: (query, _value, row) => String(row[col.filterField] ?? '').toLocaleLowerCase().includes(String(query).toLocaleLowerCase()) } : {}),
           tooltip: col.render ? false : (_event, cell) => {
             const el = document.createElement('div');
             el.textContent = String(cell.getValue() ?? '');
             return el;
           },
           variableHeight: !!col.wrap || !!col.render,
+          // 목록 머리글 필터 표시(▾·손가락 커서) — tabulatorHeaders.css
+          ...(col.filter === 'list' ? { cssClass: 'ax-list-filter' } : {}),
         };
         if (col.width && !stretchLast) {
           base.width = col.width;
@@ -219,6 +226,40 @@ export default function Table({
       {portals}
     </>
   );
+}
+
+/** 목록 머리글 필터에서 「전체」 의 값 — 빈 값이면 Tabulator 가 그 열 필터를 풉니다 */
+const LIST_ALL = '';
+const LIST_EMPTY_LABEL = '(값 없음)';
+
+/**
+ * 목록 머리글 필터 (`filter: 'list'`)
+ *
+ * 선택지는 목록을 **열 때마다** 지금 행에서 다시 뽑습니다(valuesLookup 함수) — 조회 조건이 바뀌어 행이
+ * 달라져도 목록이 따라옵니다. 비교 값은 `filterField`(화면에 보이는 글자, 예: stateLabel) 또는 열 값입니다.
+ */
+function listFilter(col, rowsRef) {
+  const field = col.filterField || col.key;
+  const textOf = (row) => {
+    const v = row?.[field];
+    return v === null || v === undefined || v === '' ? LIST_EMPTY_LABEL : String(v);
+  };
+  return {
+    headerFilterPlaceholder: '전체',
+    headerFilterParams: {
+      valuesLookup: () => {
+        const present = new Set((rowsRef.current || []).map(textOf));
+        const ordered = col.filterOptions?.length
+          ? [...col.filterOptions.filter((o) => present.has(o)), ...[...present].filter((v) => !col.filterOptions.includes(v)).sort((a, b) => a.localeCompare(b, 'ko'))]
+          : [...present].sort((a, b) => a.localeCompare(b, 'ko'));
+        return [{ label: '전체', value: LIST_ALL }, ...ordered.map((v) => ({ label: v, value: v }))];
+      },
+      // × 단추로 필터를 지웁니다(예제 gender 열과 같음)
+      clearable: true,
+      autocomplete: false,
+    },
+    headerFilterFunc: (query, _value, row) => query === LIST_ALL || textOf(row) === query,
+  };
 }
 
 function alignFlex(align) {

@@ -131,7 +131,7 @@ export function getSystemDeptsPermCompare(params) {
  *
  * `GET /api/v1/system/depts`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} items[{deptId,abbr,desc,userCnt,menuCnt,dataCnt}]
+ * @returns {Promise<object>} items[{deptId,desc,userCnt,menuCnt,dataCnt}]
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function getSystemDepts(params) {
@@ -142,9 +142,9 @@ export function getSystemDepts(params) {
  * 부서 등록
  *
  * `POST /api/v1/system/depts`
- * @param {object} params deptId, abbr, desc, initPermFrom
+ * @param {object} params deptId, desc, initPermFrom
  * @returns {Promise<object>} deptId
- * @remarks 검증: 부서명·약칭 필수, 중복 불가. 초기 권한 복사 옵션
+ * @remarks 검증: 부서명 필수, 중복 불가. 초기 권한 복사 옵션 (약칭은 2026-10-02 삭제 — 보내도 무시)
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
  */
 export function postSystemDepts(params) {
@@ -155,7 +155,7 @@ export function postSystemDepts(params) {
  * 부서 수정
  *
  * `PUT /api/v1/system/depts/{deptId}`
- * @param {object} params deptId, abbr, desc
+ * @param {object} params deptId, desc
  * @returns {Promise<object>} success
  * @remarks 부서명 변경 시 권한·소속 계정 연쇄 갱신
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1

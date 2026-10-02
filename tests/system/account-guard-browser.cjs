@@ -9,6 +9,7 @@
  */
 const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
+const { openAccountTab } = require('../lib/accountTabs');
 
 const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
 
@@ -30,9 +31,10 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     { empNo: 'Q1', name: '품질계정', deptId: 2, dept: '품질보증팀', pos: 'STAFF', posNm: '사원', state: 'ACTIVE', stateNm: '사용', loginFailCnt: 1, lastLoginAt: '2026-10-01 08:00', extraMenuIds: ['qc-defect'], remark: '[2026-09-01] 기존 비고' },
   ];
   const depts = [
-    { deptId: 1, deptNm: '통합관리자', abbr: '관리', desc: '전 권한', superAdmin: true, systemRole: 'SUPER_ADMIN', userCnt: 1 },
-    { deptId: 2, deptNm: '품질보증팀', abbr: 'QA', desc: '품질', superAdmin: false, systemRole: null, userCnt: 3, menuCnt: 10, dataCnt: 4 },
-    { deptId: 59, deptNm: '미배정', abbr: '미배', desc: '자동 가입', superAdmin: false, systemRole: 'UNASSIGNED', lockedPerms: true, fixedMenus: ['dash-ai', 'dash-proc', 'prod-monitor', 'ai-chat', 'chat-history'], fixedDataFields: [], userCnt: 1 },
+    { deptId: 1, deptNm: '통합관리자', desc: '전 권한', superAdmin: true, systemRole: 'SUPER_ADMIN', userCnt: 1 },
+    { deptId: 2, deptNm: '품질보증팀', desc: '품질', superAdmin: false, systemRole: null, userCnt: 3, menuCnt: 10, dataCnt: 4 },
+    { deptId: 70, deptNm: '빈부서', desc: '소속 없음', superAdmin: false, systemRole: null, userCnt: 0, menuCnt: 2, dataCnt: 0 },
+    { deptId: 59, deptNm: '미배정', desc: '자동 가입', superAdmin: false, systemRole: 'UNASSIGNED', lockedPerms: true, fixedMenus: ['dash-ai', 'dash-proc', 'prod-monitor', 'ai-chat', 'chat-history'], fixedDataFields: [], userCnt: 1 },
   ];
   const summary = {
     userCnt: { total: 5, active: 3, locked: 1, suspended: 1, pending: 0 }, deptCnt: 3, pwdChangeRequiredCnt: 1,
@@ -68,13 +70,15 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     await grid('계정').locator('.tabulator-row').first().waitFor();
 
     // ACC-05 상태 배지 · ACC-03 초기 비밀번호 열
-    assert(await rowOf('계정', 'L1').getByText('잠김', { exact: true }).count(), '잠김 배지');
+    // 배지는 행이 그려진 뒤 포털로 채워집니다 — 바로 세지 말고 나타날 때까지 기다립니다
+    await rowOf('계정', 'L1').getByText('잠김', { exact: true }).first().waitFor({ timeout: 10000 });
     assert(await rowOf('계정', 'L1').getByRole('button', { name: '잠금 해제', exact: true }).count(), '잠김 행은 [잠금 해제]');
     assert(await rowOf('계정', 'S1').getByText('퇴사', { exact: true }).count(), '정지 사유 배지');
     assert(await rowOf('계정', 'U1').getByText('변경 전', { exact: true }).count(), '초기 비밀번호 변경 전 배지');
     assert((await page.locator('body').innerText()).includes('잠김 1'), '요약 부제의 잠김 수');
 
-    // ACC-04 · ACC-14 부서 표 — 시스템 부서 삭제 비활성, 미배정 고정 권한
+    // ACC-04 · ACC-14 부서 표 — 시스템 부서 삭제 비활성, 미배정 고정 권한 (부서 탭)
+    await openAccountTab(page, '부서');
     const superRow = rowOf('부서', '통합관리자');
     const unassignedRow = rowOf('부서', '자동 가입');
     for (const r of [superRow, unassignedRow]) {
@@ -82,7 +86,11 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
       assert(await del.isDisabled(), '시스템 부서 삭제 비활성');
       assert((await titleOf(del)).includes('삭제할 수 없습니다'), '삭제 비활성 이유 툴팁');
     }
-    assert(await rowOf('부서', '품질보증팀').getByRole('button', { name: '삭제', exact: true }).isEnabled(), '일반 부서 삭제는 활성');
+    // 소속 계정이 있는 부서는 [삭제] 를 끄고 이유를 보입니다(2026-10-02, 서버도 409) — 빈 부서만 삭제할 수 있습니다
+    const busyDel = rowOf('부서', '품질보증팀').getByRole('button', { name: '삭제', exact: true });
+    assert(await busyDel.isDisabled(), '소속 계정이 있는 부서 삭제 비활성');
+    assert((await titleOf(busyDel)).includes('소속 계정 3명'), '삭제 비활성 이유(소속 계정 수)');
+    assert(await rowOf('부서', '빈부서').getByRole('button', { name: '삭제', exact: true }).isEnabled(), '빈 부서 삭제는 활성');
     assert(await unassignedRow.getByText('고정 권한 · 변경 불가').count(), '미배정 고정 권한 배지');
     assert(await unassignedRow.getByText('5(고정)').count() && await unassignedRow.getByText('0(고정)').count(), '미배정 권한 수 5(고정)/0(고정)');
     assert(await superRow.getByText('전체', { exact: true }).count(), '통합관리자 권한 수 전체');
@@ -90,16 +98,17 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     await unassignedRow.getByRole('button', { name: '편집', exact: true }).click();
     assert(await page.getByText('미배정 부서는 이름을 바꿀 수 없습니다', { exact: false }).count(), '미배정 부서명 잠금 안내');
     assert.equal(await page.getByPlaceholder('예) 공정기술팀', { exact: true }).count(), 0, '미배정 부서명 입력칸 없음');
-    await page.getByPlaceholder('예) PE', { exact: true }).fill('미배정XY');
-    await modalButton('수정').click();
-    assert(await page.getByText('부서 약칭은 4자 이내여야 합니다.').count(), '약칭 4자 검증');
-    await page.getByPlaceholder('예) PE', { exact: true }).fill('미배');
+    // 약칭 칸은 없앴습니다(2026-10-02) — 미배정 부서는 설명만 고칩니다
+    assert.equal(await page.getByPlaceholder('예) PE', { exact: true }).count(), 0, '약칭 입력칸 없음');
+    await page.getByPlaceholder('예) 공정 조건 · 금형 관리', { exact: true }).fill('자동 가입 · 설명 수정');
     await modalButton('수정').click();
     await page.waitForTimeout(300);
     assert.equal(lastSent().path, 'depts/59');
     assert.equal(lastSent().body.deptNm, undefined, '미배정 부서명은 보내지 않음');
+    assert.equal('abbr' in lastSent().body, false, '약칭은 보내지 않음');
 
     // ACC-02 본인 계정 편집 — 소속 부서·수동 메뉴 읽기 전용
+    await openAccountTab(page, '계정');
     await rowOf('계정', '관리자').getByRole('button', { name: '편집', exact: true }).click();
     await page.getByRole('checkbox', { name: '불량 현황 조회 추가 허용', exact: true }).waitFor();
     assert.equal(await page.getByRole('combobox', { name: '소속 부서', exact: true }).count(), 0, '본인 편집은 부서 선택 없음');
@@ -167,7 +176,9 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     summary.canWrite = false;
     await page.goto(`${WEB}/system/account`);
     await grid('계정').locator('.tabulator-row').first().waitFor();
-    for (const name of ['계정 등록', '부서 등록']) {
+    // 「계정 등록」 은 계정 탭, 「부서 등록」 은 부서 탭 머리에 있습니다
+    for (const [tab, name] of [['부서', '부서 등록'], ['계정', '계정 등록']]) {
+      await openAccountTab(page, tab);
       const b = page.getByRole('button', { name, exact: true }).first();
       assert(await b.isDisabled(), `${name} 비활성`);
       assert.equal(await titleOf(b), WRITE_DENIED, `${name} 툴팁`);
@@ -181,7 +192,9 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
 
     // 좁은 화면 — 계정·부서 표 마지막 열까지 가로 스크롤
     await page.setViewportSize({ width: 1000, height: 900 });
+    await page.waitForTimeout(600); // 표가 새 폭으로 다시 그려질 때까지
     for (const label of ['계정', '부서']) {
+      await openAccountTab(page, label);
       const result = await grid(label).evaluate(async (root) => {
         const scroll = [...root.querySelectorAll('div')].find((el) => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth && (el.querySelector('.tabulator') || el.classList.contains('tabulator-tableholder')));
         if (!scroll) return { scroll: false };

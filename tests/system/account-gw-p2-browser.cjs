@@ -8,6 +8,7 @@
  */
 const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
+const { openAccountTab } = require('../lib/accountTabs');
 const { BASE } = require('../lib/api');
 
 (async () => {
@@ -110,6 +111,7 @@ const { BASE } = require('../lib/api');
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
     // ACC-10 부서 표 [메뉴 권한] 은 deptId 를 넘김
+    await openAccountTab(page, '부서');
     await grid('부서').locator('.tabulator-row', { hasText: normalDept.deptNm }).getByRole('button', { name: '메뉴 권한', exact: true }).click();
     await page.waitForURL(/\/system\/menu-perm/);
     assert(page.url().includes(`deptId=${normalDept.deptId}`), page.url());

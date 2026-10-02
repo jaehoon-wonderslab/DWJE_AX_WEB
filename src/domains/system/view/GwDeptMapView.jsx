@@ -348,7 +348,7 @@ export default function GwDeptMapView({
   return (
     <View>
       <PageHead
-        title="그룹웨어 부서 매핑"
+        title="부서 매핑"
         desc={`그룹웨어 인사정보를 받아 올 때 AX 에 없는 사번은 자동으로 가입됩니다. 이때 들어갈 AX 부서를 그룹웨어 부서명별로 정합니다. 매핑이 없는 사람은 ${UNASSIGNED_SCOPE} '${unassignedNm}' 부서로 가입되므로, 여기서 실제 부서로 옮깁니다.`}
         actions={
           <>

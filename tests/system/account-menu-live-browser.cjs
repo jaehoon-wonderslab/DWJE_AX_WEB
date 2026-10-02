@@ -1,6 +1,7 @@
 /* Actual browser/API roundtrip; no existing account's grants are changed. */
 const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
+const { openAccountTab } = require('../lib/accountTabs');
 const { send, get, PASSWORD } = require('../lib/api');
 const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
 (async () => {
@@ -9,7 +10,7 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
   try {
     const first = ok(await get('/system/users', { size: 1 })).items[0];
     assert(Array.isArray(first.extraMenuIds), 'new API must be deployed');
-    deptId = ok(await send('POST', '/system/depts', { deptNm: empNo, abbr: `B${String(Date.now()).slice(-3)}`, desc: `${empNo} UI 검증` })).deptId;
+    deptId = ok(await send('POST', '/system/depts', { deptNm: empNo, desc: `${empNo} UI 검증` })).deptId;
     ok(await send('PUT', '/system/menu-perms', { deptId, screenId: 'dash-ai', allowed: true }));
     ok(await send('POST', '/system/users', { empNo, name: `${empNo} 화면검증`, deptId, pos: 'STAFF', state: 'ACTIVE', password: PASSWORD, extraMenuIds: ['prod-result'] }));
     created = true;
@@ -23,8 +24,9 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${WEB}/system/account`);
     const grid = page.locator('[id="account-grid-계정"]');
-    const input = grid.getByRole('textbox', { name: '계정 검색', exact: true });
-    await input.fill(empNo); await input.press('Enter');
+    // 계정 탭에는 검색줄이 없습니다(2026-10-02) — 아이디 열 필터로 찾습니다
+    const input = grid.locator('.tabulator-col[tabulator-field="empNo"] input');
+    await input.fill(empNo);
     await page.waitForFunction(id => {
       const rows = document.querySelectorAll('[id="account-grid-계정"] .tabulator-row');
       return rows.length === 1 && rows[0].innerText.includes(id);
@@ -51,15 +53,23 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
     assert((await response.json()).success);
     await page.getByRole('button', { name: '수정', exact: true }).waitFor({ state: 'hidden' });
     assert.deepEqual(ok(await get('/system/users', { keyword: empNo })).items[0].extraMenuIds, []);
-    for (const [label, keyword] of [['부서', empNo], ['변경 이력', empNo]]) {
-      const current = page.locator(`[id="account-grid-${label}"]`);
-      const search = current.getByRole('textbox', { name: `${label} 검색`, exact: true });
-      await search.fill(keyword); await search.press('Enter');
+    // 부서 탭은 검색줄이 없고(2026-10-02) 부서명 열 필터로 찾습니다
+    const deptGrid = await openAccountTab(page, '부서');
+    assert.equal(await deptGrid.getByRole('textbox', { name: '부서 검색', exact: true }).count(), 0, 'dept search box removed');
+    await deptGrid.locator('.tabulator-col[tabulator-field="name"] input').fill(empNo);
+    await page.waitForTimeout(400);
+    assert.equal(await deptGrid.locator('.tabulator-row').count(), 1, 'dept column filter finds the test department');
+    for (const [label, keyword] of [['변경 이력', empNo]]) {
+      const current = await openAccountTab(page, label);
+      // 이력 탭에도 검색줄이 없습니다(2026-10-02) — 「대상」 열 필터로 찾습니다(기간 기본 최근 7일 안의 방금 수정분)
+      assert.equal(await current.getByRole('textbox', { name: `${label} 검색`, exact: true }).count(), 0, `${label} search box removed`);
+      const search = current.locator('.tabulator-col[tabulator-field="target"] input');
+      await search.fill(keyword);
       await page.waitForTimeout(400);
-      assert(await current.locator('.tabulator-row').count());
-      await search.fill(`${keyword}NOT_FOUND`); await search.press('Enter');
+      assert(await current.locator('.tabulator-row').count(), `${label} column filter finds ${keyword}`);
+      await search.fill(`${keyword}NOT_FOUND`);
       await page.waitForTimeout(400);
-      assert.equal(await current.locator('.tabulator-row').count(), 0, `${label} server search`);
+      assert.equal(await current.locator('.tabulator-row').count(), 0, `${label} column filter`);
     }
     assert.deepEqual(errors, []);
     console.log('PASS: real browser search, edit existing grants, add/remove, empty-array revocation and server persistence');

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import { Button, Pagination, Table, TextField } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTableActive } from './useTableActive';
@@ -10,11 +10,25 @@ import { useTableActive } from './useTableActive';
  * `exportRef` 를 주면 「조회 목록 다운로드」(ACC-17) 가 읽을 수 있게 지금 그리드에 보이는 그대로를 내어 줍니다
  * — 검색어로 서버가 거른 결과에 열 필터를 적용한 **모든 쪽**의 행(로컬 쪽 나눔 표), 정렬 순서, 열 순서.
  * 관리 열(`action`)은 빼고 돌려줍니다. `onActiveChange` 는 열 필터가 바뀔 때마다 보이는 행을 알려 줍니다.
+ *
+ * 표는 탭 하나에 하나씩 들어가므로(2026-10-02) 창 높이에 맞춰 세로로 길게 씁니다 — 기본 100행을 한 쪽에 보이고
+ * 표 안에서 세로로 스크롤합니다(머리글은 그대로 붙어 있습니다).
  */
-export default function AccountGrid({ grid, label, exportRef, onActiveChange, toolbar, ...tableProps }) {
+/** 기본 표시 건수 — 쪽마다 100행 */
+export const ACCOUNT_PAGE_SIZE = 100;
+/** 표 높이 — 창 높이에서 머리말·요약 카드·탭·검색 줄을 뺀 값. 낮은 창에서도 이만큼은 둡니다 */
+const MIN_GRID_HEIGHT = 520;
+const GRID_HEIGHT_OFFSET = 260;
+/**
+ * @param {boolean} [searchable=true] false 면 위쪽 검색줄(검색칸 · [검색] · [초기화])과 안내 문장을 그리지 않습니다 — 열 필터만 씁니다
+ *   (조회 실패·조회 중 문구는 그대로 보입니다)
+ */
+export default function AccountGrid({ grid, label, exportRef, onActiveChange, toolbar, searchable = true, ...tableProps }) {
   const [draft, setDraft] = useState('');
   const tableRef = useRef(null);
   const s = useCommonStyles();
+  const { height: windowHeight } = useWindowDimensions();
+  const gridHeight = Math.max(MIN_GRID_HEIGHT, Math.round(windowHeight - GRID_HEIGHT_OFFSET));
   const search = () => grid.search(draft);
   // 열 필터를 적용한 뒤 보이는 행 수 — 「조회 목록 다운로드(n건)」 건수 (ACC-17)
   useTableActive(tableRef, (rows) => onActiveChange?.(rows));
@@ -39,14 +53,18 @@ export default function AccountGrid({ grid, label, exportRef, onActiveChange, to
 
   return (
     <View nativeID={`account-grid-${label}`} style={{ gap: 12, minWidth: 0 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <TextField value={draft} onChangeText={setDraft} onSubmitEditing={search} blurOnSubmit={false} placeholder={`${label} 검색`} accessibilityLabel={`${label} 검색`} style={{ flexGrow: 1, flexBasis: 220 }} />
-        <Button label="검색" onPress={search} />
-        <Button label="초기화" onPress={() => { setDraft(''); tableRef.current?.clearHeaderFilter(); grid.search(''); }} />
-        {toolbar}
-      </View>
-      <Text style={s.textSm}>{grid.loading ? '조회 중…' : grid.error ? `조회 실패: ${grid.error.message}` : '전체 목록에서 검색합니다. 열 필터는 모든 페이지에 적용됩니다. 열 경계를 드래그하면 너비를 조절할 수 있습니다.'}</Text>
-      <Table {...tableProps} instanceRef={tableRef} height={460} bordered contained filterable={grid.localFilters} pageSize={grid.localFilters ? 10 : undefined} rows={tableProps.rows ?? grid.rows} columns={tableProps.columns.map(col => ({ wrap: !col.render, ...col, filterable: col.key !== 'action', filterField: col.filterField || (col.key === 'state' ? 'stateNm' : undefined) }))} />
+      {searchable ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <TextField value={draft} onChangeText={setDraft} onSubmitEditing={search} blurOnSubmit={false} placeholder={`${label} 검색`} accessibilityLabel={`${label} 검색`} style={{ flexGrow: 1, flexBasis: 220 }} />
+          <Button label="검색" onPress={search} />
+          <Button label="초기화" onPress={() => { setDraft(''); tableRef.current?.clearHeaderFilter(); grid.search(''); }} />
+          {toolbar}
+        </View>
+      ) : toolbar}
+      {searchable || grid.loading || grid.error ? (
+        <Text style={s.textSm}>{grid.loading ? '조회 중…' : grid.error ? `조회 실패: ${grid.error.message}` : `전체 목록에서 검색합니다. ${tableProps.columns.some((c) => c.filter === 'list') ? '목록 모양 머리글(상태 · 직급 등)은 눌러서 값을 고르고, × 로 지웁니다. ' : ''}열 필터는 모든 페이지에 적용됩니다.`}</Text>
+      ) : null}
+      <Table {...tableProps} instanceRef={tableRef} height={gridHeight} bordered contained filterable={grid.localFilters} pageSize={grid.localFilters ? ACCOUNT_PAGE_SIZE : undefined} rows={tableProps.rows ?? grid.rows} columns={tableProps.columns.map(col => ({ wrap: !col.render, ...col, filterable: col.key !== 'action' && col.filterable !== false, filterField: col.filterField || (col.key === 'state' ? 'stateNm' : undefined) }))} />
       {grid.localFilters ? null : grid.meta?.total ? <Pagination meta={grid.meta} {...grid.paging.bind} sizes={[10, 25, 50, 100]} /> : <Text style={s.textSm}>검색 결과 0건</Text>}
     </View>
   );

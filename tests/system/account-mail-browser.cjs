@@ -29,7 +29,7 @@ const { open, WEB } = require('../lib/browser');
     if (path === 'accounts/summary') return ok(summary);
     if (path === 'users') return ok({ items: users }, { total: 1 });
     if (path === 'users/pending' || path === 'perm-logs') return ok({ items: [] }, { total: 0 });
-    if (path === 'depts') return ok({ items: [{ deptId: 2, deptNm: '품질보증팀', abbr: 'QA', userCnt: 1 }] }, { total: 1 });
+    if (path === 'depts') return ok({ items: [{ deptId: 2, deptNm: '품질보증팀', userCnt: 1 }] }, { total: 1 });
     return route.fallback();
   });
   const WARN = '최근 메일 발송 실패 2026-10-02 08:10 — 한비로 SMTP 계정이 32일 미로그인으로 꺼졌는지 확인하세요';

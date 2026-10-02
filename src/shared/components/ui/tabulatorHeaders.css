@@ -25,3 +25,13 @@
 .ax-table-scroller .tabulator .tabulator-tableholder {
   overscroll-behavior-x: auto !important;
 }
+
+/* 목록 머리글 필터(Table 의 `filter: 'list'`) — 검색칸이 아니라 고르는 목록임을 보입니다.
+   Tabulator 6.x 예제 filter-header 의 gender 열과 같은 list 편집기이며, 오른쪽에 ▾ 를 붙이고 손가락 커서를 씁니다. */
+.tabulator .tabulator-header .tabulator-col.ax-list-filter .tabulator-header-filter input {
+  cursor: pointer !important;
+  padding-right: 22px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23787878' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 7px center !important;
+}

@@ -13,6 +13,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
+const { pickListFilter } = require('../lib/accountTabs');
 
 (async () => {
   const { browser, page } = await open();
@@ -42,7 +43,7 @@ const { open, WEB } = require('../lib/browser');
     const ok = (data, meta) => route.fulfill({ json: { success: true, data, meta, message: '완료' } });
     if (path === 'accounts/summary') return ok(summary);
     if (path === 'users/pending') return ok({ items: [] }, { total: 0, page: 1, size: 10, totalPages: 1 });
-    if (path === 'depts') return ok({ items: [{ deptId: 2, deptNm: '품질보증팀', abbr: 'QA', userCnt: 24 }] }, { total: 1 });
+    if (path === 'depts') return ok({ items: [{ deptId: 2, deptNm: '품질보증팀', userCnt: 24 }] }, { total: 1 });
     if (path === 'perm-logs') return ok({ items: [] }, { total: 0 });
     if (path === 'users') {
       const keyword = url.searchParams.get('keyword') || '';
@@ -85,8 +86,8 @@ const { open, WEB } = require('../lib/browser');
     assert.equal(await page.getByRole('menu').count(), 0, '바깥 클릭으로 닫힘');
 
     // 열 필터 「상태=잠김」 + 정렬 「로그인 실패↓」
-    await grid.locator('.tabulator-col[tabulator-field="state"] input').fill('잠김');
-    await page.waitForTimeout(400);
+    // 상태 머리글은 목록입니다(2026-10-02) — 눌러서 「잠김」 을 고릅니다
+    await pickListFilter(grid, 'state', '잠김');
     const failHeader = grid.locator('.tabulator-col[tabulator-field="loginFailCnt"] .tabulator-col-title');
     await failHeader.click(); await page.waitForTimeout(150); await failHeader.click(); await page.waitForTimeout(300);
     const gridNames = await grid.locator('.tabulator-row .tabulator-cell[tabulator-field="empNo"]').allInnerTexts();
@@ -95,9 +96,9 @@ const { open, WEB } = require('../lib/browser');
     await exportBtn.click();
     assert((await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).innerText()).includes('5건'), '조회 목록 건수 = 필터 결과');
     const view = await readDownload(/조회 목록 다운로드/);
-    assert.deepEqual(view.head, ['아이디', '이름', '소속 부서', '직급', '상태', '가입 경로', '초기 비밀번호', '로그인 실패', '최근 접속'], `열 순서: ${view.head}`);
+    assert.deepEqual(view.head, ['아이디', '이름', '소속 부서', '직급', '관리자', '상태', '가입 경로', '초기 비밀번호', '로그인 실패', '최근 접속'], `열 순서: ${view.head}`);
     assert.deepEqual(view.body.slice(0, 5).map((r) => r[0]), gridNames.map((t) => t.trim()), '행 순서 = 그리드 정렬');
-    assert(view.body.slice(0, 5).every((r) => r[4] === '잠김'), '상태는 한글 표기');
+    assert(view.body.slice(0, 5).every((r) => r[5] === '잠김'), '상태는 한글 표기');
     assert(view.text.includes('비공개 처리'), '파일 안 비공개 건수 표기');
     await page.waitForTimeout(300);
     const vlog = logs.at(-1);
@@ -105,9 +106,8 @@ const { open, WEB } = require('../lib/browser');
     assert.equal(vlog.menuId, 'sys-account');
     assert(vlog.condSummary.includes('열 필터 상태=잠김') && vlog.condSummary.includes('정렬 로그인 실패↓'), vlog.condSummary);
 
-    // 검색어를 걸어도 전체 파일은 조건 무시
-    await grid.getByRole('textbox', { name: '계정 검색', exact: true }).fill('내보내기 1');
-    await grid.getByRole('button', { name: '검색', exact: true }).click();
+    // 열 필터를 걸어도 전체 파일은 조건 무시(계정 탭에는 검색줄이 없습니다, 2026-10-02)
+    await grid.locator('.tabulator-col[tabulator-field="name"] input').fill('내보내기 1');
     await page.waitForTimeout(500);
     await exportBtn.click();
     const all = await readDownload(/전체 다운로드/);

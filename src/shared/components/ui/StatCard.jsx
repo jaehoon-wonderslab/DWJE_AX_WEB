@@ -11,11 +11,12 @@ import { Text, View } from 'react-native';
 import { useCommonStyles } from '@shared/theme/styles';
 import BlindValue from './BlindValue';
 
-export default function StatCard({ label, value, unit, sub, tone = '', field, style, right }) {
+export default function StatCard({ label, value, unit, sub, tone = '', field, style, right, labelStyle }) {
   const s = useCommonStyles();
   return (
     <View style={[s.cardNested, s.stat, style]}>
-      <View style={s.statLabel}>
+      {/* labelStyle — 여러 카드의 머리 줄 높이를 맞출 때(오른쪽 단추가 있는 카드와 나란히 둘 때) */}
+      <View style={[s.statLabel, labelStyle]}>
         <Text style={[s.label, { flexShrink: 1 }]} numberOfLines={1}>{label}</Text>
         {right}
       </View>

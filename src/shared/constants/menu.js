@@ -84,7 +84,7 @@ export const MENU = [
     hubPath: '/menu/system',
     items: [
       { id: 'sys-account', name: '계정 관리', path: '/system/account', tag: '신규', description: '사용자 계정과 소속 부서·사용 상태를 관리합니다.' },
-      { id: 'sys-gw-dept', name: '그룹웨어 부서 매핑', path: '/system/gw-dept-map', tag: '신규', description: '그룹웨어 인사정보 자동 가입 때 들어갈 AX 부서를 정하고, 미배정 계정을 실제 부서로 옮깁니다.' },
+      { id: 'sys-gw-dept', name: '부서 매핑', path: '/system/gw-dept-map', tag: '신규', description: '그룹웨어 인사정보 자동 가입 때 들어갈 AX 부서를 정하고, 미배정 계정을 실제 부서로 옮깁니다.' },
       { id: 'sys-menu', name: '메뉴 접근 권한', path: '/system/menu-perm', tag: '신규', description: '부서별로 접근할 수 있는 화면 메뉴를 지정합니다.' },
       { id: 'sys-data', name: '데이터 접근 권한', path: '/system/data-perm', tag: '신규', description: '부서별로 열람할 수 있는 데이터 항목을 지정합니다.' },
       { id: 'alert-cond', name: '이상 알림 발송 조건 관리', path: '/system/alert-condition', tag: '신규', description: '이상 알림의 발생 기준·대상·발송 조건을 관리합니다.' },
