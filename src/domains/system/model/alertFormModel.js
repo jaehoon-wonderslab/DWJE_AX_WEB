@@ -176,7 +176,7 @@ export const memberEmpNo = (m) => (m && typeof m === 'object' ? m.empNo ?? '' : 
 
 /** 수신 그룹 편집 초기값 — 상세 응답에서 (기획 06 RCP-02) */
 export function groupInitial(detail, defaults = {}) {
-  if (!detail) return { name: '', deptId: '', validWindow: defaults.validWindow ?? 'ALWAYS', night: false, memberEmpNos: [] };
+  if (!detail) return { name: '', deptId: '', validWindow: defaults.validWindow ?? 'ALWAYS', memberEmpNos: [] };
   const members = Array.isArray(detail.members) && detail.members.length && typeof detail.members[0] === 'object'
     ? detail.members.map(memberEmpNo)
     : (detail.memberEmpNos || detail.members || []).map(memberEmpNo);
@@ -184,7 +184,6 @@ export function groupInitial(detail, defaults = {}) {
     name: detail.name ?? '',
     deptId: detail.deptId ?? '',
     validWindow: detail.validWindow ?? '',
-    night: !!detail.night,
     memberEmpNos: members.filter(Boolean),
   };
 }
@@ -201,7 +200,6 @@ export function groupBody(v, initial, detail) {
     name: String(v.name || '').trim(),
     deptId,
     validWindow: v.validWindow,
-    night: v.night === true || v.night === 'true',
     memberEmpNos: (v.memberEmpNos || []).map(String),
   };
   if (!detail) {
@@ -230,10 +228,10 @@ export function validateGroup(v) {
 /** 수신자 입력 검증 — 메일 형식·길이 (기획 06 RCP-12 의 화면 쪽 규칙) */
 export function validateRecipient(v) {
   const e = {};
+  // 메일은 계정 이메일을 씁니다(2026-10-03). 비어 있으면 서버가 400 으로 알려 주므로 여기서는 형식만 봅니다
   const mail = String(v.mail ?? v.account?.mail ?? '').trim();
   const key = v.account ? 'account' : 'mail';
-  if (!mail) e[key] = '메일을 입력해 주세요.';
-  else if (mail.length > 200 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) e[key] = '메일 주소 형식이 올바르지 않습니다.';
+  if (mail && (mail.length > 200 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail))) e[key] = '메일 주소 형식이 올바르지 않습니다.';
   if (v.account && !String(v.account.empNo || '').trim()) e.account = '수신자로 등록할 계정을 골라 주세요.';
   if (v.hp && !/^[0-9-]{9,20}$/.test(String(v.hp).trim())) e.hp = '휴대전화는 숫자와 하이픈 9~20자입니다.';
   if (v.messenger && String(v.messenger).length > 50) e.messenger = '메신저는 50자까지 입력할 수 있습니다.';

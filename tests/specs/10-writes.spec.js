@@ -127,15 +127,12 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
   });
 
   test('용어와 유사어를 등록하면 사전에 반영된다', async () => {
-    // 분류는 기준정보에서 받습니다 — 화면도 같은 목록을 씁니다
-    const dom = await api.data('/glossary/domains');
-    const domainCd = (dom.domains || [])[0]?.code;
-    ok(domainCd, '용어 분류 기준정보가 비어 있으면 용어를 하나도 만들 수 없습니다');
+    // 2026-10-03 분류 삭제 — 분류(domainCd · /glossary/domains) 대신 고객사 정보(customerInfo)를 보냅니다
 
     // 용어 삭제는 소프트 삭제(use_flg='N')라 실행마다 새 이름을 쓰면 숨은 행이 쌓입니다.
     // 같은 이름으로 다시 등록하면 서버가 그 행을 되살리므로(restored:true) 이름을 고정해 둡니다.
     const TERM = '자동테스트용어';
-    const created = await api.send('POST', '/glossary/terms', { term: TERM, definition: '자동 테스트용 용어입니다', domainCd });
+    const created = await api.send('POST', '/glossary/terms', { term: TERM, definition: '자동 테스트용 용어입니다', customerInfo: true });
     if (created.status === 400) skip(`용어 등록에 더 필요한 값이 있습니다: ${created.body?.message}`);
     eq(created.status, 200, `용어 등록 실패: ${created.body?.message}`);
     const termId = created.body?.data?.termId;
@@ -145,6 +142,8 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
 
     const reread = await api.data('/glossary/terms', { keyword: TERM, size: 5 });
     ok((reread.items || []).some((t) => t.term === TERM), '등록했는데 사전에 없습니다');
+    eq((reread.items || []).find((t) => t.term === TERM)?.customerInfo, true, '고객사 정보(customerInfo)가 목록에 그대로 와야 합니다');
+    ok(!('domain' in ((reread.items || [])[0] || {})), '분류 삭제 뒤에는 목록에 domain 이 없어야 합니다');
 
     const variant = await api.send('POST', `/glossary/terms/${termId}/variants`, { word: `${TAG}유사어` });
     eq(variant.status, 200, `유사어 등록 실패: ${variant.body?.message}`);
@@ -167,11 +166,9 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
   test('지운 용어의 이름을 다시 쓸 수 있다', async () => {
     // 삭제가 소프트 삭제라, 중복 검사가 use_flg 를 안 보면 지운 이름이 영구히 막힙니다.
     // 관리자가 잘못 지운 용어를 다시 만들 수 없고, 목록에 없으니 이유도 알 수 없습니다.
-    const dom = await api.data('/glossary/domains');
-    const domainCd = (dom.domains || [])[0]?.code;
     const TERM = '자동테스트재등록';
 
-    const first = await api.send('POST', '/glossary/terms', { term: TERM, definition: '1회차', domainCd });
+    const first = await api.send('POST', '/glossary/terms', { term: TERM, definition: '1회차', customerInfo: false });
     eq(first.status, 200, `등록 실패: ${first.body?.message}`);
     const id = first.body?.data?.termId;
     ctx.trash.push(['DELETE', `/glossary/terms/${id}`]);
@@ -179,7 +176,7 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
     eq((await api.send('DELETE', `/glossary/terms/${id}`)).status, 200, '삭제 실패');
     ctx.trash.pop();
 
-    const again = await api.send('POST', '/glossary/terms', { term: TERM, definition: '2회차', domainCd });
+    const again = await api.send('POST', '/glossary/terms', { term: TERM, definition: '2회차', customerInfo: false });
     eq(again.status, 200,
       `지운 이름을 다시 쓸 수 없습니다: ${again.body?.message}\n` +
       '      목록에 없는 용어가 이름만 점유하면 관리자가 원인을 알 수 없습니다.');
@@ -195,23 +192,21 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
   test('삭제된 용어가 이름을 점유하면 그 사실을 알려 준다', async () => {
     // 삭제는 소프트 삭제인데 UNIQUE 는 컬럼 전체에 걸려 있어, 지워진 이름으로는 개명이 막힙니다.
     // 목록에 없는 이름이 막히면 관리자는 이유를 알 수 없으므로 메시지가 구분돼야 합니다.
-    const dom = await api.data('/glossary/domains');
-    const domainCd = (dom.domains || [])[0]?.code;
 
-    const taken = await api.send('POST', '/glossary/terms', { term: '자동테스트점유', definition: '점유용', domainCd });
+    const taken = await api.send('POST', '/glossary/terms', { term: '자동테스트점유', definition: '점유용', customerInfo: false });
     eq(taken.status, 200, `등록 실패: ${taken.body?.message}`);
     const takenId = taken.body?.data?.termId;
     ctx.trash.push(['DELETE', `/glossary/terms/${takenId}`]);
     eq((await api.send('DELETE', `/glossary/terms/${takenId}`)).status, 200);
     ctx.trash.pop();
 
-    const other = await api.send('POST', '/glossary/terms', { term: '자동테스트개명', definition: '개명용', domainCd });
+    const other = await api.send('POST', '/glossary/terms', { term: '자동테스트개명', definition: '개명용', customerInfo: false });
     eq(other.status, 200, `등록 실패: ${other.body?.message}`);
     const otherId = other.body?.data?.termId;
     ctx.trash.push(['DELETE', `/glossary/terms/${otherId}`]);
 
     // 지워진 이름으로 개명 시도
-    const renamed = await api.send('PUT', `/glossary/terms/${otherId}`, { term: '자동테스트점유', definition: '개명용', domainCd });
+    const renamed = await api.send('PUT', `/glossary/terms/${otherId}`, { term: '자동테스트점유', definition: '개명용', customerInfo: false });
     ok(renamed.status >= 400, '지워진 용어가 점유한 이름으로 개명이 되면 안 됩니다');
     contains(renamed.body?.message || '', '삭제',
       `왜 막히는지 알 수 없는 메시지입니다: "${renamed.body?.message}"\n` +
@@ -220,7 +215,7 @@ suite('쓰기 — 되돌리기 가능한 흐름', () => {
     eq((await api.send('DELETE', `/glossary/terms/${otherId}`)).status, 200);
     ctx.trash.pop();
     // 점유하던 행도 되살렸다 지워 정리합니다
-    const revive = await api.send('POST', '/glossary/terms', { term: '자동테스트점유', definition: '정리', domainCd });
+    const revive = await api.send('POST', '/glossary/terms', { term: '자동테스트점유', definition: '정리', customerInfo: false });
     if (revive.status === 200) await api.send('DELETE', `/glossary/terms/${revive.body.data.termId}`);
   });
 });

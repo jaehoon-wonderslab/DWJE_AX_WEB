@@ -650,19 +650,6 @@ export function putAlertRecipientsByRecipientId(params) {
 }
 
 /**
- * 수신/부재 토글
- *
- * `PATCH /api/v1/alert-recipients/{recipientId}/state`
- * @param {object} params state(수신|부재)
- * @returns {Promise<object>} success
- * @remarks 부재 시 대리 수신자로 대체
- * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 1
- */
-export function patchAlertRecipientsByRecipientIdState(params) {
-  return request('patchAlertRecipientsByRecipientIdState', params);
-}
-
-/**
  * 수신자 영향 조회 — 부재·삭제 전에 받는 사람이 0명이 되는 그룹·조건
  *
  * `GET /api/v1/alert-recipients/{recipientId}/impact`
@@ -708,7 +695,7 @@ export function patchAlertRecipientGroupsByGroupIdState(params) {
  *
  * `GET /api/v1/glossary/summary`
  * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} termCnt, variantCnt, domainCnt, myVariantCnt, noVariantTermCnt, byDomain[]
+ * @returns {Promise<object>} termCnt, variantCnt, myVariantCnt, noVariantTermCnt
  * @privateRemarks 접근 권한 전 부서 · 우선순위 2
  */
 export function getGlossarySummary(params) {
@@ -719,8 +706,8 @@ export function getGlossarySummary(params) {
  * 용어 목록 조회
  *
  * `GET /api/v1/glossary/terms`
- * @param {object} params keyword, domainCd, page, size
- * @returns {Promise<object>} items[{termId,term,definition,domain,variants[{variantId,word,byEmpNo,byName,at,editable}]}], meta
+ * @param {object} params keyword, mineOnly, page, size
+ * @returns {Promise<object>} items[{termId,term,definition,customerInfo,blinded,variants[{variantId,word,byEmpNo,byName,at,editable}]}], meta
  * @remarks editable = 등록 본인 여부
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */
@@ -728,33 +715,26 @@ export function getGlossaryTerms(params) {
   return request('getGlossaryTerms', params);
 }
 
+
 /**
  * 용어 상세 (용어 사전 조회 GL-01)
  *
  * `GET /api/v1/glossary/terms/{termId}`
  * @param {object} params termId
- * @returns {Promise<object>} termId, term, definition, domain, updatedAt, blinded, variants[], relatedTerms[]
+ * @returns {Promise<object>} termId, term, definition, customerInfo, updatedAt, blinded, variants[], relatedTerms[]
  * @privateRemarks 접근 권한 sys-gloss 또는 gloss-view · 2026-10-01 신규
  */
 export function getGlossaryTermsByTermId(params) {
   return request('getGlossaryTermsByTermId', params);
 }
 
-/**
- * 용어 분류 목록
- *
- * `GET /api/v1/glossary/domains`
- * @returns {Promise<object>} domains[{domainId,code,name}]
- */
-export function getGlossaryDomains(params) {
-  return request('getGlossaryDomains', params);
-}
+// 제거됨(2026-10-03, 분류 삭제): getGlossaryDomains — GET /api/v1/glossary/domains
 
 /**
  * 공식 용어 등록
  *
  * `POST /api/v1/glossary/terms`
- * @param {object} params term, definition, domainCd
+ * @param {object} params term, definition, customerInfo
  * @returns {Promise<object>} termId
  * @remarks 관리자 전용
  * @privateRemarks 접근 권한 통합관리자 · 우선순위 1
@@ -767,7 +747,7 @@ export function postGlossaryTerms(params) {
  * 공식 용어 수정
  *
  * `PUT /api/v1/glossary/terms/{termId}`
- * @param {object} params term, definition, domainCd
+ * @param {object} params term, definition, customerInfo
  * @returns {Promise<object>} success
  * @remarks 관리자 전용
  * @privateRemarks 접근 권한 통합관리자 · 우선순위 1
@@ -873,6 +853,31 @@ export function getGlossaryVariantsRisks(params) {
  */
 export function postGlossaryTermsExport(params) {
   return request('postGlossaryTermsExport', params);
+}
+
+/**
+ * 용어 사전 업로드 템플릿 (2026-10-03 신규)
+ *
+ * `GET /api/v1/glossary/import/template` — 파일 응답이라 화면은 exportUtil.downloadFromServer(method GET) 로 받습니다.
+ * @param {object} [params] 요청 파라미터 없음
+ * @returns {Promise<object>} file(binary xlsx)
+ * @privateRemarks 접근 권한 sys-gloss · 우선순위 2
+ */
+export function getGlossaryImportTemplate(params) {
+  return request('getGlossaryImportTemplate', params, { responseType: 'blob' });
+}
+
+/**
+ * 용어 사전 엑셀 업로드 — 미리보기(dryRun=true) / 등록(dryRun=false) (2026-10-03 신규)
+ *
+ * `POST /api/v1/glossary/import` (multipart)
+ * @param {object} params file(File), dryRun(boolean)
+ * @returns {Promise<object>} dryRun, fileName, totalRows, termNew, termExisting, variantNew, variantSkipped, errorCnt, rows[]
+ * @privateRemarks 접근 권한 sys-gloss 쓰기 · 우선순위 2
+ */
+export function postGlossaryImport(params) {
+  // file 이 든 객체를 multipart 로 보냅니다 (axios 가 Content-Type 을 보고 FormData 로 바꿔 줍니다)
+  return request('postGlossaryImport', params, { headers: { 'Content-Type': 'multipart/form-data' } });
 }
 
 /**

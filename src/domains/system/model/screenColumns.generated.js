@@ -643,10 +643,6 @@ export const SCREEN_COLUMNS = [
         "field": "definition"
       },
       {
-        "title": "분류",
-        "field": "domain"
-      },
-      {
         "title": "유사어",
         "field": "variants"
       }
@@ -686,30 +682,6 @@ export const SCREEN_COLUMNS = [
         "field": "ackState"
       },
       {
-        "title": "단계",
-        "field": "stageNm"
-      },
-      {
-        "title": "대기",
-        "field": "waitMin"
-      },
-      {
-        "title": "대상 등급",
-        "field": "severityFilter"
-      },
-      {
-        "title": "전달 대상",
-        "field": "targetGroupNm"
-      },
-      {
-        "title": "대기 건수",
-        "field": "pendingCnt"
-      },
-      {
-        "title": "비고",
-        "field": "note"
-      },
-      {
         "title": "발송 시각",
         "field": "ts"
       },
@@ -724,10 +696,6 @@ export const SCREEN_COLUMNS = [
       {
         "title": "수신자",
         "field": "recipient"
-      },
-      {
-        "title": "승격",
-        "field": "escLevel"
       },
       {
         "title": "지연",
@@ -751,6 +719,10 @@ export const SCREEN_COLUMNS = [
       {
         "title": "이름",
         "field": "name"
+      },
+      {
+        "title": "이메일",
+        "field": "email"
       },
       {
         "title": "소속 부서",
@@ -1044,6 +1016,14 @@ export const SCREEN_COLUMNS = [
     "group": "시스템관리",
     "columns": [
       {
+        "title": "이름(사번)",
+        "field": "label"
+      },
+      {
+        "title": "부서",
+        "field": "dept"
+      },
+      {
         "title": "그룹명",
         "field": "name"
       },
@@ -1056,14 +1036,6 @@ export const SCREEN_COLUMNS = [
         "field": "windowNm"
       },
       {
-        "title": "야간",
-        "field": "night"
-      },
-      {
-        "title": "멤버",
-        "field": "memberCnt"
-      },
-      {
         "title": "수신 가능",
         "field": "receivableLabel"
       },
@@ -1072,11 +1044,7 @@ export const SCREEN_COLUMNS = [
         "field": "condCnt"
       },
       {
-        "title": "승격 대상",
-        "field": "escLabel"
-      },
-      {
-        "title": "구성원",
+        "title": "수신자 목록",
         "field": "memberNames"
       },
       {
@@ -1088,36 +1056,16 @@ export const SCREEN_COLUMNS = [
         "field": "groupNames"
       },
       {
-        "title": "이름",
-        "field": "name"
-      },
-      {
-        "title": "부서",
-        "field": "dept"
+        "title": "이름(사번)",
+        "field": "nameLabel"
       },
       {
         "title": "직급",
         "field": "posLabel"
       },
       {
-        "title": "계정",
-        "field": "accountLabel"
-      },
-      {
         "title": "메일",
         "field": "mail"
-      },
-      {
-        "title": "휴대전화",
-        "field": "hp"
-      },
-      {
-        "title": "메신저",
-        "field": "messenger"
-      },
-      {
-        "title": "상태",
-        "field": "stateLabel"
       },
       {
         "title": "비고",
@@ -1139,10 +1087,6 @@ export const SCREEN_COLUMNS = [
         "field": "definition"
       },
       {
-        "title": "분류",
-        "field": "domain"
-      },
-      {
         "title": "유사어 (등록자)",
         "field": "variants"
       },
@@ -1151,32 +1095,20 @@ export const SCREEN_COLUMNS = [
         "field": "termId"
       },
       {
-        "title": "용어 수",
-        "field": "termCnt"
+        "title": "행",
+        "field": "row"
       },
       {
-        "title": "유사어 수",
-        "field": "variantCnt"
+        "title": "추가할 유사어",
+        "field": "variantsAdded"
       },
       {
-        "title": "유사어 없음",
-        "field": "noVariantTermCnt"
+        "title": "건너뛸 유사어",
+        "field": "variantsSkipped"
       },
       {
-        "title": "유사어",
-        "field": "word"
-      },
-      {
-        "title": "등록자",
-        "field": "ownerName"
-      },
-      {
-        "title": "사유",
-        "field": "riskNm"
-      },
-      {
-        "title": "관리",
-        "field": "variantId"
+        "title": "오류·안내",
+        "field": "messages"
       },
       {
         "title": "시각",

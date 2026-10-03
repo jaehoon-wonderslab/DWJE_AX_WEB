@@ -20,11 +20,36 @@
 >
 > **2026-10-03 변경** — 엔진이 승격하지 않게 되어 승격 규칙을 API(`/alert-escalation-rules` 조회 · 수정, `/alerts/escalation-targets`)와 표(`ax.tb_alm_escalation_rule`, 보관 표에 값 보존)까지 없앴습니다.
 > 이 화면의 「승격 대상」 열, 상단 「승격 규칙에 대상 그룹이 없어…」 안내, 그룹 편집 「연계」 의 승격 대상 문구, 부재 전환 영향의 승격 단계 문구를 뺐습니다.
+>
+> **2026-10-03 변경 (2)** — 「부재(수신/부재 전환)」 와 「야간 수신」(수신자 · 그룹)을 엔진 · API · DB(V74) 에서 모두 없앴습니다.
+> 이제 그룹 멤버는 모두 받고(계정 정지 · 승인 대기 · 연락처 없음만 빠짐), 야간이라고 빼지 않습니다(그룹 · 조건의 유효 시간대만 지킴).
+> 화면에서는 머리말 설명 · [발송 조건 관리] 단추 · 요약 카드 보조 문구 · 부재/야간 카드 · 안내(`Hint`) · 카드 부제 · 야간 열 · 상태 열 · 「부재로/수신으로」 단추 · 상태 조회 조건 · 폼의 야간 항목을 뺐고,
+> 수신 그룹 / 수신자를 카드 탭(`CardTabs`, `recip-tab-*`)으로 나눠 각 탭의 단추(사용 중지 그룹 보기 · 엑셀 · 수신 그룹 등록 / 엑셀 · 수신자 등록)를 탭 머리 오른쪽으로 옮겼습니다.
+> 아래 본문에서 「제거됨」 으로 표시한 항목이 이에 해당합니다. 요약 응답의 `recipientCnt` 는 숫자 하나(등록 수신자 수)로 바뀌었습니다.
+>
+> **2026-10-03 변경 (3)** — 디자인 피드백 2차.
+> · 「사용 중지 그룹 보기」 체크와 기능을 뺐습니다. 그룹 목록은 늘 `includeInactive=true` 로 불러 사용 중지 그룹도 함께 보이고, 상태 열 · 「사용」 단추로 되살립니다.
+> · 수신 그룹 표: 「멤버」 열을 뺐고 「구성원」 열을 「수신자 목록」 으로 바꿨습니다. 칸은 「이름(사번)」 이고 3명 이상이면 앞 2명 + 「외 N명」 입니다.
+>   머리글 검색은 숨은 사람까지 포함한 전체 문자열로 하고, 칸을 누르면 그룹 상세(`GET /alert-recipient-groups/{id}`)로 「수신자 목록」 모달(이름(사번) · 부서)을 엽니다.
+> · 수신자 표: 「이름」 → 「이름(사번)」, 「계정」 · 「휴대전화」 · 「메신저」 열을 뺐습니다(엑셀도 같음). 「계정」 조회 조건은 남겼습니다.
+> · 수신자 폼: 휴대전화 · 사내 메신저 칸을 뺐습니다. 알림은 메일로만 나가며, 이미 저장된 값과 API · DB 컬럼은 그대로 둡니다.
+>
+> **2026-10-03 변경 (4)** — 메일은 **계정 이메일**(`ax.tb_sys_user.email`)이 기준입니다. 예전에는 등록 때 복사한 `ax.tb_alm_recipient.email` 을 읽어
+> 계정 관리에서 이메일을 바꿔도 수신자 화면 · 알림 발송이 옛 주소를 썼습니다. 이제 API · 엔진이 `COALESCE(계정 이메일, 수신자 메일)` 로 읽습니다.
+> · 수신자 등록: 메일 입력칸을 없애고 「메일(계정 이메일): …」 로만 보입니다. 계정에 메일이 없으면 계정 관리에서 먼저 등록하라고 알립니다(서버도 400).
+> · 수신자 「편집」 단추를 없앴습니다 — 고칠 항목이 남지 않습니다. 관리 열은 「삭제」 만 있습니다.
+> · 표 열 너비: 수신 그룹 · 수신자 표는 `TabulatorGrid fillWidth` — 내용 너비를 잰 뒤 남는 폭을 열마다 비율로 나눠 표 오른쪽이 비지 않습니다. 좁으면 가로 스크롤.
+> · 수신자 탭 조회 줄(그룹 · 계정 · 검색 · 조회)을 뺐습니다. 수신자는 `GET /alert-recipients?size=0`(상한 5,000)으로 전원을 받아 표가 100건씩 나누고(`pageSize`),
+>   「수신 그룹」 · 「직급」 머리글은 선택 목록 필터입니다(수신 그룹은 「A · B」 를 나눠 선택지로 두고 고른 그룹을 포함한 사람을 남김). 나머지 열은 검색칸입니다.
+>   예전 서버 필터(`groupId` · `userState` · `keyword`)와 쪽 이동(`Pagination`)은 화면에서 쓰지 않습니다.
+>
+> **2026-10-04 변경** — 수신자 표 · 엑셀의 「비고」 열을 뺐습니다(부재 사유를 적던 칸). 계정 이메일이 없는 계정은 수신자로 등록할 수 없습니다(서버 400, 결정).
+> 「열 너비는 내용에 맞춰…」 안내는 두 표 모두 숨겼습니다(`widthHint={false}`). DB 는 V74 로 부재 · 야간 컬럼을 지웠습니다(로컬 적용, 값은 보관 표).
 > 표는 공통 `Table`(React 포털) 대신 **`TabulatorGrid`** 로 그립니다.
 
 ## 1. 컴포넌트
 
-`PageHead`(+`ExportMenuButton` · 발송 조건 관리 · `수신 그룹 등록`) · 읽기 전용 `Hint` · `StatCard`×4 · `Hint` · **`Tabs`(수신 그룹 / 수신자)** · 탭별 `Card`+`TabulatorGrid` · `openFormModal`(그룹/수신자, `RecipientForms`) · `openModal`(테스트 결과, `AlertTestResult`) · `AlertGuardButton`
+`PageHead`(제목만) · 읽기 전용 `Hint` · `StatCard`×2(수신 그룹 · 수신자) · **`CardTabs`(수신 그룹 / 수신자, 탭 머리 오른쪽에 그 탭의 단추)** · 탭별 `TabulatorGrid` (2026-10-03 — 예전: `PageHead` 단추 3개 · `StatCard`×4 · `Hint` · `Tabs` · 탭별 `Card`) · `openFormModal`(그룹/수신자, `RecipientForms`) · `openModal`(테스트 결과, `AlertTestResult`) · `AlertGuardButton`
 
 ### 1-1. 표 규칙 (두 탭 공통)
 
@@ -47,7 +72,7 @@
 
 ### 2-1. 요약 카드 (`GET /alert-recipients/summary`)
 
-수신 그룹(`groupCnt`, 보조 "발송 조건이 연결하는 단위") · 수신(`recipientCnt.receiving` 명, 보조 `inactiveAccountCnt` 가 있으면 「계정 정지 N명 제외」 — RCP-04) · 부재(`recipientCnt.absent`, 보조 "발송 대상에서 제외") · 야간 수신(`nightCnt`)
+수신 그룹(`groupCnt`, 사용 중지 그룹이 있을 때만 보조 「사용 중지 N」) · 수신자(`recipientCnt` 명 — 숫자, 보조는 `inactiveAccountCnt` 가 있을 때만 「계정 정지 N명 제외」). 보조 문구 「발송 조건이 연결하는 단위」 · 「알림을 받는 계정」 과 부재 · 야간 카드는 **제거됨(2026-10-03)**
 
 ### 2-2. 탭 1 — 수신 그룹 (`GET /alert-recipient-groups`)
 
@@ -56,7 +81,7 @@
 | 그룹명 `name` | |
 | 발송 채널 `channels` | 등록은 `메일` 고정. 기존 그룹의 다른 채널(시스템 팝업 등)은 그대로 보존·표시 (아래 3-1) |
 | 유효 시간대 `validWindow` | 공통코드 `ALM_WINDOW` 표기 |
-| 야간 `night` | `발송`(green) / `제외` |
+| ~~야간 `night`~~ | 제거됨(2026-10-03) |
 | 멤버 | `memberCnt`, 우측 정렬 |
 | **수신 가능** | `receivableCnt`(없으면 `receivingCnt`)/멤버, 0 이면 red (minWidth 90) |
 | **사용 조건** | `condCnt`, 툴팁 조건명. `alert-cond` 권한자는 눌러 그 화면으로 (minWidth 90) |
@@ -69,7 +94,7 @@
 
 ### 2-3. 탭 2 — 수신자 (`GET /alert-recipients`)
 
-조회 조건 : 그룹(`groupId`) · 상태(`RECV`/`ABSENT`) · 계정(`userState`) · 검색(`keyword`, 이름·사번·부서 — 조회·Enter 에만) — 모두 서버가 거릅니다(RCP-11). 수신자 목록은 수신자 탭에서만 부릅니다.
+조회 조건 : 그룹(`groupId`) · ~~상태~~(제거됨 2026-10-03) · 계정(`userState`) · 검색(`keyword`, 이름·사번·부서 — 조회·Enter 에만) — 모두 서버가 거릅니다(RCP-11). 수신자 목록은 수신자 탭에서만 부릅니다.
 
 | 열 | 비고 |
 | :--- | :--- |
@@ -79,10 +104,9 @@
 | 직급 `posNm` | 서버 공통코드 `SYS_POSITION` 표기 (코드값은 `pos`) |
 | **계정 `userStateNm`** | minWidth 80. `사용`(green) / `정지`(red) / `승인 대기`(amber). 정지·승인 대기 계정은 알림을 받지 않습니다(RCP-04) |
 | 메일 · 휴대전화 · 메신저 (mono) | **`worker` 마스킹** |
-| 야간 `night` | `수신`(green) / `미수신` |
-| 상태 `state` · `stateNm` | `수신`(green) / `부재`(amber) — **보기 전용**입니다 |
+| ~~야간 `night`~~ · ~~상태 `state`~~ | 제거됨(2026-10-03) |
 | **비고** | `remark`, 말줄임·툴팁 (minWidth 140) |
-| 관리 | `편집` · `부재로/수신으로` · `삭제` |
+| 관리 | `편집` · `삭제` (「부재로/수신으로」 는 제거됨 2026-10-03) |
 
 폭은 지정하지 않습니다 — 전부 내용이 정합니다.
 
@@ -97,12 +121,12 @@
 | 테스트 발송 | `POST /alert-recipient-groups/{groupId}/test-send` → 결과 모달(발송 대기 N건 · 수신 예정 · 제외 사유, RCP-03) |
 | 수신자 등록 | 폼(계정 검색 `GET /alert-recipients/candidates`) → `POST /alert-recipients` |
 | 수신자 편집 | 폼 → `PUT /{recipientId}` 바뀐 칸만 (worker 권한 필요). 휴대전화·메신저를 비우면 `""` 로 지웁니다(`preserveEmpty: hp, messenger`) |
-| 부재로 | `GET /{recipientId}/impact` 로 영향(받는 사람 0명이 되는 그룹·조건)과 사유(300자)를 묻고 → `PATCH /{recipientId}/state {state:'ABSENT', reason}` |
-| 수신으로 | 바로 `PATCH …/state {state:'RECV'}` |
+| ~~부재로~~ (제거됨) | `GET /{recipientId}/impact` 로 영향(받는 사람 0명이 되는 그룹·조건)과 사유(300자)를 묻고 → `PATCH /{recipientId}/state {state:'ABSENT', reason}` |
+| ~~수신으로~~ (제거됨) | 바로 `PATCH …/state {state:'RECV'}` |
 | 삭제 | 영향을 보여 주고 확인 → `DELETE /{recipientId}`. 409(영향 있음)면 한 번 더 확인 후 `?force=true` |
 | 사용 중지 / 사용 | 중지는 확인 후 `PATCH /alert-recipient-groups/{groupId}/state {on}`. 조건이 쓰면 서버 409 사유를 토스트 |
 | 사용 중지 그룹 보기 | 그룹 목록을 `includeInactive=true` 로 다시 부름 |
-| 발송 조건 관리 | `/system/alert-condition` |
+| ~~발송 조건 관리~~ | 제거됨(2026-10-03). 그룹 표의 「사용 조건」 건수를 누르면 발송 조건 화면으로 갑니다 |
 | 엑셀 다운로드 ▾ | 지금 탭의 옵션 패널(아래 3-2) |
 
 서버가 403 `E-AUTH-004`(쓰기 권한 없음)를 주면 서버 메시지를 토스트로 보입니다.
@@ -143,35 +167,35 @@
 
 ## 4. 그 밖의 기능
 
-`Hint` : "발송 조건은 이 화면의 수신 그룹을 골라 연결합니다. 그룹 이름을 바꿔도 연결은 유지됩니다. 멤버를 빼거나 부재로 바꾸면 해당 그룹을 쓰는 조건의 받는 사람이 줄어듭니다."
+~~`Hint`~~ (제거됨 2026-10-03) : "발송 조건은 이 화면의 수신 그룹을 골라 연결합니다. 그룹 이름을 바꿔도 연결은 유지됩니다. 멤버를 빼거나 부재로 바꾸면 해당 그룹을 쓰는 조건의 받는 사람이 줄어듭니다."
 
 P1 이후 항목(검색형 멤버 선택기·부재/수신 전환·삭제·사용 중지·연계 정보 열·서버 그룹 필터)은 아직 반영하지 않았습니다.
 
 ## 5. 사용 API
 
-총 **14건** (2단계 신규: 그룹 상세 · 후보 계정, 3단계 신규: 영향 조회 · 수신자 삭제 · 그룹 사용 중지. 승격 규칙 조회는 2026-10-03 에 제거)
+총 **13건** (2단계 신규: 그룹 상세 · 후보 계정, 3단계 신규: 영향 조회 · 수신자 삭제 · 그룹 사용 중지. 승격 규칙 조회는 2026-10-03 에 제거)
 
 | # | 서비스 함수 | API 명 | Method | Path | 요청 | 응답 |
 |---|---|---|---|---|---|---|
 | 165.1 | `getAlertRecipientsByRecipientIdImpact` | 수신자 영향 **(신규)** | GET | `/api/v1/alert-recipients/{recipientId}/impact` | — | empNo, groups[{groupId,name,receivableCntAfter}], zeroGroups[], affectedConds[] |
 | 165.2 | `deleteAlertRecipientsByRecipientId` | 수신자 삭제 **(신규)** | DELETE | `/api/v1/alert-recipients/{recipientId}` | force | success / 409 data{zeroGroups, affectedConds} |
 | 160.1 | `patchAlertRecipientGroupsByGroupIdState` | 그룹 사용 중지 **(신규)** | PATCH | `/api/v1/alert-recipient-groups/{groupId}/state` | on | useFlg, changed / 409 |
-| 165 | `patchAlertRecipientsByRecipientIdState` | 수신/부재 전환 | PATCH | `/api/v1/alert-recipients/{recipientId}/state` | state(필수), reason | success |
+| ~~165~~ | ~~`patchAlertRecipientsByRecipientIdState`~~ | 수신/부재 전환 — **제거됨(2026-10-03)** | PATCH | `/api/v1/alert-recipients/{recipientId}/state` | state(필수), reason | success |
 | ~~169~~ | ~~`getAlertEscalationRules`~~ | 승격 규칙 조회 — **제거됨(2026-10-03)** | GET | `/api/v1/alert-escalation-rules` | — | stages[{stage,targetGroupId}] — 대상 그룹이 모두 비면 상단 안내 |
 
 
 | # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
 |---|---|---|---|---|---|---|---|---|---|
-| 157 | `getAlertRecipientsSummary` | 수신자 관리 요약 | GET | `/api/v1/alert-recipients/summary` | — | groupCnt, recipientCnt{receiving,absent}, nightCnt | 전산팀·통합관리자 | — | 2 |
-| 158 | `getAlertRecipientGroups` | 수신 그룹 목록 | GET | `/api/v1/alert-recipient-groups` | includeInactive | items[{groupId,name,deptId,dept,useFlg,channels[],validWindow,night,members[{empNo,name}],memberEmpNos[]}], masked | 조회 | worker | 1 |
+| 157 | `getAlertRecipientsSummary` | 수신자 관리 요약 | GET | `/api/v1/alert-recipients/summary` | — | groupCnt, recipientCnt(숫자), receivableCnt, inactiveAccountCnt | 전산팀·통합관리자 | — | 2 |
+| 158 | `getAlertRecipientGroups` | 수신 그룹 목록 | GET | `/api/v1/alert-recipient-groups` | includeInactive | items[{groupId,name,deptId,dept,useFlg,channels[],validWindow,members[{empNo,name}],memberEmpNos[]}], masked | 조회 | worker | 1 |
 | 158.1 | `getAlertRecipientGroupsByGroupId` | 수신 그룹 상세 **(신규)** | GET | `/api/v1/alert-recipient-groups/{groupId}` | groupId | groupId, name, deptId, dept, useFlg, channels[], members[{empNo,name,dept,state,userState}], receivableCnt, conds[], deptOptions[], updatedAt | 조회 | worker | 1 |
-| 159 | `postAlertRecipientGroups` | 수신 그룹 등록 | POST | `/api/v1/alert-recipient-groups` | name, deptId, channels[](MAIL), validWindow, night, memberEmpNos[] | groupId | 쓰기 | — | 1 |
+| 159 | `postAlertRecipientGroups` | 수신 그룹 등록 | POST | `/api/v1/alert-recipient-groups` | name, deptId, channels[](MAIL), validWindow, memberEmpNos[] | groupId | 쓰기 | — | 1 |
 | 160 | `putAlertRecipientGroupsByGroupId` | 수신 그룹 수정 | PUT | `/api/v1/alert-recipient-groups/{groupId}` | 바뀐 키만 + updatedAt (`preserveEmpty: deptId, channels, memberEmpNos`) | success / 409 동시 수정 | 쓰기 | — | 1 |
 | 161 | `postAlertRecipientGroupsByGroupIdTestSend` | 수신 그룹 테스트 발송 | POST | `/api/v1/alert-recipient-groups/{groupId}/test-send` | — | alertId, queuedCnt, sentCnt, recipients[], skipped[] | 쓰기 | — | 2 |
-| 162 | `getAlertRecipients` | 수신자 목록 | GET | `/api/v1/alert-recipients` | state, page, size(0=전체) | items[{empNo,name,dept,pos,posNm,mail,hp,messenger,night,state,stateNm,userState,userStateNm,remark,groups[]}], meta{truncated}, masked | 조회 | worker | 1 |
+| 162 | `getAlertRecipients` | 수신자 목록 | GET | `/api/v1/alert-recipients` | groupId, userState, keyword, page, size(0=전체) | items[{empNo,name,dept,pos,posNm,mail,hp,messenger,userState,userStateNm,remark,groups[]}], meta{truncated}, masked | 조회 | worker | 1 |
 | 162.1 | `getAlertRecipientsCandidates` | 수신자 등록 후보 계정 **(신규)** | GET | `/api/v1/alert-recipients/candidates` | keyword, deptId, size | items[{empNo,name,dept,posNm,email}] (미배정 제외) | 조회 | worker | 2 |
-| 163 | `postAlertRecipients` | 수신자 등록 | POST | `/api/v1/alert-recipients` | empNo, mail, hp, messenger, night | recipientId | 전산팀·통합관리자 | — | 1 |
-| 164 | `putAlertRecipientsByRecipientId` | 수신자 수정 | PUT | `/api/v1/alert-recipients/{recipientId}` | mail, hp, messenger, night | success | 전산팀·통합관리자 | — | 1 |
+| 163 | `postAlertRecipients` | 수신자 등록 | POST | `/api/v1/alert-recipients` | empNo, mail, hp, messenger | recipientId | 전산팀·통합관리자 | — | 1 |
+| 164 | `putAlertRecipientsByRecipientId` | 수신자 수정 | PUT | `/api/v1/alert-recipients/{recipientId}` | mail, hp, messenger | success | 전산팀·통합관리자 | — | 1 |
 
 > **수신/부재 전환**(`PATCH /api/v1/alert-recipients/{recipientId}/state`, No.165)의 「부재」 버튼은
 > 2026-09-16 에 걷어냈다가 2026-10-01 기획 06 RCP-07 로 「부재로/수신으로」 버튼을 되살렸습니다(본문 `state` 필수 · `reason`).
@@ -189,7 +213,7 @@ P1 이후 항목(검색형 멤버 선택기·부재/수신 전환·삭제·사�
 
 ## 7. 개발 체크리스트
 
-- [x] 요약 4카드
+- [x] 요약 카드(2026-10-03 4장 → 2장)
 - [x] 탭 2종 전환
 - [x] 수신 그룹 표 + 등록/편집/테스트 발송
 - [x] 수신자 표(수신 그룹이 첫 열) + 필터(그룹·상태) + 등록/편집 + **`worker` 마스킹**

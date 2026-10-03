@@ -33,6 +33,7 @@ const SCREEN_ID = 'sys-account';
 const USER_EXPORT_COLUMNS = [
   { key: 'empNo', head: '아이디' },
   { key: 'name', head: '이름' },
+  { key: 'email', head: '이메일', value: (u) => u.email || '—' },
   { key: 'dept', head: '소속 부서' },
   { key: 'posNm', head: '직급', value: (u) => u.posLabel || '—' },
   { key: 'admin', head: '관리자', value: (u) => u.adminLabel },

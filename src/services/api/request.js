@@ -122,3 +122,31 @@ export function firstError(data) {
     return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
   })[0];
 }
+
+/** 쪽마다 받는 최대 행 수 — 서버 PageRequestParam 상한(1,000)과 같습니다 */
+export const MAX_PAGE_SIZE = 1000;
+
+/**
+ * 쪽 나눔 목록 API 를 끝 쪽까지 불러 한 응답으로 합칩니다(2026-10-04).
+ *
+ * 표의 머리글 필터는 받은 행 안에서만 거르므로, 서버 쪽 나눔을 쓰면 다른 쪽 행이 검색되지 않습니다.
+ * 수백~수천 건인 목록은 전부 받아 표가 쪽을 나눕니다. size=0(전량)을 받지 않는 API 도 있어 상한 크기로 쪽을 돕니다.
+ *
+ * @param {(params:object) => Promise<object>} fetchPage 서비스 함수 (예: systemService.getGlossaryTerms)
+ * @param {object} [params] 쪽 밖의 조건
+ * @param {string} [itemsKey] data 안의 목록 키
+ * @returns {Promise<object>} 첫 응답과 같은 모양 — data[itemsKey] 전체, meta.total
+ */
+export async function fetchAllPages(fetchPage, params = {}, itemsKey = 'items') {
+  const first = await fetchPage({ ...params, page: 1, size: MAX_PAGE_SIZE });
+  if (!first?.success) return first;
+  let items = first.data?.[itemsKey] || [];
+  const pages = first.meta?.totalPages || 1;
+  for (let page = 2; page <= pages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetchPage({ ...params, page, size: MAX_PAGE_SIZE });
+    if (!res?.success) return res;
+    items = items.concat(res.data?.[itemsKey] || []);
+  }
+  return { ...first, data: { ...first.data, [itemsKey]: items }, meta: { ...first.meta, page: 1, size: items.length, totalPages: 1, total: first.meta?.total ?? items.length } };
+}

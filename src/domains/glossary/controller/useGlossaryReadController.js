@@ -4,7 +4,7 @@
  * 공식 용어와 현장 유사어를 찾아보기만 하는 화면입니다(결정 R-09). 쓰기 동작은 없습니다.
  *
  *  · 검색은 입력을 멈추고 400ms 뒤 한 번 보냅니다. Enter·조회 단추는 바로 보냅니다.
- *  · 분류를 바꾸면 1쪽으로 돌아갑니다.
+ *  · 제거됨(2026-10-03, 분류 삭제): 분류 선택·분류 칩·엑셀의 분류 열. 검색어를 바꾸면 1쪽으로 돌아갑니다.
  *  · 고른 용어는 주소(?term=)에 남겨 새로 고침·공유에도 같은 상세가 열립니다.
  *  · 엑셀은 「조회 목록(현재 쪽)」 과 「전체」 두 가지입니다(공통 CMN-07).
  *    전체는 서버가 만든 파일을 받고, 서버 내려받기가 아직 없으면 전체 조회(size=0)로 브라우저에서 만듭니다.
@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAsync } from '@shared/hooks/useAsync';
-import { usePaging } from '@shared/hooks/usePaging';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadFromServer, downloadXls } from '@shared/utils/exportUtil';
@@ -24,15 +23,15 @@ const SEARCH_DEBOUNCE_MS = 400;
 /** 「전체 다운로드」 상한 (기획 GLV-13) */
 const EXPORT_ALL_LIMIT = 5000;
 /** 엑셀 열 — 응답 필드명(attrs)과 같은 순서입니다. 마스킹 판정에 씁니다 */
-const EXPORT_HEAD = ['공식 용어', '뜻', '분류', '유사어'];
-const EXPORT_ATTRS = ['term', 'definition', 'domain', 'variants'];
+const EXPORT_HEAD = ['공식 용어', '뜻', '유사어'];
+const EXPORT_ATTRS = ['term', 'definition', 'variants'];
 
 /** 데이터 접근 권한으로 가려진 용어(GLV-08 — blinded)는 뜻·유사어를 「비공개」 로 채웁니다(R-10) */
 const toRow = (t) => (t.blinded
-  ? ['비공개 용어', '비공개', t.domain, '비공개']
-  : [t.term, t.definition, t.domain, (t.variants || []).map((v) => v.word).join(' · ')]);
+  ? ['비공개 용어', '비공개', '비공개']
+  : [t.term, t.definition, (t.variants || []).map((v) => v.word).join(' · ')]);
 const blindOf = (list) => list.filter((t) => t.blinded).length;
-const AREA_LABEL = { summary: '요약', terms: '용어 목록', domains: '분류' };
+const AREA_LABEL = { summary: '요약', terms: '용어 목록' };
 
 export function useGlossaryReadController() {
   const router = useRouter();
@@ -44,7 +43,6 @@ export function useGlossaryReadController() {
   // 검색어 — 입력값과 실제 조회에 쓰는 값을 나눕니다(입력 중 깜빡임 방지)
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
-  const [domain, setDomain] = useState('전체');
   const timer = useRef(null);
 
   const changeKeyword = useCallback((v) => {
@@ -58,24 +56,14 @@ export function useGlossaryReadController() {
   }, [keywordInput]);
   useEffect(() => () => timer.current && clearTimeout(timer.current), []);
 
-  const paging = usePaging({ resetKey: `${keyword}|${domain}` });
   const { data, loading, reload } = useAsync(
-    () => repo.loadGlossaryRead({ keyword, domainCd: domain, ...paging.params }),
-    [keyword, domain, paging.page, paging.size]
+    // 용어는 전부 받고 표가 쪽을 나눕니다(2026-10-04)
+    () => repo.loadGlossaryRead({ keyword }),
+    [keyword]
   );
 
   const terms = data?.terms?.items || [];
   const summary = data?.summary || null;
-  const domains = (data?.domains?.domains || []).map((d) => d.code).filter(Boolean);
-  // 분류 칩 — 용어 수 상위 8개 (요약의 byDomain)
-  const domainChips = useMemo(
-    () => (summary?.byDomain || [])
-      .filter((d) => d?.domain)
-      .slice()
-      .sort((a, b) => (b.termCnt ?? 0) - (a.termCnt ?? 0))
-      .slice(0, 8),
-    [summary]
-  );
 
   // ── 상세 ───────────────────────────────────────────────
   const selectedId = typeof params?.term === 'string' && params.term ? params.term : '';
@@ -113,8 +101,8 @@ export function useGlossaryReadController() {
 
   // ── 엑셀 (조회 목록 / 전체) ─────────────────────────────
   const condSummary = useMemo(
-    () => [`검색=${keyword || '없음'}`, `분류=${domain}`, `쪽=${paging.page}`].join(', '),
-    [keyword, domain, paging.page]
+    () => [`검색=${keyword || '없음'}`].join(', '),
+    [keyword]
   );
 
   const exportView = useCallback(async () => {
@@ -169,12 +157,8 @@ export function useGlossaryReadController() {
     summary,
     terms,
     itemsMeta: data?.termsMeta,
-    paging,
-    domains,
-    domainChips,
-    filters: { keyword: keywordInput, appliedKeyword: keyword, domain },
+    filters: { keyword: keywordInput, appliedKeyword: keyword },
     setKeyword: changeKeyword,
-    setDomain,
     search,
     reload,
     detail,

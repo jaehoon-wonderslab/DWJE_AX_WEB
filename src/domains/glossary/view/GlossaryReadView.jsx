@@ -11,8 +11,8 @@ import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, Card, ChipRow, EmptyState, ExportMenuButton, Filters, FormAlert, Hint, Loading, Pagination,
-  SelectChip, SelectField, StatCard, TabulatorGrid, TextField,
+  Button, Card, ChipRow, EmptyState, ExportMenuButton, Filters, FormAlert, Hint, Loading,
+  SelectChip, StatCard, TabulatorGrid, TextField,
 } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
@@ -24,7 +24,7 @@ const CHIP_MAX = 6;
 const TABLE_OPTIONS = { renderVertical: 'basic' };
 
 export default function GlossaryReadView({
-  initialLoading, refreshing, loadErrors, summaryFailed, summary, terms, itemsMeta, paging, domains, domainChips, filters, setKeyword, setDomain, search,
+  initialLoading, refreshing, loadErrors, summaryFailed, summary, terms, itemsMeta, filters, setKeyword, search,
   detail, detailError, selectedId, openTerm, closeTerm, exportView, exportAll, canManage, goManage,
 }) {
   const s = useCommonStyles();
@@ -39,7 +39,7 @@ export default function GlossaryReadView({
     // 데이터 접근 권한으로 가려진 용어(GLV-08 — blinded)는 「비공개 용어」 회색으로 그립니다
     { title: '공식 용어', field: 'term', minWidth: 130, widthGrow: 1, headerSort: false, formatter: (c) => (c.getRow().getData().blinded ? '<span class="muted">비공개 용어</span>' : `<span class="strong">${mark(c.getValue(), kw.current)}</span>`) },
     { title: '뜻', field: 'definition', minWidth: 220, widthGrow: 3, headerSort: false, tooltip: true, formatter: (c) => (c.getRow().getData().blinded ? '<span class="muted">비공개</span>' : mark(c.getValue() || '—', kw.current)) },
-    { title: '분류', field: 'domain', minWidth: 100, headerSort: false, formatter: (c) => (c.getValue() ? `<span class="tag">${esc(c.getValue())}</span>` : '<span class="muted">—</span>') },
+    // 제거됨(2026-10-03, 분류 삭제): 「분류」 열
     {
       title: '유사어',
       field: 'variants',
@@ -65,12 +65,11 @@ export default function GlossaryReadView({
   const detailPanel = selectedId ? (
     <Card
       title={detail?.term || '용어 상세'}
-      sub={detail?.domain || ''}
       right={<Button label="닫기" size="sm" onPress={closeTerm} />}
       style={side ? { width: 360, flexShrink: 0 } : null}
     >
       {detailError ? <FormAlert tone="error">{detailError}</FormAlert> : null}
-      {detail ? <TermDetail detail={detail} onPickTerm={openTerm} onPickDomain={setDomain} canManage={canManage} goManage={goManage} /> : null}
+      {detail ? <TermDetail detail={detail} onPickTerm={openTerm} canManage={canManage} goManage={goManage} /> : null}
     </Card>
   ) : null;
 
@@ -92,7 +91,8 @@ export default function GlossaryReadView({
         }
       />
 
-      <Grid cols={3}>
+      {/* 제거됨(2026-10-03, 분류 삭제): 「분류 n종」 카드 · 분류 칩 줄 · 분류 선택 */}
+      <Grid cols={2}>
         <StatCard
           label="공식 용어"
           value={dash(summary?.termCnt)}
@@ -100,7 +100,6 @@ export default function GlossaryReadView({
           sub={summary?.lastChangedAt ? `최근 변경 ${String(summary.lastChangedAt).slice(0, 10)}` : '보고서 표기 기준'}
         />
         <StatCard label="유사어" value={dash(summary?.variantCnt)} unit="개" sub="현장에서 쓰는 말" />
-        <StatCard label="분류" value={dash(summary?.domainCnt ?? (domains.length || null))} unit="종" sub="용어 분류" />
       </Grid>
       <Gap />
 
@@ -114,25 +113,6 @@ export default function GlossaryReadView({
       <Hint>이 화면은 조회 전용입니다. 용어 추가·수정은 시스템관리 &gt; 용어 사전 관리에서 합니다.</Hint>
       <Gap size={12} />
 
-      {domainChips.length ? (
-        <>
-          <ChipRow>
-            {domainChips.map((d) => (
-              <SelectChip
-                key={d.domain}
-                small
-                label={d.domain}
-                sub={String(d.termCnt ?? '')}
-                on={filters.domain === d.domain}
-                onPress={() => setDomain(filters.domain === d.domain ? '전체' : d.domain)}
-              />
-            ))}
-            <SelectChip small label="전체 분류" on={filters.domain === '전체'} onPress={() => setDomain('전체')} />
-          </ChipRow>
-          <Gap size={12} />
-        </>
-      ) : null}
-
       <Filters>
         <TextField
           label="검색"
@@ -142,7 +122,6 @@ export default function GlossaryReadView({
           placeholder="공식 용어 · 뜻 · 유사어"
           style={{ minWidth: 220 }}
         />
-        <SelectField label="분류" value={filters.domain} options={['전체', ...domains]} onChange={setDomain} />
         <Button label="조회" variant="primary" onPress={search} />
       </Filters>
 
@@ -168,6 +147,8 @@ export default function GlossaryReadView({
               tableOptions={TABLE_OPTIONS}
               // 검색은 서버가 합니다 — 머리글 검색칸은 현재 쪽만 걸러 오해를 부르므로 끕니다
               headerFilter={false}
+              // 전부 받은 용어를 표가 50행씩 나눕니다(2026-10-04)
+              pageSize={50}
               emptyText="검색 조건에 맞는 용어가 없습니다."
             />
           ) : emptyDictionary ? (
@@ -176,9 +157,8 @@ export default function GlossaryReadView({
               {canManage ? <Button label="용어 사전 관리로 이동" size="sm" onPress={() => goManage()} /> : null}
             </View>
           ) : (
-            <EmptyState text="검색 조건에 맞는 용어가 없습니다. 검색어를 줄이거나 분류를 [전체] 로 바꿔 보세요." />
+            <EmptyState text="검색 조건에 맞는 용어가 없습니다. 검색어를 줄여 보세요." />
           )}
-          <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
         </Card>
         {side ? detailPanel : null}
       </View>
@@ -187,7 +167,7 @@ export default function GlossaryReadView({
 }
 
 /** 상세 패널 본문 */
-function TermDetail({ detail, onPickTerm, onPickDomain, canManage, goManage }) {
+function TermDetail({ detail, onPickTerm, canManage, goManage }) {
   const s = useCommonStyles();
   const theme = useTheme();
   // 가려진 용어(GLV-08)는 유사어·관련 용어도 보이지 않습니다
@@ -196,11 +176,6 @@ function TermDetail({ detail, onPickTerm, onPickDomain, canManage, goManage }) {
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 21, fontWeight: '700', color: theme.color.foreground }}>{detail.blinded ? '비공개 용어' : detail.term}</Text>
-      {detail.domain ? (
-        <ChipRow>
-          <SelectChip small label={detail.domain} onPress={() => onPickDomain(detail.domain)} />
-        </ChipRow>
-      ) : null}
       <Text style={s.body}>{detail.blinded ? '데이터 접근 권한이 없어 내용을 표시하지 않습니다.' : detail.definition || '등록된 뜻이 없습니다.'}</Text>
 
       <Text style={s.eyebrow}>유사어</Text>
@@ -221,7 +196,7 @@ function TermDetail({ detail, onPickTerm, onPickDomain, canManage, goManage }) {
           <Text style={s.eyebrow}>관련 용어</Text>
           <ChipRow>
             {related.map((r) => (
-              <SelectChip key={r.termId} small label={r.term} sub={r.domain || ''} onPress={() => onPickTerm(r.termId)} />
+              <SelectChip key={r.termId} small label={r.term} onPress={() => onPickTerm(r.termId)} />
             ))}
           </ChipRow>
         </>

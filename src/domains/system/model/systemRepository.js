@@ -7,7 +7,7 @@ import { permRows } from '@shared/constants/menu';
 import * as aiService from '@services/api/aiService';
 import * as systemService from '@services/api/systemService';
 import * as commonService from '@services/api/commonService';
-import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
+import { command, unwrap, unwrapAll, unwrapPaged, fetchAllPages } from '@services/api/request';
 import { driftSide as driftSideCode } from '@domains/common/model/paramModel';
 import { downloadFromServer } from '@shared/utils/exportUtil'; // SY-09 · SY-14 전체 다운로드(서버 생성 파일)
 
@@ -44,6 +44,8 @@ function normalizeUser(u) {
     /** 정지 사유 — RETIRED(퇴사) · REJECTED(가입 반려) · ADMIN(관리자 정지). 잠김은 상태 코드 LOCKED 로 옵니다(ACC-05) */
     stateReason: u.stateReason || null,
     lockedAt: u.lockedAt || null,
+    /** 이메일 — 계정 표 「이메일」 열(2026-10-03, 서버 `email`) */
+    email: u.email || '',
     emailMasked: u.emailMasked || '',
     remark: u.remark || '',
     /** 가입 경로 (ACC-08) — 서버 `joinSrc` 가 정본. 없으면 비고의 「그룹웨어 자동 가입」 으로만 가립니다 */
@@ -561,20 +563,11 @@ export async function loadRecipientHead({ includeInactive = false } = {}) {
 
 /**
  * 수신자 목록 — 수신자 탭에서만 부릅니다. 그룹·상태·계정·검색은 서버가 거릅니다 (RCP-11)
- * @param {object} p { groupId, state, userState, keyword, page, size }
+ * @param {object} p { groupId, userState, keyword, page, size }
  */
-export async function loadRecipientList({ groupId, state, userState, keyword, page, size }) {
-  return unwrapPaged(systemService.getAlertRecipients({ groupId, state, userState, keyword, page, size }));
+export async function loadRecipientList({ groupId, userState, keyword, page, size }) {
+  return unwrapPaged(systemService.getAlertRecipients({ groupId, userState, keyword, page, size }));
 }
-
-/**
- * 수신/부재 전환 — 바꿀 상태(RECV | ABSENT)와 사유(비고)를 보냅니다 (RCP-07)
- * @param {string} recipientId
- * @param {'RECV'|'ABSENT'} state
- * @param {string} [reason] 비고(300자)
- */
-export const setRecipientState = (recipientId, state, reason) =>
-  command(systemService.patchAlertRecipientsByRecipientIdState({ recipientId, state, reason: reason ? String(reason).slice(0, 300) : undefined }));
 
 /** 이 사람이 빠지면 받는 사람이 0명이 되는 그룹·조건 (RCP-07·08) */
 export const loadRecipientImpact = (recipientId) => unwrap(systemService.getAlertRecipientsByRecipientIdImpact({ recipientId }));
@@ -643,19 +636,9 @@ export async function searchRecipientCandidates(keyword) {
 }
 export const createRecipient = (v) => command(systemService.postAlertRecipients(v));
 export const updateRecipient = (recipientId, v) => command(systemService.putAlertRecipientsByRecipientId({ recipientId, ...v }));
-// 예전 toggleRecipientState(본문 없이 뒤집기)는 지웠습니다 — 서버가 state 를 필수로 받습니다(RCP-07). setRecipientState 를 씁니다.
+// 수신/부재 전환(toggleRecipientState · setRecipientState)은 2026-10-03 에 부재 기능과 함께 없앴습니다.
 
 /* ═══════ SY-06 용어 사전 ═══════ */
-/** 제거됨 — loadGlossaryByDomain 사용 (분류 키가 domain 이라 필터가 걸리지 않았습니다. 07 GLS-08). 호출부 없음 */
-export async function loadGlossary({ keyword, domain, mineOnly, page, size }) {
-  const data = await unwrapAll({
-    summary: systemService.getGlossarySummary({}),
-    terms: systemService.getGlossaryTerms({ keyword, domain, mineOnly, page, size }),
-    // 분류는 기준정보입니다. 등록된 용어에서 뽑으면 첫 용어를 만들 수 없습니다
-    domains: systemService.getGlossaryDomains({}),
-  });
-  return { ...data, termsMeta: data.metas?.terms };
-}
 export const createTerm = (v) => command(systemService.postGlossaryTerms(v));
 export const updateTerm = (termId, v) => command(systemService.putGlossaryTermsByTermId({ termId, ...v }));
 export const deleteTerm = (termId) => command(systemService.deleteGlossaryTermsByTermId({ termId }));
@@ -665,18 +648,18 @@ export const deleteVariant = (variantId) => command(systemService.deleteGlossary
 export const normalizeText = (text) => command(systemService.postGlossaryNormalize({ text }));
 export const reindexGlossary = () => command(systemService.postGlossaryReindex({}));
 /**
- * 용어 사전 화면 (분류 필터를 서버 키로)
+ * 용어 사전 화면 — 요약 · 용어 목록을 한 번에 받습니다.
+ * '내가 등록한 유사어만'(mineOnly)은 서버 필터입니다(07 GLS-08).
+ * 제거됨(2026-10-03, 분류 삭제): 분류 목록(GET /glossary/domains)과 목록의 분류 필터(domainCd).
+ * 예전 이름 loadGlossaryByDomain · loadGlossary(호출부 없음)도 함께 정리했습니다.
  *
- * 목록 API 의 분류 파라미터는 `domainCd` 입니다. 예전 `domain` 은 서버가 모르는 키라
- * 분류를 골라도 전체가 나왔습니다. '내가 등록한 유사어만'(mineOnly)은 서버 필터입니다(07 GLS-08).
- *
- * @param {object} p { keyword, domainCd, mineOnly, page, size }
+ * @param {object} p { keyword, mineOnly }
  */
-export async function loadGlossaryByDomain({ keyword, domainCd, mineOnly, page, size }) {
+export async function loadGlossary({ keyword, mineOnly }) {
   const data = await unwrapAll({
     summary: systemService.getGlossarySummary({}),
-    terms: systemService.getGlossaryTerms({ keyword, domainCd, mineOnly: mineOnly || undefined, page, size }),
-    domains: systemService.getGlossaryDomains({}),
+    // 전부 받아 표가 쪽을 나눕니다 — 머리글 필터가 모든 용어에서 찾도록(2026-10-04)
+    terms: fetchAllPages(systemService.getGlossaryTerms, { keyword, mineOnly: mineOnly || undefined }),
   });
   return { ...data, termsMeta: data.metas?.terms };
 }
@@ -695,7 +678,7 @@ export const loadGlossaryChanges = ({ termId, from, to, page = 1, size = 50 } = 
  */
 export async function searchGlossaryTerms(keyword) {
   const data = await unwrap(systemService.getGlossaryTerms({ keyword, page: 1, size: 20 }), { items: [] });
-  return (data?.items || []).map((t) => ({ termId: t.termId, term: t.term, definition: t.definition, domain: t.domain, blinded: !!t.blinded }));
+  return (data?.items || []).map((t) => ({ termId: t.termId, term: t.term, definition: t.definition, blinded: !!t.blinded }));
 }
 
 /** 점검 필요 유사어 (07 GLS-03, 통합관리자 전용) */
@@ -706,11 +689,59 @@ export async function loadGlossaryRisks() {
 
 /**
  * 「전체 다운로드」 의 대체 경로 — 서버 생성 내려받기(POST /glossary/terms/export)가 아직 없을 때
- * 조건 없이 사전 전체를 받습니다(size=0). 상한은 컨트롤러가 정합니다.
+ * 조건 없이 사전 전체를 받습니다. 서버가 size=0 을 받지 않아(1건만 옴) 쪽을 돌며 모읍니다(2026-10-04).
  */
 export async function loadAllGlossaryTerms() {
-  const data = await unwrap(systemService.getGlossaryTerms({ size: 0 }), { items: [] });
+  const data = await unwrap(fetchAllPages(systemService.getGlossaryTerms, {}), { items: [] });
   return data?.items || [];
+}
+
+/* ── 엑셀 업로드 (2026-10-03) ── */
+/** 업로드 상한 — 서버와 같은 값입니다(5MB · xlsx) */
+export const GLOSSARY_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+
+/** 올리기 전에 화면에서 먼저 거르는 파일 오류 — 없으면 '' (정본은 서버 400 field=file) */
+export function glossaryImportFileError(file) {
+  if (!file) return '파일을 선택하지 않았습니다.';
+  if (/\.xlsm$/i.test(file.name || '')) return '매크로 포함 통합문서(xlsm)는 올릴 수 없습니다. 「Excel 통합 문서(*.xlsx)」 로 다시 저장해 올려 주세요.';
+  if (!/\.xlsx$/i.test(file.name || '')) return 'xlsx 파일만 올릴 수 있습니다.';
+  if (file.size > GLOSSARY_IMPORT_MAX_BYTES) return '파일이 너무 큽니다. 5MB 이하만 올릴 수 있습니다.';
+  return '';
+}
+
+/**
+ * 업로드 결과를 화면용으로 고릅니다 — 빠진 배열·숫자를 채우고, 등록할 행 수(ERROR 가 아닌 행)를 셉니다.
+ * @returns {{ fileName, totalRows, termNew, termExisting, variantNew, variantSkipped, errorCnt, rows, applicable }}
+ */
+export function normalizeGlossaryImport(data) {
+  const rows = (data?.rows || []).map((r) => ({
+    ...r,
+    variantsAdded: r.variantsAdded || [],
+    variantsSkipped: r.variantsSkipped || [],
+    errors: r.errors || [],
+    notes: r.notes || [],
+    warnings: r.warnings || [],
+  }));
+  const n = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  return {
+    dryRun: data?.dryRun !== false,
+    fileName: data?.fileName || '',
+    totalRows: n(data?.totalRows, rows.length),
+    termNew: n(data?.termNew, rows.filter((r) => r.action === 'NEW_TERM').length),
+    termExisting: n(data?.termExisting, rows.filter((r) => r.action === 'EXISTING_TERM').length),
+    variantNew: n(data?.variantNew, rows.reduce((s, r) => s + r.variantsAdded.length, 0)),
+    variantSkipped: n(data?.variantSkipped, rows.reduce((s, r) => s + r.variantsSkipped.length, 0)),
+    errorCnt: n(data?.errorCnt, rows.filter((r) => r.action === 'ERROR').length),
+    rows,
+    // 실제로 바뀌는 행만 셉니다 — 새 용어이거나 더할 유사어가 있는 행(이미 다 있는 기존 용어 행은 등록할 것이 없음)
+    applicable: rows.filter((r) => r.action === 'NEW_TERM' || (r.action !== 'ERROR' && (r.variantsAdded || []).length > 0)).length,
+  };
+}
+
+/** 미리보기(dryRun=true) / 등록(dryRun=false) — 같은 File 을 두 번 보냅니다 */
+export async function importGlossary(file, dryRun = true) {
+  const res = await command(systemService.postGlossaryImport({ file, dryRun }));
+  return { ...res, data: res.ok ? normalizeGlossaryImport(res.data) : res.data };
 }
 
 /* ═══════ SY-08 자연어 질의 이력 · SY-18 전사 자연어 질의 이력 ═══════ */

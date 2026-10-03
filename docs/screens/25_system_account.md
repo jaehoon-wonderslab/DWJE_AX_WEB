@@ -102,7 +102,7 @@
 | API | 요청 | 응답 |
 | --- | --- | --- |
 | GET `/system/accounts/summary` | — | `userCnt{total,active,locked,suspended,pending}`, `pwdChangeRequiredCnt`, `currentUser.superAdmin`, `canChangePassword`, `canWrite`, `mailEnabled` |
-| GET `/system/users` | `keyword,size=0` | 행 `state`(LOCKED 포함)·`stateReason`·`pwdChangeRequired`·`lockedAt`·`emailMasked`·`remark`·`extraMenuIds` |
+| GET `/system/users` | `keyword,size=0` | 행 `state`(LOCKED 포함)·`stateReason`·`pwdChangeRequired`·`lockedAt`·`email`(2026-10-03 추가 — 「이메일」 열)·`emailMasked`·`remark`·`extraMenuIds` |
 | PATCH `/system/users/{empNo}/state` | `state`(ACTIVE·SUSPENDED), `reason?`, `resetPassword?` | `state, loginFailCnt, pwdChangeRequired, unlocked` |
 | GET `/system/depts` | `size=0` | 행 `superAdmin`·`systemRole`·`lockedPerms`·`fixedMenus`·`fixedDataFields`·`menuCnt`·`dataCnt` |
 | PUT `/system/users/{empNo}` | `remark`(덧붙인 전체), 미배정이면 `extraMenuIds: []` | 기존 |

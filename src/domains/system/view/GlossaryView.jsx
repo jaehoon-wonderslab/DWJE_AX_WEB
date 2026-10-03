@@ -5,14 +5,18 @@
  *        유사어는 이 화면의 쓰기 권한이 있으면 등록하고, 본인이 등록한 것만 수정·삭제합니다(07 GLS-16).
  *        쓰기 권한이 없으면 유사어 버튼을 숨기지 않고 비활성으로 두고 이유를 옆에 알립니다(공통 R-06).
  * 엑셀은 조회 권한으로 받습니다(공통 R-10) — 쓰기 권한과 무관합니다.
- * 사용 API — /api/v1/glossary/* (요약·분류·목록·정규화·점검 필요 유사어·내려받기·용어/유사어 쓰기)
+ * 엑셀 업로드(2026-10-03) — [템플릿 내려받기]는 조회 권한, [엑셀 업로드]는 쓰기 권한(canWriteVariant)입니다.
+ *        파일을 고르면 미리보기(저장 안 함)를 모달로 보이고, [n건 등록] 이 같은 파일을 다시 보내 등록합니다.
+ * 사용 API — /api/v1/glossary/* (요약·목록·정규화·점검 필요 유사어·내려받기·용어/유사어 쓰기)
+ * 분류 삭제(2026-10-03) — 표·검색·등록/편집 폼·엑셀 업로드/내려받기의 「분류」 를 걷어냈습니다(제거됨).
+ *        고객사 가림(결정 R-18)은 용어마다 「고객사 정보」(customerInfo) 로 옮겼습니다.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, Card, CheckRow, ExportMenuButton, Filters, FormAlert, HelpTip, Hint, Icon, KeyValue, Loading, Pagination, SelectField, SourceNote,
+  Badge, Button, Card, CheckRow, ExportMenuButton, FormAlert, HelpTip, Hint, Loading,
   StatCard, Table, TabulatorGrid, TextField, openConfirmModal, openFormModal,
 } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -21,31 +25,54 @@ import { useTheme } from '@shared/theme/useTheme';
 import { BLIND_MESSAGE, NO_WRITE_MESSAGE } from '../controller/useGlossaryController';
 
 export default function GlossaryView({
-  paging, itemsMeta, initialLoading, refreshing, loadErrors, summary, summaryFailed, terms, gridRef,
-  canEditTerm, canWriteVariant, risks, riskCount, domains, filters, setKeyword, search, setDomain, setMineOnly,
-  sample, setSample, normalized, normalize, exportView, exportAll, exportViewCount,
-  submitTerm, submitVariant, removeVariant, removeTerm, loadChanges, searchTerms, byDomain,
+  itemsMeta, initialLoading, refreshing, loadErrors, summary, summaryFailed, terms, gridRef,
+  canEditTerm, canWriteVariant, risks, initialFilter,
+  exportView, exportAll, exportViewCount,
+  downloadImportTemplate, pickAndPreviewImport, applyImport,
+  submitTerm, submitVariant, removeVariant, removeTerm, loadChanges, searchTerms,
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const openModal = useUiStore((state) => state.openModal);
   const toast = useUiStore((state) => state.toast);
-  // 「변경이 AI 에 반영되는 시점」 카드 펼침 — 화면 안 표시 상태라 view 가 들고 있습니다(07 GLS-06)
-  const [timingOpen, setTimingOpen] = useState(false);
-  // 「분류별 현황」 카드 펼침 (07 GLS-13)
-  const [domainOpen, setDomainOpen] = useState(false);
   // 표 안의 칩·버튼은 HTML 로 그리고(Tabulator formatter), 클릭은 cellClick 에서 data-* 로 가려냅니다.
   // 열 정의는 권한이 바뀔 때만 다시 만들고 최신 핸들러·점검 목록은 ref 로 읽습니다 — 훅이라 조기 return 보다 위에 둡니다.
   const handlers = useRef({});
   const riskRef = useRef(new Map());
   riskRef.current = new Map((risks || []).map((r) => [String(r.variantId), r]));
+  // 주소의 ?keyword= 를 「공식 용어」 머리글 필터에 한 번 넣습니다(조회 줄은 2026-10-04 에 뺌).
+  // 표가 자료를 받아 그려진 뒤여야 머리글 칸이 있으므로 용어가 들어온 다음에 넣습니다
+  const appliedFilter = useRef('');
+  useEffect(() => {
+    if (!initialFilter || appliedFilter.current === initialFilter || !terms.length) return undefined;
+    const t = setTimeout(() => {
+      try {
+        gridRef?.current?.setHeaderFilterValue('term', initialFilter);
+        appliedFilter.current = initialFilter;
+      } catch (e) { /* 표가 아직 없으면 다음 렌더에서 다시 */ }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [initialFilter, terms.length, gridRef]);
   const columns = useMemo(() => [
     // 고객사 데이터 권한이 없어 가린 용어(blinded, 결정 R-18)는 「비공개 용어」 회색으로 그립니다
-    { title: '공식 용어', field: 'term', minWidth: 110, widthGrow: 1, formatter: (c) => (c.getRow().getData().blinded ? `<span class="muted" title="${esc(BLIND_MESSAGE)}">비공개 용어</span>` : `<span class="strong">${esc(c.getValue())}</span>`) },
-    { title: '뜻', field: 'definition', minWidth: 170, widthGrow: 3, formatter: (c) => (c.getRow().getData().blinded ? '<span class="muted">비공개</span>' : esc(c.getValue() || '—')) },
-    { title: '분류', field: 'domain', minWidth: 84, formatter: (c) => (c.getValue() ? `<span class="tag">${esc(c.getValue())}</span>` : '<span class="muted">—</span>') },
+    // 고객사 정보 용어(customerInfo)는 통합관리자에게만 작은 「고객사」 표시를 붙입니다(2026-10-03 분류 삭제)
     {
-      title: '유사어 (등록자)',
+      title: '공식 용어',
+      field: 'term',
+      minWidth: 110,
+      widthGrow: 1,
+      formatter: (c) => {
+        const row = c.getRow().getData();
+        if (row.blinded) return `<span class="muted" title="${esc(BLIND_MESSAGE)}">비공개 용어</span>`;
+        const tag = canEditTerm && row.customerInfo ? ` <span class="tag" title="${esc(CUSTOMER_INFO_HINT)}">고객사</span>` : '';
+        return `<span class="strong">${esc(c.getValue())}</span>${tag}`;
+      },
+    },
+    { title: '뜻', field: 'definition', minWidth: 170, widthGrow: 3, formatter: (c) => (c.getRow().getData().blinded ? '<span class="muted">비공개</span>' : esc(c.getValue() || '—')) },
+    // 제거됨(2026-10-03, 분류 삭제): 「분류」 열
+    {
+      // 등록자는 표기하지 않습니다(2026-10-04) — 유사어 등록은 관리자만 합니다
+      title: '유사어',
       field: 'variants',
       minWidth: 200,
       widthGrow: 4,
@@ -59,8 +86,8 @@ export default function GlossaryView({
           .map((v) => {
             // 점검 필요 유사어 — 통합관리자에게만 「!」 와 사유(07 GLS-03)
             const risk = canEditTerm ? riskRef.current.get(String(v.variantId)) : null;
-            const tip = [risk ? `점검 필요: ${risk.riskNm || risk.riskCd}` : '', v.editable ? '누르면 수정' : v.byName || ''].filter(Boolean).join(' · ');
-            return `<span class="tag ${v.mine ? 'tag-blue chip-mine' : ''}" data-variant="${esc(v.variantId)}" title="${esc(tip)}">${risk ? '<b class="chip-risk">!</b> ' : ''}${esc(v.word)} <small class="muted">${v.mine ? '내 등록' : esc(v.byName || '')}</small>${v.editable ? `<b class="chip-x" data-del="${esc(v.variantId)}" title="삭제">×</b>` : ''}</span>`;
+            const tip = [risk ? `점검 필요: ${risk.riskNm || risk.riskCd}` : '', v.editable ? '누르면 수정' : ''].filter(Boolean).join(' · ');
+            return `<span class="tag" data-variant="${esc(v.variantId)}" title="${esc(tip)}">${risk ? '<b class="chip-risk">!</b> ' : ''}${esc(v.word)}${v.editable ? `<b class="chip-x" data-del="${esc(v.variantId)}" title="삭제">×</b>` : ''}</span>`;
           })
           .join('')}</span>`;
       },
@@ -119,13 +146,13 @@ export default function GlossaryView({
     openFormModal({
       title: row ? '공식 용어 편집' : '공식 용어 등록',
       sub: '보고서·리포트 표기 기준이 되는 용어입니다 (통합관리자 전용)',
-      // 분류 키는 서버 요청 본문과 같은 domainCd 입니다 (GET /glossary/domains 의 code)
-      initial: row ? { term: row.term, definition: row.definition, domainCd: row.domain } : { domainCd: domains[0] },
+      // 제거됨(2026-10-03, 분류 삭제): 「분류」 선택(domainCd). 대신 「고객사 정보」(customerInfo) 를 보냅니다
+      initial: row ? { term: row.term, definition: row.definition, customerInfo: !!row.customerInfo } : { customerInfo: false },
       // 입력 길이 — 공식 용어 50자 · 뜻 500자, 남은 글자를 보입니다(07 GLS-10)
       fields: [
-        { key: 'term', label: '공식 용어', type: 'custom', render: (p) => <CountedField {...p} label="공식 용어 *" max={50} placeholder="예) Stiffener" /> },
-        { key: 'domainCd', label: '분류', type: 'select', options: domains, required: true },
+        { key: 'term', label: '공식 용어', type: 'custom', full: true, render: (p) => <CountedField {...p} label="공식 용어 *" max={50} placeholder="예) Stiffener" /> },
         { key: 'definition', label: '뜻', type: 'custom', full: true, render: (p) => <CountedField {...p} label="뜻 *" max={500} multiline placeholder="예) 스티프너 / FPCB 보강판 (Stiffener)" /> },
+        { key: 'customerInfo', label: '고객사 정보', type: 'custom', full: true, render: (p) => <CustomerInfoField {...p} /> },
       ],
       note: '공식 용어는 보고서 표기와 AI 응답의 기준입니다. 현장 표현은 유사어로 등록하세요.',
       submitLabel: row ? '수정' : '등록',
@@ -134,7 +161,7 @@ export default function GlossaryView({
           toast('공식 용어와 뜻을 입력해 주세요.');
           return false;
         }
-        return (await submitTerm(row?.termId, v)).ok;
+        return (await submitTerm(row?.termId, { term: v.term, definition: v.definition, customerInfo: v.customerInfo === true })).ok;
       },
     });
 
@@ -200,27 +227,35 @@ export default function GlossaryView({
       render: () => <ChangeList load={() => loadChanges({ termId: row?.termId })} />,
     });
 
-  /* ───────── 점검 필요 유사어 (통합관리자 · 07 GLS-03) ───────── */
-  const openRiskList = () =>
+  /* ───────── 엑셀 업로드 (2026-10-03) — 파일 고르기 → 미리보기 모달 → [n건 등록] ───────── */
+  const startImport = async () => {
+    const picked = await pickAndPreviewImport();
+    if (!picked) return;
+    const { file, preview } = picked;
     openModal({
-      title: '점검 필요 유사어',
-      sub: '날짜·숫자·한 글자·공식 용어와 같은 낱말은 정규화에서 치환하지 않습니다. 지울지는 건별로 판단하세요.',
-      render: () => <RiskList risks={risks} removeVariant={removeVariant} />,
+      title: '엑셀 업로드 미리보기',
+      sub: `${preview.fileName || file.name} · 데이터 ${preview.totalRows}행`,
+      wide: true,
+      maxWidth: 1120,
+      render: () => <ImportPreview data={preview} />,
+      footer: (close) => <ImportFooter count={preview.applicable} onCancel={close} onApply={async () => {
+        const res = await applyImport(file);
+        if (res.ok) close();
+      }} />,
     });
+  };
 
   if (initialLoading) return <Loading />;
 
   // 최신 핸들러를 표 클릭에서 읽을 수 있게 매 렌더마다 갱신 (훅 아님)
   handlers.current = { openVariantForm, openTermForm, confirmDeleteTerm, confirmDeleteVariant, openChanges };
   const dash = (v) => (summaryFailed || v === null || v === undefined ? '—' : v);
-  const lastChanged = summary?.lastChangedAt
-    ? `최근 변경 ${String(summary.lastChangedAt).slice(0, 16)}${summary.lastChangedBy ? ` · ${summary.lastChangedBy}` : ''}`
-    : '보고서 표기 기준';
   return (
     <View>
       <PageHead
         title="용어 사전 관리"
-        desc="보고서·리포트에 적용되는 공식 용어와, 현장에서 실제로 쓰는 유사어를 함께 관리합니다. 부서마다 다르게 부르는 말·약칭·한글 표기를 등록해 두면 자연어 질의를 처리할 때 공식 용어로 정규화됩니다."
+        // 문장마다 줄을 바꿉니다(2026-10-03)
+        desc={'보고서·리포트에 적용되는 공식 용어와, 현장에서 실제로 쓰는 유사어를 함께 관리합니다.\n부서마다 다르게 부르는 말·약칭·한글 표기를 등록해 두면 자연어 질의를 처리할 때 공식 용어로 정규화됩니다.'}
         actions={
           <>
             <Button label="변경 이력" size="sm" icon="clock" onPress={() => openChanges(null)} />
@@ -230,24 +265,27 @@ export default function GlossaryView({
               onExportView={exportView}
               onExportAll={exportAll}
             />
+            {/* 엑셀 업로드(2026-10-03) — 템플릿은 조회 권한, 업로드는 쓰기 권한. 쓰기 권한이 없으면 비활성 + 이유(공통 R-06) */}
+            <Button label="템플릿 내려받기" size="sm" icon="download" onPress={downloadImportTemplate} />
+            <Button label="엑셀 업로드" size="sm" icon="upload" disabled={!canWriteVariant} onPress={startImport} />
+            {!canWriteVariant ? <HelpTip text={NO_WRITE_MESSAGE} size={30} /> : null}
             {/* 제거됨(2026-10, 처리기 없음 — 07 GLS-05): 「용어 임베딩 재생성」 버튼. 컨트롤러 reindex 와 API 는 남겨 둡니다
             <Button label="용어 임베딩 재생성" size="sm" icon="refresh" onPress={reindex} /> */}
             {canEditTerm ? <Button label="공식 용어 등록" size="sm" icon="plus" onPress={() => openTermForm(null)} /> : null}
-            <Button label="유사어 등록" size="sm" variant="primary" icon="plus" disabled={!canWriteVariant} onPress={() => openVariantForm(null, null)} />
-            {!canWriteVariant ? <HelpTip text={NO_WRITE_MESSAGE} size={30} /> : null}
+            {/* 머리 「유사어 등록」 단추는 뺐습니다(2026-10-03) — 표의 행마다 [유사어 추가] 로 등록합니다 */}
           </>
         }
       />
 
-      <Grid cols={4}>
-        <StatCard label="공식 용어" value={dash(summary?.termCnt)} unit="개" sub={lastChanged} />
-        <StatCard label="등록 유사어" value={dash(summary?.variantCnt)} unit="개" sub={`분류 ${dash(summary?.domainCnt)}종`} />
-        <StatCard label="내가 등록" value={dash(summary?.myVariantCnt ?? summary?.mineCnt)} unit="개" sub="수정·삭제 가능" />
+      {/* 요약 카드 부제(최근 변경 · 분류 n종 · 수정·삭제 가능 · 등록이 필요한 용어)는 뺐습니다(2026-10-03) */}
+      {/* 「내가 등록」 카드는 뺐습니다(2026-10-04) — 유사어 등록은 관리자만 합니다 */}
+      <Grid cols={3}>
+        <StatCard label="공식 용어" value={dash(summary?.termCnt)} unit="개" />
+        <StatCard label="등록 유사어" value={dash(summary?.variantCnt)} unit="개" />
         <StatCard
           label="유사어 없음"
           value={dash(summary?.noVariantTermCnt ?? summary?.emptyCnt)}
           unit="개"
-          sub="등록이 필요한 용어"
           tone={(summary?.noVariantTermCnt ?? summary?.emptyCnt) ? 'down' : ''}
         />
       </Grid>
@@ -260,118 +298,17 @@ export default function GlossaryView({
         </>
       ) : null}
 
-      {canEditTerm && (riskCount > 0 || risks?.length) ? (
-        <>
-          <View
-            style={{
-              flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingVertical: 10, paddingHorizontal: 14,
-              borderRadius: theme.metrics.radiusSm, borderWidth: 1, borderColor: theme.alpha('warning', 0.35), backgroundColor: theme.alpha('warning', 0.08),
-            }}
-          >
-            <Icon name="alert" size={15} color={theme.color.warning} />
-            <Text style={[s.textSm, { flex: 1, minWidth: 200 }]}>
-              {`점검 필요 유사어 ${riskCount}건 — 날짜·숫자·한 글자·공식 용어와 같은 낱말`}
-            </Text>
-            <Button label="목록 보기" size="sm" onPress={openRiskList} />
-          </View>
-          <Gap size={12} />
-        </>
-      ) : null}
+      {/* 「점검 필요 유사어 n건」 알림 줄은 뺐습니다(2026-10-03) — 표의 유사어 칩에 「!」 표시는 그대로입니다 */}
 
-      <Hint>
-        공식 용어는 통합관리자만 편집합니다. 유사어는 이 화면의 쓰기 권한이 있으면 등록할 수 있고, 본인이 등록한 것만 수정·삭제할 수 있습니다. 다른 사람이 등록한 유사어는 등록자 이름과 함께 회색으로 표시됩니다.
-      </Hint>
+      {/* 제거됨(2026-10-04): 편집 권한 · 등록자 표시 안내(유사어 등록은 관리자만 합니다) */}
 
-      {/* 분류별 현황 (07 GLS-13) — 행을 누르면 분류 필터를 그 분류로 바꿉니다. 좁은 화면은 카드 안 가로 스크롤 */}
-      <Card
-        title="분류별 현황"
-        sub={`${(byDomain || []).length}개 분류 · 용어 수 많은 순`}
-        right={<Button label={domainOpen ? '접기' : '펼치기'} size="sm" onPress={() => setDomainOpen((v) => !v)} />}
-        tight={domainOpen}
-      >
-        {domainOpen ? (
-          <Table
-            inset
-            minWidth={442}
-            bordered
-            height={(byDomain || []).length > 12 ? 420 : undefined}
-            keyExtractor={(r) => r.domainId ?? r.domain}
-            onRowPress={(r) => setDomain(r.domain)}
-            emptyText="분류가 없습니다."
-            rows={byDomain || []}
-            columns={[
-              { key: 'domain', title: '분류', minWidth: 140, flex: 1 },
-              { key: 'termCnt', title: '용어 수', width: 96, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.termCnt ?? '—'}</Text> },
-              { key: 'variantCnt', title: '유사어 수', width: 96, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.variantCnt ?? '—'}</Text> },
-              { key: 'noVariantTermCnt', title: '유사어 없음', width: 110, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.noVariantTermCnt ?? '—'}</Text> },
-            ]}
-          />
-        ) : null}
-      </Card>
-      <Gap />
+      {/* 제거됨(2026-10-03): 「분류별 현황」 · 「변경이 AI 에 반영되는 시점」 · 「용어 정규화 미리보기」 카드. 컨트롤러·API 는 남겨 둡니다 */}
 
-      {/* 변경이 AI 에 반영되는 시점 (07 GLS-06) — 접어 두고 필요할 때 펼칩니다 */}
-      <Card
-        title="변경이 AI 에 반영되는 시점"
-        right={<Button label={timingOpen ? '접기' : '펼치기'} size="sm" onPress={() => setTimingOpen((v) => !v)} />}
-      >
-        {timingOpen ? (
-          <KeyValue
-            keyWidth={120}
-            rows={[
-              ['즉시', '정규화 미리보기 · AI 질의 전처리(의도 판단·문서 검색) · LLM 에 넘기는 용어 대응표'],
-              ['다음 학습 때', '사내 LLM 모델이 익힌 용어 지식'],
-              ['반영 안 됨', '이미 저장된 질의 이력의 정규화 문장'],
-            ]}
-          />
-        ) : null}
-      </Card>
-      <Gap />
-
-      <Card title="용어 정규화 미리보기" sub="현장 표현을 입력하면 공식 용어로 바꿔 보여줍니다">
-        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <TextField label="현장 표현" value={sample} onChangeText={setSample} style={{ flexGrow: 1, flexBasis: 320 }} full />
-          <Button label="정규화" variant="primary" icon="sparkles" onPress={normalize} />
-        </View>
-
-        {normalized ? (
-          <View style={{ marginTop: 12 }}>
-            <Text style={[s.textSm, { lineHeight: 22 }]}>{normalized.normalizedText ?? normalized.normalized}</Text>
-            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-              {(normalized.replacements || []).map((r, i) => (
-                <View key={`${r.from}-${i}`} style={[chipBox, { borderColor: theme.alpha('success', 0.35), backgroundColor: theme.alpha('success', 0.1) }]}>
-                  <Text style={[s.textXs, { textDecorationLine: 'line-through' }]}>{r.from}</Text>
-                  <Icon name="arrowRight" size={11} color={theme.color.mutedForeground} />
-                  <Text style={[s.textXs, { fontWeight: '700', color: theme.color.success }]}>{r.to}</Text>
-                </View>
-              ))}
-              {/* 치환하지 않은 것 — 날짜 보호·위험 유사어(07 GLS-02) */}
-              {(normalized.skipped || []).map((k, i) => (
-                <View key={`skip-${k.word}-${i}`} style={[chipBox, { borderColor: theme.hairlineStrong || theme.color.border, backgroundColor: theme.color.muted }]}>
-                  <Text style={[s.textXs, { color: theme.color.mutedForeground }]}>{`치환하지 않음: ${k.word} — ${k.reason || k.reasonCd || ''}`}</Text>
-                </View>
-              ))}
-              {!(normalized.replacements || []).length ? <Text style={s.textXs}>바꿀 유사어를 찾지 못했습니다.</Text> : null}
-            </View>
-          </View>
-        ) : null}
-
-        <SourceNote>저장하면 다음 AI 질의부터 의도 판단·문서 검색에 반영됩니다. 사내 LLM 모델의 용어 지식은 다음 학습 때 반영됩니다.</SourceNote>
-      </Card>
-      <Gap />
-
-      <Filters>
-        <TextField label="검색" value={filters.keyword} onChangeText={setKeyword} onSubmitEditing={search} placeholder="용어 · 뜻 · 유사어" style={{ minWidth: 220 }} />
-        <SelectField label="분류" value={filters.domain} options={['전체', ...domains]} onChange={setDomain} />
-        <View style={{ paddingBottom: 8 }}>
-          <CheckRow label="내가 등록한 유사어만" checked={filters.mineOnly} onToggle={() => setMineOnly(!filters.mineOnly)} />
-        </View>
-        <Button label="조회" variant="primary" onPress={search} />
-      </Filters>
+      {/* 제거됨(2026-10-04): 조회 줄(검색 · 「내가 등록한 유사어만」 · 조회). 용어를 전부 받아 표 머리글 필터로 거릅니다 */}
 
       <Card
         title="용어 · 유사어"
-        sub={`${itemsMeta?.total ?? terms.length}건${filters.mineOnly ? ' · 내가 등록한 유사어가 있는 용어만' : ''}${refreshing ? ' · 조회 중…' : ''}`}
+        sub={`${itemsMeta?.total ?? terms.length}건${refreshing ? ' · 조회 중…' : ''}`}
         tight
       >
         <TabulatorGrid
@@ -381,50 +318,147 @@ export default function GlossaryView({
           rowKey="termId"
           instanceRef={gridRef}
           height={terms.length > 12 ? 620 : undefined}
-          emptyText={filters.mineOnly ? '내가 등록한 유사어가 없습니다.' : '검색 조건에 맞는 용어가 없습니다.'}
+          emptyText="조건에 맞는 용어가 없습니다." 
           tableOptions={TABLE_OPTIONS}
+          // 전부 받은 용어를 표가 50행씩 나눕니다 — 머리글 필터는 모든 쪽에서 찾습니다(2026-10-04)
+          pageSize={50}
         />
-        <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
       </Card>
     </View>
   );
 }
 
-/** 점검 필요 유사어 표 — 지운 행은 목록에서 바로 뺍니다. 삭제는 한 번 더 눌러 확인합니다 */
-function RiskList({ risks, removeVariant }) {
+
+/* ───────── 엑셀 업로드 미리보기 ───────── */
+const IMPORT_ACTION = {
+  NEW_TERM: { label: '새 용어', tone: 'blue' },
+  EXISTING_TERM: { label: '기존 용어', tone: '' },
+  ERROR: { label: '오류', tone: 'red' },
+};
+const IMPORT_FIELD = { term: '공식 용어', definition: '뜻', customerInfo: '고객사 정보' };
+
+/** 미리보기 본문 — 건수 · 안내 · 행 표(좁은 화면은 가로 스크롤) */
+function ImportPreview({ data }) {
   const s = useCommonStyles();
-  const [rows, setRows] = useState(risks || []);
-  const [armed, setArmed] = useState(null);
-  const drop = async (r) => {
-    if (armed !== r.variantId) {
-      setArmed(r.variantId);
-      return;
-    }
-    const res = await removeVariant(r.variantId);
-    setArmed(null);
-    if (res?.ok) setRows((list) => list.filter((x) => x.variantId !== r.variantId));
-  };
+  const theme = useTheme();
+  const counts = [
+    ['새 용어', data.termNew, 'blue'],
+    ['기존 용어', data.termExisting, ''],
+    ['새 유사어', data.variantNew, 'green'],
+    ['건너뜀', data.variantSkipped, data.variantSkipped ? 'amber' : ''],
+    ['오류', data.errorCnt, data.errorCnt ? 'red' : ''],
+  ];
+  const small = [s.textXs, { marginTop: 2 }];
   return (
-    <Table
-      minWidth={690}
-      bordered
-      keyExtractor={(r) => r.variantId}
-      emptyText="점검할 유사어가 없습니다."
-      rows={rows}
-      columns={[
-        { key: 'word', title: '유사어', width: 120 },
-        { key: 'term', title: '공식 용어', width: 160 },
-        { key: 'ownerName', title: '등록자', width: 120 },
-        { key: 'riskNm', title: '사유', minWidth: 200, wrap: true, render: (r) => <Text style={s.td}>{r.riskNm || r.riskCd}</Text> },
-        {
-          key: 'variantId',
-          title: '관리',
-          width: 90,
-          sortable: false,
-          render: (r) => <Button label={armed === r.variantId ? '삭제 확인' : '삭제'} size="sm" variant="danger" onPress={() => drop(r)} />,
-        },
-      ]}
-    />
+    <View style={{ gap: 10 }}>
+      <View accessibilityLabel="업로드 건수" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        {counts.map(([label, n, tone]) => <Badge key={label} tone={tone}>{`${label} ${n}`}</Badge>)}
+      </View>
+      <Hint>
+        {'아직 등록하지 않았습니다. 오류 행은 빼고 등록합니다.\n기존 용어는 유사어만 더하고 뜻·고객사 정보는 바꾸지 않습니다. 건너뛸 유사어(이미 있음·규칙 위반·파일 안 중복)는 등록하지 않습니다.'}
+      </Hint>
+      {data.errorCnt ? <FormAlert tone="error">{`오류 ${data.errorCnt}행은 등록하지 않습니다. 고쳐서 다시 올리거나, 나머지만 등록하세요.`}</FormAlert> : null}
+      <Table
+        minWidth={1040}
+        bordered
+        height={data.rows.length > 8 ? 440 : undefined}
+        keyExtractor={(r) => `${r.row}`}
+        emptyText="읽은 행이 없습니다."
+        rows={data.rows}
+        columns={[
+          { key: 'row', title: '행', width: 60, num: true },
+          {
+            key: 'term', title: '공식 용어', minWidth: 170, wrap: true,
+            render: (r) => (
+              <View>
+                <Text style={[s.td, { fontWeight: '700' }]}>{r.term || '—'}</Text>
+                {r.action === 'NEW_TERM' && (r.customerInfo || r.definition) ? (
+                  <Text style={small}>{[r.customerInfo ? '고객사 정보' : '', r.definition].filter(Boolean).join(' · ')}</Text>
+                ) : null}
+              </View>
+            ),
+          },
+          {
+            key: 'action', title: '처리', width: 120,
+            render: (r) => {
+              const a = IMPORT_ACTION[r.action] || { label: r.action || '—', tone: '' };
+              return (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                  <Badge tone={a.tone}>{a.label}</Badge>
+                  {r.restored ? <Badge tone="amber">되살림</Badge> : null}
+                </View>
+              );
+            },
+          },
+          {
+            key: 'variantsAdded', title: '추가할 유사어', minWidth: 180, wrap: true,
+            render: (r) => <Text style={s.td}>{r.variantsAdded.length ? r.variantsAdded.join(' · ') : '—'}</Text>,
+          },
+          {
+            key: 'variantsSkipped', title: '건너뛸 유사어', minWidth: 230, wrap: true,
+            render: (r) => (r.variantsSkipped.length ? (
+              <View style={{ gap: 2 }}>
+                {r.variantsSkipped.map((v, i) => (
+                  <Text key={`${v.word}-${i}`} style={s.td}>
+                    {v.word}
+                    <Text style={s.textXs}>{v.reason ? ` — ${v.reason}` : ''}</Text>
+                  </Text>
+                ))}
+              </View>
+            ) : <Text style={s.td}>—</Text>),
+          },
+          {
+            key: 'messages', title: '오류·안내', minWidth: 280, wrap: true,
+            render: (r) => {
+              const lines = [
+                ...r.errors.map((e) => ({ t: `${IMPORT_FIELD[e.field] ? `${IMPORT_FIELD[e.field]}: ` : ''}${e.message}`, c: theme.color.destructive })),
+                ...r.warnings.map((w) => ({ t: typeof w === 'string' ? w : w?.message || '', c: theme.color.warningText || theme.color.foreground })),
+                ...r.notes.map((n) => ({ t: n, c: theme.color.mutedForeground })),
+              ].filter((l) => l.t);
+              if (!lines.length) return <Text style={s.td}>—</Text>;
+              return (
+                <View style={{ gap: 2 }}>
+                  {lines.map((l, i) => <Text key={i} style={[s.td, { color: l.c }]}>{l.t}</Text>)}
+                </View>
+              );
+            },
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+/** 미리보기 아래 단추 — 등록 중에는 두 번 누르지 않게 막습니다 */
+function ImportFooter({ count, onCancel, onApply }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <Button label="취소" onPress={onCancel} disabled={busy} />
+      <Button
+        label={busy ? '등록 중…' : `${count}건 등록`}
+        variant="primary"
+        disabled={busy || !count}
+        onPress={async () => {
+          setBusy(true);
+          try { await onApply(); } finally { setBusy(false); }
+        }}
+      />
+    </>
+  );
+}
+
+/** 고객사 정보 체크 안내 (2026-10-03 분류 삭제 — 고객사 가림을 용어 단위로 옮김, 결정 R-18) */
+const CUSTOMER_INFO_HINT = '고객사 데이터 권한이 없는 사람에게는 「비공개 용어」 로 보입니다';
+
+/** 공식 용어 폼의 「고객사 정보」 체크 — 폼의 custom 칸으로 씁니다 */
+function CustomerInfoField({ value, onChange }) {
+  const s = useCommonStyles();
+  return (
+    <View style={{ gap: 4 }} accessibilityLabel="고객사 정보">
+      <CheckRow label="고객사 정보" checked={value === true} onToggle={() => onChange(!(value === true))} />
+      <Text style={[s.textXs, { paddingLeft: 23 }]}>{CUSTOMER_INFO_HINT}</Text>
+    </View>
   );
 }
 
@@ -508,12 +542,15 @@ function TermPicker({ value, onChange, search }) {
 
 const CHANGE_TARGET = { TERM: '공식 용어', VARIANT: '유사어' };
 const CHANGE_ACTION = { CREATE: '등록', UPDATE: '수정', DELETE: '삭제', RESTORE: '되살림' };
-/** 변경 전·후 JSON 키 → 화면 이름 (서버는 camelCase: term · termDef · domainNm · word · restoredVariants · byAdmin) */
+/**
+ * 변경 전·후 JSON 키 → 화면 이름 (서버는 camelCase: term · termDef · customerInfo · word · restoredVariants · byAdmin)
+ * domainNm · domain(분류)은 2026-10-03 분류 삭제 전에 쌓인 이력을 읽으려고 남겨 둡니다
+ */
 const CHANGE_KEY = {
-  word: '유사어', term: '공식 용어', termDef: '뜻', definition: '뜻', domainNm: '분류', domain: '분류',
+  word: '유사어', term: '공식 용어', termDef: '뜻', definition: '뜻', customerInfo: '고객사 정보', domainNm: '분류', domain: '분류',
   restoredVariants: '되살린 유사어', byAdmin: '관리자 대리 처리',
 };
-/** 변경 전·후 값 — 사람이 읽는 글로 (유사어 · 공식 용어 · 뜻 · 분류 순) */
+/** 변경 전·후 값 — 사람이 읽는 글로 (유사어 · 공식 용어 · 뜻 · 고객사 정보 순) */
 function changeText(v) {
   if (!v) return '—';
   if (typeof v !== 'object') return String(v);
@@ -558,7 +595,6 @@ function ChangeList({ load }) {
   );
 }
 
-const chipBox = { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3, paddingHorizontal: 10, borderRadius: 99, borderWidth: 1 };
 
 /** Tabulator 옵션 — 긴 뜻·유사어 칩이 줄바꿈되어도 행 높이가 따라 늘어나게 */
 const TABLE_OPTIONS = { renderVertical: 'basic' };

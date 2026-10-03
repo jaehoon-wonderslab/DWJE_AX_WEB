@@ -126,6 +126,14 @@ export default function TabulatorGrid({
    * 머리글 경계를 끌어 사람이 직접 폭을 바꾸는 것은 이 옵션과 무관하게 항상 됩니다.
    */
   autoWidth = false,
+  /**
+   * `autoWidth` 와 함께 — 내용에 맞춘 열 너비의 합이 표 폭보다 좁으면 남는 폭을 열마다 내용 너비 비율로 나눠 줘
+   * 표 오른쪽이 비지 않게 합니다. 관리 열처럼 `field` 가 없는 열과 `maxWidth` 에 닿은 열은 늘리지 않습니다.
+   * 합이 표보다 넓으면 지금처럼 표 안에서 가로로 스크롤합니다(열을 줄이지 않습니다).
+   */
+  fillWidth = false,
+  /** `autoWidth` 표 위의 「열 너비는 내용에 맞춰…」 안내를 보일지 — 기본 보임, false 면 숨김 */
+  widthHint = true,
   productionStyle = false,
   /** 접었다 펴는 트리 — 자식 행은 각 행의 `childField` 배열에 담습니다 */
   dataTree = false,
@@ -371,6 +379,30 @@ export default function TabulatorGrid({
       cancelAnimationFrame(sizeFrame);
       sizeFrame = requestAnimationFrame(() => {
         table.getColumns().forEach(column => column.setWidth(true));
+        if (fillWidth) stretchToFill();
+      });
+    };
+    /** 남는 폭을 내용 너비 비율로 나눠 줍니다 (fillWidth) */
+    const stretchToFill = () => {
+      const holder = table.element?.querySelector('.tabulator-tableholder');
+      const avail = holder ? holder.clientWidth - 1 : 0;
+      const visible = table.getColumns().filter((col) => col.isVisible());
+      const sum = visible.reduce((n, col) => n + col.getWidth(), 0);
+      let extra = avail - sum;
+      if (!avail || extra <= 0) return;
+      const grow = visible.filter((col) => {
+        const def = col.getDefinition();
+        return def.field && !(def.maxWidth && col.getWidth() >= def.maxWidth);
+      });
+      const base = grow.reduce((n, col) => n + col.getWidth(), 0);
+      if (!base) return;
+      grow.forEach((col, i) => {
+        const def = col.getDefinition();
+        let add = i === grow.length - 1 ? extra : Math.floor(((avail - sum) * col.getWidth()) / base);
+        if (def.maxWidth) add = Math.min(add, def.maxWidth - col.getWidth());
+        add = Math.max(0, Math.min(add, extra));
+        if (add) col.setWidth(col.getWidth() + add);
+        extra -= add;
       });
     };
     if (fitData) {
@@ -416,6 +448,8 @@ export default function TabulatorGrid({
         raf = requestAnimationFrame(() => {
           // 강제 redraw는 formatter/포털과 스크롤 위치를 초기화합니다.
           table.redraw();
+          // 폭이 바뀌면 내용 너비부터 다시 재고 남는 폭을 다시 나눕니다(넓혀 둔 폭이 좁은 화면에 남지 않게)
+          if (fitData && fillWidth) autoSize();
         });
       });
       ro.observe(ref.current);
@@ -437,7 +471,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, autoWidth, treeChildIndent, dataTree, blockedKey]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, autoWidth, fillWidth, treeChildIndent, dataTree, blockedKey]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -803,7 +837,7 @@ export default function TabulatorGrid({
           #grid_${id} .tabulator .tabulator-page.active { background:${color.primary}; color:${color.primaryForeground}; }
         ` : ''}
       `}</style>
-      {fitData ? (
+      {fitData && widthHint ? (
         <div style={{ fontSize:14, color:c.muted, marginBottom:8 }}>열 너비는 내용에 맞춰 자동 조정됩니다. 경계를 드래그해 조절하거나 표 아래 가로 스크롤로 오른쪽 열을 확인하세요.</div>
       ) : null}
       <div ref={ref} style={{ width: '100%', minWidth: 0 }} />

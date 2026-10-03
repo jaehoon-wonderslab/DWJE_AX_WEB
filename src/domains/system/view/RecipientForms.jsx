@@ -18,13 +18,9 @@ import { groupBody, groupInitial, memberEmpNo, validateGroup, validateRecipient 
 
 export { askConfirm };
 
-/** 그룹 수신 시간대·야간 규칙 (RCP-10) — 그룹 폼과 수신자 폼에 같은 문장으로 보입니다 */
-export const NIGHT_RULE = (night = { from: '22:00', to: '06:00' }) =>
-  `그룹 수신 시간대 밖에는 보내지 않습니다(조건의 '시간대 무시'가 켜져 있으면 예외). 야간(${night.from}~${night.to})에는 그룹이 '야간에도 발송'이거나 본인이 '야간 수신'인 사람만 받습니다.`;
-
 /** 사람 한 명의 표기 — worker 권한이 없으면 이름 대신 사번 */
 const personLabel = (c, showWorker) => [showWorker && c.name ? c.name : c.empNo, c.dept].filter(Boolean).join(' · ');
-const personTag = (c) => (c.userState && !['ACTIVE', 'LOCKED'].includes(c.userState) ? '계정 정지' : c.state === 'ABSENT' ? '부재' : '');
+const personTag = (c) => (c.userState && !['ACTIVE', 'LOCKED'].includes(c.userState) ? '계정 정지' : '');
 
 /**
  * 그룹 멤버 선택기 (RCP-05, type:'custom') — 전 수신자에서 검색해 고르고, 고른 사람은 칩으로 보입니다.
@@ -99,12 +95,11 @@ function MemberPicker({ value = [], onChange, candidates = [], showWorker }) {
  * @param {Array} cfg.deptOptions 대응 부서 선택지 [{value,label}]
  * @param {Array} cfg.candidates 멤버 후보 [{empNo,name,dept,state,userState}] (전 수신자)
  * @param {boolean} cfg.showWorker 이름을 보여도 되는지 (worker 권한)
- * @param {object} [cfg.nightWindow] 야간 구간 {from,to}
  * @param {string} cfg.mailLabel 「메일」 표기
  * @param {(cd:string)=>string} cfg.channelLabel 채널 표기
  * @param {Function} cfg.onSubmit (body) => Promise<boolean>
  */
-export function openGroupForm({ detail, windowOptions = [], deptOptions = [], candidates = [], showWorker = true, nightWindow, mailLabel = '메일', channelLabel = (c) => c, onSubmit }) {
+export function openGroupForm({ detail, windowOptions = [], deptOptions = [], candidates = [], showWorker = true, mailLabel = '메일', channelLabel = (c) => c, onSubmit }) {
   const initial = groupInitial(detail, { validWindow: windowOptions[0]?.value });
   const extraChannels = (detail?.channels || []).filter((c) => c !== 'MAIL');
   const condCnt = (detail?.conds || []).length;
@@ -131,15 +126,13 @@ export function openGroupForm({ detail, windowOptions = [], deptOptions = [], ca
           ? `${mailLabel} 외에 ${extraChannels.map(channelLabel).join(' · ')}도 받습니다(화면에서 바꿀 수 없음)`
           : `${mailLabel} (고정)`,
       },
-      { key: 'night', label: '야간 발송', type: 'radio', options: [{ value: true, label: '야간에도 발송' }, { value: false, label: '야간 제외' }], full: true },
-      { key: 'ruleNote', label: '규칙', type: 'static', full: true, value: NIGHT_RULE(nightWindow) },
       { key: 'memberEmpNos', type: 'custom', full: true, render: ({ value, onChange }) => <MemberPicker value={value || []} onChange={onChange} candidates={candidates} showWorker={showWorker} /> },
       ...(detail ? [{
         key: 'condNote', label: '연계', type: 'static', full: true,
         value: `이 그룹을 쓰는 발송 조건: ${condCnt ? (detail.conds || []).map((c) => c.name).join(' · ') : '없음'}`,
       }] : []),
     ],
-    note: '멤버를 빼거나 부재로 바꾸면 이 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.',
+    note: '멤버를 빼면 이 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.',
     submitLabel: detail ? '수정' : '등록',
     onSubmit: async (v) => {
       const body = groupBody(v, initial, detail);
@@ -168,28 +161,6 @@ export function impactText(impact) {
     return gs ? `영향: ${gs}. 받는 사람이 0명이 되는 그룹은 없습니다.` : '이 사람이 속한 그룹이 없어 영향이 없습니다.';
   }
   return `이 사람만 받는 그룹: ${zero.map((g) => g.name).join(' · ')} → 해당 조건 ${conds.length}건${conds.length ? `(${conds.map((c) => c.name).join(' · ')})` : ''}이 받는 사람 0명이 됩니다.`;
-}
-
-/**
- * 부재로 전환 (RCP-07) — 사유(비고, 300자)와 영향을 보이고 확인 받습니다
- * @param {object} cfg { row, impact, onSubmit:(reason)=>Promise<boolean> }
- */
-export function openAbsentForm({ row, impact, onSubmit }) {
-  const zero = (impact?.zeroGroups || []).length > 0;
-  return openFormModal({
-    title: '부재로 전환',
-    sub: `${row.name || row.empNo} (${row.dept || '—'})`,
-    danger: zero,
-    initial: { reason: '' },
-    validate: (v) => (String(v.reason || '').length > 300 ? { reason: '사유는 300자까지 입력할 수 있습니다.' } : {}),
-    fields: [
-      { key: 'impactNote', type: 'custom', full: true, render: () => <FormAlert tone={zero ? 'error' : 'info'}>{impactText(impact)}</FormAlert> },
-      { key: 'reason', label: '사유(비고)', type: 'textarea', full: true, placeholder: '예) 출장 중 (선택, 300자)' },
-    ],
-    note: '부재인 동안은 이 사람에게 알림을 보내지 않습니다. 「수신으로」 를 누르면 다시 받습니다.',
-    submitLabel: '부재로',
-    onSubmit: async (v) => onSubmit(String(v.reason || '').trim()),
-  });
 }
 
 /** 계정 검색 선택 + 메일 (type:'custom', 수신자 등록) */
@@ -222,7 +193,7 @@ function AccountPicker({ value, onChange, search, error }) {
     }
   };
 
-  const pick = (c) => onChange({ empNo: c.empNo, name: c.name, dept: c.dept, mail: c.email || v.mail || '' });
+  const pick = (c) => onChange({ empNo: c.empNo, name: c.name, dept: c.dept, mail: c.email || '' });
 
   return (
     <Field label="계정" required full error={error}>
@@ -252,14 +223,14 @@ function AccountPicker({ value, onChange, search, error }) {
       ) : (
         <Text style={[s.textSm, { marginTop: 8 }]}>{v.empNo ? `선택: ${[v.name, v.empNo, v.dept].filter(Boolean).join(' · ')}` : '선택한 계정이 없습니다.'}</Text>
       )}
-      <TextField
-        label="메일"
-        required
-        value={v.mail || ''}
-        onChangeText={(t) => onChange({ ...v, mail: t })}
-        placeholder="계정을 고르면 계정 메일로 채워집니다"
-        accessibilityLabel="메일"
-      />
+      {/* 메일은 계정 관리의 이메일을 그대로 씁니다(2026-10-03) — 여기서 따로 적지 않습니다. 후보 목록을 못 불러 사번을 직접 넣을 때만 받습니다 */}
+      {manual ? (
+        <TextField label="메일" value={v.mail || ''} onChangeText={(t) => onChange({ ...v, mail: t })} placeholder="계정에 메일이 없을 때만 — 예) hong@dwje.co.kr" accessibilityLabel="메일" />
+      ) : v.empNo ? (
+        <Text style={[s.textSm, { marginTop: 6 }]} accessibilityLabel="메일">
+          {v.mail ? `메일(계정 이메일): ${v.mail}` : '이 계정에 메일 주소가 없습니다. 계정 관리에서 이메일을 먼저 등록해 주세요.'}
+        </Text>
+      ) : null}
     </Field>
   );
 }
@@ -272,13 +243,12 @@ function AccountPicker({ value, onChange, search, error }) {
  * @param {Function} cfg.searchCandidates 후보 계정 검색
  * @param {Function} cfg.onSubmit (recipientId, body) => Promise<boolean>
  */
-export function openRecipientForm({ row, searchCandidates, nightWindow, onSubmit }) {
+export function openRecipientForm({ searchCandidates, onSubmit }) {
+  // 등록만 합니다 — 메일은 계정 이메일을 따르고 휴대전화 · 메신저 칸은 뺐으므로 편집할 항목이 없어 「편집」 은 없앴습니다(2026-10-03)
   return openFormModal({
-    title: row ? '수신자 편집' : '수신자 등록',
-    sub: row ? `${row.name || row.empNo} (${row.dept || '—'})` : '알림을 받을 계정을 골라 연락처를 등록합니다',
-    initial: row
-      ? { mail: row.mail, hp: row.hp, messenger: row.messenger, night: !!row.night }
-      : { account: { empNo: '', mail: '' }, night: false },
+    title: '수신자 등록',
+    sub: '알림을 받을 계정을 고릅니다. 메일은 계정 관리의 이메일로 보냅니다',
+    initial: { account: { empNo: '', mail: '' } },
     // 계정 선택 칸(type:'custom')은 칸 아래 오류가 그려지지 않아 토스트로도 알립니다
     validate: (v) => {
       const e = validateRecipient(v);
@@ -286,34 +256,16 @@ export function openRecipientForm({ row, searchCandidates, nightWindow, onSubmit
       return e;
     },
     fields: [
-      row
-        ? { key: 'empNoView', label: '사번', type: 'static', value: row.empNo }
-        : { key: 'account', type: 'custom', full: true, render: ({ value, onChange }) => <AccountPicker value={value} onChange={onChange} search={searchCandidates} /> },
-      ...(row ? [{ key: 'mail', label: '메일', required: true, placeholder: '예) hong@dwje.co.kr' }] : []),
-      { key: 'hp', label: '휴대전화', placeholder: '예) 010-0000-0000' },
-      { key: 'messenger', label: '사내 메신저' },
-      { key: 'night', label: '야간 수신', type: 'radio', options: [{ value: true, label: '수신' }, { value: false, label: '미수신' }], full: true },
-      { key: 'ruleNote', label: '규칙', type: 'static', full: true, value: NIGHT_RULE(nightWindow) },
+      { key: 'account', type: 'custom', full: true, render: ({ value, onChange }) => <AccountPicker value={value} onChange={onChange} search={searchCandidates} /> },
     ],
-    note: '휴대전화·메신저 칸을 비우고 저장하면 지워집니다. 연락처는 알림 발송에만 쓰며, 데이터 접근 권한 worker 항목이 없는 계정에는 가려져 보입니다. 부서 배정 전(미배정) 계정은 수신자로 등록할 수 없습니다.',
-    submitLabel: row ? '수정' : '등록',
+    note: '계정 관리에서 이메일을 바꾸면 알림도 바뀐 주소로 갑니다. 메일은 데이터 접근 권한 worker 항목이 없는 계정에는 가려져 보입니다. 부서 배정 전(미배정) 계정은 수신자로 등록할 수 없습니다.',
+    submitLabel: '등록',
     onSubmit: async (v) => {
-      const night = v.night === true || v.night === 'true';
       const txt = (x) => String(x ?? '').trim();
-      if (!row) {
-        const body = { empNo: txt(v.account?.empNo), mail: txt(v.account?.mail), night };
-        if (txt(v.hp)) body.hp = txt(v.hp);
-        if (txt(v.messenger)) body.messenger = txt(v.messenger);
-        return onSubmit(undefined, body);
-      }
-      // 수정은 바뀐 칸만 — 휴대전화·메신저를 비우면 "" 를 보내 지웁니다(엔드포인트 preserveEmpty, RCP-12)
-      const body = {};
-      if (txt(v.mail) !== txt(row.mail)) body.mail = txt(v.mail);
-      if (txt(v.hp) !== txt(row.hp)) body.hp = txt(v.hp);
-      if (txt(v.messenger) !== txt(row.messenger)) body.messenger = txt(v.messenger);
-      if (night !== !!row.night) body.night = night;
-      if (!Object.keys(body).length) return true;
-      return onSubmit(row.recipientId, body);
+      const body = { empNo: txt(v.account?.empNo) };
+      // 서버는 계정 이메일이 있으면 그것을 씁니다. 사번을 직접 넣은 경우에만 적은 메일을 보냅니다
+      if (txt(v.account?.mail)) body.mail = txt(v.account?.mail);
+      return onSubmit(undefined, body);
     },
   });
 }

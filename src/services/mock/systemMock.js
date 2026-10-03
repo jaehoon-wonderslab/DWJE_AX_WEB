@@ -12,7 +12,7 @@ import {
   ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
   DATA_ACCESS_AUDIT, DOWNLOAD_LOGS,
   GW_DEPT_MAP_SEED, GW_DEPT_SOURCE, GW_UNASSIGNED_USERS,
-  GLOSSARY, GLOSSARY_DOMAINS, PERM_LOGS, RECIPIENT_GROUPS,
+  GLOSSARY, PERM_LOGS, RECIPIENT_GROUPS,
   RECIPIENTS, RETENTION_POLICY, SYNC_DRIFTS, SYNC_FAIL_REASON, SYNC_JOBS, SYNC_MAPS, SYNC_POLICY,
 } from './data/system';
 import { mockState } from './state';
@@ -185,7 +185,6 @@ const CHANNEL_CODE = { 메일: 'MAIL', '시스템 팝업': 'POPUP', SMS: 'SMS', 
 const OP_CODE = { '>=': 'GE', '>': 'GT', '<=': 'LE', '<': 'LT', '=': 'EQ' };
 const TARGET_LABEL = { ALL_EQPT: '전체 설비', PICK: '개별 설비 선택' };
 const codeOf = (map, v) => map[v] ?? v;
-const stateCode = (v) => (v === '수신' || v === 'RECV' ? 'RECV' : v === '부재' || v === 'ABSENT' ? 'ABSENT' : v || 'RECV');
 const userStateCode = (v) => (v === '정지' || v === 'SUSPENDED' ? 'SUSPENDED' : v === '승인 대기' || v === 'PENDING' ? 'PENDING' : 'ACTIVE');
 const USER_STATE_NM = { ACTIVE: '사용', SUSPENDED: '정지', PENDING: '승인 대기' };
 const userOf = (empNo) => store().users.find((u) => u.empNo === empNo);
@@ -246,7 +245,7 @@ function condListRow(c) {
   const st = store();
   // 서버와 같이 groups 는 객체 배열, 이름은 groupNames 로 따로 (2단계 계약)
   const groups = (c.groupIds || []).map((id) => st.groups.find((g) => g.groupId === id)).filter(Boolean).map((g) => {
-    const receiving = g.members.filter((emp) => stateCode(st.recipients.find((x) => x.empNo === emp)?.state) === 'RECV').length;
+    const receiving = g.members.filter((emp) => st.recipients.some((x) => x.empNo === emp)).length;
     return { groupId: g.groupId, name: g.name, useFlg: g.useFlg || 'Y', memberCnt: g.members.length, receivingCnt: receiving };
   });
   const row = {
@@ -277,7 +276,7 @@ function groupRow(g) {
   normalizeGroups();
   const depts = store().depts;
   return {
-    groupId: g.groupId, name: g.name, validWindow: g.validWindow, night: !!g.night, deptId: g.deptId ?? null,
+    groupId: g.groupId, name: g.name, validWindow: g.validWindow, deptId: g.deptId ?? null,
     dept: g.deptId ? (depts.find((d, i) => (d.deptId ?? i + 1) === g.deptId)?.name ?? depts.find((d, i) => (d.deptId ?? i + 1) === g.deptId)?.id ?? '') : '',
     useFlg: g.useFlg, channels: g.channels, memberEmpNos: [...g.members], updatedAt: g.updatedAt,
   };
@@ -287,11 +286,10 @@ function recipientRow(r) {
   normalizeGroups();
   const u = userOf(r.empNo) || { name: r.empNo, dept: '—', pos: '—' };
   const userState = userStateCode(u.state);
-  const state = stateCode(r.state);
   return {
     recipientId: r.recipientId, empNo: r.empNo, name: u.name, dept: u.dept, pos: u.pos, posNm: u.pos,
-    mail: r.mail, hp: r.phone ?? r.hp, messenger: r.messenger, night: !!r.night,
-    state, stateNm: state === 'RECV' ? '수신' : '부재', userState, userStateNm: USER_STATE_NM[userState],
+    mail: r.mail, hp: r.phone ?? r.hp, messenger: r.messenger,
+    userState, userStateNm: USER_STATE_NM[userState],
     remark: r.remark ?? null,
     groups: st.groups.filter((g) => g.members.includes(r.empNo)).map((g) => g.name),
   };
@@ -299,16 +297,16 @@ function recipientRow(r) {
 /** 수신자 영향 — 빠지면 받는 사람 0명이 되는 그룹·조건 */
 function recipientImpact(empNo) {
   const st = store();
-  const recv = (emp) => stateCode(st.recipients.find((x) => x.empNo === emp)?.state) === 'RECV' && ['ACTIVE', 'LOCKED'].includes(userStateCode(userOf(emp)?.state));
+  const recv = (emp) => st.recipients.some((x) => x.empNo === emp) && ['ACTIVE', 'LOCKED'].includes(userStateCode(userOf(emp)?.state));
   const groups = st.groups.filter((g) => g.members.includes(empNo)).map((g) => ({
     groupId: g.groupId, name: g.name, receivableCntAfter: g.members.filter((e) => e !== empNo && recv(e)).length,
   }));
   const zeroGroups = groups.filter((g) => g.receivableCntAfter === 0).map((g) => ({ groupId: g.groupId, name: g.name }));
   const affectedConds = alertConds().filter((c) => c.on && c.groupIds.some((id) => zeroGroups.some((z) => z.groupId === id))).map((c) => ({ condId: c.condId, name: c.name }));
-  return { empNo, groups, zeroGroups, affectedConds, affectedEscStages: [] };
+  return { empNo, groups, zeroGroups, affectedConds };
 }
 
-/** 테스트 대상 — 그룹 멤버 중 수신 상태·계정 사용·연락처 있음 (엔진 규칙과 같게) */
+/** 테스트 대상 — 그룹 멤버 중 계정 사용·연락처 있음 (엔진 규칙과 같게, 부재·야간은 2026-10-03 에 없앰) */
 function testTargets(groupIds, channels) {
   const st = store();
   normalizeGroups();
@@ -325,7 +323,6 @@ function testTargets(groupIds, channels) {
       const r = st.recipients.find((x) => x.empNo === emp);
       const base = { empNo: emp, name: u?.name || emp, dept: u?.dept || '' };
       if (!r) skipped.push({ ...base, reason: 'NOT_RECIPIENT', reasonNm: '수신자 미등록' });
-      else if (stateCode(r.state) !== 'RECV') skipped.push({ ...base, reason: 'ABSENT', reasonNm: '부재' });
       else if (!['ACTIVE', 'LOCKED'].includes(userStateCode(u?.state))) skipped.push({ ...base, reason: 'ACCOUNT_INACTIVE', reasonNm: '계정 정지' });
       else if (!r.mail) skipped.push({ ...base, reason: 'NO_CONTACT', reasonNm: '연락처 없음' });
       else channels.forEach((ch) => recipients.push({ ...base, channel: ch, groupId: gid }));
@@ -1071,10 +1068,9 @@ export const systemMock = {
     const rows = st.recipients.map(recipientRow);
     return {
       groupCnt: st.groups.filter((g) => g.useFlg !== 'N').length,
-      recipientCnt: { receiving: rows.filter((r) => r.state === 'RECV').length, absent: rows.filter((r) => r.state !== 'RECV').length },
-      nightCnt: rows.filter((r) => r.night).length,
+      recipientCnt: rows.length,
+      receivableCnt: rows.filter((r) => ['ACTIVE', 'LOCKED'].includes(r.userState)).length,
       inactiveAccountCnt: rows.filter((r) => !['ACTIVE', 'LOCKED'].includes(r.userState)).length,
-      nightWindow: { from: '22:00', to: '06:00' },
     };
   },
 
@@ -1085,7 +1081,7 @@ export const systemMock = {
       .map((g) => {
         const members = g.members.map((emp) => {
           const u = userOf(emp);
-          return { empNo: emp, name: blind ? null : u?.name || emp, dept: u?.dept || '', state: stateCode(store().recipients.find((x) => x.empNo === emp)?.state), userState: userStateCode(u?.state) };
+          return { empNo: emp, name: blind ? null : u?.name || emp, dept: u?.dept || '', userState: userStateCode(u?.state) };
         });
         const receivingCnt = members.filter((m) => m.state === 'RECV' && ['ACTIVE', 'LOCKED'].includes(m.userState)).length;
         const conds = alertConds().filter((c) => c.on && c.groupIds.includes(g.groupId)).map((c) => ({ condId: c.condId, name: c.name, on: c.on }));
@@ -1105,9 +1101,9 @@ export const systemMock = {
       members: g.members.map((emp) => {
         const u = userOf(emp);
         const r = st.recipients.find((x) => x.empNo === emp);
-        return { empNo: emp, name: blind ? null : u?.name || emp, dept: u?.dept || '', state: stateCode(r?.state), userState: userStateCode(u?.state) };
+        return { empNo: emp, name: blind ? null : u?.name || emp, dept: u?.dept || '', userState: userStateCode(u?.state) };
       }),
-      receivableCnt: g.members.filter((emp) => stateCode(st.recipients.find((x) => x.empNo === emp)?.state) === 'RECV').length,
+      receivableCnt: g.members.filter((emp) => st.recipients.some((x) => x.empNo === emp)).length,
       conds,
       escStages: [],
       deptOptions: st.depts.map((d, i) => ({ value: d.deptId ?? i + 1, label: d.name ?? d.id })),
@@ -1115,12 +1111,12 @@ export const systemMock = {
     return { success: true, code: 'SUCCESS', message: '정상 처리되었습니다.', data, masked: blind ? ['worker'] : [] };
   },
 
-  postAlertRecipientGroups: ({ name, channels, validWindow, night, memberEmpNos, deptId }) => {
+  postAlertRecipientGroups: ({ name, channels, validWindow, memberEmpNos, deptId }) => {
     const st = store();
     if (!name) return fail('E-VALID-001', '그룹명은 필수입니다.');
     if (st.groups.some((g) => g.name === name)) return fail('E-VALID-002', `이미 등록된 수신 그룹명입니다. [${name}]`);
     const groupId = `G${st.groups.length + 1}`;
-    st.groups.push({ groupId, name, channels: Array.isArray(channels) && channels.length ? channels : ['MAIL'], validWindow: validWindow || 'ALWAYS', night: !!night, members: memberEmpNos || [], deptId: deptId ?? null, useFlg: 'Y', updatedAt: nowStamp() });
+    st.groups.push({ groupId, name, channels: Array.isArray(channels) && channels.length ? channels : ['MAIL'], validWindow: validWindow || 'ALWAYS', members: memberEmpNos || [], deptId: deptId ?? null, useFlg: 'Y', updatedAt: nowStamp() });
     return ok('수신 그룹을 등록했습니다.', { groupId });
   },
 
@@ -1176,11 +1172,11 @@ export const systemMock = {
     return { items, meta: { page: 1, size: Number(size) || 20, total: items.length } };
   },
 
-  postAlertRecipients: ({ empNo, mail, hp, phone, messenger, night }) => {
+  postAlertRecipients: ({ empNo, mail, hp, phone, messenger }) => {
     const st = store();
     if (st.recipients.some((r) => r.empNo === empNo)) return fail('E-VALID-002', '이미 등록된 수신자입니다.');
     if (userOf(empNo)?.dept === '미배정') return fail('E-RULE-001', '부서 배정 전 계정은 알림 수신자로 등록할 수 없습니다.');
-    st.recipients.push({ recipientId: empNo, empNo, mail, phone: hp ?? phone, messenger, night: !!night, state: 'RECV' });
+    st.recipients.push({ recipientId: empNo, empNo, mail, phone: hp ?? phone, messenger });
     return ok('수신자를 등록했습니다.', { recipientId: empNo });
   },
 
@@ -1189,15 +1185,6 @@ export const systemMock = {
     if (!r) return fail('E-NOTFOUND', '대상 수신자를 찾을 수 없습니다.');
     Object.assign(r, body, hp !== undefined ? { phone: hp } : {});
     return ok('수신자 정보를 수정했습니다.');
-  },
-
-  patchAlertRecipientsByRecipientIdState: ({ recipientId, state, reason }) => {
-    const r = store().recipients.find((x) => String(x.recipientId) === String(recipientId));
-    if (!r) return fail('E-NOTFOUND', '대상 수신자를 찾을 수 없습니다.');
-    if (!state) return fail('E-VALID-001', '바꿀 수신 상태(RECV·ABSENT)를 보내 주십시오.');
-    r.state = stateCode(state);
-    if (reason !== undefined) r.remark = reason;
-    return ok(`수신 상태를 '${r.state === 'RECV' ? '수신' : '부재'}' 로 바꿨습니다.`, { state: r.state });
   },
 
   // 영향 — 이 사람이 빠지면 받는 사람이 0명이 되는 그룹과 그 그룹을 쓰는 활성 조건 (RCP-07·08)
@@ -1236,9 +1223,7 @@ export const systemMock = {
   },
 
   /* ═══════════ SY-06 용어 사전 ═══════════ */
-  getGlossaryDomains: () => ({
-    domains: GLOSSARY_DOMAINS.map((d, i) => ({ domainId: `DOM_${i + 1}`, code: d, name: d })),
-  }),
+  // 제거됨(2026-10-03, 분류 삭제): getGlossaryDomains(GET /glossary/domains)
 
   /**
    * 요약 — 서버 필드명(myVariantCnt · noVariantTermCnt, 07 GLS-15)으로 줍니다. 옛 이름(mineCnt · emptyCnt)도 함께 둡니다.
@@ -1251,13 +1236,7 @@ export const systemMock = {
     const admin = mockState.currentUser.dept === '통합관리자';
     const mine = st.glossary.reduce((n, g) => n + g.variants.filter((v) => v.by === me).length, 0);
     const empty = st.glossary.filter((g) => !g.variants.length).length;
-    // 분류별 용어 수 · 유사어 수 · 유사어 없는 용어 수 (07 GLS-13)
-    const byDomain = Object.entries(st.glossary.reduce((acc, g) => {
-      const d = acc[g.domain] || { termCnt: 0, variantCnt: 0, noVariantTermCnt: 0 };
-      return { ...acc, [g.domain]: { termCnt: d.termCnt + 1, variantCnt: d.variantCnt + g.variants.length, noVariantTermCnt: d.noVariantTermCnt + (g.variants.length ? 0 : 1) } };
-    }, {}))
-      .map(([domain, c], i) => ({ domainId: i + 1, domain, ...c }))
-      .sort((a, b) => b.termCnt - a.termCnt);
+    // 제거됨(2026-10-03, 분류 삭제): 분류별 현황 byDomain · domainCnt
     const lastChangedAt = st.glossary.flatMap((g) => g.variants.map((v) => v.at)).filter(Boolean).sort().at(-1) || null;
     return {
       termCnt: st.glossary.length,
@@ -1266,8 +1245,6 @@ export const systemMock = {
       noVariantTermCnt: empty,
       mineCnt: mine,
       emptyCnt: empty,
-      domainCnt: new Set(st.glossary.map((g) => g.domain)).size,
-      byDomain,
       lastChangedAt,
       canEditTerm: admin,
       canWriteVariant: true,
@@ -1275,22 +1252,21 @@ export const systemMock = {
     };
   },
 
-  getGlossaryTerms: ({ keyword, domain, domainCd, mineOnly, page = 1, size = 200 }) => {
+  getGlossaryTerms: ({ keyword, mineOnly, page = 1, size = 200 }) => {
     const st = store();
     const me = mockState.currentUser.empNo;
     const admin = mockState.currentUser.dept === '통합관리자';
     let items = st.glossary.map((g) => ({
       ...g,
+      customerInfo: !!g.customerInfo,
       variants: g.variants.map((v) => {
         const u = st.users.find((x) => x.empNo === v.by);
         // editable = 쓰기 권한 && 본인 등록 (통합관리자는 모두) — 07 GLS-16
         return { ...v, byEmpNo: v.by, byName: u ? u.name : '(삭제된 계정)', byDept: u ? u.dept : '—', mine: v.by === me, editable: v.by === me || admin };
       }),
     }));
-    // 고객사 분류 가림(결정 R-18) — customer 데이터 권한이 없으면 「비공개 용어」 로 남깁니다
+    // 고객사 정보 용어 가림(결정 R-18 · 2026-10-03 분류에서 용어 단위로 옮김) — customer 데이터 권한이 없으면 「비공개 용어」 로 남깁니다
     items = items.map((g) => (glsBlinded(g) ? { ...g, term: '비공개 용어', definition: null, variants: null, blinded: true } : g));
-    const dom = domainCd || domain;
-    if (dom && dom !== '전체') items = items.filter((g) => g.domain === dom);
     if (mineOnly === true || mineOnly === 'true') items = items.filter((g) => (g.variants || []).some((v) => v.mine));
     if (keyword) {
       const q = String(keyword).toLowerCase();
@@ -1303,19 +1279,20 @@ export const systemMock = {
     return { success: true, code: 'SUCCESS', message: '용어 목록 조회가 완료되었습니다.', data: { items: shown }, meta: { page: p, size: n, total, totalPages: n ? Math.ceil(total / n) : 1 } };
   },
 
-  /** 용어 상세 (GL-01) — 관련 용어는 같은 분류에서 이름이 서로 포함되는 것만 흉내 냅니다 */
+  /** 용어 상세 (GL-01) — 관련 용어는 이름이 서로 포함되는 것만 흉내 냅니다(분류 삭제 2026-10-03) */
   getGlossaryTermsByTermId: ({ termId }) => {
     const st = store();
     const g = st.glossary.find((x) => String(x.termId) === String(termId));
     if (!g) return fail('E-NOTFOUND', `용어를 찾을 수 없습니다. [termId=${termId}]`);
-    if (glsBlinded(g)) return { termId: g.termId, term: '비공개 용어', definition: null, domain: g.domain, blinded: true, variants: null, relatedTerms: [] };
+    if (glsBlinded(g)) return { termId: g.termId, term: '비공개 용어', definition: null, customerInfo: true, blinded: true, variants: null, relatedTerms: [] };
     const related = st.glossary
-      .filter((x) => x.termId !== g.termId && x.domain === g.domain && x.term.length > 2 && g.term.length > 2
+      .filter((x) => x.termId !== g.termId && !glsBlinded(x) && x.term.length > 2 && g.term.length > 2
         && (x.term.includes(g.term) || g.term.includes(x.term)))
       .slice(0, 10)
-      .map((x) => ({ termId: x.termId, term: x.term, domain: x.domain, reasonCd: 'SAME_DOMAIN_NAME' }));
+      .map((x) => ({ termId: x.termId, term: x.term, reasonCd: 'SIMILAR_NAME' }));
     return {
       ...g,
+      customerInfo: !!g.customerInfo,
       blinded: false,
       variants: g.variants.map((v) => {
         const u = st.users.find((x) => x.empNo === v.by);
@@ -1325,28 +1302,29 @@ export const systemMock = {
     };
   },
 
-  // 공식 용어 쓰기는 통합관리자 전용 — 그 밖은 403 E-AUTH-004 (07 GLS-01). 분류 키는 서버와 같은 domainCd
-  postGlossaryTerms: ({ term, definition, domainCd, domain }) => {
+  // 공식 용어 쓰기는 통합관리자 전용 — 그 밖은 403 E-AUTH-004 (07 GLS-01).
+  // 2026-10-03 분류 삭제 — domainCd 대신 customerInfo(고객사 정보, 기본 false)
+  postGlossaryTerms: ({ term, definition, customerInfo }) => {
     const st = store();
     if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]');
     if (!term) return fail('E-VALID-001', '용어는 필수입니다.');
     if (String(term).length > 50) return fail('E-VALID-001', '공식 용어는 50자 이하로 입력해 주세요.');
     if (st.glossary.some((g) => g.term.toLowerCase() === String(term).toLowerCase())) return fail('E-RULE-001', '이미 등록된 용어입니다.');
     const termId = `T${Date.now().toString(36)}`;
-    st.glossary.push({ termId, term, definition, domain: domainCd || domain, variants: [] });
-    glsLog(st, 'TERM', 'CREATE', { termId, term }, null, { term, termDef: definition, domainNm: domainCd || domain });
+    st.glossary.push({ termId, term, definition, customerInfo: customerInfo === true, variants: [] });
+    glsLog(st, 'TERM', 'CREATE', { termId, term }, null, { term, termDef: definition, customerInfo: customerInfo === true });
     return ok('공식 용어를 등록했습니다.', { termId });
   },
 
-  putGlossaryTermsByTermId: ({ termId, term, definition, domainCd, domain }) => {
+  putGlossaryTermsByTermId: ({ termId, term, definition, customerInfo }) => {
     if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]');
     const g = store().glossary.find((x) => x.termId === termId);
     if (!g) return fail('E-NOTFOUND', '대상 용어를 찾을 수 없습니다.');
-    const before = { term: g.term, termDef: g.definition, domainNm: g.domain };
+    const before = { term: g.term, termDef: g.definition, customerInfo: !!g.customerInfo };
     if (term) g.term = term;
     if (definition) g.definition = definition;
-    if (domainCd || domain) g.domain = domainCd || domain;
-    glsLog(store(), 'TERM', 'UPDATE', g, before, { term: g.term, termDef: g.definition, domainNm: g.domain });
+    if (typeof customerInfo === 'boolean') g.customerInfo = customerInfo;
+    glsLog(store(), 'TERM', 'UPDATE', g, before, { term: g.term, termDef: g.definition, customerInfo: !!g.customerInfo });
     return ok('공식 용어를 수정했습니다.');
   },
 
@@ -1459,6 +1437,99 @@ export const systemMock = {
 
   // 서버 생성 파일 — 화면은 downloadFromServer 로 받고, 목 모드에서는 안내 파일을 만듭니다(exportUtil)
   postGlossaryTermsExport: () => ok('용어 사전 파일을 만들었습니다.', { rowCnt: store().glossary.length }),
+
+  // 업로드 템플릿(2026-10-03) — 화면은 downloadFromServer(GET) 로 받고, 목 모드에서는 안내 파일을 만듭니다(exportUtil)
+  getGlossaryImportTemplate: () => ok('목 모드에서는 템플릿 대신 안내 파일을 내려받습니다.', null),
+
+  /**
+   * 엑셀 업로드(2026-10-03) — 파일을 exceljs 로 읽어 서버와 같은 모양의 판정을 흉내 냅니다.
+   * 읽지 못하면 400 field=file. dryRun=false 면 ERROR 가 아닌 행을 목 사전에 씁니다.
+   */
+  postGlossaryImport: async ({ file, dryRun } = {}) => {
+    const apply = dryRun === false || dryRun === 'false';
+    const bad400 = (message) => ({ success: false, code: 'E-VALID-001', message, data: null, error: { code: 'E-VALID-001', field: 'file' } });
+    if (!file) return bad400('파일을 선택해 주세요.');
+    let lines;
+    try {
+      lines = await readGlossaryImportRows(file);
+    } catch (e) {
+      return bad400(e?.message || 'xlsx 파일만 올릴 수 있습니다.');
+    }
+    if (!lines.length) return bad400('등록할 행이 없습니다.');
+    if (lines.length > 1000) return bad400('한 번에 1,000행까지 올릴 수 있습니다.');
+    if (apply && mockState.currentUser.dept === '미배정') return fail('E-AUTH-004', '미배정 계정은 이 동작을 할 수 없습니다. [sys-gloss]');
+    const st = store();
+    const admin = mockState.currentUser.dept === '통합관리자';
+    const seenTerm = new Map();
+    const seenWord = new Map();
+    const rows = lines.map(({ row, term, definition, customerInfo, variants }) => {
+      const out = { row, term, termId: null, action: 'ERROR', variantsAdded: [], variantsSkipped: [], errors: [], notes: [], warnings: [] };
+      if (!term) {
+        out.errors.push({ field: 'term', message: '공식 용어를 적어 주세요.' });
+        return out;
+      }
+      const existing = st.glossary.find((g) => g.term.toLowerCase() === term.toLowerCase());
+      const dupRow = seenTerm.get(term.toLowerCase());
+      if (existing || dupRow) {
+        out.action = 'EXISTING_TERM';
+        out.termId = existing?.termId ?? null;
+        out.notes.push(dupRow ? `같은 파일 ${dupRow}행의 용어 — 유사어만 더함` : '기존 용어 — 뜻·고객사 정보는 바꾸지 않음');
+      } else {
+        if (!admin) out.errors.push({ field: 'term', message: '공식 용어 등록은 통합관리자만 할 수 있습니다.' });
+        if (!definition) out.errors.push({ field: 'definition', message: '새 용어는 뜻을 적어야 합니다.' });
+        // 고객사 정보 — Y/N 또는 빈칸(=N). 그 밖의 값은 오류 (2026-10-03 분류 삭제로 「분류」 열 대신)
+        const ci = String(customerInfo || '').trim().toUpperCase();
+        if (ci && ci !== 'Y' && ci !== 'N') out.errors.push({ field: 'customerInfo', message: `고객사 정보는 Y 또는 N 으로 적어 주세요. [${customerInfo}]` });
+        if (out.errors.length) return out;
+        Object.assign(out, { action: 'NEW_TERM', definition, customerInfo: ci === 'Y', restored: false });
+        seenTerm.set(term.toLowerCase(), row);
+      }
+      variants.forEach((w) => {
+        const key = w.toLowerCase();
+        const rule = variantRuleError(st, w);
+        const owner = st.glossary.find((g) => g.variants.some((v) => v.word.toLowerCase() === key));
+        if (rule) out.variantsSkipped.push({ word: w, reason: rule });
+        else if (owner) out.variantsSkipped.push({ word: w, reason: `이미 등록된 유사어입니다. [${w}] 공식 용어 [${owner.term}] 에 붙어 있습니다.` });
+        else if (seenWord.has(key)) out.variantsSkipped.push({ word: w, reason: `같은 파일 ${seenWord.get(key)}행과 중복` });
+        else {
+          seenWord.set(key, row);
+          out.variantsAdded.push(w);
+          out.warnings.push(...variantWarnings(st, w));
+        }
+      });
+      return out;
+    });
+    if (apply) {
+      const by = mockState.currentUser.empNo;
+      const at = nowStamp().slice(0, 10);
+      rows.filter((r) => r.action !== 'ERROR').forEach((r) => {
+        let g = st.glossary.find((x) => x.term.toLowerCase() === r.term.toLowerCase());
+        if (!g) {
+          g = { termId: `T${Date.now().toString(36)}${r.row}`, term: r.term, definition: r.definition, customerInfo: !!r.customerInfo, variants: [] };
+          st.glossary.push(g);
+          glsLog(st, 'TERM', 'CREATE', g, null, { term: g.term, termDef: g.definition, customerInfo: g.customerInfo });
+        }
+        r.termId = g.termId;
+        r.variantsAdded.forEach((w, i) => {
+          const variantId = `V${Date.now().toString(36)}${r.row}_${i}`;
+          g.variants.push({ variantId, word: w, by, at });
+          glsLog(st, 'VARIANT', 'CREATE', g, null, { word: w }, variantId);
+        });
+      });
+    }
+    const data = {
+      dryRun: !apply,
+      fileName: file.name || 'upload.xlsx',
+      totalRows: rows.length,
+      termNew: rows.filter((r) => r.action === 'NEW_TERM').length,
+      termExisting: rows.filter((r) => r.action === 'EXISTING_TERM').length,
+      variantNew: rows.reduce((n, r) => n + r.variantsAdded.length, 0),
+      variantSkipped: rows.reduce((n, r) => n + r.variantsSkipped.length, 0),
+      errorCnt: rows.filter((r) => r.action === 'ERROR').length,
+      rows,
+    };
+    return ok(apply ? '용어 사전을 등록했습니다.' : '미리보기입니다. 아직 등록하지 않았습니다.', data);
+  },
 
   /* ═══════════ SY-08 자연어 질의 이력 ═══════════ */
   // 2026-10-03 — scope=mine(기본, chat-history: 본인 행만) · scope=all(sys-chat-history: 전 사용자, 이름 가림 없음)
@@ -2254,6 +2325,43 @@ function glossaryRisks(st) {
   return out;
 }
 
+/**
+ * 업로드 파일 읽기(목) — 「용어」 시트(없으면 첫 시트), 1행 머리글 [공식 용어* · 뜻* · 고객사 정보 · 유사어].
+ * (2026-10-03 분류 삭제 — 예전 「분류」 열 템플릿은 머리글이 달라 400 입니다)
+ * 머리글의 `*`·공백은 무시하고, 빈 행과 `(예시)` 로 시작하는 행은 건너뜁니다. 유사어는 쉼표·세미콜론·줄바꿈으로 나눕니다.
+ */
+async function readGlossaryImportRows(file) {
+  const excelModule = require('exceljs');
+  const ExcelJS = excelModule.default || excelModule;
+  const wb = new ExcelJS.Workbook();
+  try {
+    await wb.xlsx.load(await file.arrayBuffer());
+  } catch {
+    throw new Error('xlsx 파일만 올릴 수 있습니다.');
+  }
+  const ws = wb.getWorksheet('용어') || wb.worksheets[0];
+  if (!ws) throw new Error('등록할 행이 없습니다.');
+  const text = (v) => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') return String(v.text ?? v.result ?? (v.richText || []).map((t) => t.text).join('') ?? '').trim();
+    return String(v).trim();
+  };
+  const head = [1, 2, 3, 4].map((c) => text(ws.getRow(1).getCell(c).value).replace(/[*\s]/g, ''));
+  if (head.join('|') !== '공식용어|뜻|고객사정보|유사어') {
+    throw new Error(`템플릿의 머리글과 다릅니다. 1행은 [공식 용어* · 뜻* · 고객사 정보 · 유사어] 이어야 합니다. (파일: ${head.filter(Boolean).join(' · ') || '빈 머리글'})`);
+  }
+  const out = [];
+  ws.eachRow((r, n) => {
+    if (n === 1) return;
+    const [term, definition, customerInfo, words] = [1, 2, 3, 4].map((c) => text(r.getCell(c).value));
+    if (!term && !definition && !customerInfo && !words) return;
+    if (term.startsWith('(예시)')) return;
+    const variants = [...new Set(words.split(/[,;\n]+/).map((w) => w.trim()).filter(Boolean))];
+    out.push({ row: n, term, definition, customerInfo, variants });
+  });
+  return out;
+}
+
 /** 등록·수정 거부 사유 (400) — 없으면 null */
 function variantRuleError(st, word) {
   const w = String(word || '').trim();
@@ -2447,11 +2555,11 @@ function chatFilter(rows, { rating, review, answered }) {
     && (!answered || answered === '전체' || (answered === 'Y' ? !!(r.answer || r.answerHidden) : !(r.answer || r.answerHidden) || !!r.unansweredReason)));
 }
 
-/** 고객사 분류 용어를 가릴지 — 통합관리자는 항상 봅니다 (결정 R-18 흉내) */
+/** 고객사 정보 용어를 가릴지 — 통합관리자는 항상 봅니다 (결정 R-18 흉내 · 2026-10-03 분류 대신 용어의 customerInfo) */
 function glsBlinded(g) {
   const me = mockState.currentUser;
   if (me.dept === '통합관리자') return false;
   const scope = dataScopeOf(me.dept);
   const canCustomer = scope === '*' || (Array.isArray(scope) && scope.includes('customer'));
-  return !canCustomer && ['회사/고객사', '고객사', '고객협력사', '협력업체'].includes(g.domain);
+  return !canCustomer && !!g.customerInfo;
 }

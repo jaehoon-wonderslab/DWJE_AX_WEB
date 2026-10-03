@@ -194,6 +194,7 @@ const doneText = (file, blindCount) => `${file} 파일을 내려받았습니다$
  *   name   실패 안내에 쓸 이름
  *   limit  화면별 상한 행 수(선택) — 서버가 `X-Export-Limit` 을 주지 않을 때만 안내에 씁니다.
  *          상한은 서버가 정하므로 모르면 넘기지 마십시오(틀린 숫자를 안내하게 됩니다)
+ *   method 'POST'(기본) · 'GET' — GET 은 본문 없이 부릅니다(예: 용어 사전 업로드 템플릿, 2026-10-03)
  * @returns {Promise<boolean>} 성공 여부
  *
  * 상한 초과는 오류가 아닙니다. 서버가 응답 헤더 `X-Export-Truncated: true` · `X-Export-Total: N` 으로 알리면
@@ -201,7 +202,7 @@ const doneText = (file, blindCount) => `${file} 파일을 내려받았습니다$
  * 둘 다 없으면 「상한까지 내려받았습니다(전체 N건)」 입니다. 교차 출처라 서버 CORS 가 이 헤더들을
  * `Access-Control-Expose-Headers` 에 넣어야 읽힙니다(2단계 서버는 Truncated·Total 노출).
  */
-export async function downloadFromServer({ path, body = {}, name = '파일', limit }) {
+export async function downloadFromServer({ path, body = {}, name = '파일', limit, method = 'POST' }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return false;
@@ -232,11 +233,11 @@ export async function downloadFromServer({ path, body = {}, name = '파일', lim
   }
   try {
     const { accessToken } = useAuthStore.getState();
-    const res = await fetch(`${API_BASE_URL}/api/v1${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-      body: JSON.stringify(body),
-    });
+    const auth = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    const get = String(method).toUpperCase() === 'GET';
+    const res = await fetch(`${API_BASE_URL}/api/v1${path}`, get
+      ? { method: 'GET', headers: auth }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify(body) });
     if (!res.ok) {
       // 서버가 오류를 JSON 으로 주면 그 문구를 그대로 보여 줍니다
       const msg = await res.json().then((j) => j?.message).catch(() => null);

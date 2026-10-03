@@ -357,6 +357,8 @@ export default function AccountView({
         </View>
       ),
     },
+    // 이메일 (2026-10-03) — 계정 관리 목록에만 원본을 줍니다(서버 `email`)
+    { key: 'email', title: '이메일', width: 230, minWidth: 180, mono: true, render: (r) => <Text style={[s.td, s.mono, { paddingHorizontal: 0 }]} numberOfLines={1}>{r.email || '—'}</Text> },
     { key: 'dept', title: '소속 부서', width: 180 },
     // 아래 4개 열은 머리글이 검색칸이 아니라 목록입니다 — 눌러서 값을 고릅니다(Tabulator list 머리글 필터)
     // 「관리자」 는 직급이 아니라 따로 둔 열로 보이고 거릅니다(2026-10-02) — 직급 목록 필터에서도 뺍니다

@@ -15,11 +15,13 @@
  *  · RCP-06 수신자 등록은 후보 계정 검색 (미배정 소속 제외, R-14)
  *  · RCP-15 쓰기 버튼은 쓰기 권한(canWrite) 으로
  *  · RCP-16 엑셀은 지금 탭의 「조회 목록 / 전체」 — 조회 권한이면 받습니다(R-10)
+ *
+ * 2026-10-03 — 수신자 「부재(수신/부재 전환)」 와 「야간 수신」(수신자 · 그룹)을 엔진 · API · DB 와 함께 없앴습니다.
+ * 그룹 멤버는 모두 받고, 야간이라고 빼지 않습니다(그룹 · 조건의 유효 시간대만 지킵니다).
  */
 import { useCallback, useMemo, useState } from 'react';
 import { labelOf, loadCodeGroups } from '@domains/common/model/codeRepository';
 import { useAsync } from '@shared/hooks/useAsync';
-import { usePaging } from '@shared/hooks/usePaging';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
@@ -29,21 +31,6 @@ import * as repo from '../model/systemRepository';
 export const RECIPIENT_SCREEN = 'sys-recip';
 
 const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
-
-/**
- * 수신자 한 명의 수신/부재 상태
- *
- * 서버 목록의 `state` 는 코드값(RECV | ABSENT)이고 `stateNm` 이 표기입니다.
- * 예전 응답이 표기 문자열('수신')을 주던 때가 있어 몇 가지 표현을 함께 받습니다.
- *
- * @param {object} r 수신자 행
- * @returns {{receiving:boolean,label:string}}
- */
-export function recipientState(r) {
-  const v = r?.state;
-  const receiving = v === '수신' || v === 'RECEIVING' || v === 'RECV' || v === 'ON' || v === true;
-  return { receiving, label: r?.stateNm || (receiving ? '수신' : '부재') };
-}
 
 /** 계정 상태 표기 (RCP-04) — 서버가 표기를 주지 않으면 코드로 */
 const USER_STATE_NM = { ACTIVE: '사용', SUSPENDED: '정지', PENDING: '승인 대기', LOCKED: '잠금' };
@@ -65,6 +52,13 @@ export function receivableLabel(g) {
 /** 이름 표기 — 서버가 이름 문자열 또는 {empNo,name} 객체로 줄 수 있습니다 */
 export const memberNameOf = (m) => (m && typeof m === 'object' ? m.name ?? '' : m);
 
+/** 사람 표기 「이름(사번)」 — 이름이 없으면(가림 · 미등록) 사번만 */
+export const personLabel = (m) => {
+  if (!m || typeof m !== 'object') return String(m ?? '');
+  if (!m.empNo) return m.name ?? '';
+  return m.name ? `${m.name}(${m.empNo})` : String(m.empNo);
+};
+
 export function useRecipientController() {
   const toast = useUiStore((state) => state.toast);
   // 권한 배열을 구독해야 /auth/me 가 늦게 와도 버튼 상태가 다시 그려집니다
@@ -78,35 +72,19 @@ export function useRecipientController() {
   const showWorker = useMemo(() => canDataOf('worker'), [canDataOf, dataPerms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [tab, setTab] = useState('수신 그룹');
-  /** 그룹 필터는 groupId 로 서버에 넘깁니다 (RCP-11) */
-  const [groupFilter, setGroupFilter] = useState('전체');
-  const [stateFilter, setStateFilter] = useState('전체');
-  const [userStateFilter, setUserStateFilter] = useState('전체');
-  // 검색어는 조회·Enter 에만 보냅니다
-  const [keywordInput, setKeyword] = useState('');
-  const [keyword, setAppliedKeyword] = useState('');
-  /** 사용 중지 그룹도 볼지 (RCP-08) */
-  const [showInactive, setShowInactive] = useState(false);
+  // 수신자 탭의 조회 줄(그룹 · 계정 · 검색 · 조회)은 뺐습니다(2026-10-03) — 전원을 한 번에 받아 머리글 필터로 거릅니다
 
   // 채널·유효 시간대 선택지와 표기는 서버 공통코드가 정본입니다
   const { data: codes } = useAsync(() => loadCodeGroups('ALM_CHANNEL', 'ALM_WINDOW'), [], { silent: true, initialData: {} });
 
   // 머리(요약·그룹)는 탭과 무관하게 한 번 — 사용 중지 그룹 보기를 바꿀 때만 다시
-  const { data, loading, reload: reloadHead } = useAsync(() => repo.loadRecipientHead({ includeInactive: showInactive }), [showInactive]);
+  // 「사용 중지 그룹 보기」 는 뺐습니다(2026-10-03) — 사용 중지 그룹도 늘 함께 보이고 상태 열 · 「사용」 단추로 되살립니다
+  const { data, loading, reload: reloadHead } = useAsync(() => repo.loadRecipientHead({ includeInactive: true }), []);
 
-  const paging = usePaging({ resetKey: `${groupFilter}|${stateFilter}|${userStateFilter}|${keyword}` });
-  const STATE_CODE = { 수신: 'RECV', 부재: 'ABSENT' };
-  const USER_STATE_CODE = { 사용: 'ACTIVE', 정지: 'SUSPENDED', '승인 대기': 'PENDING', 잠금: 'LOCKED' };
-  // 수신자 목록은 수신자 탭에서만 부릅니다 (탭별 조회, RCP-11)
+  // 수신자 목록은 수신자 탭에서만 부릅니다 (탭별 조회, RCP-11). 전원(size=0, 상한 5,000)을 받아 표가 쪽을 나눕니다
   const { data: listData, loading: listLoading, error: listErrorObj, reload: reloadList } = useAsync(
-    () => repo.loadRecipientList({
-      groupId: groupFilter === '전체' ? undefined : groupFilter,
-      state: STATE_CODE[stateFilter],
-      userState: USER_STATE_CODE[userStateFilter],
-      keyword: keyword || undefined,
-      ...paging.params,
-    }),
-    [tab, groupFilter, stateFilter, userStateFilter, keyword, paging.page, paging.size],
+    () => repo.loadAllRecipients(),
+    [tab],
     { skip: tab !== '수신자' }
   );
 
@@ -115,11 +93,8 @@ export function useRecipientController() {
 
   const reload = useCallback(() => {
     reloadHead();
-    if (tab === '수신자') {
-      if (keywordInput.trim() !== keyword) setAppliedKeyword(keywordInput.trim());
-      else reloadList();
-    }
-  }, [reloadHead, reloadList, tab, keywordInput, keyword]);
+    if (tab === '수신자') reloadList();
+  }, [reloadHead, reloadList, tab]);
 
   const run = useCallback(
     async (fn) => {
@@ -141,25 +116,17 @@ export function useRecipientController() {
       { field: 'name', head: '그룹명', attr: 'name', value: (g) => g.name },
       { field: 'channelNames', head: '발송 채널', attr: 'channels', value: (g) => g.channelNames ?? (g.channels || []).map((c) => labelOf(chan, c)).join(' · ') },
       { field: 'windowNm', head: '유효 시간대', attr: 'validWindow', value: (g) => g.windowNm ?? labelOf(win, g.validWindow) },
-      { field: 'night', head: '야간', attr: 'night', value: (g) => (g.night ? '발송' : '제외') },
-      { field: 'memberCnt', head: '멤버', attr: 'memberCnt', value: (g) => g.memberCnt ?? (g.memberEmpNos || g.members || []).length },
       { field: 'receivableLabel', head: '수신 가능', attr: 'receivableCnt', value: (g) => g.receivableLabel ?? receivableLabel(g) },
       { field: 'condCnt', head: '사용 조건', attr: 'condCnt', value: (g) => g.condCnt ?? (g.conds || []).length ?? '' },
-      { field: 'memberNames', head: '구성원', attr: 'members', worker: true, value: (g) => g.memberNames ?? (g.members || []).map(memberNameOf).join(' · ') },
+      { field: 'memberNames', head: '수신자 목록', attr: 'members', worker: true, value: (g) => (g.members || []).map(personLabel).join(' · ') },
       { field: 'useFlg', head: '상태', attr: 'useFlg', value: (g) => (g.useFlg === 'N' ? '사용 중지' : '사용') },
     ],
     recipient: [
       { field: 'groupNames', head: '수신 그룹', attr: 'groups', value: (r) => r.groupNames ?? (r.groups || []).map(memberNameOf).join(' · ') },
-      { field: 'name', head: '이름', attr: 'name', worker: true, value: (r) => r.name },
+      { field: 'nameLabel', head: '이름(사번)', attr: 'name', worker: true, value: (r) => personLabel(r) },
       { field: 'dept', head: '부서', attr: 'dept', value: (r) => r.dept },
       { field: 'posLabel', head: '직급', attr: 'posNm', value: (r) => r.posLabel ?? r.posNm ?? r.pos },
-      { field: 'accountLabel', head: '계정', attr: 'userState', value: (r) => accountState(r).label },
       { field: 'mail', head: '메일', attr: 'mail', worker: true, value: (r) => r.mail },
-      { field: 'hp', head: '휴대전화', attr: 'hp', worker: true, value: (r) => r.hp },
-      { field: 'messenger', head: '메신저', attr: 'messenger', worker: true, value: (r) => r.messenger },
-      { field: 'night', head: '야간 수신', attr: 'night', value: (r) => (r.night ? '수신' : '미수신') },
-      { field: 'stateLabel', head: '상태', attr: 'state', value: (r) => recipientState(r).label },
-      { field: 'remark', head: '비고', attr: 'remark', value: (r) => r.remark ?? '' },
     ],
   }), [chan, win]);
 
@@ -194,10 +161,8 @@ export function useRecipientController() {
       return;
     }
     const sheet = buildSheet('recipient', grid.rows || recipients, grid.order);
-    const groupNm = groupFilter === '전체' ? '전체' : groups.find((g) => String(g.groupId) === String(groupFilter))?.name || groupFilter;
-    const condSummary = `탭=수신자 · 그룹=${groupNm} · 상태=${stateFilter} · 계정=${userStateFilter} · 검색=${keyword || '없음'} · 쪽=${paging.page}`;
-    downloadXls({ name: '알림 수신자', ...sheet, scope: 'VIEW', condSummary, menuId: RECIPIENT_SCREEN });
-  }, [tab, buildSheet, groups, recipients, groupFilter, stateFilter, userStateFilter, keyword, paging.page]);
+    downloadXls({ name: '알림 수신자', ...sheet, scope: 'VIEW', condSummary: '탭=수신자 · 머리글 필터 반영', menuId: RECIPIENT_SCREEN });
+  }, [tab, buildSheet, groups, recipients]);
 
   /** 전체 다운로드 — 그룹은 사용 중지 포함 전 그룹, 수신자는 조건·쪽과 무관한 전원(size=0) */
   const exportAll = useCallback(async () => {
@@ -217,7 +182,9 @@ export function useRecipientController() {
   }, [tab, buildSheet, toast]);
 
   const summary = data?.summary;
-  const recipientTotal = (summary?.recipientCnt?.receiving ?? 0) + (summary?.recipientCnt?.absent ?? 0);
+  // 부재 기능은 2026-10-03 에 없앴습니다 — recipientCnt 는 숫자 하나(등록 수신자 수)입니다. 옛 응답 {receiving, absent} 도 받습니다
+  const cnt = summary?.recipientCnt;
+  const recipientTotal = typeof cnt === 'number' ? cnt : (cnt?.receiving ?? 0) + (cnt?.absent ?? 0);
 
   /* ───────── 동작 ───────── */
 
@@ -256,7 +223,6 @@ export function useRecipientController() {
   const loadMemberCandidates = useCallback(async (detail) => {
     const toCand = (r) => ({
       empNo: r.empNo, name: r.name ?? null, dept: r.dept ?? '',
-      state: r.state === 'ABSENT' || r.state === '부재' ? 'ABSENT' : 'RECV',
       userState: r.userState || 'ACTIVE',
     });
     let list = [];
@@ -268,12 +234,9 @@ export function useRecipientController() {
     (detail?.members || []).forEach((m) => {
       if (m && typeof m === 'object' && !list.some((x) => x.empNo === m.empNo)) list.push(toCand(m));
     });
-    (detail?.memberEmpNos || []).forEach((e) => { if (!list.some((x) => x.empNo === String(e))) list.push({ empNo: String(e), name: null, dept: '', state: 'RECV', userState: 'ACTIVE' }); });
+    (detail?.memberEmpNos || []).forEach((e) => { if (!list.some((x) => x.empNo === String(e))) list.push({ empNo: String(e), name: null, dept: '', userState: 'ACTIVE' }); });
     return list;
   }, [recipients]);
-
-  /** 수신/부재 전환 (RCP-07) */
-  const changeState = (recipientId, next, reason) => run(() => repo.setRecipientState(recipientId, next, reason));
 
   /** 영향 조회 — 실패하면 null (화면은 「영향을 확인하지 못했습니다」 로 보이고 계속합니다) */
   const loadImpact = useCallback(async (recipientId) => {
@@ -309,16 +272,10 @@ export function useRecipientController() {
     recipientTotal,
     groups,
     recipients,
-    paging,
-    itemsMeta: listData?.meta,
+    /** 받은 수신자 수 · 상한에 걸려 잘렸는지 */
+    itemsMeta: listData ? { total: listData.total, truncated: listData.truncated } : undefined,
     tab,
     setTab,
-    filters: { groupFilter, stateFilter, userStateFilter, keyword: keywordInput, appliedKeyword: keyword, showInactive },
-    setGroupFilter,
-    setStateFilter,
-    setUserStateFilter,
-    setKeyword,
-    setShowInactive,
     reload,
     // 권한 (R-06 · RCP-01)
     canWrite,
@@ -331,14 +288,13 @@ export function useRecipientController() {
     loadDeptOptions,
     loadMemberCandidates,
     loadImpact,
-    changeState,
     removeRecipient,
     /** 수신 그룹 사용 중지/사용 (RCP-08) — 참조 중이면 서버가 409 와 이유를 줍니다 */
     setGroupUse: (groupId, on) => run(() => repo.setGroupUse(groupId, on)),
     searchCandidates: repo.searchRecipientCandidates,
     /** 수신 그룹 등록·수정 — 본문은 alertFormModel.groupBody 가 만듭니다(수정 시 채널은 보내지 않음) */
     submitGroup: (groupId, body) => run(() => (groupId ? repo.updateGroup(groupId, body) : repo.createGroup(body))),
-    /** 수신자 등록(empNo 포함)·수정(mail · hp · messenger · night 만) */
+    /** 수신자 등록(empNo, 계정 메일이 없을 때만 mail) — 수정은 화면에서 없앴습니다(2026-10-03) */
     submitRecipient: (recipientId, body) => run(() => (recipientId ? repo.updateRecipient(recipientId, body) : repo.createRecipient(body))),
     /** 그룹 테스트 발송 — 결과 모달은 화면이 그립니다 */
     testGroup: async (groupId) => {

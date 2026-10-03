@@ -74,7 +74,9 @@ const ok = (r, what) => { assert(r.body.success, `${what}: ${r.status} ${r.body.
   assert(summary.evalIssueCnt && 'breach' in summary.evalIssueCnt, 'evalIssueCnt');
   for (const k of ['todaySuppressedCnt', 'todaySkippedCnt', 'todayFailCnt']) assert(k in summary, `요약에 ${k}`);
   const rsum = ok(await get('/alert-recipients/summary', {}, 'it'), '수신자 요약');
-  assert(rsum.nightWindow && rsum.nightWindow.from, 'nightWindow');
+  // 부재 · 야간은 2026-10-03 에 없앴습니다 — recipientCnt 는 숫자, nightWindow 없음
+  assert.equal(typeof rsum.recipientCnt, 'number', 'recipientCnt 숫자');
+  assert(!('nightWindow' in rsum) && !('nightCnt' in rsum), '야간 키 없음');
   for (const k of ['receivableCnt', 'condCnt']) assert(k in g, `그룹 행에 ${k}`);
   assert(!('escStages' in g), '승격 대상(escStages)은 2026-10-03 에 없앴습니다');
   const rid = all.body.data.items[0]?.recipientId;
@@ -85,8 +87,9 @@ const ok = (r, what) => { assert(r.body.success, `${what}: ${r.status} ${r.body.
   assert(gs.body.success && gs.body.data.changed === false, `그룹 상태 같은 값 changed:false (${gs.status} ${gs.body.message})`);
   const gsNo = await send('PATCH', `/alert-recipient-groups/${g.groupId}/state`, {}, 'it');
   assert.equal(gsNo.status, 400, '그룹 상태 본문 없음 400');
-  const rsNo = await send('PATCH', `/alert-recipients/${rid}/state`, {}, 'it');
-  assert.equal(rsNo.status, 400, '수신 상태 본문 없음 400');
+  // 수신/부재 전환 API 는 없앴습니다(2026-10-03)
+  const rsNo = await send('PATCH', `/alert-recipients/${rid}/state`, { state: 'ABSENT' }, 'it');
+  assert(rsNo.status === 404 || rsNo.status === 405, `수신/부재 전환 없음 ${rsNo.status}`);
   // 알림 목록 — condId 로 거르고, 없는 alertId 는 0건
   const byCond = await get('/alerts', { condId: row.condId, period: '30d', includeTest: true, size: 5 }, 'it');
   assert(byCond.body.success, `alerts condId ${byCond.status}`);
