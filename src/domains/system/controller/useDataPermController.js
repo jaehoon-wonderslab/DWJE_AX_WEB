@@ -27,7 +27,7 @@ import { attrNamesOf, attrTitleOf, includedSummary, remarkOf } from '../model/da
 const SCREEN_ID = 'sys-data';
 
 /** 쓰기 권한이 없을 때 안내 (기획 공통 R-06 문구) */
-export const NO_WRITE_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const NO_WRITE_TEXT = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /** 반영 시점 안내 — 화면·토스트·카탈로그가 같은 문장을 씁니다(DTP-08) */
 export const APPLY_TIMING = '서버 응답에는 다음 조회부터 적용됩니다. 다른 사용자의 화면에 「비공개」 표시가 나오기까지는 그 사용자가 화면을 다시 열어야 합니다(그 전에는 빈칸으로 보입니다).';
@@ -43,9 +43,10 @@ const LOCK_TEXT = {
 export function useDataPermController() {
   const toast = useUiStore((state) => state.toast);
   const setMe = useAuthStore((state) => state.setMe);
-  const writePerms = useAuthStore((state) => state.writePerms);
+  const menuPermsSub = useAuthStore((state) => state.menuPerms);
+  const unassignedSub = useAuthStore((state) => state.unassigned);
   const menuPerms = useAuthStore((state) => state.menuPerms);
-  const canWriteData = useMemo(() => useAuthStore.getState().canWrite(SCREEN_ID), [writePerms]);
+  const canWriteData = useMemo(() => useAuthStore.getState().canWrite(SCREEN_ID), [menuPermsSub, unassignedSub]); // eslint-disable-line react-hooks/exhaustive-deps
   const canSeeAudit = useMemo(() => useAuthStore.getState().can('sys-audit'), [menuPerms]);
   const readOnly = !canWriteData;
   const [busy, setBusy] = useState(false);

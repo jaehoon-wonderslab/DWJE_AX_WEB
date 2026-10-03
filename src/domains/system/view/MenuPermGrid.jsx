@@ -1,11 +1,11 @@
 /**
  * [View] SY-02 부서 × 화면 표 (메뉴 접근 권한)
  *
- * 2026-10-01 (기획 03 MNP-03·15·16·17)
- *  · 부서마다 머리글 그룹 「부서명 · n명」 아래 「조회」·「쓰기」 두 칸 (각 width 100 / minWidth 90)
+ * 2026-10-01 (기획 03 MNP-03·15·16·17) · 2026-10-03 접근 권한 통합
+ *  · 부서마다 한 칸 — 머리글 「부서명 · n명」, 칸 = 접근 체크 (width 140 / minWidth 110)
  *  · 통합관리자 열 = 전 권한(잠금), 미배정 열 = 고정(5화면) · 변경 불가(잠금)
- *  · 관리 화면 4종 행은 통합관리자가 아니면 모든 부서 칸 잠금, 쓰기 칸은 조회가 꺼져 있으면 잠금
- *  · 그룹 일괄 버튼은 칸별(조회/쓰기)이고 동작 행을 빼고 셉니다
+ *  · 관리 화면 5종 행은 통합관리자가 아니면 모든 부서 칸 잠금
+ *  · 그룹 일괄 버튼은 부서별이고 동작 행을 빼고 셉니다
  * 표가 카드보다 넓으면 표 안에서 가로로 스크롤합니다(열을 줄이거나 숨기지 않습니다).
  * 잠금 여부·값은 컨트롤러가 정해 넘깁니다 — 이 파일은 그리기만 합니다.
  */
@@ -13,7 +13,6 @@ import React, { useMemo, useRef } from 'react';
 import { TabulatorGrid } from '@shared/components/ui';
 
 const escapeTitle = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-const PERMS = [['READ', 'read', '조회'], ['WRITE', 'write', '쓰기']];
 /** 동작 행 배경을 옅게 — 밝은·어두운 테마 모두에서 보이는 반투명 회색 */
 const TABLE_OPTIONS = {
   rowFormatter: row => {
@@ -67,56 +66,52 @@ export default function MenuPermGrid({
       button.onclick = event => { event.stopPropagation(); latest.current.onShowGrants?.(row.id); };
       return button;
     } },
-    ...JSON.parse(signature).map(([deptId, name, userCnt, locked]) => ({
-      title: deptHeader(name, userCnt, locked),
-      headerHozAlign: 'center',
-      columns: PERMS.map(([perm, suffix, permLabel]) => {
-        const field = `dept_${deptId}_${suffix}`;
-        return {
-          title: permLabel, field, width: 100, minWidth: 90, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
-          headerTooltip: locked === 'UNASSIGNED' ? '미배정 부서는 대시보드·덕반장 AI·질의 이력 조회 전용으로 고정됩니다(변경 불가)' : locked === 'SUPER_ADMIN' ? '통합관리자 부서는 전 권한으로 고정됩니다' : `${name} ${permLabel}`,
-          bottomCalc: () => latest.current.screens.filter(screen => latest.current.cellValue(screen.id, deptId, perm)).length,
-          formatter: cell => {
-            const row = cell.getRow().getData();
-            const value = row[field];
-            const reason = row[`${field}__lock`] || '';
-            if (row.kind === 'group') {
-              const button = document.createElement('button');
-              button.className = 'tbtn';
-              const allowed = value === '허용';
-              button.textContent = locked === 'SUPER_ADMIN' ? '전 권한' : locked === 'UNASSIGNED' ? '고정' : allowed ? '전체 해제' : '전체 허용';
-              button.disabled = !!reason;
-              button.title = reason || `${row.group} · ${name} · ${permLabel} — 그룹 전체(동작 행 제외)에 적용`;
-              button.setAttribute('aria-label', `${row.group} ${name} ${permLabel} ${button.textContent}`);
-              button.onclick = event => { event.stopPropagation(); latest.current.onToggleGroup(row.group, deptId, perm, !allowed); };
-              return button;
-            }
-            const input = document.createElement('input');
-            input.type = 'checkbox';
+    ...JSON.parse(signature).map(([deptId, name, userCnt, locked]) => {
+      const field = `dept_${deptId}`;
+      return {
+        title: deptHeader(name, userCnt, locked), field, width: 140, minWidth: 110, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
+        headerTooltip: locked === 'UNASSIGNED' ? '미배정 부서는 대시보드·덕반장 AI·질의 이력 조회 전용으로 고정됩니다(변경 불가)' : locked === 'SUPER_ADMIN' ? '통합관리자 부서는 전 권한으로 고정됩니다' : `${name} 접근`,
+        bottomCalc: () => latest.current.screens.filter(screen => latest.current.cellValue(screen.id, deptId)).length,
+        formatter: cell => {
+          const row = cell.getRow().getData();
+          const value = row[field];
+          const reason = row[`${field}__lock`] || '';
+          if (row.kind === 'group') {
+            const button = document.createElement('button');
+            button.className = 'tbtn';
+            const allowed = value === '허용';
+            button.textContent = locked === 'SUPER_ADMIN' ? '전 권한' : locked === 'UNASSIGNED' ? '고정' : allowed ? '전체 해제' : '전체 허용';
+            button.disabled = !!reason;
+            button.title = reason || `${row.group} · ${name} — 그룹 전체(동작 행 제외)에 적용`;
+            button.setAttribute('aria-label', `${row.group} ${name} ${button.textContent}`);
+            button.onclick = event => { event.stopPropagation(); latest.current.onToggleGroup(row.group, deptId, !allowed); };
+            return button;
+          }
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = value === '허용';
+          input.disabled = !!reason;
+          input.setAttribute('aria-label', `${row.plainLabel} · ${name} 접근 허용`);
+          input.title = reason || `${name} · 접근 ${input.checked ? '허용' : '차단'}`;
+          input.onchange = () => {
+            // 응답 전에는 서버의 상태를 유지하며 중복 변경을 막습니다
             input.checked = value === '허용';
-            input.disabled = !!reason;
-            input.setAttribute('aria-label', `${row.plainLabel} · ${name} ${permLabel} 허용`);
-            input.title = reason || `${name} · ${permLabel} ${input.checked ? '허용' : '차단'}`;
-            input.onchange = () => {
-              // 응답 전에는 서버의 상태를 유지하며 중복 변경을 막습니다
-              input.checked = value === '허용';
-              latest.current.onToggle(row.id, deptId, perm);
-            };
-            const warn = row[`${field}__warn`];
-            if (!warn) return input;
-            // 상위 화면이 꺼진 하위 화면 — 칸 옆 주의 표시, 이유는 title 로(MNP-10)
-            const wrap = document.createElement('span');
-            const mark = document.createElement('span');
-            mark.textContent = ' ⚠';
-            mark.title = warn;
-            mark.setAttribute('aria-label', warn);
-            mark.setAttribute('role', 'img');
-            wrap.append(input, mark);
-            return wrap;
-          },
-        };
-      }),
-    })),
+            latest.current.onToggle(row.id, deptId);
+          };
+          const warn = row[`${field}__warn`];
+          if (!warn) return input;
+          // 상위 화면이 꺼진 하위 화면 — 칸 옆 주의 표시, 이유는 title 로(MNP-10)
+          const wrap = document.createElement('span');
+          const mark = document.createElement('span');
+          mark.textContent = ' ⚠';
+          mark.title = warn;
+          mark.setAttribute('aria-label', warn);
+          mark.setAttribute('role', 'img');
+          wrap.append(input, mark);
+          return wrap;
+        },
+      };
+    }),
   ].map(column => ({ ...column, headerSort: false })), [signature]);
 
   const rows = useMemo(() => {
@@ -127,29 +122,29 @@ export default function MenuPermGrid({
       const countable = children.filter(screen => !screen.action);
       const isCollapsed = collapsed.has(group);
       const bulk = { id: `group:${group}`, group, label: '그룹 일괄(동작 제외)', plainLabel: '그룹 일괄', kind: 'group', kindLabel: '그룹 일괄', grantCount: '', collapsed: isCollapsed };
-      depts.forEach(dept => PERMS.forEach(([perm, suffix]) => {
-        const field = `dept_${dept.id}_${suffix}`;
-        const count = countable.filter(screen => cellValue(screen.id, dept.id, perm)).length;
+      depts.forEach(dept => {
+        const field = `dept_${dept.id}`;
+        const count = countable.filter(screen => cellValue(screen.id, dept.id)).length;
         bulk[field] = countable.length && count === countable.length ? '허용' : count ? '일부 허용' : '차단';
         bulk[`${field}__lock`] = countable.length ? groupLockReason(group, dept) : '바꿀 화면이 없습니다.';
-      }));
+      });
       return [bulk, ...(isCollapsed ? [] : children).map(screen => {
         const base = screen.label || screen.name;
         const suffix = `${screen.admin ? ' (관리)' : ''}${screen.common ? ' (전사 공통)' : ''}`;
         const row = {
           id: screen.id, group: screen.group, label: `${base}${suffix}`, plainLabel: base, kind: 'screen',
-          // 동작 행은 화면이 아니라 버튼(쓰기) 권한이라 구분을 밝히고 배경을 옅게 나눕니다(MNP-05)
-          kindLabel: screen.action ? '동작(쓰기)' : screen.sub ? '하위 화면' : '메뉴',
+          // 동작 행은 화면이 아니라 버튼 권한이라 구분을 밝히고 배경을 옅게 나눕니다(MNP-05)
+          kindLabel: screen.action ? '동작' : screen.sub ? '하위 화면' : '메뉴',
           action: !!screen.action,
           grantN: grantCounts[screen.id] || 0,
           grantCount: grantCounts[screen.id] ? `${grantCounts[screen.id]}명` : '—',
         };
-        depts.forEach(dept => PERMS.forEach(([perm, key]) => {
-          const field = `dept_${dept.id}_${key}`;
-          row[field] = cellValue(screen.id, dept.id, perm) ? '허용' : '차단';
-          row[`${field}__lock`] = lockReason(screen, dept, perm);
-          row[`${field}__warn`] = cellWarn ? cellWarn(screen, dept, perm) : '';
-        }));
+        depts.forEach(dept => {
+          const field = `dept_${dept.id}`;
+          row[field] = cellValue(screen.id, dept.id) ? '허용' : '차단';
+          row[`${field}__lock`] = lockReason(screen, dept);
+          row[`${field}__warn`] = cellWarn ? cellWarn(screen, dept) : '';
+        });
         return row;
       })];
     });

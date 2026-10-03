@@ -28,7 +28,7 @@ import * as repo from '../model/systemRepository';
 /** 화면 ID — API 명세·DB tb_sys_menu 와 같은 값 */
 export const RECIPIENT_SCREEN = 'sys-recip';
 
-const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /**
  * 수신자 한 명의 수신/부재 상태
@@ -73,11 +73,12 @@ export const memberNameOf = (m) => (m && typeof m === 'object' ? m.name ?? '' : 
 export function useRecipientController() {
   const toast = useUiStore((state) => state.toast);
   // 권한 배열을 구독해야 /auth/me 가 늦게 와도 버튼 상태가 다시 그려집니다
-  const writePerms = useAuthStore((state) => state.writePerms);
+  const menuPermsSub = useAuthStore((state) => state.menuPerms);
+  const unassignedSub = useAuthStore((state) => state.unassigned);
   const dataPerms = useAuthStore((state) => state.dataPerms);
   const canWriteOf = useAuthStore((state) => state.canWrite);
   const canDataOf = useAuthStore((state) => state.canData);
-  const canWrite = useMemo(() => canWriteOf(RECIPIENT_SCREEN), [canWriteOf, writePerms]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canWrite = useMemo(() => canWriteOf(RECIPIENT_SCREEN), [canWriteOf, menuPermsSub, unassignedSub]); // eslint-disable-line react-hooks/exhaustive-deps
   // 이름·연락처는 '작업자 정보(worker)' 항목입니다
   const showWorker = useMemo(() => canDataOf('worker'), [canDataOf, dataPerms]); // eslint-disable-line react-hooks/exhaustive-deps
 

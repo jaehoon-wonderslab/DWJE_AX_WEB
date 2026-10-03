@@ -231,16 +231,16 @@ export const deleteDept = (deptId) => command(systemService.deleteSystemDeptsByD
  * 서버는 부서를 객체 배열로 주고 매트릭스를 부서 ID 로 묶어 줍니다.
  * 화면은 `{ id, name }` 와 ID 로 묶인 매트릭스만 알면 되도록 여기서 한 번 정리합니다(부서 약칭은 2026-10-02 에 없앴습니다).
  *
- * 2026-10-01 (기획 03 MNP-15·16 · 04 DTP-16) — 시스템 부서 잠금과 쓰기 칸을 함께 정리합니다.
+ * 2026-10-01 (기획 03 MNP-15·16 · 04 DTP-16) — 시스템 부서 잠금을 함께 정리합니다.
  *  · `locked` — 'SUPER_ADMIN'(통합관리자, 전 권한) · 'UNASSIGNED'(미배정, 고정) · null(일반 부서).
  *    판정은 서버 응답(`locked` · `superAdmin` · `unassigned`)만 씁니다. 부서명 문자열로 가리지 않습니다.
- *  · `writeMatrix` — 메뉴 권한의 쓰기 칸(R-06). 키는 matrix 와 같은 부서 ID 문자열입니다.
+ *  · 메뉴 권한의 쓰기 칸(writeMatrix)은 2026-10-03 에 없앴습니다 — 접근 = 모든 동작.
  *  · 미배정 부서의 데이터 권한은 0건 고정이므로(DTP-16) 응답과 관계없이 빈 목록으로 둡니다 — 이 함수는
  *    메뉴·데이터 공용이라 `kind` 로 구분합니다.
  *
  * @param {object} data 서버 응답 data
  * @param {'menu'|'data'} [kind] 어느 매트릭스인지
- * @returns {object} { ...data, depts:[{id,name,desc,superAdmin,unassigned,locked,userCnt}], matrix, writeMatrix, adminDepts:[id] }
+ * @returns {object} { ...data, depts:[{id,name,desc,superAdmin,unassigned,locked,userCnt}], matrix, adminDepts:[id] }
  */
 function normalizePermMatrix(data, kind = 'menu') {
   if (!data) return data;
@@ -272,7 +272,6 @@ function normalizePermMatrix(data, kind = 'menu') {
     return out;
   };
   const matrix = byDept(data.matrix);
-  const writeMatrix = byDept(data.writeMatrix);
   if (kind === 'data') depts.filter((d) => d.locked === 'UNASSIGNED').forEach((d) => { matrix[String(d.id)] = []; });
 
   const adminDepts = data.adminDepts?.length
@@ -283,7 +282,10 @@ function normalizePermMatrix(data, kind = 'menu') {
     if (!d.locked && adminDepts.includes(String(d.id))) Object.assign(d, { superAdmin: true, locked: 'SUPER_ADMIN' });
   });
 
-  return { ...data, depts, matrix, writeMatrix, adminDepts };
+  // 구 서버가 writeMatrix 를 주더라도 쓰지 않습니다
+  const rest = { ...data };
+  delete rest.writeMatrix;
+  return { ...rest, depts, matrix, adminDepts };
 }
 
 /**
@@ -318,36 +320,33 @@ export async function loadMenuPerms() {
 /**
  * 메뉴 권한 단건 변경 (허용 여부 명시)
  *
- * 서버 요청 본문은 `deptId · screenId · allowed · perm` 입니다. allowed 를 빼고 보내면
+ * 서버 요청 본문은 `deptId · screenId · allowed` 입니다. allowed 를 빼고 보내면
  * 서버가 true 로 간주해 체크 해제가 되지 않았습니다.
- * `perm`(2026-10-01, 기획 03 MNP-16 · 4.4.2) — 'READ' 조회 칸 · 'WRITE' 쓰기 칸.
- *  · READ 해제 = 행 삭제(쓰기도 함께 회수) · WRITE 해제 = 쓰기만 끔 · WRITE 허용 = 조회도 함께 켬
+ * 조회/쓰기 구분(perm)은 2026-10-03 에 없앴습니다 — 칸 하나 = 접근.
  *
  * @param {number|string} deptId 부서 ID
  * @param {string} screenId 화면 ID
  * @param {boolean} allowed true 허용 · false 해제
- * @param {'READ'|'WRITE'} [perm] 어느 칸인지 (기본 READ)
  */
-export const setMenuPerm = (deptId, screenId, allowed, perm = 'READ') =>
-  command(systemService.putSystemMenuPerms({ deptId, screenId, allowed, perm }));
+export const setMenuPerm = (deptId, screenId, allowed) =>
+  command(systemService.putSystemMenuPerms({ deptId, screenId, allowed }));
 /**
  * 메뉴 권한 그룹 일괄 변경 — 요청 1회로 그룹 전체를 바꿉니다(기획 03 MNP-04 · 4.4.3).
  *
- * 본문은 `deptId · groupId · allowed · perm · includeActions` 입니다. 동작 권한 행(업로드 같은 버튼)은
+ * 본문은 `deptId · groupId · allowed · includeActions` 입니다. 동작 권한 행(업로드 같은 버튼)은
  * 그룹 일괄에서 빼므로 includeActions 는 항상 false 입니다(MNP-05).
- * 그룹에 관리 화면 4종이 들어 있고 요청자가 통합관리자가 아니면 서버가 요청 전체를 409 로 거부합니다(MNP-03).
+ * 그룹에 관리 화면 5종이 들어 있고 요청자가 통합관리자가 아니면 서버가 요청 전체를 409 로 거부합니다(MNP-03).
  *
  * @param {number|string} deptId 부서 ID
  * @param {string} groupId 대그룹 ID (assistant · dashboard · operation · report · history · glossary · alert · system)
  * @param {boolean} allowed true 전체 허용 · false 전체 해제
- * @param {'READ'|'WRITE'} [perm] 어느 칸인지 (기본 READ)
  */
-export const setMenuGroupPerm = (deptId, groupId, allowed, perm = 'READ') =>
-  command(systemService.putSystemMenuPermsGroup({ deptId, groupId, allowed, perm, includeActions: false }));
+export const setMenuGroupPerm = (deptId, groupId, allowed) =>
+  command(systemService.putSystemMenuPermsGroup({ deptId, groupId, allowed, includeActions: false }));
 /**
  * 부서 권한 복사 — 1단계 미리보기 (기획 03 MNP-01 · 4.4.4)
  *
- * 서버가 대상 부서에 더해질·회수될 화면(조회/쓰기 구분), 영향 계정 수, 관리 화면 변경 여부와
+ * 서버가 대상 부서에 더해질·회수될 화면, 영향 계정 수, 관리 화면 변경 여부와
  * 실행에 쓸 `expectedHash` 를 돌려줍니다. 권한은 바뀌지 않습니다.
  *
  * @returns {Promise<{ok:boolean, data:{added[],removed[],adminScreensChanged[],requiresSuperAdmin,expectedHash,from,to}, message, code}>}
@@ -392,7 +391,7 @@ export async function loadPermChangeLogs(actType, size = 20) {
  */
 export async function loadDataPerms() {
   const data = await unwrap(systemService.getSystemDataPerms({}));
-  return normalizePermMatrix(data, 'data') || { fields: [], depts: [], matrix: {}, writeMatrix: {}, adminDepts: [] };
+  return normalizePermMatrix(data, 'data') || { fields: [], depts: [], matrix: {}, adminDepts: [] };
 }
 /*
  * 「제거됨」 (2026-10-01, 기획 04 DTP-13) — 허용 여부 없이 뒤집던 변경입니다. 호출처가 없어 setDataPerm 으로 대신합니다.
@@ -716,44 +715,91 @@ export async function loadAllGlossaryTerms() {
   return data?.items || [];
 }
 
-/* ═══════ SY-08 자연어 질의 이력 ═══════ */
+/* ═══════ SY-08 자연어 질의 이력 · SY-18 전사 자연어 질의 이력 ═══════ */
+/*
+ * 2026-10-03 — 모든 조회에 scope 를 붙입니다.
+ *  · 'mine'(기본) — /history/chat(chat-history). 서버가 본인 행만 줍니다
+ *  · 'all' — /system/chat-history(sys-chat-history). 전 사용자 행. 부서(userGroup)·사번 조건은 이때만 보냅니다
+ */
+const chatScopeParams = (scope, group, empNo) => (scope === 'all'
+  ? { scope: 'all', userGroup: group, empNo }
+  : { scope: 'mine' });
+
+/** 숫자 필드 — 비었거나 숫자가 아니면 null */
+const numOrNull = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+
+/**
+ * 질의 행 LLM 메타 (2026-10-03 2차, V71) — 서버가 아직 안 주면 null · 빈 목록으로 채워 화면이 '—' 로 그립니다.
+ *  · llmModel · finishReason(stop|length|tool_calls…) · promptTokens · completionTokens · totalTokens · llmMs
+ *  · llmRequestId 는 scope=all 에서만 옵니다
+ *  · docs[{title,page,score}] 상위 3건 + docCnt — 목록 행의 근거 문서 요약(상세 hits 와 같은 원천)
+ */
+export function normChatRow(r) {
+  if (!r || typeof r !== 'object') return r;
+  const promptTokens = numOrNull(r.promptTokens);
+  const completionTokens = numOrNull(r.completionTokens);
+  const docs = (Array.isArray(r.docs) ? r.docs : [])
+    .filter(Boolean)
+    .map((d) => ({ title: d.title || d.docNm || d.docId || '', page: d.page ?? null, score: numOrNull(d.score) }))
+    .slice(0, 3);
+  return {
+    ...r,
+    llmModel: r.llmModel || null,
+    finishReason: r.finishReason ?? r.llmFinishReason ?? null,
+    promptTokens,
+    completionTokens,
+    totalTokens: numOrNull(r.totalTokens) ?? (promptTokens != null && completionTokens != null ? promptTokens + completionTokens : null),
+    llmMs: numOrNull(r.llmMs),
+    llmRequestId: r.llmRequestId || null,
+    intentNm: r.intentNm || null,
+    docs,
+    docCnt: numOrNull(r.docCnt) ?? docs.length,
+  };
+}
+
 /**
  * 질의 보기 — 요약 + 질의 목록
- * @param {object} p { from, to, group, keyword, page, size }
+ * @param {object} p { scope, from, to, group, keyword, page, size }
  */
-export async function loadChatHistory({ from, to, group, keyword, rating, review, answered, page, size }) {
+export async function loadChatHistory({ scope = 'mine', from, to, group, empNo, keyword, rating, review, answered, page, size }) {
+  const sp = chatScopeParams(scope, group, empNo);
   const data = await unwrapAll({
-    summary: systemService.getAiChatHistorySummary({ from, to, userGroup: group, keyword }),
+    summary: systemService.getAiChatHistorySummary({ ...sp, from, to, keyword }),
     // 서버 파라미터는 userGroup 입니다. group 으로 보내면 조용히 무시됩니다
     // 평가·검토·응답 여부(08 CHH-10) — '전체' 는 보내지 않습니다(client 가 거릅니다)
-    list: systemService.getAiChatHistory({ from, to, userGroup: group, keyword, rating, review, answered, page, size }),
+    list: systemService.getAiChatHistory({ ...sp, from, to, keyword, rating, review, answered, page, size }),
   });
-  return { ...data, listMeta: data.metas?.list };
+  const list = data.list ? { ...data.list, items: (data.list.items || []).map(normChatRow) } : data.list;
+  return { ...data, list, listMeta: data.metas?.list };
 }
 
 /**
  * 세션 보기 — 요약 + 세션 목록 (08 CHH-18, 결정 R-12)
- * @param {object} p { from, to, group, keyword, page, size }
+ * @param {object} p { scope, from, to, group, keyword, page, size }
  */
-export async function loadChatSessions({ from, to, group, keyword, rating, review, answered, page, size }) {
+export async function loadChatSessions({ scope = 'mine', from, to, group, empNo, keyword, rating, review, answered, page, size }) {
+  const sp = chatScopeParams(scope, group, empNo);
   const data = await unwrapAll({
-    summary: systemService.getAiChatHistorySummary({ from, to, userGroup: group, keyword }),
-    list: systemService.getAiChatHistorySessions({ from, to, userGroup: group, keyword, rating, review, answered, page, size }),
+    summary: systemService.getAiChatHistorySummary({ ...sp, from, to, keyword }),
+    list: systemService.getAiChatHistorySessions({ ...sp, from, to, keyword, rating, review, answered, page, size }),
   });
   return { ...data, listMeta: data.metas?.list };
 }
 
 /** 세션 상세 — 시간순 대화 (없으면 E-NOTFOUND 로 던집니다) */
-export const fetchChatSession = (sessionKey) => unwrap(systemService.getAiChatHistorySessionsBySessionKey({ sessionKey }));
+export async function fetchChatSession(sessionKey, scope = 'mine') {
+  const d = await unwrap(systemService.getAiChatHistorySessionsBySessionKey({ sessionKey, scope: scope === 'all' ? 'all' : 'mine' }));
+  return d && Array.isArray(d.turns) ? { ...d, turns: d.turns.map(normChatRow) } : d;
+}
 
 /**
  * 사용자 그룹 선택지 — 기간 중 질의가 있는 부서(08 CHH-10).
  * 이 API 가 아직 없거나 실패하면 부서 목록(/system/depts)으로 대신합니다. 그쪽은 관리 화면 권한이 있어야 열립니다.
  * @returns {Promise<string[]>} 맨 앞이 '전체'
  */
-export async function loadChatGroups({ from, to }) {
+export async function loadChatGroups({ from, to, scope = 'all' }) {
   try {
-    const data = await unwrap(systemService.getAiChatHistoryGroups({ from, to }), { items: [] });
+    const data = await unwrap(systemService.getAiChatHistoryGroups({ from, to, scope }), { items: [] });
     const names = (data?.items || data?.groups || []).map((g) => g.dept ?? g.deptNm ?? g).filter((v) => typeof v === 'string' && v);
     // 부서가 없는 질의는 서버가 "-" 로 줍니다 — 값은 그대로 두고 이름만 「부서 없음」 으로 보입니다
     if (names.length) return ['전체', ...names.map((n) => (n === '-' ? { value: '-', label: '부서 없음' } : n))];
@@ -763,11 +809,18 @@ export async function loadChatGroups({ from, to }) {
   return loadDeptOptions().catch(() => ['전체']);
 }
 
-export const fetchChatDetail = (messageId) => unwrap(systemService.getAiChatHistoryByMessageId({ messageId }));
+export const fetchChatDetail = async (messageId, scope = 'mine') =>
+  normChatRow(await unwrap(systemService.getAiChatHistoryByMessageId({ messageId, scope: scope === 'all' ? 'all' : 'mine' })));
 export const rateChatMessage = (messageId, rating) => command(aiService.postAiChatMessagesByMessageIdFeedback({ messageId, rating }));
-/** 관리자 검토 저장 — 질의자 평가와 따로 남습니다(08 CHH-04). 쓰기 권한 없음은 403 E-AUTH-004 */
+/** 관리자 검토 저장 — 질의자 평가와 따로 남습니다(08 CHH-04). sys-chat-history 쓰기, 미배정은 403 E-AUTH-004 */
 export const reviewChatMessage = (messageId, reviewCd, comment) =>
   command(systemService.putAiChatHistoryByMessageIdReview({ messageId, reviewCd, ...(comment ? { comment } : {}) }));
+/**
+ * 학습 데이터 답변 저장 (2026-10-03, sys-chat-history 쓰기) — 빈 문자열·공백이면 서버가 지웁니다.
+ * @returns {Promise<{ok:boolean, data:{messageId,trainAnswer,trainAnswerAt,trainAnswerBy,trainAnswerByNm}, message, code}>}
+ */
+export const saveChatTrainAnswer = (messageId, answer) =>
+  command(systemService.putAiChatHistoryByMessageIdTrainAnswer({ messageId, answer: String(answer ?? '') }));
 /** 제거됨 — 학습데이터는 서버 파일로 받습니다(useChatHistoryController.exportTrainset · 08 CHH-03). 호출부 없음 */
 export const exportTrainset = (ratingFilter) => command(systemService.postAiChatHistoryExportTrainset({ ratingFilter }));
 

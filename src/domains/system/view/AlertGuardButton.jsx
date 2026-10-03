@@ -12,7 +12,7 @@ import { Platform, View } from 'react-native';
 import { Button } from '@shared/components/ui';
 
 /** 쓰기 권한이 없을 때의 안내 (공통 지침 문구) */
-export const WRITE_DENIED_TIP = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const WRITE_DENIED_TIP = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /** 조건 삭제는 통합관리자만 (결정 R-13) */
 export const DELETE_SUPER_ONLY_TIP = '삭제는 통합관리자만 할 수 있습니다. 사용하지 않는 조건은 중지하세요.';

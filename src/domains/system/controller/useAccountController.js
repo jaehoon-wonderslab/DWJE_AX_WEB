@@ -7,7 +7,7 @@
  * 이 화면에서 승인해야 해당 계정이 로그인할 수 있습니다.
  *
  * 2026-10-01 개선 (기획 01_sys-account)
- *  · ACC-15 쓰기 권한 — 요약 `canWrite`(없으면 /auth/me 의 writePerms)가 false 면 쓰기 버튼을 비활성으로 그립니다.
+ *  · ACC-15 쓰기 권한 — 요약 `canWrite`(없으면 접근 권한 · 미배정 여부)가 false 면 쓰기 버튼을 비활성으로 그립니다.
  *  · ACC-02 통합관리자 부서는 통합관리자에게만 선택지로 보이고, 본인 계정의 부서·수동 메뉴는 바꿀 수 없습니다.
  *  · ACC-05 잠김(LOCKED) 계정은 [잠금 해제] 로 풉니다. [정지] 는 사유를 받습니다.
  *  · ACC-14 미배정 부서 계정에는 추가 메뉴를 보내지 않습니다(서버 409).
@@ -100,8 +100,9 @@ function useAccountList(loader, localFilters = false, extra = {}) {
 export function useAccountController() {
   const toast = useUiStore((state) => state.toast);
   const me = useAuthStore((state) => state.userInfo);
-  // writePerms 를 구독해야 권한이 바뀌었을 때 다시 그립니다 (canWrite 는 함수라 구독만으로는 바뀌지 않습니다)
-  useAuthStore((state) => state.writePerms);
+  // menuPerms · unassigned 를 구독해야 권한이 바뀌었을 때 다시 그립니다 (canWrite 는 함수라 구독만으로는 바뀌지 않습니다)
+  useAuthStore((state) => state.menuPerms);
+  useAuthStore((state) => state.unassigned);
   const storeCanWrite = useAuthStore((state) => state.canWrite);
 
   const can = useAuthStore((state) => state.can);
@@ -141,7 +142,7 @@ export function useAccountController() {
   /** 통합관리자인지 (ACC-02 · ACC-16) — 요약 currentUser.superAdmin 이 정본입니다 */
   const superAdmin = !!(summary?.currentUser?.superAdmin ?? me?.superAdmin ?? false);
   /**
-   * 쓰기 권한 (ACC-15, R-06) — 서버 요약 값이 정본이고, 없으면 /auth/me 의 writePerms 로 판정합니다.
+   * 쓰기 권한 (ACC-15, R-06) — 서버 요약 값이 정본이고, 없으면 접근 권한 · 미배정 여부로 판정합니다.
    * 통합관리자는 판정이 항상 통과하므로(CMN-06) 값이 없어도 쓸 수 있습니다.
    */
   const canWrite = typeof summary?.canWrite === 'boolean' ? summary.canWrite : superAdmin || storeCanWrite(SCREEN_ID);

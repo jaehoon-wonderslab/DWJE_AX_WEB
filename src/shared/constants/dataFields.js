@@ -59,6 +59,7 @@ export const DATA_SCOPE_DEFAULT = {
  *
  * 실 서버 모드의 기준은 DB `ax.tb_sys_dept_menu_perm`([시스템관리 > 메뉴 접근 권한] 화면)이고
  * `/auth/me` 의 menuPerms 로 내려옵니다. 2026-09-23 DB 값 그대로 옮겨 두었습니다.
+ * 2026-10-03 (2차) — 전사 자연어 질의 이력(sys-chat-history)은 관리자 전용입니다. 어느 부서에도 기본 행을 두지 않습니다(통합관리자는 '*' 로 통과).
  */
 export const MENU_ACCESS_DEFAULT = {
   품질보증팀: [

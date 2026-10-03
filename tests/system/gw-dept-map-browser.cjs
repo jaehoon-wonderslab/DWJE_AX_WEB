@@ -14,7 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
 
-const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 (async () => {
   const { browser, page } = await open();

@@ -19,7 +19,7 @@ const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
 
 const R13 = '삭제는 통합관리자만 할 수 있습니다. 사용하지 않는 조건은 중지하세요.';
-const WRITE_TIP = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_TIP = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 const CODES = [
   ['ALM_SEVERITY', 'CRIT', '위험'], ['ALM_SEVERITY', 'WARN', '주의'], ['ALM_SEVERITY', 'LOW', '낮음'],
@@ -42,7 +42,8 @@ function cond(id, extra = {}) {
 function me({ write = true, superAdmin = false } = {}) {
   return {
     user: { empNo: superAdmin ? '10000' : '10004', name: superAdmin ? '관리자' : '최전산', dept: superAdmin ? '통합관리자' : '전산팀', deptId: superAdmin ? 1 : 5, pos: 'SENIOR', superAdmin },
-    dept: { deptId: 5, deptNm: '전산팀', superAdmin },
+    // 2026-10-03 — 접근이 있는데 쓰기가 막히는 경우는 미배정뿐입니다(write=false → 미배정)
+    dept: { deptId: 5, deptNm: '전산팀', superAdmin, unassigned: !write && !superAdmin },
     menuPerms: ['ai-chat', 'alert-cond', 'alert-list', 'sys-recip'],
     writePerms: superAdmin ? ['*'] : write ? ['alert-cond'] : [],
     dataPerms: ['qty', 'worker'],

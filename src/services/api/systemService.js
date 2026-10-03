@@ -993,10 +993,22 @@ export function getAiChatHistorySessionsBySessionKey(params) {
  * `PUT /api/v1/ai/chat/history/{messageId}/review`
  * @param {object} params messageId, reviewCd, comment
  * @returns {Promise<object>} messageId, review, reviewedBy, reviewedAt
- * @privateRemarks 접근 권한 chat-history 쓰기 권한 · 우선순위 1
+ * @privateRemarks 접근 권한 sys-chat-history 쓰기 · 우선순위 1
  */
 export function putAiChatHistoryByMessageIdReview(params) {
   return request('putAiChatHistoryByMessageIdReview', params);
+}
+
+/**
+ * 학습 데이터 답변 저장 (SY-18 전사 자연어 질의 이력, 2026-10-03 신규)
+ *
+ * `PUT /api/v1/ai/chat/history/{messageId}/train-answer` — 빈 값·공백이면 지웁니다.
+ * @param {object} params messageId, answer
+ * @returns {Promise<object>} messageId, trainAnswer, trainAnswerAt, trainAnswerBy, trainAnswerByNm
+ * @privateRemarks 접근 권한 sys-chat-history 쓰기 · 우선순위 1
+ */
+export function putAiChatHistoryByMessageIdTrainAnswer(params) {
+  return request('putAiChatHistoryByMessageIdTrainAnswer', params);
 }
 
 /**
@@ -1029,7 +1041,7 @@ export function getAiChatHistoryGroups(params) {
  * `GET /api/v1/ai/chat/history/debug/{requestId}`
  * @param {object} params requestId
  * @returns {Promise<object>} route, parse, tool, result, errorCd, period, rows, docs, toolMs, totalMs
- * @privateRemarks 접근 권한 chat-history 쓰기 권한 · 우선순위 3
+ * @privateRemarks 접근 권한 sys-chat-history 쓰기 · 우선순위 3
  */
 export function getAiChatHistoryDebugByRequestId(params) {
   return request('getAiChatHistoryDebugByRequestId', params);

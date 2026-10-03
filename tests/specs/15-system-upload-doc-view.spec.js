@@ -72,7 +72,7 @@ suite('업로드 문서 목록 표시 계약', () => {
     ok(/\\\.xlsm\$\/i/.test(dc) && dc.includes('매크로 포함 통합문서(xlsm)는 올릴 수 없습니다'), 'xlsm 안내');
     ok(/MAX_MEMO_LEN = 1000/.test(dc) && /validate: memoError/.test(dc), '메모 길이 검증');
     ok(/canWrite\('dash-ai-upload'\)/.test(dc), '쓰기 권한 판정');
-    ok(dc.includes('이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.'), '안내 문구');
+    ok(dc.includes('미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.'), '안내 문구');
     ok(/disabled=\{uploading \|\| !canWriteUpload\}/.test(dv), '단추 비활성(숨기지 않음)');
     ok(/duplicateOf/.test(dc), '같은 파일 재업로드 안내');
   });

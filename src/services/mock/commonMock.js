@@ -42,8 +42,9 @@ export const commonMock = {
       dept: user.dept,
       menuPerms: menuPermsOf(user.dept),
       dataPerms: dataPermsOf(user.dept),
-      // 쓰기 권한(R-06) — 목에는 조회/쓰기 구분 데이터가 없어 조회 가능한 화면을 그대로 쓰기 가능으로 둡니다
-      writePerms: menuPermsOf(user.dept),
+      // 호환용(2026-10-03) — 미배정이면 [], 아니면 menuPerms 와 같습니다. 화면은 이 값을 보지 않습니다
+      writePerms: user.dept === '미배정' ? [] : menuPermsOf(user.dept),
+      unassigned: user.dept === '미배정',
       pwdChangeRequired: false,
       // 적용 중인 항목 정의 — 화면·엑셀이 이걸로 「응답 필드명 → 항목」 맵을 만듭니다
       dataFields: appliedDataFields(),
@@ -61,7 +62,7 @@ export const commonMock = {
       user,
       menuPerms: menuPermsOf(user.dept),
       dataPerms: dataPermsOf(user.dept),
-      writePerms: menuPermsOf(user.dept),
+      writePerms: user.dept === '미배정' ? [] : menuPermsOf(user.dept),
     };
   },
 

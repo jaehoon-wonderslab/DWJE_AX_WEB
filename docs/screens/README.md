@@ -96,12 +96,13 @@
 | `/system/download-log` | `sys-dl` | 보고서 다운로드 이력 | [38](./38_system_download-log.md) | 6 |
 | `/system/upload-doc` | `sys-upload-doc` | 업로드 문서 목록 (읽기 전용) | [41](./41_system_upload-doc.md) | 2 |
 | `/system/sync-history` | `sys-sync` | 데이터 연동 이력 (조건부 30초 폴링) | [39](./39_system_sync-history.md) | 13 |
+| `/system/chat-history` | `sys-chat-history` | 전사 자연어 질의 이력 (2026-10-03 신규 · 관리자 전용 · 전 사용자 · 세션 보기 · 학습 데이터 답변) | [44](./44_system_chat-history-admin.md) | 9 |
 
 ## 8-1. 자연어 질의 이력 (2026-10-01 시스템관리에서 이동, 허브 `/menu/history`)
 
 | URL | 화면 ID | 화면명 | 문서 | API |
 | :--- | :--- | :--- | :--- | :--- |
-| `/history/chat` | `chat-history` | 자연어 질의 이력 (세션별 조회 · 옛 주소 `/system/chat-history` 는 리다이렉트) | [32](./32_system_chat-history.md) | 10 |
+| `/history/chat` | `chat-history` | 자연어 질의 이력 (2026-10-03 본인 이력 전용 · 질의 표 · 대화 보기) | [32](./32_system_chat-history.md) | 7 |
 
 ## 8-2. 용어 사전 (2026-10-01 신설, 허브 `/menu/glossary`)
 

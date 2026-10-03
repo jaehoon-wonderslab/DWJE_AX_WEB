@@ -12,7 +12,7 @@
  * 2026-10-01 개선 (기획 02_sys-gw-dept)
  *  · GWD-01 재배정 대상 = 선택한 계정, 선택이 없으면 **지금 표에 보이는 계정** 중 제안 부서가 있는 계정.
  *           그 사번을 항상 명시해 보냅니다(빈 본문 = 전체 규칙 폐지).
- *  · GWD-14 쓰기 권한 — 요약 `canWrite`(없으면 /auth/me 의 writePerms)가 false 면 쓰기 버튼·선택 칸을 막습니다.
+ *  · GWD-14 쓰기 권한 — 요약 `canWrite`(없으면 접근 권한 · 미배정 여부)가 false 면 쓰기 버튼·선택 칸을 막습니다.
  *  · GWD-15 엑셀은 현재 탭의 「조회 목록(그리드 그대로)」 · 「전체(조건 무시, 상한 10,000)」 두 가지입니다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -125,7 +125,8 @@ function loadErrorText(err) {
 
 export function useGwDeptMapController() {
   const toast = useUiStore((state) => state.toast);
-  useAuthStore((state) => state.writePerms); // 쓰기 권한이 바뀌면 다시 그립니다
+  useAuthStore((state) => state.menuPerms); // 쓰기 권한이 바뀌면 다시 그립니다
+  useAuthStore((state) => state.unassigned);
   const storeCanWrite = useAuthStore((state) => state.canWrite);
   const me = useAuthStore((state) => state.userInfo);
   const can = useAuthStore((state) => state.can);
@@ -191,7 +192,7 @@ export function useGwDeptMapController() {
     return { last, lastJoin: summary?.lastJoin || null, stale };
   }, [summary]);
 
-  /** 쓰기 권한 (GWD-14, R-06) — 요약 값이 정본. 없으면 /auth/me 의 writePerms, 통합관리자는 항상 통과(CMN-06) */
+  /** 쓰기 권한 (GWD-14, R-06) — 요약 값이 정본. 없으면 접근 권한 · 미배정 여부, 통합관리자는 항상 통과(CMN-06) */
   const canWrite = typeof summary?.canWrite === 'boolean' ? summary.canWrite : !!me?.superAdmin || storeCanWrite(SCREEN_ID);
 
   /* ───────── 표에 보이는 행 (GWD-01 · GWD-15) ───────── */

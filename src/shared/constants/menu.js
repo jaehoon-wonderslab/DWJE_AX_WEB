@@ -62,7 +62,7 @@ export const MENU = [
     group: '자연어 질의 이력',
     hubPath: '/menu/history',
     single: true,
-    items: [{ id: 'chat-history', name: '자연어 질의 이력', path: '/history/chat', tag: '수정', description: '전 사용자의 자연어 질의와 AI 응답 이력을 세션별로 조회합니다.' }],
+    items: [{ id: 'chat-history', name: '자연어 질의 이력', path: '/history/chat', tag: '수정', description: '내 자연어 질의와 AI 응답 이력을 조회합니다.' }],
   },
   {
     // 공식 용어·유사어를 찾아보기만 하는 화면 — 등록·수정·삭제는 시스템관리 > 용어 사전 관리(sys-gloss) 입니다 (2026-10-01 결정 R-09·R-15).
@@ -94,6 +94,8 @@ export const MENU = [
               { id: 'sys-dl', name: '보고서 다운로드 이력', path: '/system/download-log', tag: '신규', description: '사용자별 보고서·화면 파일 다운로드 이력을 조회합니다.' },
       { id: 'sys-upload-doc', name: '업로드 문서 목록', path: '/system/upload-doc', tag: '신규', description: 'AI 통합 대시보드 업로드 리포트에 올라온 엑셀 문서와 버전 이력을 조회하고, 잘못 올린 문서를 숨기거나 복원합니다.' },
       { id: 'sys-sync', name: '데이터 연동 이력', path: '/system/sync-history', tag: '필수', description: 'MES에서 AX 계층으로 이관된 데이터 연동 결과와 오류를 확인합니다.' },
+      // 2026-10-03 — 전 사용자의 질의 이력은 여기서 봅니다(/history/chat 은 본인 이력만)
+      { id: 'sys-chat-history', name: '전사 자연어 질의 이력', path: '/system/chat-history', tag: '신규', description: '모든 사용자의 자연어 질의와 AI 응답을 조회하고, 학습 데이터로 쓸 답변을 추가합니다.' },
     ],
   },
 ];
@@ -105,7 +107,7 @@ export const MENU = [
  * (키를 from/to/screen 으로 써서 check-routes 의 메뉴 정의 정규식 `id: …, name: …, path: …` 에 걸리지 않게 합니다)
  */
 export const LEGACY_PATHS = [
-  { from: '/system/chat-history', to: '/history/chat', screen: 'chat-history' },
+  // /system/chat-history → /history/chat 리다이렉트는 2026-10-03 에 없앴습니다 — 그 주소는 이제 전사 자연어 질의 이력(sys-chat-history) 화면입니다
 ];
 
 /**

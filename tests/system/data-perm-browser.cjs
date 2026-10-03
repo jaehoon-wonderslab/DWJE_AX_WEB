@@ -12,7 +12,7 @@
  *  · 항목 관리 — 시스템관리 화면 없음, 예약어 행 잠금, 저장 = PUT /data-fields/mapping 1건, 실패 시 고른 내용 유지,
  *    미적용 종류 안내(notApplied), 자동 적용 켜기(PATCH apply) 없음
  *  · 엑셀 옵션 패널 — 조회 목록(VIEW, 종류 행 수) · 전체(ALL, 가리는 값 포함), blindCnt 0
- *  · 읽기 전용(writePerms 에 sys-data 없음) — 체크·항목 관리 저장 비활성, 「읽기 전용」, 엑셀은 활성
+ *  · 읽기 전용(미배정 계정 — 2026-10-03 부터 접근이 있으면 쓰기 가능, 미배정만 불가) — 체크·항목 관리 저장 비활성, 「읽기 전용」, 엑셀은 활성
  *  · 390px 에서 마지막 부서(미배정) 열 머리글·값까지 가로 스크롤, 머리글과 본문 정렬
  */
 const assert = require('node:assert/strict');
@@ -56,7 +56,7 @@ async function setup({ write = true } = {}) {
   page.on('pageerror', (e) => state.errors.push(e.message));
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: { success: true, data: {
     user: { empNo: '10004', name: '최전산', dept: '검증부서', deptId: 2, superAdmin: false },
-    dept: { deptId: 2, deptNm: '검증부서', unassigned: false },
+    dept: { deptId: 2, deptNm: '검증부서', unassigned: !write },
     menuPerms: ['ai-chat', 'sys-menu', 'sys-data'], writePerms: write ? ['sys-data'] : [], dataPerms: ['qty'], dataFields: [], pwdChangeRequired: false,
   } } }));
   await page.route('**/api/v1/common/codes**', (route) => route.fulfill({ json: { success: true, data: { codes: [
@@ -105,7 +105,7 @@ async function setup({ write = true } = {}) {
       return route.fulfill({ json: { success: true, message: '데이터 항목을 수정했습니다.', data: { success: true } } });
     }
     if (req.method() === 'PATCH') { state.applies.push({ path, body: req.postDataJSON() }); return route.fulfill({ json: { success: true, message: '적용했습니다. 서버 응답에는 다음 조회부터 적용됩니다.', data: { applyFlg: 'Y' } } }); }
-    return route.fulfill({ json: { success: true, data: { items: FIELDS, reservedAttrs: ['name', 'empNo', 'dept'] } } });
+    return route.fulfill({ json: { success: true, data: { items: FIELDS, reservedAttrs: ['name', 'empNo', 'dept', 'question'] } } });
   });
   await page.goto(`${WEB}/system/data-perm`);
   await page.locator('.tabulator').first().waitFor();
@@ -181,8 +181,9 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     const screenOptions = await screenSelect.locator('option').allTextContents();
     assert(!screenOptions.some((t) => t.startsWith('시스템관리')), 'no system screens');
     assert(screenOptions.some((t) => t.includes('AI 통합 대시보드')));
+    // 2026-10-03 — 본인 이력 화면에서 「부서·사용자」 열이 빠져, 시험용 예약어(question)로 잠금을 봅니다
     await screenSelect.selectOption('chat-history');
-    const reserved = page.getByRole('checkbox', { name: '부서·사용자 가리기', exact: true });
+    const reserved = page.getByRole('checkbox', { name: '질문 가리기', exact: true });
     await reserved.waitFor();
     assert.equal(await reserved.getAttribute('aria-disabled'), 'true', 'reserved attr locked');
     await screenSelect.selectOption('dash-ai');

@@ -63,8 +63,8 @@ const dataCount = (dept) => (dataScopeOf(dept) === '*' ? DATA_FIELDS.length : da
  */
 /** 미배정 부서 고정 화면 — 서버 MenuId.UNASSIGNED_SCREENS */
 const MOCK_UNASSIGNED_SCREENS = ['dash-ai', 'dash-proc', 'prod-monitor', 'ai-chat', 'chat-history'];
-/** 관리 화면 4종 — 통합관리자만 부여·회수 (R-07) */
-const MOCK_ADMIN_SCREENS = ['sys-account', 'sys-menu', 'sys-data', 'sys-gw-dept'];
+/** 관리 화면 — 통합관리자만 부여·회수 (R-07). 2026-10-03 (2차) 전사 자연어 질의 이력 추가(관리자 전용) */
+const MOCK_ADMIN_SCREENS = ['sys-account', 'sys-menu', 'sys-data', 'sys-gw-dept', 'sys-chat-history'];
 /** 전사 공통 화면 — 새 부서 기본 부여 (MNP-17) */
 const MOCK_COMMON_SCREENS = ['chat-history', 'gloss-view'];
 /** 대그룹 이름 → ID (MNP-17) */
@@ -98,48 +98,26 @@ function readListOf(dept) {
   if (!Array.isArray(mockState.menuAccess[dept])) mockState.menuAccess[dept] = [];
   return mockState.menuAccess[dept];
 }
-/** 부서의 쓰기 칸 — 목은 처음에 조회 칸과 같게 시작합니다(/auth/me 목의 writePerms 와 같은 가정) */
-function writeListOf(dept) {
-  const st = store();
-  if (!st.menuWrite) st.menuWrite = {};
-  if (!Array.isArray(st.menuWrite[dept])) {
-    const read = menuAccessOf(dept);
-    st.menuWrite[dept] = Array.isArray(read) && !isUnassignedDept(dept) ? [...read] : [];
-  }
-  return st.menuWrite[dept];
-}
-/** 화면에 보일 조회·쓰기 집합 — 통합관리자는 전체, 미배정은 고정 5화면·쓰기 없음 */
+/** 화면에 보일 접근 집합 — 통합관리자는 전체, 미배정은 고정 5화면 (2026-10-03 조회/쓰기 통합 — 쓰기 칸 없음) */
 function effectiveRead(dept) {
   if (isSuperDept(dept)) return allScreenIds();
   if (isUnassignedDept(dept)) return [...MOCK_UNASSIGNED_SCREENS];
   return [...readListOf(dept)];
 }
-function effectiveWrite(dept) {
-  if (isSuperDept(dept)) return allScreenIds();
-  if (isUnassignedDept(dept)) return [];
-  const read = readListOf(dept);
-  return writeListOf(dept).filter((id) => read.includes(id));
-}
 /** 권한 행 해시 — 복사 미리보기의 expectedHash (서버 version 과 같은 뜻) */
 function permHash(...depts) {
-  const text = JSON.stringify(depts.map((d) => [d, effectiveRead(d).sort(), effectiveWrite(d).sort()]));
+  const text = JSON.stringify(depts.map((d) => [d, effectiveRead(d).sort()]));
   let h = 5381;
   for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
   return h.toString(16);
 }
-/** 단건 반영 — READ 해제는 쓰기도 회수, WRITE 허용은 조회도 켬, 동작 행은 READ 허용 시 쓰기도 켬 */
-function applyMenuCell(dept, screenId, allowed, perm) {
+/** 단건 반영 — 칸 하나 = 접근 */
+function applyMenuCell(dept, screenId, allowed) {
   const read = readListOf(dept);
-  const write = writeListOf(dept);
-  const add = (list) => { if (!list.includes(screenId)) list.push(screenId); };
-  const del = (list) => { const i = list.indexOf(screenId); if (i >= 0) list.splice(i, 1); };
-  if (perm === 'WRITE') {
-    if (allowed) { add(read); add(write); } else del(write);
-  } else if (allowed) {
-    add(read);
-    if (isActionScreen(screenId)) add(write);
-  } else { del(read); del(write); }
-  return { read: read.includes(screenId), write: read.includes(screenId) && write.includes(screenId) };
+  const i = read.indexOf(screenId);
+  if (allowed && i < 0) read.push(screenId);
+  if (!allowed && i >= 0) read.splice(i, 1);
+  return { allowed: read.includes(screenId) };
 }
 /** 사람이 읽는 부서 행 (메뉴·데이터 매트릭스 공용) */
 function permDeptRow(d) {
@@ -676,14 +654,14 @@ export const systemMock = {
   },
 
   /* ═══════════ SY-02 메뉴 접근 권한 ═══════════ */
-  // 2026-10-01 — 조회·쓰기 두 칸, 통합관리자·미배정 잠금, 관리 화면 4종 통합관리자 전용, 복사 2단계(기획 03 4.4)
+  // 2026-10-03 — 부서마다 접근 한 칸(조회/쓰기 통합), 통합관리자·미배정 잠금, 관리 화면 5종 통합관리자 전용, 복사 2단계(기획 03 4.4)
   getSystemMenuPerms: () => {
     const depts = store().depts;
     const grantCounts = {};
     const grants = {};
     store().users.forEach((u) => (u.extraMenuIds || []).forEach((id) => {
       grantCounts[id] = (grantCounts[id] || 0) + 1;
-      (grants[id] = grants[id] || []).push({ empNo: u.empNo, name: u.name, deptId: u.dept, write: false });
+      (grants[id] = grants[id] || []).push({ empNo: u.empNo, name: u.name, deptId: u.dept });
     }));
     // 명단(이름·사번)은 sys-menu 권한 요청에만 줍니다 (MNP-06)
     const showNames = requesterIsSuper() || (menuAccessOf(mockState.currentUser?.dept) || []).includes('sys-menu');
@@ -701,7 +679,6 @@ export const systemMock = {
       }),
       depts: depts.map(permDeptRow),
       matrix: Object.fromEntries(depts.map((d) => [d.id, effectiveRead(d.id)])),
-      writeMatrix: Object.fromEntries(depts.map((d) => [d.id, effectiveWrite(d.id)])),
       grantCounts,
       ...(showNames ? { grants } : {}),
       canEditAdminScreens: requesterIsSuper(),
@@ -710,22 +687,22 @@ export const systemMock = {
     };
   },
 
-  putSystemMenuPerms: ({ deptId, screenId, allowed, perm = 'READ' }) => {
+  // perm 은 받아도 무시합니다(2026-10-03)
+  putSystemMenuPerms: ({ deptId, screenId, allowed }) => {
     if (isSuperDept(deptId)) return fail('E-RULE-001', PERM_MSG.superAdmin);
     if (isUnassignedDept(deptId)) return fail('E-RULE-001', PERM_MSG.unassignedMenu);
     if (!allScreenIds().includes(screenId)) return fail('E-VALID-001', `존재하지 않거나 사용 중지된 화면 ID 입니다. [${screenId}]`);
-    if (!['READ', 'WRITE'].includes(perm)) return fail('E-VALID-001', '권한 구분은 READ 또는 WRITE 입니다.');
     if (MOCK_ADMIN_SCREENS.includes(screenId) && !requesterIsSuper()) return fail('E-AUTH-002', PERM_MSG.adminScreens);
     // allowed 를 빼면 예전처럼 뒤집습니다(하위 호환)
     const next = allowed === undefined ? !readListOf(deptId).includes(screenId) : !!allowed;
-    const cell = applyMenuCell(deptId, screenId, next, perm);
+    const before = readListOf(deptId).includes(screenId);
+    const cell = applyMenuCell(deptId, screenId, next);
     const name = screenNameOf(screenId);
-    const what = perm === 'WRITE' ? '쓰기' : '조회';
-    logPerm(deptId, '메뉴 권한', `${name}(${screenId}) ${what} ${next ? '부여' : '회수'}`);
-    return ok(`${deptId} · ${name} ${what} 권한을 ${next ? '허용' : '회수'}했습니다.`, { success: true, ...cell, allowed: cell.read });
+    logPerm(deptId, '메뉴 권한', `${name}(${screenId}) 화면 접근 ${next ? '허용' : '회수'}`);
+    return ok(`${deptId} · ${name} 화면 접근을 ${next ? '허용' : '회수'}했습니다.`, { success: true, allowed: cell.allowed, changed: before !== cell.allowed });
   },
 
-  putSystemMenuPermsGroup: ({ deptId, groupId, groupNm, group, allowed, perm = 'READ', includeActions = false }) => {
+  putSystemMenuPermsGroup: ({ deptId, groupId, groupNm, group, allowed, includeActions = false }) => {
     const name = groupId ? Object.keys(MOCK_GROUP_IDS).find((k) => MOCK_GROUP_IDS[k] === groupId) : groupNm || group;
     if (!name) return fail('E-VALID-001', '그룹을 찾을 수 없습니다. [groupId]');
     if (isSuperDept(deptId)) return fail('E-RULE-001', PERM_MSG.superAdmin);
@@ -736,13 +713,12 @@ export const systemMock = {
     const added = [];
     const removed = [];
     targets.forEach((id) => {
-      const before = perm === 'WRITE' ? effectiveWrite(deptId).includes(id) : readListOf(deptId).includes(id);
+      const before = readListOf(deptId).includes(id);
       if (before === !!allowed) return;
-      applyMenuCell(deptId, id, !!allowed, perm);
+      applyMenuCell(deptId, id, !!allowed);
       (allowed ? added : removed).push(id);
     });
-    const what = perm === 'WRITE' ? '쓰기' : '조회';
-    logPerm(deptId, '메뉴 권한', `${name} 그룹 ${what} ${allowed ? '부여' : '회수'} [${(allowed ? added : removed).join(',')}]`);
+    logPerm(deptId, '메뉴 권한', `${name} 그룹 일괄 ${allowed ? '허용' : '회수'} [${(allowed ? added : removed).join(',')}]`);
     return ok('그룹 권한이 변경되었습니다.', { changedCnt: added.length + removed.length, added, removed });
   },
 
@@ -752,17 +728,12 @@ export const systemMock = {
     if (isSuperDept(toDeptId)) return fail('E-RULE-001', '통합관리자 부서는 복사 대상이 될 수 없습니다.');
     if (isUnassignedDept(fromDeptId) || isUnassignedDept(toDeptId)) return fail('E-RULE-001', '미배정 부서는 고정 부서라 복사 대상·원본이 될 수 없습니다.');
     const srcRead = new Set(effectiveRead(fromDeptId));
-    const srcWrite = new Set(effectiveWrite(fromDeptId));
     const dstRead = new Set(effectiveRead(toDeptId));
-    const dstWrite = new Set(effectiveWrite(toDeptId));
     const added = [];
     const removed = [];
     allScreenIds().forEach((id) => {
-      const readGain = srcRead.has(id) && !dstRead.has(id);
-      const writeGain = srcWrite.has(id) && !dstWrite.has(id);
-      if (readGain || writeGain) added.push({ id, read: srcRead.has(id), write: srcWrite.has(id) });
-      else if (dstRead.has(id) && !srcRead.has(id)) removed.push({ id, read: true, write: dstWrite.has(id) });
-      else if (dstWrite.has(id) && !srcWrite.has(id)) removed.push({ id, read: false, write: true });
+      if (srcRead.has(id) && !dstRead.has(id)) added.push({ id });
+      else if (dstRead.has(id) && !srcRead.has(id)) removed.push({ id });
     });
     const adminScreensChanged = [...added, ...removed].map((x) => x.id).filter((id) => MOCK_ADMIN_SCREENS.includes(id));
     const hash = permHash(fromDeptId, toDeptId);
@@ -780,7 +751,6 @@ export const systemMock = {
     if (!expectedHash) return fail('E-VALID-001', '미리보기 후 복사하세요.');
     if (expectedHash !== hash) return fail('E-RULE-001', '미리보기 이후 권한이 바뀌었습니다. 미리보기를 다시 실행하세요.');
     mockState.menuAccess[toDeptId] = [...srcRead];
-    writeListOf(toDeptId).splice(0, Infinity, ...srcWrite);
     logPerm(toDeptId, '메뉴 권한', `${fromDeptId} 권한 복사 · 부여 [${added.map((x) => x.id).join(',')}] · 회수 [${removed.map((x) => x.id).join(',')}]`);
     return ok('권한이 복사되었습니다.', { copiedCnt: srcRead.size, added: added.map((x) => x.id), removed: removed.map((x) => x.id) });
   },
@@ -1369,7 +1339,7 @@ export const systemMock = {
   // 공식 용어 쓰기는 통합관리자 전용 — 그 밖은 403 E-AUTH-004 (07 GLS-01). 분류 키는 서버와 같은 domainCd
   postGlossaryTerms: ({ term, definition, domainCd, domain }) => {
     const st = store();
-    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [sys-gloss]');
+    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]');
     if (!term) return fail('E-VALID-001', '용어는 필수입니다.');
     if (String(term).length > 50) return fail('E-VALID-001', '공식 용어는 50자 이하로 입력해 주세요.');
     if (st.glossary.some((g) => g.term.toLowerCase() === String(term).toLowerCase())) return fail('E-RULE-001', '이미 등록된 용어입니다.');
@@ -1380,7 +1350,7 @@ export const systemMock = {
   },
 
   putGlossaryTermsByTermId: ({ termId, term, definition, domainCd, domain }) => {
-    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [sys-gloss]');
+    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]');
     const g = store().glossary.find((x) => x.termId === termId);
     if (!g) return fail('E-NOTFOUND', '대상 용어를 찾을 수 없습니다.');
     const before = { term: g.term, termDef: g.definition, domainNm: g.domain };
@@ -1392,7 +1362,7 @@ export const systemMock = {
   },
 
   deleteGlossaryTermsByTermId: ({ termId }) => {
-    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [sys-gloss]');
+    if (mockState.currentUser.dept !== '통합관리자') return fail('E-AUTH-004', '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]');
     const st = store();
     const idx = st.glossary.findIndex((x) => x.termId === termId);
     if (idx === -1) return fail('E-NOTFOUND', '대상 용어를 찾을 수 없습니다.');
@@ -1502,9 +1472,12 @@ export const systemMock = {
   postGlossaryTermsExport: () => ok('용어 사전 파일을 만들었습니다.', { rowCnt: store().glossary.length }),
 
   /* ═══════════ SY-08 자연어 질의 이력 ═══════════ */
-  // canManage = chat-history 쓰기 권한 — 이관 기본값은 전산팀(통합관리자는 항상) — 08 CHH-16
-  getAiChatHistorySummary: () => {
-    const rows = chatRows();
+  // 2026-10-03 — scope=mine(기본, chat-history: 본인 행만) · scope=all(sys-chat-history: 전 사용자, 이름 가림 없음)
+  // canManage = sys-chat-history 쓰기(접근 && 미배정 아님) — scope=all 일 때만 true 가 될 수 있습니다
+  getAiChatHistorySummary: ({ scope } = {}) => {
+    const denied = chatScopeDenied(scope);
+    if (denied) return denied;
+    const rows = chatRows(scope);
     return {
       ...CHAT_HISTORY_SUMMARY,
       questionCnt: rows.length,
@@ -1519,14 +1492,17 @@ export const systemMock = {
       retentionDays: 1095,
       expiredCnt: 0,
       targetAnswerRate: null,
-      canManage: chatCanManage(),
+      canManage: chatScopeAll(scope) && chatCanManage(),
     };
   },
 
-  getAiChatHistory: ({ group, userGroup, keyword, rating, review, answered, page = 1, size = 50 }) => {
-    let items = chatFilter(chatRows(), { rating, review, answered });
+  getAiChatHistory: ({ scope, group, userGroup, empNo, keyword, rating, review, answered, page = 1, size = 50 }) => {
+    const denied = chatScopeDenied(scope);
+    if (denied) return denied;
+    let items = chatFilter(chatRows(scope), { rating, review, answered });
     const g = userGroup || group;
-    if (g && g !== '전체') items = items.filter((h) => (h.dept || '').includes(g));
+    if (chatScopeAll(scope) && g && g !== '전체') items = items.filter((h) => (h.dept || '').includes(g));
+    if (chatScopeAll(scope) && empNo) items = items.filter((h) => String(h.empNo || '') === String(empNo));
     if (keyword) items = items.filter((h) => String(h.question || '').toLowerCase().includes(String(keyword).toLowerCase()));
     const total = items.length;
     const n = Number(size) || 50;
@@ -1538,22 +1514,31 @@ export const systemMock = {
     };
   },
 
-  getAiChatHistoryByMessageId: ({ messageId }) => {
-    const row = chatRows().find((h) => h.messageId === messageId);
+  getAiChatHistoryByMessageId: ({ messageId, scope }) => {
+    const denied = chatScopeDenied(scope);
+    if (denied) return denied;
+    const row = chatRows(scope).find((h) => h.messageId === messageId);
     if (!row) return fail('E-NOTFOUND', `질의를 찾을 수 없습니다. [messageId=${messageId}]`);
     return {
       ...row,
       askedAt: row.ts,
       userName: row.name,
-      hits: [{ docId: 'DOC-1', title: '공정 불량 기준서', page: 3, score: 0.82, cited: true, heading: null }],
-      ...(chatCanManage() ? { debug: { route: 'metric', parse: 'OK', tool: 'defect_summary', result: 'OK', errorCd: null, period: '2026-09-22~2026-09-30', rows: 12, docs: 1, toolMs: 420, totalMs: Math.round((row.responseSec || 1) * 1000) } } : {}),
+      // 상세 hits — 목록 docs 와 같은 원천(상위 3건 밖까지 docCnt 건)
+      hits: [
+        ...(row.docs || []).map((d) => ({ docId: CHAT_DOCS.find((x) => x.title === d.title)?.docId || null, ...d })),
+        ...CHAT_DOCS.filter((x) => !(row.docs || []).some((d) => d.title === x.title)).map((d, i) => ({ ...d, score: Number((0.6 - i * 0.05).toFixed(2)) })),
+      ].slice(0, row.docCnt || 0).map((h, i) => ({ ...h, cited: i === 0, heading: null })),
+      ...(chatScopeAll(scope) && chatCanManage() ? { debug: { route: 'metric', parse: 'OK', tool: 'defect_summary', result: 'OK', errorCd: null, period: '2026-09-22~2026-09-30', rows: 12, docs: 1, toolMs: 420, totalMs: Math.round((row.responseSec || 1) * 1000) } } : {}),
     };
   },
 
-  getAiChatHistorySessions: ({ group, userGroup, keyword, rating, review, answered, page = 1, size = 50 }) => {
-    let rows = chatFilter(chatRows(), { rating, review, answered });
+  getAiChatHistorySessions: ({ scope, group, userGroup, empNo, keyword, rating, review, answered, page = 1, size = 50 }) => {
+    const denied = chatScopeDenied(scope);
+    if (denied) return denied;
+    let rows = chatFilter(chatRows(scope), { rating, review, answered });
     const g = userGroup || group;
-    if (g && g !== '전체') rows = rows.filter((h) => (h.dept || '').includes(g));
+    if (chatScopeAll(scope) && g && g !== '전체') rows = rows.filter((h) => (h.dept || '').includes(g));
+    if (chatScopeAll(scope) && empNo) rows = rows.filter((h) => String(h.empNo || '') === String(empNo));
     let sessions = chatSessions(rows);
     if (keyword) {
       const q = String(keyword).toLowerCase();
@@ -1566,14 +1551,16 @@ export const systemMock = {
     return { success: true, code: 'SUCCESS', message: '세션 목록 조회가 완료되었습니다.', data: { items }, meta: { page: p, size: n, total, totalPages: Math.ceil(total / n) } };
   },
 
-  getAiChatHistorySessionsBySessionKey: ({ sessionKey }) => {
-    const s = chatSessions(chatRows()).find((x) => x.sessionKey === sessionKey);
+  getAiChatHistorySessionsBySessionKey: ({ sessionKey, scope }) => {
+    const denied = chatScopeDenied(scope);
+    if (denied) return denied;
+    const s = chatSessions(chatRows(scope)).find((x) => x.sessionKey === sessionKey);
     if (!s) return fail('E-NOTFOUND', `세션을 찾을 수 없습니다. [sessionKey=${sessionKey}]`);
     return s;
   },
 
   putAiChatHistoryByMessageIdReview: ({ messageId, reviewCd, comment }) => {
-    if (!chatCanManage()) return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [chat-history]');
+    if (!chatCanManage()) return fail('E-AUTH-004', CHAT_MANAGE_DENIED);
     if (!['USEFUL', 'REASK', 'BAD'].includes(reviewCd)) return fail('E-VALID-001', '검토 값은 USEFUL/REASK/BAD 만 허용합니다.');
     const st = store();
     st.chatReviews = st.chatReviews || {};
@@ -1581,22 +1568,39 @@ export const systemMock = {
     return ok('검토 결과를 저장했습니다.', { messageId, ...st.chatReviews[messageId] });
   },
 
+  // 학습 데이터 답변 (2026-10-03) — 빈 문자열·공백이면 지웁니다. 4,000자 상한
+  putAiChatHistoryByMessageIdTrainAnswer: ({ messageId, answer }) => {
+    if (!chatCanManage()) return fail('E-AUTH-004', CHAT_MANAGE_DENIED);
+    if (!chatRows('all').some((h) => h.messageId === messageId)) return fail('E-NOTFOUND', `질의를 찾을 수 없습니다. [messageId=${messageId}]`);
+    const text = String(answer ?? '').trim();
+    if (text.length > 4000) return fail('E-VALID-001', '학습 데이터 답변은 4,000자까지 입력할 수 있습니다.');
+    const st = store();
+    st.chatTrainAnswers = st.chatTrainAnswers || {};
+    if (!text) {
+      delete st.chatTrainAnswers[messageId];
+      return ok('학습 데이터 답변을 지웠습니다.', { messageId, trainAnswer: null, trainAnswerAt: null, trainAnswerBy: null, trainAnswerByNm: null });
+    }
+    st.chatTrainAnswers[messageId] = { trainAnswer: text, trainAnswerAt: `${nowStamp()}:00`.slice(0, 19), trainAnswerBy: mockState.currentUser.empNo, trainAnswerByNm: mockState.currentUser.name };
+    return ok('학습 데이터 답변을 저장했습니다.', { messageId, ...st.chatTrainAnswers[messageId] });
+  },
+
   // 서버 생성 파일 — 화면은 downloadFromServer 로 받습니다(목 모드에서는 안내 파일)
-  postAiChatHistoryExport: () => ok('질의 이력 파일을 만들었습니다.', { rowCnt: chatRows().length }),
+  postAiChatHistoryExport: ({ scope } = {}) => ok('질의 이력 파일을 만들었습니다.', { rowCnt: chatRows(scope).length }),
 
   getAiChatHistoryDebugByRequestId: () => {
-    if (!chatCanManage()) return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [chat-history]');
+    if (!chatCanManage()) return fail('E-AUTH-004', CHAT_MANAGE_DENIED);
     return { route: 'metric', parse: 'OK', tool: 'defect_summary', result: 'OK', errorCd: null, rows: 12, docs: 1, toolMs: 420, totalMs: 1800 };
   },
 
-  getAiChatHistoryGroups: () => {
-    const counts = chatRows().reduce((acc, r) => ({ ...acc, [r.dept]: (acc[r.dept] || 0) + 1 }), {});
+  getAiChatHistoryGroups: ({ scope } = {}) => {
+    const counts = chatRows(scope).reduce((acc, r) => ({ ...acc, [r.dept]: (acc[r.dept] || 0) + 1 }), {});
     return { items: Object.entries(counts).map(([dept, cnt]) => ({ dept, cnt })) };
   },
 
+  // 학습 데이터 답변이 있는 행은 평가와 관계없이 넣습니다(assistant = 학습 답변)
   postAiChatHistoryExportTrainset: ({ ratingFilter }) => {
-    if (!chatCanManage()) return fail('E-AUTH-004', '이 화면의 쓰기 권한이 없습니다. [chat-history]');
-    const items = chatRows().filter((h) => !ratingFilter || ratingFilter === 'ALL' || h.rating === ratingFilter);
+    if (!chatCanManage()) return fail('E-AUTH-004', CHAT_MANAGE_DENIED);
+    const items = chatRows('all').filter((h) => h.trainAnswer || !ratingFilter || ratingFilter === 'ALL' || h.rating === ratingFilter);
     if (!items.length) return fail('E-NOTFOUND', '내보낼 학습 샘플이 없습니다. 기간이나 평가 조건을 바꿔 주세요.');
     return ok(`학습데이터 ${items.length}건을 내보냈습니다 — 파인튜닝 후보로 사용됩니다.`, { sampleCnt: items.length });
   },
@@ -2279,8 +2283,30 @@ function variantWarnings(st, word) {
   return r?.riskCd === 'SUBSTRING_OF_TERM' ? [`'${word}' 가 ${r.riskNm.replace(' 안에 들어 있음', '')} 안에 들어 있습니다. 해당 용어는 치환하지 않습니다.`] : [];
 }
 
-/** chat-history 쓰기 권한 — 이관 기본값은 전산팀, 통합관리자는 항상 (08 CHH-16) */
-const chatCanManage = () => ['통합관리자', '전산팀'].includes(mockState.currentUser.dept);
+/** 전사 질의 이력 화면 ID (2026-10-03) */
+const SYS_CHAT_HISTORY = 'sys-chat-history';
+const CHAT_MANAGE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. [sys-chat-history]';
+/** 현재 계정이 화면에 접근할 수 있는지 (통합관리자는 '*') */
+const mockCan = (screenId) => {
+  const acc = menuAccessOf(mockState.currentUser?.dept);
+  return acc === '*' || (Array.isArray(acc) && acc.includes(screenId));
+};
+const chatScopeAll = (scope) => String(scope || '').toLowerCase() === 'all';
+/** scope=all 인데 sys-chat-history 접근이 없으면 403 E-AUTH-002 */
+const chatScopeDenied = (scope) => (chatScopeAll(scope) && !mockCan(SYS_CHAT_HISTORY)
+  ? fail('E-AUTH-002', '이 화면에 접근할 권한이 없습니다. [sys-chat-history]')
+  : null);
+/** sys-chat-history 쓰기 — 접근 && 미배정 아님, 통합관리자는 항상 (2026-10-03 접근 권한 통합) */
+const chatCanManage = () => mockCan(SYS_CHAT_HISTORY) && mockState.currentUser?.dept !== UNASSIGNED;
+/** 'YYYY-MM-DD HH:mm:ss' + 초 → 같은 형식 (답변 시간 answeredAt) */
+function addSecTs(ts, sec) {
+  if (!ts || sec === null || sec === undefined || sec === '') return null;
+  const d = new Date(String(ts).replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return null;
+  d.setMilliseconds(d.getMilliseconds() + Math.round(Number(sec) * 1000));
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
 /** 같은 세션으로 이어 물은 질의 — 세션 상세(여러 턴)를 보여 주기 위한 목 데이터 */
 const CHAT_FOLLOWUPS = [
@@ -2289,22 +2315,57 @@ const CHAT_FOLLOWUPS = [
 ];
 const RATING_CD = { 유용: 'USEFUL', 재질의: 'REASK', 오답: 'BAD', 개선필요: 'BAD' };
 
+/** 근거 문서 후보 — 목록 행 docs(상위 3건) · 상세 hits 가 같은 원천을 씁니다 */
+const CHAT_DOCS = [
+  { docId: 'DOC-1', title: '공정 불량 기준서', page: 3 },
+  { docId: 'DOC-2', title: 'PRESS 금형 관리 지침', page: 12 },
+  { docId: 'DOC-3', title: '도금 공정 작업 표준', page: 7 },
+  { docId: 'DOC-4', title: 'AOI 판정 기준표', page: 2 },
+  { docId: 'DOC-5', title: '출하 검사 절차서', page: 5 },
+];
+/**
+ * LLM 메타 흉내 (2026-10-03 2차, V71) — 질의 ID 로 값을 정해 새로 그려도 같게 나옵니다.
+ * vLLM 응답의 model · finish_reason · usage · id 와 호출 시간. 미응답은 메타가 비어 있습니다.
+ */
+function chatLlmMeta(messageId, { answered, all, responseSec, intent }) {
+  const seed = [...String(messageId)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
+  const docCnt = seed % 5;
+  const docs = CHAT_DOCS.slice(seed % 2, (seed % 2) + Math.min(docCnt, 3)).map((d, i) => ({ title: d.title, page: d.page, score: Number((0.86 - i * 0.07 - (seed % 7) / 100).toFixed(2)) }));
+  if (!answered) return { llmModel: null, finishReason: null, promptTokens: null, completionTokens: null, totalTokens: null, llmMs: null, ...(all ? { llmRequestId: null } : {}), intentNm: intent || null, docs, docCnt };
+  const promptTokens = 900 + (seed % 23) * 97;
+  const completionTokens = 80 + (seed % 17) * 31;
+  const finishReason = seed % 11 === 0 ? 'length' : seed % 7 === 0 ? 'tool_calls' : 'stop';
+  return {
+    llmModel: 'dwje-ax',
+    finishReason,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    llmMs: responseSec != null ? Math.round(Number(responseSec) * 1000 * 0.7) : null,
+    // 요청 ID 는 전사 화면(scope=all)에서만 내려갑니다
+    ...(all ? { llmRequestId: `chatcmpl-${seed.toString(16).padStart(4, '0')}${String(messageId).toLowerCase()}` } : {}),
+    intentNm: intent || null,
+    docs,
+    docCnt,
+  };
+}
+
 /**
  * 질의 이력 한 건을 서버 응답 모양으로 맞춥니다.
- * 응답 가림(CHH-02): 열람자에게 수율 권한이 없으면 남의 수율 질의 응답을 가립니다.
- * 이름 가림(CHH-09): 쓰기 권한이 없으면 남의 이름은 첫 글자 + **, 사번 없음.
+ * scope=mine(기본) — 본인 행만, 가림 없음. scope=all — 전 사용자 행, 이름·사번 그대로(2026-10-03).
+ * 응답 가림(CHH-02): 열람자에게 수율 권한이 없으면 남의 수율 질의 응답을 가립니다(데이터 권한 가림은 유지).
  */
-function chatRows() {
+function chatRows(historyScope) {
   const st = store();
   const me = mockState.currentUser;
   const scope = dataScopeOf(me.dept);
   const canYield = scope === '*' || (Array.isArray(scope) && scope.includes('yield')) || me.dept === '통합관리자';
-  const manage = chatCanManage();
+  const all = chatScopeAll(historyScope);
   const session = mockState.store.ai?.history || [];
   const seed = st.chatHistory;
   const base = [...session, ...seed, ...CHAT_FOLLOWUPS.map((f) => ({ ...seed.find((s) => s.messageId === f.sessionOf), ...f }))];
   const day = nowStamp().slice(0, 10);
-  return base.map((h) => {
+  return base.filter((h) => all || (h.name || h.user || '') === me.name).map((h) => {
     const name = h.name || h.user || '';
     const u = st.users.find((x) => x.name === name);
     const own = name === me.name;
@@ -2313,12 +2374,14 @@ function chatRows() {
     const review = st.chatReviews?.[h.messageId] || {};
     const sessionKey = h.sessionOf ? `S-${h.sessionOf}` : CHAT_FOLLOWUPS.some((f) => f.sessionOf === h.messageId) ? `S-${h.messageId}` : `chat-${h.messageId}`;
     const answer = h.answer || `${h.intentLabel || '질의'} 결과를 요약했습니다.`;
+    const responseSec = h.elapsedMs != null ? h.elapsedMs / 1000 : h.responseSec;
+    const train = st.chatTrainAnswers?.[h.messageId] || {};
     return {
       messageId: h.messageId,
       sessionKey,
       ts,
-      empNo: own || manage ? u?.empNo || null : null,
-      name: own || manage ? name : `${name.slice(0, 1)}**`,
+      empNo: u?.empNo || (own ? me.empNo : null),
+      name,
       dept: h.dept,
       question: h.question,
       answer: hidden ? null : answer,
@@ -2326,13 +2389,19 @@ function chatRows() {
       answerHidden: hidden,
       answerHiddenReason: hidden ? '질의자보다 데이터 접근 권한이 좁아 응답을 표시하지 않습니다 (가려지는 항목: 수율)' : null,
       unansweredReason: h.unansweredReason || null,
-      responseSec: h.elapsedMs != null ? h.elapsedMs / 1000 : h.responseSec,
+      responseSec,
+      answeredAt: addSecTs(ts, responseSec),
       rating: RATING_CD[h.rating] || h.rating || null,
       ratingComment: null,
       review: review.review || null,
       reviewComment: review.reviewComment || null,
       reviewedBy: review.reviewedBy || null,
       reviewedAt: review.reviewedAt || null,
+      trainAnswer: train.trainAnswer || null,
+      trainAnswerAt: train.trainAnswerAt || null,
+      trainAnswerBy: train.trainAnswerBy || null,
+      trainAnswerByNm: train.trainAnswerByNm || null,
+      ...chatLlmMeta(h.messageId, { answered: !h.unansweredReason, all, responseSec, intent: h.intentNm || h.intentLabel }),
     };
   }).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
 }
@@ -2365,7 +2434,9 @@ function chatSessions(rows) {
       turns: turns.map((t) => ({
         messageId: t.messageId, askedAt: t.ts, question: t.question, answer: t.answer, answerHidden: t.answerHidden,
         answerHiddenReason: t.answerHiddenReason, judgmentBasis: t.judgmentBasis, unansweredReason: t.unansweredReason,
-        responseSec: t.responseSec, rating: t.rating, review: t.review, reask: turns.indexOf(t) > 0,
+        responseSec: t.responseSec, rating: t.rating, review: t.review, reask: turns.indexOf(t) > 0, trainAnswer: t.trainAnswer,
+        llmModel: t.llmModel, finishReason: t.finishReason, promptTokens: t.promptTokens, completionTokens: t.completionTokens, totalTokens: t.totalTokens,
+        llmMs: t.llmMs, intentNm: t.intentNm, docs: t.docs, docCnt: t.docCnt, ...('llmRequestId' in t ? { llmRequestId: t.llmRequestId } : {}),
       })),
     };
   }).sort((a, b) => String(b.lastAskedAt).localeCompare(String(a.lastAskedAt)));

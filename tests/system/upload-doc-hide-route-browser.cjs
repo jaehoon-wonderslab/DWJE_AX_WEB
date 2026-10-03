@@ -10,7 +10,7 @@
  *  1. 「숨긴 문서 포함」 → 목록 요청에 includeDeleted=true, 숨긴 행 흐림 + 「숨김」 태그 + 사유, 카드 「숨긴 문서 1건 별도」
  *  2. 「숨기기」 → 사유 필수 모달 → DELETE /system/uploads/{docId} 본문 {reason} (사유가 주소에 없음)
  *  3. 「복원」 → POST /system/uploads/{docId}/restore
- *  4. 쓰기 권한이 없으면(/auth/me writePerms 에서 sys-upload-doc 제외) 단추 비활성 + 툴팁 안내
+ *  4. 쓰기가 막히면(2026-10-03 — 미배정 계정만 해당, /auth/me 의 unassigned) 단추 비활성 + 툴팁 안내
  */
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
@@ -76,14 +76,17 @@ async function run({ writable }) {
       Object.assign(d, { deleted: false, deletedAt: null, deletedByName: null, deleteReason: null });
       return json({ docId: d.docId, deleted: false });
     }
-    // 쓰기 권한 — 시험 조건에 맞춰 sys-upload-doc 를 넣거나 뺍니다
+    // 쓰기 — 접근(sys-upload-doc)은 그대로 두고 미배정 여부로 막거나 엽니다
     const target = req.url().replace(APP_API, LIVE);
     const res = await route.fetch({ url: target });
     if (path === '/auth/me') {
       const body = await res.json();
-      const wp = new Set(Array.isArray(body.data?.writePerms) ? body.data.writePerms.filter((x) => x !== '*') : []);
-      if (writable) wp.add('sys-upload-doc'); else wp.delete('sys-upload-doc');
-      body.data.writePerms = [...wp];
+      const mp = body.data?.menuPerms;
+      if (mp === '*' || (Array.isArray(mp) && mp.includes('*'))) body.data.menuPerms = ['ai-chat', 'sys-upload-doc', 'dash-ai'];
+      else if (Array.isArray(mp) && !mp.includes('sys-upload-doc')) body.data.menuPerms = [...mp, 'sys-upload-doc'];
+      body.data.user = { ...body.data.user, superAdmin: false };
+      body.data.unassigned = !writable;
+      if (body.data.dept && typeof body.data.dept === 'object') body.data.dept = { ...body.data.dept, unassigned: !writable };
       return route.fulfill({ response: res, json: body });
     }
     return route.fulfill({ response: res });
@@ -145,7 +148,7 @@ async function run({ writable }) {
         for (const name of ['숨기기', '복원']) {
           const b = grid.getByRole('button', { name }).first();
           assert(await b.isDisabled(), `${name} 비활성`);
-          assert.equal(await b.getAttribute('title'), '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.');
+          assert.equal(await b.getAttribute('title'), '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.');
         }
         await grid.getByRole('button', { name: '숨기기' }).first().click({ force: true }).catch(() => {});
         await page.waitForTimeout(500);

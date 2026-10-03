@@ -29,7 +29,7 @@ export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const MAX_MEMO_LEN = 1000;
 
 /** 쓰기 권한이 없을 때 단추 옆 안내 (공통 문서 9.7 · R-06) */
-export const WRITE_DENIED_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const WRITE_DENIED_TEXT = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /** 엑셀 포맷 규칙 안내 (API 회신 2026-09-10 확정 — 시트명에 `[ ]` 는 엑셀이 허용하지 않아 `#` 접미어) */
 export const FORMAT_RULE = '엑셀 규칙 — 시트 1행은 헤더, 1열은 X축, 나머지 숫자 열이 시리즈입니다. 시트명 끝에 #line · #bar · #grouped · #donut · #table 을 붙여 차트 종류를 정하고(예: 월별 불량률 #line), 접미어가 없으면 시리즈 1개 → 막대, 여러 개 → 선, 숫자 열 없음 → 표로 자동 판정합니다. 시트명은 31자까지, 파일은 xlsx · 20MB 이하. 매크로 포함 통합문서(xlsm)는 올릴 수 없습니다 — 매크로 없는 xlsx 로 저장해 올려 주세요.';

@@ -30,7 +30,7 @@ const EMPTY_GUIDE = '권한이 있는 담당자가 정해진 엑셀 포맷으로
 export default function UploadReportView({
   canUpload, uploading,
   /** 쓰기 권한(R-06 · UPD-14) — 없으면 업로드 단추를 숨기지 않고 비활성으로 두고 옆에 안내합니다 */
-  canWriteUpload = canUpload, writeDeniedText = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.',
+  canWriteUpload = canUpload, writeDeniedText = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.',
   docs = [], docsLoading, docsError, doc, docId, docOptions = [],
   versions = [], version, versionInfo, versionOptions = [],
   report, reportLoading, reportError,

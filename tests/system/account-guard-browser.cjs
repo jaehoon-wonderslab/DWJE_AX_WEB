@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
 const { openAccountTab } = require('../lib/accountTabs');
 
-const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 (async () => {
   const { browser, page } = await open();
@@ -44,6 +44,8 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     { id: 'dash-ai', name: 'AI 통합 대시보드', group: '대시보드' },
     { id: 'qc-defect', name: '불량 현황 조회', group: '생산 및 품질 관리' },
     { id: 'sys-menu', name: '메뉴 접근 권한', group: '시스템관리' },
+    // 2026-10-03 (2차) — 전사 자연어 질의 이력도 관리 화면(통합관리자만 부여·회수)
+    { id: 'sys-chat-history', name: '전사 자연어 질의 이력', group: '시스템관리' },
   ];
   const sent = [];
   await page.route('**/api/v1/system/**', async (route) => {
@@ -123,7 +125,8 @@ const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 
     const optionTexts = await deptSelect.locator('option').allTextContents();
     assert(!optionTexts.includes('통합관리자'), `통합관리자 부서 선택지 없음: ${optionTexts}`);
     const adminBox = page.getByRole('checkbox', { name: '메뉴 접근 권한 추가 허용', exact: true });
-    assert(await adminBox.isDisabled(), '관리 화면 4종 줄 잠금');
+    assert(await adminBox.isDisabled(), '관리 화면 줄 잠금');
+    assert(await page.getByRole('checkbox', { name: '전사 자연어 질의 이력 추가 허용', exact: true }).isDisabled(), '전사 자연어 질의 이력 = 관리 화면 줄 잠금');
     assert(await page.getByText('통합관리자만 변경', { exact: false }).count(), '통합관리자만 변경 표시');
     assert(await page.getByRole('checkbox', { name: '불량 현황 조회 추가 허용', exact: true }).isChecked());
     await deptSelect.selectOption('59');

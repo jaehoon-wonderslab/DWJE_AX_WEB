@@ -29,7 +29,7 @@ export const ALERT_COND_SCREEN = 'alert-cond';
 const STATE_PARAM = { 활성: 'ON', 중지: 'OFF' };
 
 /** 쓰기 권한이 없을 때 서버가 메시지를 비워 보낸 경우의 안내 */
-const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 const DELETE_DENIED = '삭제는 통합관리자만 할 수 있습니다. 사용하지 않는 조건은 중지하세요.';
 
 /** 수신 그룹 표기 — 목록 행에는 이름 또는 {groupId,name} 으로 옵니다 */
@@ -98,11 +98,12 @@ export function relativeTime(ts, now = Date.now()) {
 export function useAlertCondController() {
   const toast = useUiStore((state) => state.toast);
   const can = useAuthStore((state) => state.can);
-  // writePerms 를 구독해야 /auth/me 가 늦게 와도 버튼 상태가 다시 그려집니다
-  const writePerms = useAuthStore((state) => state.writePerms);
+  // menuPerms · unassigned 를 구독해야 /auth/me 가 늦게 와도 버튼 상태가 다시 그려집니다
+  const menuPermsSub = useAuthStore((state) => state.menuPerms);
+  const unassignedSub = useAuthStore((state) => state.unassigned);
   const canWriteOf = useAuthStore((state) => state.canWrite);
   const userInfo = useAuthStore((state) => state.userInfo);
-  const canWrite = useMemo(() => canWriteOf(ALERT_COND_SCREEN), [canWriteOf, writePerms]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canWrite = useMemo(() => canWriteOf(ALERT_COND_SCREEN), [canWriteOf, menuPermsSub, unassignedSub]); // eslint-disable-line react-hooks/exhaustive-deps
   const superAdmin = isSuperAdminUser(userInfo);
 
   const [severity, setSeverity] = useState('전체');

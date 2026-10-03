@@ -54,6 +54,10 @@ async function setup(page, opts = {}) {
     const j = await res.json();
     j.data.menuPerms = ['ai-chat', 'sys-gloss', 'gloss-view', 'chat-history', 'dash-ai'];
     j.data.writePerms = opts.write ? ['sys-gloss'] : [];
+    // 2026-10-03 — 접근이 있는데 쓰기가 막히는 경우는 미배정뿐입니다(write=false → 미배정)
+    const unassigned = !opts.write && !opts.admin;
+    j.data.unassigned = unassigned;
+    if (j.data.dept && typeof j.data.dept === 'object') j.data.dept = { ...j.data.dept, unassigned };
     j.data.user = { ...j.data.user, superAdmin: !!opts.admin };
     await route.fulfill({ response: res, json: j });
   });
@@ -82,7 +86,7 @@ async function setup(page, opts = {}) {
     }
     if (p === 'terms' && req.method() === 'POST') {
       st.posts.push(req.postDataJSON());
-      return route.fulfill({ status: 403, json: { success: false, code: 'E-AUTH-004', message: '이 화면의 쓰기 권한이 없습니다. [sys-gloss]' } });
+      return route.fulfill({ status: 403, json: { success: false, code: 'E-AUTH-004', message: '공식 용어는 통합관리자만 편집할 수 있습니다. [sys-gloss]' } });
     }
     if (/^terms\/\d+\/variants$/.test(p) && req.method() === 'POST') {
       const body = req.postDataJSON();
@@ -298,7 +302,7 @@ async function lastColumnVisible(page, field) {
     assert(await page.getByRole('button', { name: '유사어 등록', exact: true }).isDisabled(), '유사어 등록 비활성');
     const add = page.locator('.tabulator-row').first().locator('button[data-act="add"]');
     assert(await add.isDisabled(), '유사어 추가 비활성');
-    assert.equal(await add.getAttribute('title'), '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.');
+    assert.equal(await add.getAttribute('title'), '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.');
     assert.equal(await page.locator('button[data-act="edit"]').count(), 0, '편집 없음');
     assert.equal(await page.locator('.chip-x').count(), 0, '쓰기 권한이 없으면 칩 삭제 없음');
     assert.equal(await page.getByText(/점검 필요 유사어/).count(), 0, '점검 목록은 통합관리자만');

@@ -5,11 +5,12 @@
  * 내 부서 권한이 바뀐 경우 사이드바에 바로 반영되도록 내 권한도 다시 받아옵니다.
  *
  * 2026-10-01 개편 (기획 03 MNP-01·02·03·15·16·17·18)
- *  · 부서마다 「조회」·「쓰기」 두 칸 — 쓰기 칸은 조회가 켜져 있어야 켤 수 있고, 조회를 끄면 쓰기도 함께 회수됩니다(R-06)
- *  · 잠금 — 통합관리자 열(전 권한), 미배정 열(고정 5화면 · 변경 불가, R-11), 관리 화면 4종 행(통합관리자가 아니면, R-07)
+ * 2026-10-03 접근 권한 통합 — 부서마다 「접근」 한 칸. 접근할 수 있으면 그 화면의 모든 동작을 허용합니다
+ *   (미배정 계정만 쓰기 불가, 서버 규칙). 조회/쓰기 구분 · writeMatrix · perm 은 없습니다.
+ *  · 잠금 — 통합관리자 열(전 권한), 미배정 열(고정 5화면 · 변경 불가, R-11), 관리 화면 5종 행(통합관리자가 아니면, R-07)
  *    판정 근거는 서버 응답(`depts[].locked` · `screens[].admin` · `canEditAdminScreens`)만 씁니다.
- *  · 읽기 전용 — sys-menu 쓰기 권한이 없으면 모든 체크·그룹 버튼·「부서 권한 복사」 를 끕니다(엑셀은 그대로, R-10)
- *  · 그룹 일괄 — 칸별(조회/쓰기)로 요청 1회, 동작 행 제외(MNP-04·05)
+ *  · 읽기 전용 — 미배정 계정(쓰기 불가)이면 모든 체크·그룹 버튼·「부서 권한 복사」 를 끕니다(엑셀은 그대로, R-10)
+ *  · 그룹 일괄 — 부서별 요청 1회, 동작 행 제외(MNP-04·05)
  *  · 부서 권한 복사 — 미리보기 → 확인 → 실행(expectedHash) 2단계(MNP-01)
  *  · 엑셀 — 조회 목록(펼친 그룹) / 전체(전 화면) 두 범위(MNP-18)
  *
@@ -26,19 +27,18 @@ import * as repo from '../model/systemRepository';
 
 const SCREEN_ID = 'sys-menu';
 
-/** 쓰기 권한이 없을 때 안내 (기획 공통 R-06 문구) */
-export const NO_WRITE_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+/** 쓰기 불가(미배정 계정)일 때 안내 */
+export const NO_WRITE_TEXT = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /** 잠금 사유 — 칸의 title 과 안내에 씁니다 */
 const LOCK_TEXT = {
   SUPER_ADMIN: '통합관리자 부서는 전 권한으로 고정됩니다.',
   UNASSIGNED: '미배정 부서는 대시보드·덕반장 AI·질의 이력 조회 전용으로 고정됩니다.',
   ADMIN_SCREEN: '관리 화면 권한은 통합관리자만 바꿀 수 있습니다.',
-  NEED_READ: '조회 권한을 먼저 켜야 쓰기 권한을 줄 수 있습니다.',
   BUSY: '저장 중입니다.',
 };
 
-/** 확인 창을 띄울 화면 — 관리 화면 4종(서버 admin) + 보안 감사 로그(잠그지는 않음, MNP-03) */
+/** 확인 창을 띄울 화면 — 관리 화면 5종(서버 admin) + 보안 감사 로그(잠그지는 않음, MNP-03) */
 const CONFIRM_EXTRA_SCREENS = ['sys-audit'];
 
 export function useMenuPermController() {
@@ -47,9 +47,10 @@ export function useMenuPermController() {
   const toast = useUiStore((state) => state.toast);
   const setMe = useAuthStore((state) => state.setMe);
   const userInfo = useAuthStore((state) => state.userInfo);
-  // 함수(canWrite)만 구독하면 권한이 바뀌어도 다시 그리지 않으므로 값(writePerms)을 구독합니다
-  const writePerms = useAuthStore((state) => state.writePerms);
-  const canWriteMenu = useMemo(() => useAuthStore.getState().canWrite(SCREEN_ID), [writePerms]);
+  // 함수(canWrite)만 구독하면 권한이 바뀌어도 다시 그리지 않으므로 값(menuPerms · unassigned)을 구독합니다
+  const menuPermsSub = useAuthStore((state) => state.menuPerms);
+  const unassignedSub = useAuthStore((state) => state.unassigned);
+  const canWriteMenu = useMemo(() => useAuthStore.getState().canWrite(SCREEN_ID), [menuPermsSub, unassignedSub]); // eslint-disable-line react-hooks/exhaustive-deps
   const readOnly = !canWriteMenu;
   /** 접힌 그룹 — 엑셀 「조회 목록」 이 지금 보이는 행만 받으려면 컨트롤러가 알아야 합니다 */
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -101,7 +102,6 @@ export function useMenuPermController() {
   );
   const depts = useMemo(() => matrixData?.depts || [], [matrixData]);
   const matrix = useMemo(() => matrixData?.matrix || {}, [matrixData]);
-  const writeMatrix = useMemo(() => matrixData?.writeMatrix || {}, [matrixData]);
   const grantCounts = matrixData?.grantCounts || {};
   /** 개인 허용 명단 — 서버가 sys-menu 권한 요청에만 줍니다(sys-account 만 있으면 건수만, MNP-06) */
   const grants = matrixData?.grants || null;
@@ -113,40 +113,35 @@ export function useMenuPermController() {
   const deptOf = useCallback((deptId) => depts.find((d) => String(d.id) === String(deptId)), [depts]);
   const screenOf = useCallback((screenId) => screens.find((s) => s.id === screenId), [screens]);
 
-  /** 칸의 현재 값 — 잠금 부서는 서버 고정 규칙을 그대로 보입니다 */
-  const cellValue = useCallback((screenId, deptId, perm) => {
+  /** 칸의 현재 값(접근 허용) — 잠금 부서는 서버 고정 규칙을 그대로 보입니다 */
+  const cellValue = useCallback((screenId, deptId) => {
     const dept = deptOf(deptId);
     if (dept?.locked === 'SUPER_ADMIN') return true;
-    const read = (matrix[String(deptId)] || []).includes(screenId);
-    if (perm === 'READ') return read;
-    if (dept?.locked === 'UNASSIGNED') return false;
-    return read && (writeMatrix[String(deptId)] || []).includes(screenId);
-  }, [deptOf, matrix, writeMatrix]);
+    return (matrix[String(deptId)] || []).includes(screenId);
+  }, [deptOf, matrix]);
 
   /**
    * 칸을 바꿀 수 없는 이유 (없으면 '')
    * @param {object} screen 화면 행
    * @param {object} dept 부서
-   * @param {'READ'|'WRITE'} perm
    */
-  const lockReason = useCallback((screen, dept, perm) => {
+  const lockReason = useCallback((screen, dept) => {
     if (!dept) return '';
     if (dept.locked === 'SUPER_ADMIN') return LOCK_TEXT.SUPER_ADMIN;
     if (dept.locked === 'UNASSIGNED') return LOCK_TEXT.UNASSIGNED;
     if (readOnly) return NO_WRITE_TEXT;
     if (screen?.admin && !canEditAdminScreens) return LOCK_TEXT.ADMIN_SCREEN;
-    if (perm === 'WRITE' && screen && !cellValue(screen.id, dept.id, 'READ')) return LOCK_TEXT.NEED_READ;
     if (busy) return LOCK_TEXT.BUSY;
     return '';
-  }, [readOnly, canEditAdminScreens, cellValue, busy]);
+  }, [readOnly, canEditAdminScreens, busy]);
 
   /**
    * 칸 옆 주의 표시 (MNP-10) — 하위 화면·동작은 켜져 있는데 상위 화면이 꺼져 있으면 버튼을 눌러도 들어갈 수 없습니다
    * @returns {string} 이유 (없으면 '')
    */
-  const cellWarn = useCallback((screen, dept, perm) => {
-    if (!screen?.parentId || !dept || dept.locked || perm !== 'READ') return '';
-    if (!cellValue(screen.id, dept.id, 'READ') || cellValue(screen.parentId, dept.id, 'READ')) return '';
+  const cellWarn = useCallback((screen, dept) => {
+    if (!screen?.parentId || !dept || dept.locked) return '';
+    if (!cellValue(screen.id, dept.id) || cellValue(screen.parentId, dept.id)) return '';
     return `상위 화면 「${pageName(screen.parentId)}」 이 꺼져 있어 이 화면에 들어갈 수 없습니다. 상위 화면을 함께 여세요.`;
   }, [cellValue]);
 
@@ -192,46 +187,39 @@ export function useMenuPermController() {
 
   /**
    * 칸 변경 계획 — 바꿀 값과 확인 창 문구를 돌려줍니다. 바꿀 수 없으면 null.
-   *  · 조회를 끄면 「쓰기 권한도 함께 회수됩니다」 확인(MNP-16)
    *  · 관리 화면·보안 감사 로그는 「n명에게 화면을 엽니다/닫습니다」 확인, 내 부서의 sys-menu 를 끄면 「이 화면에서 나가게 됩니다」(MNP-03)
    */
-  const planToggle = useCallback((screenId, deptId, perm = 'READ') => {
+  const planToggle = useCallback((screenId, deptId) => {
     const screen = screenOf(screenId);
     const dept = deptOf(deptId);
     if (!screen || !dept) return null;
-    const reason = lockReason(screen, dept, perm);
+    const reason = lockReason(screen, dept);
     if (reason) {
       toast(reason);
       return null;
     }
-    const allowed = !cellValue(screenId, deptId, perm);
+    const allowed = !cellValue(screenId, deptId);
     const lines = [];
     const screenNm = screen.label || screen.name;
-    const what = perm === 'WRITE' ? '쓰기' : '조회';
-    if (perm === 'READ' && !allowed) {
-      lines.push(cellValue(screenId, deptId, 'WRITE')
-        ? `「${screenNm}」 조회 권한을 끄면 쓰기 권한도 함께 회수됩니다.`
-        : `「${screenNm}」 조회 권한을 끕니다. 쓰기 권한도 함께 회수됩니다.`);
-    }
     if (screen.admin || CONFIRM_EXTRA_SCREENS.includes(screenId)) {
-      lines.push(`${dept.name} ${Number(dept.userCnt || 0).toLocaleString('ko-KR')}명에게 「${screenNm}」 ${what} 권한을 ${allowed ? '엽니다' : '닫습니다'}.`);
+      lines.push(`${dept.name} ${Number(dept.userCnt || 0).toLocaleString('ko-KR')}명에게 「${screenNm}」 접근 권한을 ${allowed ? '엽니다' : '닫습니다'}.`);
       const mine = String(userInfo?.deptId ?? '') === String(dept.id) || (userInfo?.deptId == null && userInfo?.dept === dept.name);
-      if (mine && screenId === SCREEN_ID && perm === 'READ' && !allowed) lines.push('저장하면 이 화면에서 나가게 됩니다.');
+      if (mine && screenId === SCREEN_ID && !allowed) lines.push('저장하면 이 화면에서 나가게 됩니다.');
     }
-    // 부서 조회를 끄더라도 같은 부서의 개인 허용 계정은 계속 들어옵니다 — 저장 뒤 알립니다(MNP-06)
-    const sameDeptGrants = perm === 'READ' && !allowed && grants
+    // 부서 접근을 끄더라도 같은 부서의 개인 허용 계정은 계속 들어옵니다 — 저장 뒤 알립니다(MNP-06)
+    const sameDeptGrants = !allowed && grants
       ? (grants[screenId] || []).filter((g) => String(g.deptId) === String(dept.id)).length
       : 0;
     // 상위 화면을 끄면 켜져 있는 하위 화면·동작도 함께 끌지 묻습니다(MNP-10)
-    const children = perm === 'READ' && !allowed
-      ? screens.filter((x) => x.parentId === screenId && cellValue(x.id, deptId, 'READ')).map((x) => ({ id: x.id, label: x.label || x.name }))
+    const children = !allowed
+      ? screens.filter((x) => x.parentId === screenId && cellValue(x.id, deptId)).map((x) => ({ id: x.id, label: x.label || x.name }))
       : [];
     if (children.length) lines.push(`하위 화면 ${children.map((x) => `「${x.label}」`).join(', ')} 도 함께 끌까요? 상위 화면만 끄면 그 화면에 들어갈 수 없게 됩니다.`);
     return {
-      screenId, deptId, perm, allowed, children,
+      screenId, deptId, allowed, children,
       grantNote: sameDeptGrants ? `개인 허용 ${sameDeptGrants}명은 계속 접근합니다 — 계정 관리에서 회수하세요.` : '',
       confirm: lines.length
-        ? { title: `${what} 권한 ${allowed ? '부여' : '회수'}`, message: lines.join('\n'), danger: !allowed, confirmLabel: allowed ? '부여' : '회수' }
+        ? { title: `접근 권한 ${allowed ? '부여' : '회수'}`, message: lines.join('\n'), danger: !allowed, confirmLabel: allowed ? '부여' : '회수' }
         : null,
     };
   }, [screenOf, deptOf, lockReason, cellValue, userInfo, toast, grants, screens]);
@@ -239,13 +227,13 @@ export function useMenuPermController() {
   /** 계획대로 저장합니다 (확인 창을 거쳤거나 확인이 필요 없을 때) */
   const applyToggle = useCallback(
     (plan, { withChildren = false } = {}) => (plan ? run(async () => {
-      const res = await repo.setMenuPerm(plan.deptId, plan.screenId, plan.allowed, plan.perm);
+      const res = await repo.setMenuPerm(plan.deptId, plan.screenId, plan.allowed);
       if (!res.ok) return res;
       // 「함께 끄기」 — 상위 다음에 하위를 하나씩 끕니다. 중간에 실패하면 몇 건까지 됐는지 알리고 다시 읽습니다
       let done = 0;
       if (withChildren) {
         for (const child of plan.children || []) {
-          const r = await repo.setMenuPerm(plan.deptId, child.id, false, 'READ');
+          const r = await repo.setMenuPerm(plan.deptId, child.id, false);
           if (!r.ok) return { ...r, refresh: true, message: `상위 화면은 껐지만 하위 화면 ${done}/${plan.children.length}개만 껐습니다. ${r.message || ''}` };
           done += 1;
         }
@@ -256,17 +244,17 @@ export function useMenuPermController() {
     [run]
   );
 
-  /** 그룹 일괄 — 칸별(조회/쓰기), 요청 1회, 동작 행은 바꾸지 않습니다 */
-  const toggleGroup = useCallback((group, deptId, perm, allowed) => run(async () => {
+  /** 그룹 일괄 — 부서별 요청 1회, 동작 행은 바꾸지 않습니다 */
+  const toggleGroup = useCallback((group, deptId, allowed) => run(async () => {
     const dept = deptOf(deptId);
     const reason = groupLockReason(group, dept);
     if (reason) return { ok: false, message: reason };
     const groupId = screens.find((s) => s.group === group)?.groupId || repo.menuGroupIdOf(group);
     if (!groupId) return { ok: false, message: `그룹 ID 를 찾을 수 없습니다 — ${group}` };
-    const res = await repo.setMenuGroupPerm(deptId, groupId, allowed, perm);
+    const res = await repo.setMenuGroupPerm(deptId, groupId, allowed);
     if (!res.ok) return { ...res, refresh: true };
     const changed = res.data?.changedCnt;
-    return { ...res, message: res.message || `${group}: ${changed ?? ''}개 화면 ${perm === 'WRITE' ? '쓰기' : '조회'} 권한을 변경했습니다.` };
+    return { ...res, message: res.message || `${group}: ${changed ?? ''}개 화면 접근 권한을 변경했습니다.` };
   }), [run, deptOf, groupLockReason, screens]);
 
   // ── 부서 권한 복사 (2단계) ─────────────────────────────
@@ -306,8 +294,7 @@ export function useMenuPermController() {
 
   // ── 요약 카드 (MNP-12·16) ─────────────────────────────
   const myDeptRow = depts.find((d) => (userInfo?.deptId != null ? String(d.id) === String(userInfo.deptId) : d.name === userInfo?.dept));
-  const myCount = myDeptRow ? screens.filter((s) => cellValue(s.id, myDeptRow.id, 'READ')).length : 0;
-  const myWriteCount = myDeptRow ? screens.filter((s) => cellValue(s.id, myDeptRow.id, 'WRITE')).length : 0;
+  const myCount = myDeptRow ? screens.filter((s) => cellValue(s.id, myDeptRow.id)).length : 0;
   // 평균은 시스템 부서(통합관리자·미배정)와 계정 0명 부서를 빼고 냅니다
   const avgBase = depts.filter((d) => !d.locked && Number(d.userCnt || 0) > 0);
   const avgCount = avgBase.length
@@ -325,12 +312,12 @@ export function useMenuPermController() {
   const visibleScreens = useMemo(() => screens.filter((s) => !collapsed.has(s.group)), [screens, collapsed]);
 
   const exportHead = useMemo(
-    () => ['메뉴 그룹', '화면', '구분', '개인 허용', ...depts.flatMap((d) => [`${d.name} 조회`, `${d.name} 쓰기`])],
+    () => ['메뉴 그룹', '화면', '구분', '개인 허용', ...depts.map((d) => d.name)],
     [depts]
   );
   // 열마다 응답 필드명 — 관리 화면 키라 가려지는 칸은 없지만, 마스킹 판정과 이력 blindCnt 를 맞추려고 넘깁니다(R-10)
   const exportAttrs = useMemo(
-    () => ['group', 'label', 'kindLabel', 'grantCount', ...depts.flatMap((d) => [`dept_${d.id}_read`, `dept_${d.id}_write`])],
+    () => ['group', 'label', 'kindLabel', 'grantCount', ...depts.map((d) => `dept_${d.id}`)],
     [depts]
   );
   const toExportRow = useCallback((s) => [
@@ -338,9 +325,7 @@ export function useMenuPermController() {
     s.label || s.name,
     s.action ? '동작' : s.sub ? '하위 화면' : '메뉴',
     grantCounts[s.id] ? `${grantCounts[s.id]}명` : '-',
-    ...depts.flatMap((d) => (d.locked === 'SUPER_ADMIN'
-      ? ['전 권한', '전 권한']
-      : [cellValue(s.id, d.id, 'READ') ? 'O' : '-', cellValue(s.id, d.id, 'WRITE') ? 'O' : '-'])),
+    ...depts.map((d) => (d.locked === 'SUPER_ADMIN' ? '전 권한' : cellValue(s.id, d.id) ? 'O' : '-')),
   ], [depts, cellValue, grantCounts]);
 
   const exportView = useCallback(async () => {
@@ -386,7 +371,6 @@ export function useMenuPermController() {
     screens,
     depts,
     matrix,
-    writeMatrix,
     grantCounts,
     grants,
     /** 개인 허용 명단 — 화면 ID 별. 명단이 없는 응답이면 null */
@@ -404,7 +388,6 @@ export function useMenuPermController() {
     groupLockReason,
     myDept: myDeptRow?.name || userInfo?.dept || '',
     myCount,
-    myWriteCount,
     avgCount,
     planToggle,
     applyToggle,

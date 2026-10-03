@@ -584,39 +584,7 @@ export const SCREEN_COLUMNS = [
     "group": "자연어 질의 이력",
     "columns": [
       {
-        "title": "세션 시작",
-        "field": "startedAt"
-      },
-      {
-        "title": "부서·사용자",
-        "field": "name"
-      },
-      {
-        "title": "질의 수",
-        "field": "questionCnt"
-      },
-      {
-        "title": "첫 질문",
-        "field": "firstQuestion"
-      },
-      {
-        "title": "마지막 질의",
-        "field": "lastAskedAt"
-      },
-      {
-        "title": "응답",
-        "field": "answeredCnt"
-      },
-      {
-        "title": "평가 요약",
-        "field": "usefulCnt"
-      },
-      {
-        "title": "검토",
-        "field": "reviewedCnt"
-      },
-      {
-        "title": "시각",
+        "title": "질문 시간",
         "field": "ts"
       },
       {
@@ -632,20 +600,32 @@ export const SCREEN_COLUMNS = [
         "field": "judgmentBasis"
       },
       {
-        "title": "미응답 사유",
-        "field": "unansweredReason"
+        "title": "근거 문서",
+        "field": "docs"
       },
       {
         "title": "응답 시간",
         "field": "responseSec"
       },
       {
-        "title": "평가",
-        "field": "rating"
+        "title": "모델",
+        "field": "llmModel"
       },
       {
-        "title": "검토",
-        "field": "review"
+        "title": "토큰",
+        "field": "totalTokens"
+      },
+      {
+        "title": "답변 상태",
+        "field": "finishReason"
+      },
+      {
+        "title": "의도",
+        "field": "intentNm"
+      },
+      {
+        "title": "평가",
+        "field": "rating"
       }
     ]
   },
@@ -1525,6 +1505,105 @@ export const SCREEN_COLUMNS = [
       {
         "title": "원본 키",
         "field": "srcKey"
+      }
+    ]
+  },
+  {
+    "id": "sys-chat-history",
+    "name": "전사 자연어 질의 이력",
+    "group": "시스템관리",
+    "columns": [
+      {
+        "title": "세션 시작",
+        "field": "startedAt"
+      },
+      {
+        "title": "부서·사용자",
+        "field": "name"
+      },
+      {
+        "title": "질의 수",
+        "field": "questionCnt"
+      },
+      {
+        "title": "첫 질문",
+        "field": "firstQuestion"
+      },
+      {
+        "title": "마지막 질의",
+        "field": "lastAskedAt"
+      },
+      {
+        "title": "응답",
+        "field": "answeredCnt"
+      },
+      {
+        "title": "평가 요약",
+        "field": "usefulCnt"
+      },
+      {
+        "title": "검토",
+        "field": "reviewedCnt"
+      },
+      {
+        "title": "사용자",
+        "field": "userLabel"
+      },
+      {
+        "title": "질문",
+        "field": "question"
+      },
+      {
+        "title": "답변",
+        "field": "answer"
+      },
+      {
+        "title": "판단 근거",
+        "field": "judgmentBasis"
+      },
+      {
+        "title": "미응답 사유",
+        "field": "unansweredReason"
+      },
+      {
+        "title": "사용자 평가",
+        "field": "ratingText"
+      },
+      {
+        "title": "검토",
+        "field": "reviewText"
+      },
+      {
+        "title": "질문 시간",
+        "field": "ts"
+      },
+      {
+        "title": "답변 시간",
+        "field": "answeredAt"
+      },
+      {
+        "title": "응답 시간",
+        "field": "responseSec"
+      },
+      {
+        "title": "모델",
+        "field": "llmModel"
+      },
+      {
+        "title": "토큰",
+        "field": "totalTokens"
+      },
+      {
+        "title": "답변 상태",
+        "field": "finishText"
+      },
+      {
+        "title": "의도",
+        "field": "intentNm"
+      },
+      {
+        "title": "답변 추가(학습 데이터)",
+        "field": "trainAnswer"
       }
     ]
   }

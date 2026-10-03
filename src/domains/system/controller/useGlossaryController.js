@@ -3,7 +3,7 @@
  *
  * [권한] 공식 용어는 통합관리자만 편집합니다(서버도 403 E-AUTH-004 로 막습니다 — 07 GLS-01).
  *        유사어는 이 화면의 쓰기 권한(can_write)이 있으면 등록하고, 본인이 등록한 것만 수정·삭제합니다(07 GLS-16).
- *        쓰기 권한 판정은 서버 요약의 canWriteVariant 를 먼저 보고, 없으면 /auth/me 의 writePerms 로 대신합니다.
+ *        쓰기 권한 판정은 서버 요약의 canWriteVariant 를 먼저 보고, 없으면 접근 권한 · 미배정 여부(canWrite)로 대신합니다.
  *
  *  · 검색은 입력값(keywordInput)과 조회값(keyword)을 나눕니다. Enter · 조회 · 입력 멈춤 400ms 로 확정합니다(07 GLS-09).
  *  · 주소의 ?keyword= 를 첫 검색어로 받습니다 — 용어 사전 조회(13 GLV-09)의 「관리 화면에서 편집」 링크가 씁니다.
@@ -27,7 +27,7 @@ const SEARCH_DEBOUNCE_MS = 400;
 /** 「전체 다운로드」 상한 (07 GLS-18) */
 const EXPORT_ALL_LIMIT = 5000;
 /** 쓰기 권한이 없을 때 버튼 옆에 띄우는 안내 (공통 R-06) */
-export const NO_WRITE_MESSAGE = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const NO_WRITE_MESSAGE = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 /** 고객사 데이터 권한이 없어 가린 용어(blinded)의 버튼 안내 (공통 11.2 결정 R-18 · 13 GLV-08) */
 export const BLIND_MESSAGE = '고객사 데이터 권한이 없어 볼 수 없는 용어입니다';
 /** 공식 용어 쓰기가 403 일 때 (07 GLS-01) */

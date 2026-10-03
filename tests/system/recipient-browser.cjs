@@ -19,7 +19,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
 
-const WRITE_TIP = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+const WRITE_TIP = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 const CODES = [
   ['ALM_CHANNEL', 'MAIL', '메일'], ['ALM_CHANNEL', 'POPUP', '시스템 팝업'],
   ['ALM_WINDOW', 'ALWAYS', '24시간 상시'], ['ALM_WINDOW', 'D0820', '08:00 ~ 20:00'],
@@ -28,7 +28,8 @@ const CODES = [
 function me({ write = true, worker = true } = {}) {
   return {
     user: { empNo: '10004', name: '최전산', dept: '전산팀', deptId: 5, pos: 'SENIOR', superAdmin: false },
-    dept: { deptId: 5, deptNm: '전산팀', superAdmin: false },
+    // 2026-10-03 — 접근이 있는데 쓰기가 막히는 경우는 미배정뿐입니다(write=false → 미배정)
+    dept: { deptId: 5, deptNm: '전산팀', superAdmin: false, unassigned: !write },
     menuPerms: ['ai-chat', 'alert-cond', 'sys-recip'],
     writePerms: write ? ['sys-recip'] : [],
     dataPerms: worker ? ['qty', 'worker'] : ['qty'],

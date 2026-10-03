@@ -54,7 +54,6 @@ async function setup(page, opts = {}) {
     const res = await route.fetch({ url: realUrl(route.request().url()) });
     const j = await res.json();
     j.data.menuPerms = ['ai-chat', 'gloss-view', 'dash-ai', ...(opts.manage ? ['sys-gloss'] : [])];
-    j.data.writePerms = opts.manage ? ['sys-gloss'] : [];
     j.data.user = { ...j.data.user, superAdmin: false };
     await route.fulfill({ response: res, json: j });
   });

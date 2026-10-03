@@ -36,7 +36,7 @@ export const PARSE_STATE_OPTIONS = [
 ];
 
 /** 쓰기 권한이 없을 때 안내 (공통 문서 9.7 · R-06) */
-export const WRITE_DENIED_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const WRITE_DENIED_TEXT = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 /** 숨기는 사유 상한 (R-19 — 서버 200자, 초과 400) */
 export const HIDE_REASON_MAX = 200;
 

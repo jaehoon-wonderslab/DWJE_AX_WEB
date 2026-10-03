@@ -78,7 +78,7 @@ export default function DataFieldManager({ onChanged, readOnly = false, onDirtyC
 
   return (
     <View style={{ gap: 14 }}>
-      {c.readOnly ? <FormAlert tone="info">읽기 전용 — 이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요. 보기만 할 수 있습니다.</FormAlert> : null}
+      {c.readOnly ? <FormAlert tone="info">읽기 전용 — 미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요. 보기만 할 수 있습니다.</FormAlert> : null}
       <Hint>화면을 고르고 가릴 열에 체크한 뒤 종류를 고르세요. 누가 볼지는 바깥 표에서 종류마다 부서별로 정합니다. 시스템관리 화면과 시스템이 쓰는 필드명은 가릴 수 없습니다.</Hint>
 
       <SelectField

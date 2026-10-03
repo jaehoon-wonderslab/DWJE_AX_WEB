@@ -2,13 +2,13 @@
 
 | 항목 | 값 |
 | :--- | :--- |
-| URL | `/history/chat` (`?view=session\|message` · `?session={sessionKey}` · `?focus={messageId}`). 옛 주소 `/system/chat-history` 는 이리로 넘깁니다(북마크 호환) |
+| URL | `/history/chat` (`?view=session\|message` · `?session={sessionKey}` · `?focus={messageId}`). 2026-10-03 부터 `/system/chat-history` 는 리다이렉트가 아니라 전사 화면입니다([44](./44_system_chat-history-admin.md)) |
 | 대그룹 | 자연어 질의 이력(허브 `/menu/history`) — 2026-10-01 결정 R-08 로 시스템관리에서 옮김 |
 | 화면 ID | `chat-history` (그대로) |
-| 라우트 파일 | `app/(main)/history/chat.jsx` · 옛 주소 리다이렉트 `app/(main)/system/chat-history.jsx` |
+| 라우트 파일 | `app/(main)/history/chat.jsx` |
 | MVC | `domains/system/view/ChatHistoryView.jsx` · `controller/useChatHistoryController.js` · `model/systemRepository.js`(SY-08 구역) |
 | 기능 ID | SY-08 |
-| 접근 권한 | `chat-history` 조회 권한(미배정 포함 전 부서 — R-08·R-11). 관리 기능(관리자 검토 · 학습데이터 내보내기 · 디버그)은 **`chat-history` 쓰기 권한**(기본 전산팀, 통합관리자는 항상 — R-06) |
+| 접근 권한 | `chat-history` 접근(미배정 포함 전 부서 기본 허용). 2026-10-03 부터 본인 이력만 봅니다 — 관리 기능은 [44](./44_system_chat-history-admin.md) 로 옮겼습니다 |
 
 전 사용자의 질의 이력을 모두가 봅니다. 질의자보다 데이터 접근 권한이 좁으면 서버가 응답·판단 근거를 가리고(`answerHidden`) 화면은 「권한 밖 응답」 배지와 사유를 보입니다. 쓰기 권한이 없으면 남의 이름은 서버가 가립니다(`박**`).
 관리 기능 판정은 요약 `canManage` 를 먼저 보고, 없으면 `/auth/me` 의 `writePerms` 로 합니다. 쓰기 권한이 없으면 관리 버튼은 숨기지 않고 비활성 + 「이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.」, 디버그 영역은 그리지 않습니다.
@@ -111,3 +111,30 @@
 - [x] 보존 기간 안내 — 서버 `retentionDays`·`expiredCnt` 로 「보존 3년 · 기간 지난 n건은 매일 03:10 정리」(결정 R-20, 0 이면 「보존 기간이 정해지지 않았습니다」, CHH-08) · 목표 답변율 `targetAnswerRate`(null 이면 부제 없음, CHH-11)
 - 서버 3단계 대조(2026-10-01) : 상세 `askedAt`·`userName`·`hits[≤8]{docId,title,page,score,cited,heading}`, 전체 내려받기 `scope=ALL` 만(그 밖 400), `view` 는 MESSAGE·SESSION(QUERY 도 받음), 조회 기간 92일 초과는 400 이 카드 위 오류 줄로 보입니다
 - 시험 : `tests/system/chat-history-browser.cjs` · `tests/specs/14-system-chat-history-view.spec.js`
+
+## 2026-10-03 본인 이력 전용으로 축소
+
+사용자 결정으로 이 화면은 로그인한 계정 **본인** 의 질의 이력만 봅니다. 모든 사용자의 이력과 관리 기능은 시스템관리 > 전사 자연어 질의 이력(`/system/chat-history`, `sys-chat-history`, [44](./44_system_chat-history-admin.md))으로 옮겼습니다. 위 1~5절의 관리 기능 · 가림 설명은 그 화면에 해당합니다.
+
+- 조회: 요약 · 목록 · 세션 · 세션 상세 · 질의 상세 요청에 모두 `scope=mine` 을 붙입니다. 서버가 본인 행만 줍니다(통합관리자도 같습니다). `userGroup` 은 보내지 않고 `groups` 도 부르지 않습니다.
+- 없앤 것: [학습데이터 내보내기] · 검토 단추와 검토 조건 · 디버그 표 · 「사용자 그룹」 조건 · 「전 사용자의 질의 이력입니다 · 권한 밖 응답은 가려집니다」 · 미배정 안내 · 표의 「부서·사용자」 · 「검토」 열 · 상세의 「검토(관리자)」 줄.
+- 남긴 것: 세션 보기 / 질의 보기, 기간 · 검색 · 평가 · 응답 조건, 세션 상세 패널(제목 「내 대화」), 상세의 본인 평가([유용함] · [오답] → `POST /ai/chat/messages/{id}/feedback`), 보존 기간 안내.
+- 질의 보기 열: 질문 시간 · 답변 시간(`answeredAt`) · 질문 · 응답 · 판단 근거 · 미응답 사유 · 응답 시간 · 평가(표 너비 1700). 세션 보기는 세션 시작 · 질의 수 · 첫 질문 · 마지막 질의 · 응답 · 평가 요약(표 너비 1000).
+- 엑셀: 조회 목록은 지금 그리드 행, 전체는 `POST /ai/chat/history/export?scope=mine`(본문 `scope:'ALL'` 은 행 범위, `menuId:'chat-history'`).
+- 메뉴 설명: 「내 자연어 질의와 AI 응답 이력을 조회합니다.」
+- 시험: `WEB_URL=http://localhost:8081 node tests/system/chat-history-browser.cjs` · `tests/specs/14-system-chat-history-view.spec.js`
+
+
+## 2026-10-03 (2차) 질의 표 하나로 정리 · LLM 메타 열
+
+사용자 결정으로 이 화면의 관리 기능은 모두 전사 자연어 질의 이력(관리자 전용, [44](./44_system_chat-history-admin.md))에 두고, 이 화면은 본인 질의를 표 하나로 봅니다.
+
+- 없앤 것: 「세션 보기 / 질의 보기」 전환과 세션 목록(`GET …/sessions` 를 부르지 않습니다), 행 클릭 질의 상세 모달(`GET …/{messageId}` 를 부르지 않습니다), 「답변 시간」 · 「미응답 사유」 열. 미응답이면 응답 칸에 「미응답 — 사유」 로 적습니다.
+- 열 순서: 질문 시간 · 질문 · 응답 · 판단 근거 · 근거 문서 · 응답 시간 · 모델 · 토큰 · 답변 상태 · 의도 · 평가 · 대화(표 너비 2280).
+  - 근거 문서: 목록 행 `docs[{title,page,score}]`(상위 3건) + `docCnt`. `docs` 는 검색 조각 단위라 같은 제목이 겹칩니다 — 제목으로 묶어 쪽을 모으고(「p.3, 4」) 점수는 가장 높은 값을 적습니다. 조각 수가 묶은 문서 수보다 많으면 「근거 n건」 을 덧붙입니다. 없으면 「—」.
+  - 모델 `llmModel`, 토큰 「입력 n · 출력 m」(`promptTokens` · `completionTokens`, 마우스를 올리면 「합계 n 토큰」), 답변 상태 `finishReason`(stop → 정상, length → 주황 배지 「길이 제한으로 잘림」, tool_calls → 도구 호출, 그 밖은 원래 값), 의도 `intentNm`. V71 전 서버거나 값이 없으면 모두 「—」 입니다(`systemRepository.normChatRow`).
+  - 평가: 내 평가 배지(없으면 「미평가」) + [유용] · [개선 필요] → `POST /ai/chat/messages/{id}/feedback` `{rating:'good'|'bad'}`.
+  - 대화: [대화 보기 ›] → 그 질의가 든 대화(`GET …/sessions/{sessionKey}?scope=mine`)를 오른쪽 패널(≥1100px, 너비 480)로 엽니다. 그 질의는 테두리로 강조하고, 주소는 `?session=…&focus=…` 로 쌓아 뒤로 가기로 닫힙니다. 좁은 화면은 전체 폭 패널만 보입니다. 패널에는 [이 대화 내려받기] · [닫기] 가 있습니다.
+- 「답변 평가 기준」 은 모든 행이 같은 상수라 표 열이 아니라 카드 오른쪽 위 「답변 평가 기준 (?)」 안내로 둡니다.
+- 엑셀 조회 목록: 표 열과 같은 순서(대화 열 제외) — 질문 시간 · 질문 · 응답 · 판단 근거 · 근거 문서 · 응답 시간(초) · 모델 · 토큰 · 답변 상태 · 의도 · 평가. `attrs=ts·question·answer·judgmentBasis·docs·responseSec·llmModel·totalTokens·finishReason·intentNm·rating`. 전체는 `POST /ai/chat/history/export?scope=mine` `{view:'MESSAGE', scope:'ALL', menuId:'chat-history'}`.
+- 시험: `WEB_URL=http://localhost:8081 node tests/system/chat-history-browser.cjs` — 보기 전환 · 세션 목록 · 상세 모달 없음, 열 순서, LLM 메타 값과 「—」, 근거 문서 묶음, 표 안 평가 good/bad, 대화 패널 · 강조 · 닫기, 엑셀 열, 360px 마지막 열 · 전체 폭 패널을 확인합니다.

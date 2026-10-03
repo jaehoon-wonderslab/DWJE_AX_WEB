@@ -111,7 +111,7 @@ export function useDataFieldManagerController({ readOnly = false, onChanged, onD
   /** 이 필드를 고를 수 없는 이유 (없으면 '') */
   const fieldLock = useCallback((field) => {
     if (reserved.has(field)) return '시스템이 쓰는 필드명이라 가릴 수 없습니다.';
-    if (readOnly) return '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+    if (readOnly) return '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
     return '';
   }, [reserved, readOnly]);
 
@@ -187,7 +187,7 @@ export function useDataFieldManagerController({ readOnly = false, onChanged, onD
   }, [readOnly, changed, screen, draft, newKinds, ownerOf, kindName, toast, resetDraft, reload, onChanged]);
 
   const removeKind = useCallback(async (kind) => {
-    if (readOnly) return { ok: false, message: '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.' };
+    if (readOnly) return { ok: false, message: '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.' };
     const res = await repo.removeDataField(kind.key).catch(() => ({ ok: false, message: '삭제하지 못했습니다.' }));
     toast(res.message);
     if (res.ok) { reload(); onChanged?.(); }
@@ -196,7 +196,7 @@ export function useDataFieldManagerController({ readOnly = false, onChanged, onD
 
   /** 종류 편집 — 이름·설명·분류 (DTP-11). 서버 오류는 토스트로 보이고 폼을 닫지 않습니다 */
   const updateKind = useCallback(async (kind, v) => {
-    if (readOnly) { toast('이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.'); return false; }
+    if (readOnly) { toast('미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.'); return false; }
     const res = await repo.updateDataField({
       fieldKey: kind.key,
       name: String(v.name || '').trim(),

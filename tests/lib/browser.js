@@ -23,6 +23,11 @@ async function open(who = 'admin') {
 
   const browser = await chromium.launch({ channel: 'chrome', headless: process.env.HEADED !== '1' });
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
+  // API_URL 이 앱 번들의 기본(8080)과 다르면 앱이 부르는 8080 요청도 그쪽으로 돌립니다 — 로그인 토큰과 같은 서버를 보게
+  if (!/localhost:8080\/?$/.test(BASE)) {
+    const target = BASE.replace(/\/$/, '');
+    await context.route('http://localhost:8080/**', (r) => r.continue({ url: r.request().url().replace('http://localhost:8080', target) }));
+  }
   const page = await context.newPage();
 
   const acc = ACCOUNTS[who] || { empNo: who };

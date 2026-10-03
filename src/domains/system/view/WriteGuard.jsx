@@ -13,7 +13,7 @@ import { Platform, View } from 'react-native';
 import { Button } from '@shared/components/ui';
 
 /** 쓰기 권한 없음 안내 (공통 지침 문구) */
-export const WRITE_DENIED = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /**
  * 웹에서 DOM title(툴팁)을 붙입니다.

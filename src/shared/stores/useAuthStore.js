@@ -11,7 +11,8 @@ import { clearSession, saveSession } from '@shared/utils/authStorage';
  *  · menuPerms — 접근 가능한 화면 ID 배열 ('*' 는 전체)
  *  · dataPerms — 접근 가능한 데이터 항목 key 배열 ('*' 는 전체)
  *  · dataFields — 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
- *  · writePerms — 쓰기(등록·수정·삭제 등) 가능한 화면 ID 배열 ('*' 는 전체, 통합관리자). 2026-10-01 R-06
+ *  · 쓰기 판정 — 2026-10-03 부터 별도 쓰기 칸이 없습니다. 화면에 접근할 수 있으면 그 화면의 모든 동작을 허용하고,
+ *    미배정 계정만 쓰기 불가입니다(통합관리자는 전부 통과). /auth/me 의 writePerms 는 호환용이라 보지 않습니다.
  *  · pwdChangeRequired — 초기 비밀번호를 바꾸기 전인지. true 이면 서버가 거의 모든 API 를 막으므로(R-04)
  *    레이아웃이 비밀번호 변경 화면 말고는 아무것도 그리지 않습니다.
  *  · unassigned — 그룹웨어 자동 가입 후 부서 배정 전(미배정) 계정인지. 허용 화면이 고정되어 있습니다(R-11)
@@ -38,7 +39,6 @@ export const useAuthStore = create((set, get) => ({
   /** 응답 필드명 → 항목 key. dataFields 에서 파생합니다 (조회할 때마다 훑지 않으려고 미리 만듭니다) */
   attrIndex: {},
   servingModelVer: '', // 현재 서비스 중인 AI 모델 버전 (사이드바 표기용)
-  writePerms: [], // 쓰기 가능한 화면 ID 목록
   pwdChangeRequired: false, // 초기 비밀번호 변경 전
   unassigned: false, // 미배정 부서 소속
 
@@ -77,7 +77,6 @@ export const useAuthStore = create((set, get) => ({
       dataFields: me?.dataFields || [],
       attrIndex: indexAttrs(me?.dataFields),
       servingModelVer: me?.servingModelVer || '',
-      writePerms: me?.writePerms || [],
       pwdChangeRequired: !!(me?.pwdChangeRequired ?? me?.user?.pwdChangeRequired),
       unassigned: !!(me?.dept?.unassigned ?? me?.unassigned ?? me?.user?.unassigned),
     }),
@@ -101,7 +100,6 @@ export const useAuthStore = create((set, get) => ({
         // 권한은 서버가 DB(부서 권한 표)에서 내려준 값만 씁니다 — 없으면 아무것도 열지 않습니다
         menuPerms: perms?.menuPerms ?? [],
         dataPerms: perms?.dataPerms ?? [],
-        writePerms: perms?.writePerms ?? [],
       };
     }),
 
@@ -117,7 +115,6 @@ export const useAuthStore = create((set, get) => ({
       dataFields: [],
       attrIndex: {},
       servingModelVer: '',
-      writePerms: [],
       pwdChangeRequired: false,
       unassigned: false,
     });
@@ -135,16 +132,26 @@ export const useAuthStore = create((set, get) => ({
   },
 
   /**
-   * 화면에서 쓰기(등록·수정·삭제·상태 전환 등)를 할 수 있는지 판정합니다. (쓰기 권한, R-06)
+   * 화면에서 쓰기(등록·수정·삭제·상태 전환 등)를 할 수 있는지 판정합니다. (2026-10-03 접근 권한 통합)
    *
+   * 통합관리자 → 항상 허용 · 그 밖 → 화면 접근 가능 && 미배정 아님.
    * 서버도 같은 판정으로 막습니다(403 E-AUTH-004). 화면은 버튼을 숨기지 않고 비활성으로 그려
    * 「왜 안 되는지」 를 툴팁으로 알려 줍니다. 엑셀 내려받기는 쓰기가 아니므로 이 판정을 쓰지 않습니다(R-10).
+   *
+   * 구독할 때는 menuPerms · unassigned 를 함께 구독해야 권한이 바뀌었을 때 다시 그립니다.
    *
    * @param {string} screenId 화면 ID
    */
   canWrite: (screenId) => {
-    const perms = get().writePerms;
-    return perms === '*' || (Array.isArray(perms) && (perms.indexOf('*') >= 0 || perms.indexOf(screenId) >= 0));
+    const state = get();
+    if (state.isSuperAdmin()) return true;
+    return state.can(screenId) && !state.unassigned;
+  },
+
+  /** 통합관리자인지 — /auth/me 의 user.superAdmin, 또는 전체 허용('*') 메뉴 권한 */
+  isSuperAdmin: () => {
+    const { userInfo, menuPerms } = get();
+    return !!userInfo?.superAdmin || menuPerms === '*' || (Array.isArray(menuPerms) && menuPerms.indexOf('*') >= 0);
   },
 
   /**

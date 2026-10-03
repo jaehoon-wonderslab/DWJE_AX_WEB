@@ -31,7 +31,7 @@ const MENU_ID = 'sys-sync';
 /** 작업 이력 조회 기간 상한(일) — 기획 8장 Q9 권장 92일 */
 export const MAX_RANGE_DAYS = 92;
 /** 쓰기 권한이 없을 때 안내 (공통 문서 9.7 · R-06) */
-export const WRITE_DENIED_TEXT = '이 화면의 쓰기 권한이 없습니다. 전산팀에 요청하세요.';
+export const WRITE_DENIED_TEXT = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
 /** 이관 작업 상태 코드(SYNC_STATE) → 배지 색. 완료/재시도 완료 초록 · 실패 빨강 · 예약 대기 주황 · 중단 기본 · 진행 중 파랑 */
 export const jobStateTone = (state) => {

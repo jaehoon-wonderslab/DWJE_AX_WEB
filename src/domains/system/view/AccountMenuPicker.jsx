@@ -4,8 +4,11 @@ import { FormAlert, HelpTip } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 
-/** 관리 화면 4종 — 부서 권한·계정 추가 허용은 통합관리자만 부여·회수합니다(R-07, 서버 MenuId.ADMIN_SCREENS 와 같은 목록) */
-export const ADMIN_SCREENS = ['sys-account', 'sys-menu', 'sys-data', 'sys-gw-dept'];
+/**
+ * 관리 화면 — 부서 권한·계정 추가 허용은 통합관리자만 부여·회수합니다(R-07, 서버 MenuId.ADMIN_SCREENS 와 같은 목록).
+ * 2026-10-03 (2차) — 전사 자연어 질의 이력(sys-chat-history)을 더했습니다(관리자 전용).
+ */
+export const ADMIN_SCREENS = ['sys-account', 'sys-menu', 'sys-data', 'sys-gw-dept', 'sys-chat-history'];
 
 /** 수동 메뉴 설정 도움말 — 문장마다 줄을 바꿉니다 */
 const PICKER_HELP = [
@@ -23,7 +26,7 @@ export const UNASSIGNED_PICKER_NOTE = '미배정 계정은 대시보드 3개·�
  * 잠그는 경우 (4.3 「읽기 전용」)
  *  · readOnly — 본인 계정 편집(ACC-02) 또는 쓰기 권한 없음(ACC-15). 체크 상태는 그대로 보입니다.
  *  · unassigned — 고른 부서가 미배정(ACC-14). 수동 허용을 모두 풀고, 실부서로 되돌리면 원래 선택을 되살립니다.
- *  · superAdmin=false — 관리 화면 4종 줄만 잠급니다(ACC-16, R-07). 이미 허용된 줄은 체크된 채 잠깁니다.
+ *  · superAdmin=false — 관리 화면(ADMIN_SCREENS) 줄만 잠급니다(ACC-16, R-07). 이미 허용된 줄은 체크된 채 잠깁니다.
  */
 export default function AccountMenuPicker({ value = [], onChange, deptId, options, readOnly = false, readOnlyNote, unassigned = false, superAdmin = false, reasons, initialIds = [], grants = [] }) {
   // 부여 사유 (ACC-10) — 이번에 새로 켠 메뉴에만 받습니다. 폼 값은 메뉴 목록이라, 사유는 부모가 넘긴 객체에 적습니다

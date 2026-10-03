@@ -4,7 +4,7 @@
  *   원본·대상 고르기(기본값 없음) → 「미리보기」 → 추가·회수 목록·영향 계정 확인 → 「위 내용을 확인했습니다」 → 「복사」
  *
  *  · 선택지에 미배정 부서는 없습니다(원본·대상 모두). 대상에는 통합관리자도 없습니다. 표기는 「부서명 (계정 n명)」
- *  · 관리 화면 4종이 바뀌는 복사는 통합관리자만 실행할 수 있습니다 — 다른 사람에게는 실행 버튼을 잠그고 이유를 보입니다
+ *  · 관리 화면 5종이 바뀌는 복사는 통합관리자만 실행할 수 있습니다 — 다른 사람에게는 실행 버튼을 잠그고 이유를 보입니다
  *  · 미리보기 뒤에 권한이 바뀌어 서버가 거부하면(409) 미리보기를 다시 불러옵니다
  * 화면 상태(고른 값·미리보기 결과·확인 체크)만 이 파일이 들고, 요청은 컨트롤러 함수로 보냅니다.
  */
@@ -92,7 +92,7 @@ export default function MenuPermCopyForm({ options, screenLabel, isSuperAdmin, p
         onChange={(v) => { setTo(v || ''); reset(); }}
       />
       <Text style={s.textXs}>
-        대상 부서의 메뉴 권한(조회·쓰기)은 원본과 같게 덮어쓰기 됩니다. 데이터 접근 권한은 함께 복사되지 않습니다. 미배정 부서는 고정 부서라 고를 수 없습니다.
+        대상 부서의 메뉴 접근 권한은 원본과 같게 덮어쓰기 됩니다. 데이터 접근 권한은 함께 복사되지 않습니다. 미배정 부서는 고정 부서라 고를 수 없습니다.
       </Text>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
         <Button label={working && !preview ? '불러오는 중…' : '미리보기'} size="sm" icon="eye" onPress={runPreview} disabled={working} />
@@ -107,12 +107,12 @@ export default function MenuPermCopyForm({ options, screenLabel, isSuperAdmin, p
           </Text>
           <Text style={s.textSm}>
             {added.length
-              ? `추가 ${added.length}건(쓰기 포함 ${added.filter((x) => x.write).length}건): ${summarize(added, (x) => `${screenLabel(x.id)}${x.write ? '[쓰기]' : ''}`)}`
+              ? `추가 ${added.length}건: ${summarize(added, (x) => screenLabel(x.id))}`
               : '추가 0건'}
           </Text>
           <Text style={s.textSm}>
             {removed.length
-              ? `회수 ${removed.length}건: ${summarize(removed, (x) => `${screenLabel(x.id)}${x.read === false && x.write ? '[쓰기만]' : ''}`)}`
+              ? `회수 ${removed.length}건: ${summarize(removed, (x) => screenLabel(x.id))}`
               : '회수 0건'}
           </Text>
           {needsSuper ? (
