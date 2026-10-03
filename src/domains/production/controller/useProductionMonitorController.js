@@ -85,6 +85,8 @@ export function useProductionMonitorController() {
     downloadXls({
       name: '생산 모니터링',
       head: ['설비', '설비명', '모델', '생산량', '불량률', '가동률', '타발 속도', '최근 수집', '상태'],
+      // 열마다 응답 필드명 — 데이터 접근 권한 밖 값(불량률 · 생산량 · 타발 속도)은 공통 마스킹이 「비공개」 로 채웁니다
+      attrs: ['eqptCd', 'eqptNm', 'model', 'qty', 'defectRate', 'uptimeRate', 'strokeSpeed', 'lastCollectedAt', 'state'],
       rows: rows.map((l) => [
         l.eqptCd,
         l.eqptNm || '',

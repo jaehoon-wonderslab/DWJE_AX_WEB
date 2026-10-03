@@ -11,7 +11,11 @@
  *
  * 원천 수량조차 없으면 `null` 을 그대로 둡니다. 0 으로 채우면 "가동률 0%" 처럼
  * 실제로 측정된 값과 구분되지 않기 때문입니다.
+ *
+ * 데이터 접근 권한으로 서버가 비운 지표(예: 수율·불량률 권한이 없는 계정의 defectRate)는 채우지 않습니다.
+ * 채우면 화면 셀은 「비공개」 여도 엑셀 · 머리글 검색 · 정렬에 계산값이 그대로 드러납니다(2026-10-03).
  */
+import { canAttr } from '@shared/utils/maskUtil';
 
 /** 하루 조업시간 기본값 (분) — 24시간 3교대 기준 */
 export const DAILY_OPERATING_MIN = 1440;
@@ -98,9 +102,10 @@ export function fillRates(row, keys = {}) {
   const q = num(row[qty]) ?? num(row.inputQty) ?? num(row.totalQty);
   const out = { ...row };
 
-  if (num(out[defect]) === null) out[defect] = defectRate(q, out[ngQty]);
-  if (num(out[yieldKey]) === null) out[yieldKey] = yieldRate(q, out[okQty], out[ngQty]);
-  if (num(out[uptime]) === null) out[uptime] = uptimeRate(out[downtime], out[operatingMin] ?? DAILY_OPERATING_MIN);
+  // 권한 판정은 응답 필드명으로 합니다 — 매핑으로 이름이 바뀌어도(예: rate) 표준 이름(defectRate·yield)도 함께 봅니다
+  if (num(out[defect]) === null && canAttr(defect) && canAttr('defectRate')) out[defect] = defectRate(q, out[ngQty]);
+  if (num(out[yieldKey]) === null && canAttr(yieldKey) && canAttr('yield')) out[yieldKey] = yieldRate(q, out[okQty], out[ngQty]);
+  if (num(out[uptime]) === null && canAttr(uptime)) out[uptime] = uptimeRate(out[downtime], out[operatingMin] ?? DAILY_OPERATING_MIN);
 
   return out;
 }

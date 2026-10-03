@@ -498,10 +498,33 @@ export async function printDocument({ nodeId, title, role, rowCount = 0, condSum
   );
   win.document.close();
   setTimeout(() => {
+    unclipForPrint(win);
     win.focus();
     win.print();
   }, 400);
   return true;
+}
+
+/**
+ * 인쇄 창에 복사된 스크롤 영역의 높이 제한·잘림을 풉니다(2026-10-03).
+ *
+ * 화면의 표는 스크롤 영역(maxHeight 620 등) 안에 있어, DOM 을 그대로 복사하면 그 높이를 넘는 행이
+ * 인쇄물에서 잘립니다(아침회의 자료 Plating·Coating 19개 공정 중 9개만 출력). 세로로 스크롤되는 요소만
+ * 골라 높이를 풀고, 가로 스크롤 영역은 표 폭을 지키도록 그대로 둡니다.
+ */
+function unclipForPrint(win) {
+  try {
+    win.document.querySelectorAll('body *').forEach((el) => {
+      const cs = win.getComputedStyle(el);
+      if (cs.overflowY !== 'auto' && cs.overflowY !== 'scroll' && cs.overflowY !== 'hidden') return;
+      if (el.scrollHeight <= el.clientHeight + 1) return;
+      el.style.setProperty('max-height', 'none', 'important');
+      el.style.setProperty('height', 'auto', 'important');
+      el.style.setProperty('overflow-y', 'visible', 'important');
+    });
+  } catch {
+    // 인쇄 자체는 막지 않습니다 — 잘린 채라도 출력은 됩니다
+  }
 }
 
 /**
