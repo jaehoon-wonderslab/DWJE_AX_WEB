@@ -1,7 +1,6 @@
 /**
  * [Controller] AL-01 알림 목록·상세
  *
- * 확인되지 않은 건은 승격 규칙에 따라 상위 담당으로 자동 전달됩니다.
  * 심각도 조회 조건은 공통코드 ALM_SEVERITY(CRIT·WARN·LOW)를 그대로 보냅니다.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -110,7 +109,6 @@ export function useAlertListController() {
     loading,
     items,
     counts: data?.counts || {},
-    escalations: data?.escalations?.stages || data?.escalations?.items || [],
     sendLogs: data?.sendLogs?.items || [],
     canSendLog,
     tab,

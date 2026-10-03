@@ -21,7 +21,7 @@ const ok = (r, what) => { assert(r.body.success, `${what}: ${r.status} ${r.body.
   assert(Array.isArray(row.groupNames), 'groupNames[] 가 따로 옵니다');
   assert(Array.isArray(row.groupIds), 'groupIds[]');
   const detail = ok(await get(`/alert-conditions/${row.condId}`, {}, 'it'), '조건 상세');
-  for (const k of ['metricStdId', 'thresholdVal', 'targetScope', 'pickTargets', 'channels', 'groupIds', 'msgTemplate', 'updatedAt', 'deletable', 'escalation']) {
+  for (const k of ['metricStdId', 'thresholdVal', 'targetScope', 'pickTargets', 'channels', 'groupIds', 'updatedAt', 'deletable']) {
     assert(k in detail, `상세에 ${k}`);
   }
   // 같은 값으로 상태 바꾸기 → changed:false (DB 그대로)
@@ -75,7 +75,8 @@ const ok = (r, what) => { assert(r.body.success, `${what}: ${r.status} ${r.body.
   for (const k of ['todaySuppressedCnt', 'todaySkippedCnt', 'todayFailCnt']) assert(k in summary, `요약에 ${k}`);
   const rsum = ok(await get('/alert-recipients/summary', {}, 'it'), '수신자 요약');
   assert(rsum.nightWindow && rsum.nightWindow.from, 'nightWindow');
-  for (const k of ['receivableCnt', 'condCnt', 'escStages']) assert(k in g, `그룹 행에 ${k}`);
+  for (const k of ['receivableCnt', 'condCnt']) assert(k in g, `그룹 행에 ${k}`);
+  assert(!('escStages' in g), '승격 대상(escStages)은 2026-10-03 에 없앴습니다');
   const rid = all.body.data.items[0]?.recipientId;
   const impact = ok(await get(`/alert-recipients/${rid}/impact`, {}, 'it'), '영향');
   assert(Array.isArray(impact.zeroGroups) && Array.isArray(impact.groups), 'impact 모양');

@@ -70,12 +70,6 @@ export const ALERTS = [
   },
 ];
 
-/** 승격(에스컬레이션) 대상 — 미확인 상태가 지속된 건 */
-export const ESCALATION_TARGETS = [
-  { alertId: 'AL-260828-0912', title: '불량률 임계 초과', target: 'PR-03', elapsedMin: 8, nextLevel: '1차', nextAt: '30분 경과 시', to: '제조팀 파트장' },
-  { alertId: 'AL-260828-0831', title: '비가동 사유 미등록', target: 'PR-05', elapsedMin: 41, nextLevel: '2차', nextAt: '2시간 경과 시', to: '해당 팀장' },
-];
-
 /** 알림 발송 로그 */
 export const ALERT_SEND_LOG = [
   { ts: '2026-08-28 09:04', alertId: 'AL-260828-0912', channel: '메일 · 시스템 팝업', group: '품질보증팀 · 제조팀 파트장', recipientCnt: 5, result: '성공' },

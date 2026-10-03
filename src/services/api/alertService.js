@@ -51,18 +51,6 @@ export function postAlertsByAlertIdAck(params) {
 }
 
 /**
- * 승격 대상 조회
- *
- * `GET /api/v1/alerts/escalation-targets`
- * @param {object} [params] 요청 파라미터 없음
- * @returns {Promise<object>} stages[{stage,waitMin,targets[]}]
- * @privateRemarks 접근 권한 전 부서 · 우선순위 2
- */
-export function getAlertsEscalationTargets(params) {
-  return request('getAlertsEscalationTargets', params);
-}
-
-/**
  * 알림 발송 로그 조회
  *
  * `GET /api/v1/alerts/send-logs`

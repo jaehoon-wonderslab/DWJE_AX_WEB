@@ -27,7 +27,7 @@ function listParams({ state, type, target, period, condId, alertId, includeTest 
 }
 
 /**
- * 알림 목록 + 탭 건수 + 승격 대기 (+ 발송 로그)
+ * 알림 목록 + 탭 건수 (+ 발송 로그)
  *
  * 탭의 건수(미확인·확인됨)는 서버가 따로 주지 않아 같은 조건으로 1건씩 조회해 `meta.total` 을 읽습니다.
  * 발송 로그는 전산팀·통합관리자만 볼 수 있어 `withSendLogs` 가 false 면 부르지 않습니다(403 소음 방지).
@@ -38,14 +38,12 @@ export async function loadAlerts({ state, type, target, period, condId, alertId,
     list: alertService.getAlerts({ ...base, page, size }),
     openCount: alertService.getAlerts({ ...base, ackState: 'OPEN', page: 1, size: 1 }),
     ackedCount: alertService.getAlerts({ ...base, ackState: 'ACKED', page: 1, size: 1 }),
-    escalations: alertService.getAlertsEscalationTargets({}),
   };
   if (withSendLogs) spec.sendLogs = alertService.getAlertsSendLogs({ page: 1, size: 50 });
 
   const data = await unwrapAll(spec);
   return {
     list: data.list,
-    escalations: data.escalations,
     sendLogs: data.sendLogs,
     errors: data.errors,
     listMeta: data.metas?.list,

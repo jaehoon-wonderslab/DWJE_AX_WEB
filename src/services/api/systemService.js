@@ -667,7 +667,7 @@ export function patchAlertRecipientsByRecipientIdState(params) {
  *
  * `GET /api/v1/alert-recipients/{recipientId}/impact`
  * @param {object} params recipientId
- * @returns {Promise<object>} empNo, groups[], zeroGroups[], affectedConds[], affectedEscStages[]
+ * @returns {Promise<object>} empNo, groups[], zeroGroups[], affectedConds[]
  * @remarks 2026-10-01 기획 06 RCP-07·08 신설
  * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
  */
@@ -699,31 +699,6 @@ export function deleteAlertRecipientsByRecipientId(params) {
  */
 export function patchAlertRecipientGroupsByGroupIdState(params) {
   return request('patchAlertRecipientGroupsByGroupIdState', params);
-}
-
-/**
- * 승격 규칙 조회·수정
- *
- * 수신자 관리(SY-05) 화면에서는 걷어냈습니다(2026-09-16). 규칙은 [알림 현황] 의
- * 「승격 대상」이 그대로 읽으므로 서버 API 와 이 함수는 남겨 둡니다.
- *
- * `GET/PUT /api/v1/alert-escalation-rules`
- * @param {object} params stages[{stage,waitMin,targetGroupId}]
- * @returns {Promise<object>} success
- * @privateRemarks 접근 권한 전산팀·통합관리자 · 우선순위 2
- */
-export function getAlertEscalationRules(params) {
-  return request('getAlertEscalationRules', params);
-}
-
-/**
- * 승격 규칙 수정
- *
- * `PUT /api/v1/alert-escalation-rules`
- * @param {object} params stages[{stage,waitMin,target}]
- */
-export function putAlertEscalationRules(params) {
-  return request('putAlertEscalationRules', params);
 }
 
 /* ───────── 용어 사전 관리 ───────── */

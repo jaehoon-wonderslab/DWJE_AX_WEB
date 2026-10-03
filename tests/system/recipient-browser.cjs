@@ -48,8 +48,8 @@ async function setup(opts = {}) {
   const blind = opts.worker === false;
   const state = {
     groups: [
-      { groupId: 11, name: '엔진 가동', validWindow: 'ALWAYS', night: true, deptId: 4, dept: '제조팀', useFlg: 'Y', channels: ['MAIL', 'POPUP'], members: [{ empNo: '10001', name: blind ? null : '수신자1', dept: '제조팀', state: 'RECV', userState: 'ACTIVE' }, { empNo: '10002', name: blind ? null : '수신자2', dept: '제조팀', state: 'RECV', userState: 'SUSPENDED' }], memberEmpNos: ['10001', '10002'], memberCnt: 2, receivingCnt: 1, condCnt: 2, conds: [{ condId: 5, name: '조건 A', on: true }, { condId: 6, name: '조건 B', on: true }], escStages: [] },
-      { groupId: 10, name: '생산 이슈', validWindow: 'D0820', night: false, deptId: null, dept: '', useFlg: 'Y', channels: ['MAIL'], members: [], memberEmpNos: [], memberCnt: 0, receivingCnt: 0, condCnt: 0, conds: [], escStages: [] },
+      { groupId: 11, name: '엔진 가동', validWindow: 'ALWAYS', night: true, deptId: 4, dept: '제조팀', useFlg: 'Y', channels: ['MAIL', 'POPUP'], members: [{ empNo: '10001', name: blind ? null : '수신자1', dept: '제조팀', state: 'RECV', userState: 'ACTIVE' }, { empNo: '10002', name: blind ? null : '수신자2', dept: '제조팀', state: 'RECV', userState: 'SUSPENDED' }], memberEmpNos: ['10001', '10002'], memberCnt: 2, receivingCnt: 1, condCnt: 2, conds: [{ condId: 5, name: '조건 A', on: true }, { condId: 6, name: '조건 B', on: true }] },
+      { groupId: 10, name: '생산 이슈', validWindow: 'D0820', night: false, deptId: null, dept: '', useFlg: 'Y', channels: ['MAIL'], members: [], memberEmpNos: [], memberCnt: 0, receivingCnt: 0, condCnt: 0, conds: [] },
     ],
     recipients: [recip(1), recip(2, { userState: 'SUSPENDED', userStateNm: '정지' }), recip(3, { state: 'ABSENT', stateNm: '부재' })],
     puts: [], posts: [], tests: [], logs: [], sizes: [], includeInactive: [], cand: [], errors: [],
@@ -66,7 +66,6 @@ async function setup(opts = {}) {
   await page.route('**/api/v1/auth/me', (route) => ok(route, me(opts)));
   await page.route('**/api/v1/common/codes**', (route) => ok(route, { codes: CODES }));
   await page.route('**/api/v1/download-logs', (route) => { state.logs.push(route.request().postDataJSON()); return ok(route, {}); });
-  await page.route('**/api/v1/alert-escalation-rules**', (route) => ok(route, { stages: [1, 2, 3].map((stage) => ({ stage, stageNm: `${stage}차`, targetGroupId: null, on: true })) }));
   await page.route('**/api/v1/alert-recipient-groups**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -84,13 +83,13 @@ async function setup(opts = {}) {
         ...g,
         members: g.memberEmpNos.map((e) => ({ empNo: e, name: blind ? null : `수신자${e.slice(-1)}`, dept: '제조팀', state: 'RECV', userState: 'ACTIVE' })),
         conds: [{ condId: 5, name: '조건 A', on: true }, { condId: 6, name: '조건 B', on: true }],
-        escStages: [], deptOptions: [{ value: 3, label: '생산관리팀' }, { value: 4, label: '제조팀' }], updatedAt: '2026-09-16 21:17:35',
+        deptOptions: [{ value: 3, label: '생산관리팀' }, { value: 4, label: '제조팀' }], updatedAt: '2026-09-16 21:17:35',
       });
     }
     if (req.method() === 'PUT') { state.puts.push({ id, body: req.postDataJSON() }); return ok(route, { success: true, updatedAt: '2026-10-01 10:30:00' }, { message: '수신 그룹을 수정했습니다.' }); }
     if (req.method() === 'PATCH' && path.endsWith('/state')) {
       const body = req.postDataJSON(); state.groupState.push({ id, body });
-      if (id === 11 && body.on === false) return route.fulfill({ status: 409, json: { success: false, code: 'E-RULE-001', message: '발송 조건 2건·승격 규칙 0단계가 이 그룹을 씁니다. 먼저 연결을 바꿔 주십시오.' } });
+      if (id === 11 && body.on === false) return route.fulfill({ status: 409, json: { success: false, code: 'E-RULE-001', message: '발송 조건 2건이 이 그룹을 씁니다.' } });
       return ok(route, { useFlg: body.on ? 'Y' : 'N', changed: true }, { message: '바꿨습니다.' });
     }
     if (req.method() === 'POST' && path.endsWith('/test-send')) {
@@ -188,8 +187,9 @@ async function scrollToManage(page) {
     assert(await page.getByText('부재', { exact: true }).count());
     await page.getByRole('button', { name: '닫기', exact: true }).last().click();
 
-    // RCP-09 — 연계 열·승격 안내, RCP-08 — 사용 중지 409·사용 중지 그룹 보기
-    assert(await page.getByText('승격 규칙에 대상 그룹이 없어 미확인 알림이 승격되지 않습니다.', { exact: true }).count(), 'escalation notice');
+    // RCP-09 — 연계 열(승격 안내 · 승격 대상 열은 2026-10-03 에 뺌), RCP-08 — 사용 중지 409·사용 중지 그룹 보기
+    assert(!(await page.getByText('승격', { exact: false }).count()), 'no escalation text');
+    assert(!(await grid(page).locator('.tabulator-col[tabulator-field="escLabel"]').count()), 'no escalation column');
     assert(await grid(page).locator('.tabulator-col[tabulator-field="receivableLabel"]').count(), 'receivable column');
     assert(await grid(page).locator('.tag-red', { hasText: '0/0' }).count(), 'zero receivable in red');
     await rowBtn(page, 0, 'use').click();

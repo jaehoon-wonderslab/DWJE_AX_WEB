@@ -2,7 +2,7 @@
  * [View] AL-01 알림 목록·상세 (경로: /alert/list)
  *
  * 임계값을 넘은 건과 패턴 이상을 목록으로 관리합니다.
- * 사용 API 5건 — /api/v1/alerts/*
+ * 사용 API 4건 — /api/v1/alerts/* (승격 대상 조회는 2026-10-03 에 없앴습니다)
  *
  * 목록 응답: alertId · level · levelNm · title · occurredAt · elapsed · eqptCd · eqptNm · processId · lotNo · itemCd
  *           · defectCd · desc · condNm · ackState · ackBy · ackAt · escLevel · agent
@@ -40,7 +40,7 @@ function sendResultTone(result) {
 }
 
 export default function AlertListView({
-  loading, items, counts = {}, escalations = [], sendLogs = [], canSendLog: canSendLogProp,
+  loading, items, counts = {}, sendLogs = [], canSendLog: canSendLogProp,
   tab, setTab, filters, equipments = [], severityOptions = ['전체'],
   severityLabel = (v) => v, ackStateLabel = (v) => v, channelLabel = (v) => v, sendResultLabel = (v) => v,
   setType, setTarget, setPeriod, reload, search, loadDetail, acknowledge, exportExcel, paging, itemsMeta,
@@ -119,7 +119,7 @@ export default function AlertListView({
     <View>
       <PageHead
         title="알림 목록·상세"
-        desc="임계값을 넘은 건과 패턴 이상을 목록으로 관리합니다. 확인되지 않은 건은 상위 담당으로 승격됩니다."
+        desc="임계값을 넘은 건과 패턴 이상을 목록으로 관리합니다."
         actions={
           <>
             <Button label="엑셀 다운로드" size="sm" icon="download" onPress={exportExcel} disabled={!items.length} />
@@ -247,40 +247,7 @@ export default function AlertListView({
       </Card>
       <Gap />
 
-      <Card title="승격 대기" sub="미확인 상태가 지속되면 아래 순서로 상위 담당에게 전달됩니다" tight>
-        <Table
-          inset
-          minWidth={760}
-          keyExtractor={(r, i) => r.escRuleId ?? r.stage ?? i}
-          emptyText="승격 규칙이 없습니다."
-          columns={[
-            { key: 'stageNm', title: '단계', width: 84, align: 'center', render: (r) => <View style={{ alignItems: 'center' }}><Badge tone="amber">{r.stageNm || `${r.stage}단계`}</Badge></View> },
-            { key: 'waitMin', title: '대기', width: 90, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.waitMin === null || r.waitMin === undefined ? '—' : `${comma(r.waitMin)}분`}</Text> },
-            { key: 'severityFilter', title: '대상 등급', width: 96, render: (r) => <Text style={s.td}>{r.severityFilter ? severityLabel(r.severityFilter) : '전체'}</Text> },
-            {
-              key: 'targetGroupNm',
-              title: '전달 대상',
-              flex: 1,
-              minWidth: 180,
-              render: (r) => <Text style={s.td} numberOfLines={1}>{r.targetGroupNm || r.targetDesc || (r.targets || []).join(' · ') || '—'}</Text>,
-            },
-            {
-              key: 'pendingCnt',
-              title: '대기 건수',
-              width: 92,
-              align: 'right',
-              render: (r) =>
-                Number(r.pendingCnt) > 0 ? (
-                  <View style={{ alignItems: 'flex-end', paddingHorizontal: 14 }}><Badge tone="red">{`${comma(r.pendingCnt)}건`}</Badge></View>
-                ) : (
-                  <Text style={[s.td, s.num, { textAlign: 'right' }]}>0건</Text>
-                ),
-            },
-            { key: 'note', title: '비고', flex: 1, minWidth: 160, render: (r) => <Text style={s.td} numberOfLines={1}>{text(r.note)}</Text> },
-          ]}
-          rows={escalations}
-        />
-      </Card>
+      {/* 「승격 대기」 카드는 뺐습니다(2026-10-03) — 엔진이 승격하지 않고 승격 규칙 설정도 없앴습니다 */}
 
       {canSendLog ? (
         <>
@@ -307,13 +274,6 @@ export default function AlertListView({
                 },
                 { key: 'channel', title: '채널', width: 110, render: (r) => <Text style={s.td}>{text(channelLabel(r.channel))}</Text> },
                 { key: 'recipient', title: '수신자', flex: 1, minWidth: 150, render: (r) => <Text style={s.td} numberOfLines={1}>{text(r.recipient)}</Text> },
-                {
-                  key: 'escLevel',
-                  title: '승격',
-                  width: 72,
-                  align: 'center',
-                  render: (r) => <Text style={[s.td, s.num, { textAlign: 'center' }]}>{Number(r.escLevel) > 0 ? `${r.escLevel}차` : '—'}</Text>,
-                },
                 { key: 'delaySec', title: '지연', width: 72, align: 'right', render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.delaySec === null || r.delaySec === undefined ? '—' : `${r.delaySec}초`}</Text> },
                 {
                   key: 'result',
@@ -376,7 +336,6 @@ function AlertDetail({ alert, severityLabel, ackStateLabel, onAck }) {
     ['원인 후보', causes.length ? causes.join(' · ') : '—'],
     ['권고 조치', text(alert.recommendation)],
     ['발생 시각', text(alert.occurredAt)],
-    ['승격 단계', Number(alert.escLevel) > 0 ? `${alert.escLevel}차 승격` : '승격 전'],
     ['상태', acked ? `${ackStateLabel(alert.ackState)}${alert.ackBy ? ` · ${alert.ackBy}` : ''}${alert.ackAt ? ` · ${alert.ackAt}` : ''}` : '미확인'],
   ].filter(Boolean);
 

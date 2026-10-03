@@ -73,13 +73,6 @@ export const RECIPIENT_GROUPS = [
   { groupId: 'G6', name: '현장 반장', channels: ['시스템 팝업'], window: '06:00 ~ 18:00', night: false, members: ['20230201'] },
 ];
 
-/** 미확인 건 승격 단계 */
-export const ESCALATION_RULES = [
-  { level: '1차', after: '30분', to: '제조팀 파트장', channels: ['메일', 'SMS'], note: '담당자가 확인하지 않은 경우' },
-  { level: '2차', after: '2시간', to: '해당 팀장', channels: ['메일', '시스템 팝업'], note: '1차 승격 후에도 미확인' },
-  { level: '3차', after: '4시간', to: '경영진', channels: ['메일'], note: '위험 등급만 승격' },
-];
-
 /* ───────── SY-06 용어 사전 ───────── */
 export const GLOSSARY = [
   { termId: 'T01', term: 'Derkwoo', definition: '덕우전자 (Derkwoo Electronics)', domain: '회사/고객사', variants: [{ variantId: 'V01', word: '덕우전자', by: '20180412', at: '2026-08-12' }, { variantId: 'V02', word: '덕우', by: '20170905', at: '2026-08-12' }, { variantId: 'V03', word: 'DW', by: '20150310', at: '2026-08-14' }] },

@@ -56,6 +56,38 @@ export function useDataPermController() {
   const logs = useAsync(() => repo.loadPermChangeLogs('DATA_PERM', 20), [], { silent: true });
 
   const fields = useMemo(() => (data?.fields || []).map((f) => ({ ...f, included: includedSummary(f) })), [data]);
+
+  /**
+   * 변경 이력의 「대상」 칸 — 데이터 항목 키(f_mue2hipc 같은 내부 이름)를 사람이 읽는 이름으로 바꿉니다(2026-10-02).
+   * 서버 대상은 「부서 / 항목키」 또는 「항목키」 입니다. 이름은 지금 있는 종류에서 찾고, 이미 지운 종류는
+   * 이력의 「데이터 항목 삭제 [키 / 이름]」 문장에서 찾아 「이름 (삭제됨)」 으로 보입니다. 끝내 못 찾으면 「삭제된 항목」.
+   */
+  const logRows = useMemo(() => {
+    const list = logs.data || [];
+    const live = new Map(fields.map((f) => [f.key, f.name]));
+    const gone = new Map();
+    list.forEach((l) => {
+      for (const m of String(l.detail || '').matchAll(/\[([A-Za-z][\w-]*) \/ ([^\]]+)\]/g)) gone.set(m[1], m[2].trim());
+    });
+    const nameOf = (key) => {
+      if (live.has(key)) return live.get(key);
+      if (gone.has(key)) return `${gone.get(key)} (삭제됨)`;
+      return /^f_[a-z0-9]+$/i.test(key) ? '삭제된 항목' : key;
+    };
+    // 「변경 내용」 의 [키 / 이름] · [키] 도 같은 이름으로 바꿉니다(대상 칸과 같은 표기)
+    const detailOf = (text) => String(text || '')
+      .replace(/\[([A-Za-z][\w-]*) \/ ([^\]]+)\]/g, (whole, key) => `[${nameOf(key)}]`)
+      .replace(/\[([A-Za-z][\w-]*)\]/g, (whole, key) => (live.has(key) || gone.has(key) || /^f_[a-z0-9]+$/i.test(key) ? `[${nameOf(key)}]` : whole));
+    return list.map((l) => {
+      const label = String(l.targetLabel ?? l.target ?? '');
+      const m = label.match(/^(.*\s\/\s)?([A-Za-z][\w-]*)$/);
+      return {
+        ...l,
+        ...(m ? { targetLabel: `${m[1] || ''}${nameOf(m[2])}` } : null),
+        detailLabel: detailOf(l.detailLabel ?? l.detail),
+      };
+    });
+  }, [logs.data, fields]);
   const depts = useMemo(() => data?.depts || [], [data]);
   const matrix = useMemo(() => data?.matrix || {}, [data]);
 
@@ -258,7 +290,7 @@ export function useDataPermController() {
     toggle,
     planApply,
     applyApply,
-    logs: logs.data || [],
+    logs: logRows,
     logsLoading: logs.loading && !logs.data,
     logsError: !logs.loading && !logs.data && logs.error ? (logs.error.message || '변경 이력을 불러오지 못했습니다.') : '',
     canSeeAudit,

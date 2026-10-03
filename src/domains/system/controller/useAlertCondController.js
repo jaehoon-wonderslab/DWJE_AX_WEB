@@ -11,10 +11,9 @@
  *  · ALC-16 쓰기 버튼은 쓰기 권한(canWrite) 으로, 삭제는 통합관리자만(R-13)
  *  · ALC-17 엑셀은 「조회 목록 / 전체」 두 범위 — 조회 권한이면 받습니다(R-10)
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { labelOf, loadCodeGroups } from '@domains/common/model/codeRepository';
 import { useAsync } from '@shared/hooks/useAsync';
-import { usePaging } from '@shared/hooks/usePaging';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
@@ -26,7 +25,6 @@ import * as repo from '../model/systemRepository';
 export const ALERT_COND_SCREEN = 'alert-cond';
 
 /** 상태 필터 표기 → 서버 파라미터 */
-const STATE_PARAM = { 활성: 'ON', 중지: 'OFF' };
 
 /** 쓰기 권한이 없을 때 서버가 메시지를 비워 보낸 경우의 안내 */
 const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
@@ -106,13 +104,7 @@ export function useAlertCondController() {
   const canWrite = useMemo(() => canWriteOf(ALERT_COND_SCREEN), [canWriteOf, menuPermsSub, unassignedSub]); // eslint-disable-line react-hooks/exhaustive-deps
   const superAdmin = isSuperAdminUser(userInfo);
 
-  const [severity, setSeverity] = useState('전체');
-  const [enabled, setEnabled] = useState('전체');
-  const [channel, setChannel] = useState('전체');
-  const [groupId, setGroupId] = useState('전체');
-  // 검색어는 조회 버튼·Enter 에만 서버로 보냅니다 — 글자마다 다시 부르지 않습니다 (ALC-11)
-  const [keywordInput, setKeyword] = useState('');
-  const [keyword, setAppliedKeyword] = useState('');
+  // 위쪽 조회 조건 줄(심각도·상태·채널·수신 그룹·검색)은 뺐습니다(2026-10-02) — 전 조건을 한 번에 받아 표 머리글 필터로 거릅니다
 
   // 심각도·채널·연산자 등은 서버 공통코드가 정본입니다.
   const { data: codes } = useAsync(
@@ -123,21 +115,9 @@ export function useAlertCondController() {
 
   // 감지 지표는 지표 기준을 고르는 것입니다 (서버는 metricStdId 를 받습니다)
   const { data: stds } = useAsync(() => repo.loadMetricStandards({ size: 200 }), [], { silent: true });
-  // 승격 규칙 — 폼의 「승격 적용」 이 대상 그룹 없는 단계를 경고합니다 (조회 실패는 안내만 생략)
-  const { data: escalationRules } = useAsync(() => repo.loadEscalationRules().catch(() => []), [], { silent: true, initialData: [] });
 
-  const paging = usePaging({ resetKey: `${severity}|${enabled}|${channel}|${groupId}|${keyword}` });
-
-  const stateParam = STATE_PARAM[enabled];
-  const { data, loading, reload: reloadList } = useAsync(
-    () => repo.loadAlertConditionsByState({ severity, state: stateParam, channel, groupId: groupId === '전체' ? undefined : groupId, keyword, ...paging.params }),
-    [severity, stateParam, channel, groupId, keyword, paging.page, paging.size]
-  );
-  /** 조회 — 입력해 둔 검색어를 적용합니다. 이미 적용된 값이면 다시 부릅니다 */
-  const reload = useCallback(() => {
-    if (keywordInput.trim() !== keyword) setAppliedKeyword(keywordInput.trim());
-    else reloadList();
-  }, [keywordInput, keyword, reloadList]);
+  // 전 조건(size=0, 서버 상한 1,000)을 받습니다 — 쪽 나눔과 거르기는 표가 합니다
+  const { data, loading, reload } = useAsync(() => repo.loadAlertConditionsByState({ size: 0 }), []);
 
   const items = data?.list?.items || [];
   const groups = data?.groups?.items || [];
@@ -239,14 +219,11 @@ export function useAlertCondController() {
     return { head: cols.map((c) => c.head), attrs: cols.map((c) => c.attr), rows: out, blindCount: blind };
   }, [exportCols]);
 
-  const condSummary = useMemo(() => [
-    `심각도=${severity === '전체' ? '전체' : labelOf(codes?.ALM_SEVERITY, severity)}`,
-    `상태=${enabled}`,
-    `채널=${channel === '전체' ? '전체' : labelOf(codes?.ALM_CHANNEL, channel)}`,
-    `그룹=${groupId === '전체' ? '전체' : groups.find((g) => String(g.groupId) === String(groupId))?.name || groupId}`,
-    `검색=${keyword || '없음'}`,
-    `쪽=${paging.page}`,
-  ].join(' · '), [severity, enabled, channel, groupId, groups, keyword, paging.page, codes]);
+  /** 조회 목록 엑셀 조건 요약 — 표 머리글 필터({field, value}[])를 「열 필터 칸=값」 으로 적습니다 */
+  const condSummaryOf = useCallback((filters = []) => {
+    const used = (filters || []).filter((f) => f && f.value !== '' && f.value != null);
+    return used.length ? used.map((f) => `열 필터 ${f.title || f.field}=${f.value}`).join(' · ') : '조건 없음(전체)';
+  }, []);
 
   /**
    * 조회 목록 다운로드 — 그리드 기준(현재 쪽, 표의 정렬·열 순서 그대로)
@@ -254,8 +231,8 @@ export function useAlertCondController() {
    */
   const exportView = useCallback(async (grid = {}) => {
     const sheet = buildSheet(grid.rows || items, grid.order);
-    downloadXls({ name: '이상 알림 발송 조건', ...sheet, scope: 'VIEW', condSummary, menuId: ALERT_COND_SCREEN });
-  }, [buildSheet, items, condSummary]);
+    downloadXls({ name: '이상 알림 발송 조건', ...sheet, scope: 'VIEW', condSummary: condSummaryOf(grid.filters), menuId: ALERT_COND_SCREEN });
+  }, [buildSheet, items, condSummaryOf]);
 
   /** 전체 다운로드 — 조회 조건·쪽과 관계없이 전 조건 (size=0, 상한 1,000) */
   const exportAll = useCallback(async () => {
@@ -295,19 +272,11 @@ export function useAlertCondController() {
         + (m.collecting === true ? ' — 수집 중' : m.collecting === false ? ' — 수집 없음(판정 안 됨)' : ''),
     })),
     metrics: stds?.list?.items || [],
-    escalationRules: escalationRules || [],
     groups,
     canRecipient: can('sys-recip'),
     loadError,
     listError,
-    filters: { severity, enabled, channel, groupId, keyword: keywordInput, appliedKeyword: keyword },
-    paging,
     itemsMeta: data?.listMeta,
-    setSeverity,
-    setEnabled,
-    setChannel,
-    setGroupId,
-    setKeyword,
     reload,
     // 권한 (R-06 · R-13)
     canWrite,

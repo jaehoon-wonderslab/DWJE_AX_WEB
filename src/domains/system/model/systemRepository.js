@@ -514,9 +514,19 @@ export async function loadAllAlertConditions() {
  * @param {string} keyword 설비 코드·이름 일부
  * @returns {Promise<Array<{eqptCd:string, eqptNm:string, wcCd?:string}>>}
  */
+/** 발송 조건의 개별 설비 — 1공장 설비만 고릅니다(2026-10-03). 공장은 서버가 작업장 이름 「(M-1공장)」 으로 가립니다 */
+export const ALERT_EQUIPMENT_FACTORY = 'M-1공장';
 export async function searchEquipments(keyword) {
-  const data = await unwrap(commonService.getCommonMastersEquipments({ keyword: keyword || undefined, size: 50 }), { equipments: [] });
-  return data?.equipments || data?.items || [];
+  const data = await unwrap(commonService.getCommonMastersEquipments({ keyword: keyword || undefined, factory: ALERT_EQUIPMENT_FACTORY }), { equipments: [] });
+  const list = data?.equipments || data?.items || [];
+  // 같은 설비가 작업장 2곳에 걸려 두 행으로 올 수 있습니다 — 설비코드로 한 번만(같은 key 로 그리면 React 오류)
+  const seen = new Set();
+  return list.filter((e) => {
+    const cd = e?.eqptCd ?? e?.code;
+    if (!cd || seen.has(cd)) return false;
+    seen.add(cd);
+    return true;
+  });
 }
 /**
  * 발송 조건 화면 (상태 필터를 서버 키로)
@@ -535,29 +545,17 @@ export async function loadAlertConditionsByState({ severity, state, channel, gro
   return { ...data, listMeta: data.metas?.list };
 }
 
-/**
- * 승격 규칙 — 발송 조건의 승격 적용(ALC-09)·수신자 화면 안내(RCP-09)가 「대상 그룹이 비었는지」 를 봅니다.
- * 이 화면들은 규칙을 고치지 않습니다(8장 Q-10 · 06 Q-04).
- *
- * @returns {Promise<Array<{stage:number, stageNm:string, targetGroupId:number|null, on:boolean}>>}
- */
-export async function loadEscalationRules() {
-  const data = await unwrap(systemService.getAlertEscalationRules({}), { stages: [] });
-  return data?.stages || data?.items || [];
-}
-
 /* ═══════ SY-05 알림 수신자 관리 ═══════ */
 // 당번·대리 수신은 2026-09-16 에 걷어냈습니다. 화면은 머리(loadRecipientHead)와 수신자 목록(loadRecipientList)을 따로 부릅니다(RCP-11).
 
 /**
- * 수신자 화면 머리 — 요약·수신 그룹·승격 규칙 (탭과 무관하게 한 번, 기획 06 RCP-11)
+ * 수신자 화면 머리 — 요약·수신 그룹 (탭과 무관하게 한 번, 기획 06 RCP-11)
  * @param {{includeInactive?:boolean}} p 사용 중지 그룹도 볼지 (RCP-08)
  */
 export async function loadRecipientHead({ includeInactive = false } = {}) {
   return unwrapAll({
     summary: systemService.getAlertRecipientsSummary({}),
     groups: systemService.getAlertRecipientGroups(includeInactive ? { includeInactive: true } : {}),
-    escalation: systemService.getAlertEscalationRules({}),
   });
 }
 

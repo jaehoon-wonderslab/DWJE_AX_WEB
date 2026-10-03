@@ -516,6 +516,8 @@ export default function TabulatorGrid({
           width: 100%;
           max-width: 100%;
           min-width: 0;
+          /* 테두리 1px 를 폭 100% 안에 넣습니다 — 빼면 표가 2px 넘쳐 바깥 상자에 쓸데없는 가로 스크롤이 생깁니다 */
+          box-sizing: border-box;
           background: ${c.card};
           border: 1px solid ${theme.divider};
           border-radius: 16px;

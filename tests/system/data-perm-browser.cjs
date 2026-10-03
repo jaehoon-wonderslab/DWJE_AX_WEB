@@ -129,31 +129,24 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
       assert(!(await cell.isChecked()), `unassigned shows 0 (${f.key})`);
       assert(await box(page, `${f.name} · 통합관리자 열람 허용`).isDisabled());
     }
-    assert.equal(await table.locator('.tabulator-cell[tabulator-field="applyLabel"]', { hasText: '미적용' }).count(), 1, 'apply column');
-    assert.equal(await table.locator('.tabulator-cell[tabulator-field="categoryNm"]', { hasText: '원가' }).count(), 1, 'category column');
+    // 2026-10-02 — 분류 · 적용 열과 「(기본)」 표시, 「계정으로 확인」 카드, 머리말 [메뉴 접근 권한] 을 뺐습니다
+    assert.equal(await table.locator('.tabulator-col[tabulator-field="applyLabel"]').count(), 0, 'no apply column');
+    assert.equal(await table.locator('.tabulator-col[tabulator-field="categoryNm"]').count(), 0, 'no category column');
+    assert.equal(await table.getByText('(기본)', { exact: true }).count(), 0, 'no (기본) mark');
+    assert.equal(await page.getByPlaceholder('예) 10001').count(), 0, 'no account preview card');
+    assert.equal(await page.getByRole('button', { name: '메뉴 접근 권한', exact: true }).count(), 0, 'no menu-perm link');
 
-    // 포함 데이터 요약(DTP-07) · 기본 7종 적용 고정(DTP-05) · 적용 켜기 확인(DTP-04)
+    // 포함 데이터 요약(DTP-07)
     assert.equal(await table.locator('.tabulator-cell[tabulator-field="included"]', { hasText: '설비 코드' }).count(), 1, 'included summary from attrDetails');
-    assert.equal(await table.locator('.tabulator-cell[tabulator-field="applyLabel"]', { hasText: '적용 중 (고정)' }).count(), 2, 'built-in fixed');
-    assert.equal(await page.getByRole('button', { name: '생산·출하 수량 적용 끄기', exact: true }).count(), 0, 'no off button for built-in');
-    await page.getByRole('button', { name: '설비 코드 적용 켜기', exact: true }).click();
-    await page.getByText('가려지는 부서', { exact: false }).first().waitFor();
-    assert(await page.getByText('미배정 349명 — 미배정은 고정', { exact: false }).first().isVisible(), 'unassigned always listed as hidden');
-    assert.equal(state.applies.length, 0, 'no request before confirm');
-    await page.getByRole('button', { name: '적용', exact: true }).click();
-    await page.waitForTimeout(600);
-    assert.equal(state.applies.length, 1);
-    assert(state.applies[0].path.endsWith('/f_eq/apply') && state.applies[0].body.on === true, 'PATCH apply on');
 
-    // 계정으로 확인 · 변경 이력 (DTP-10)
-    await page.getByPlaceholder('예) 10001').fill('10001');
-    await page.getByRole('button', { name: '확인', exact: true }).click();
-    await page.getByText('김품질(10001) · 품질보증팀').waitFor();
-    assert.equal(state.previewEmp, '10001');
-    assert(await page.getByText('●●●● 비공개').first().isVisible());
-    assert(await page.getByText('미적용 — 가리지 않음').first().isVisible());
+    // 변경 이력 (DTP-10) — 「최근 변경 이력」 탭
+    assert.equal(await page.getByRole('button', { name: '항목 관리', exact: true }).count(), 1, '항목 관리 on matrix tab');
+    await page.locator('#data-perm-tab-logs').click();
     await page.getByText('품질보증팀 단가·금액 회수').waitFor();
     assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'no audit link without sys-audit');
+    assert.equal(await page.getByRole('button', { name: '항목 관리', exact: true }).count(), 0, '항목 관리 only on matrix tab');
+    await page.locator('#data-perm-tab-matrix').click();
+    await table.waitFor();
     state.applies.length = 0;
 
     // 체크 1회 — 응답 전 두 번째 클릭은 요청 0건, 표는 그대로
@@ -191,20 +184,22 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     // 종류를 미적용 종류(설비 코드)로 바꿉니다
     await page.locator('select').filter({ has: page.locator('option', { hasText: '설비 코드 (미적용)' }) }).first().selectOption('f_eq');
     state.failMapping = true;
-    await page.getByRole('button', { name: '저장', exact: true }).click();
+    // 2026-10-02 — [저장] 은 「화면별 가리기」 탭 머리에 있고 바꾼 열 수를 함께 보입니다
+    await page.getByRole('button', { name: '저장 (1)', exact: true }).click();
     await page.getByText('시스템이 쓰는 필드명이라 가릴 수 없습니다. [defectType]', { exact: false }).first().waitFor();
     assert.equal(state.mappings.length, 1, 'one mapping request');
     assert.deepEqual(state.mappings[0], {
       screenId: 'dash-ai', newFields: [],
       moves: [{ attrName: 'defectType', toFieldKey: 'f_eq', remark: 'AI 통합 대시보드 · 불량 유형' }],
     });
-    assert(await page.getByText('바꾼 열 1개', { exact: false }).isVisible(), 'draft kept after failure');
-    await page.getByRole('button', { name: '저장', exact: true }).click();
-    await page.getByText('「설비 코드」 종류는 미적용 상태입니다', { exact: false }).first().waitFor();
+    assert(await page.getByText('저장하지 않은 변경 1개', { exact: false }).isVisible(), 'draft kept after failure');
+    await page.getByRole('button', { name: '저장 (1)', exact: true }).click();
+    await page.getByText('「설비 코드」 종류는 미적용 상태라', { exact: false }).first().waitFor();
     assert.equal(state.mappings.length, 2);
     assert.equal(state.applies.length, 0, 'no automatic apply');
 
-    // 종류 편집 (DTP-11) — 51자는 화면에서 막고, 고친 값은 PUT /data-fields/{key}
+    // 종류 편집 (DTP-11) — 「가리기 종류」 탭. 51자는 화면에서 막고, 고친 값은 PUT /data-fields/{key}
+    await page.locator('#field-manager-tab-kinds').click();
     await page.getByRole('button', { name: '편집', exact: true }).nth(2).click();
     const nameInput = page.getByPlaceholder('예) LOT·시리얼 · 작업자 연락처');
     await nameInput.fill('가'.repeat(51));
@@ -218,6 +213,7 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     assert.deepEqual(state.kindEdits[0], { name: '설비 코드2', desc: '설비 코드와 설비명', category: 'EQUIP' });
 
     // 닫기 전 확인 (DTP-14) — 바꾼 열이 있으면 묻습니다
+    await page.locator('#field-manager-tab-hide').click();
     await page.getByRole('checkbox', { name: '불량 유형 가리기', exact: true }).click();
     await page.getByRole('button', { name: '닫기', exact: true }).last().click();
     await page.getByText('저장되지 않았습니다. 닫으면 버립니다', { exact: false }).waitFor();

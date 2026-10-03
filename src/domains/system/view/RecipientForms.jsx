@@ -112,7 +112,6 @@ export function openGroupForm({ detail, windowOptions = [], deptOptions = [], ca
   if (initial.deptId !== '' && !deptChoices.some((o) => String(o.value) === String(initial.deptId))) {
     deptChoices.push({ value: initial.deptId, label: detail?.dept || `부서 ${initial.deptId}` });
   }
-  const escText = (detail?.escStages || []).map((st) => (typeof st === 'object' ? st.stageNm || `${st.stage}차` : `${st}차`)).join(' · ');
 
   return openFormModal({
     title: detail ? '수신 그룹 편집' : '수신 그룹 등록',
@@ -137,7 +136,7 @@ export function openGroupForm({ detail, windowOptions = [], deptOptions = [], ca
       { key: 'memberEmpNos', type: 'custom', full: true, render: ({ value, onChange }) => <MemberPicker value={value || []} onChange={onChange} candidates={candidates} showWorker={showWorker} /> },
       ...(detail ? [{
         key: 'condNote', label: '연계', type: 'static', full: true,
-        value: `이 그룹을 쓰는 발송 조건: ${condCnt ? (detail.conds || []).map((c) => c.name).join(' · ') : '없음'} · 승격 대상: ${escText || '없음'}`,
+        value: `이 그룹을 쓰는 발송 조건: ${condCnt ? (detail.conds || []).map((c) => c.name).join(' · ') : '없음'}`,
       }] : []),
     ],
     note: '멤버를 빼거나 부재로 바꾸면 이 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.',
@@ -168,7 +167,7 @@ export function impactText(impact) {
     const gs = (impact.groups || []).map((g) => `${g.name} → 수신 ${g.receivableCntAfter}명`).join(' · ');
     return gs ? `영향: ${gs}. 받는 사람이 0명이 되는 그룹은 없습니다.` : '이 사람이 속한 그룹이 없어 영향이 없습니다.';
   }
-  return `이 사람만 받는 그룹: ${zero.map((g) => g.name).join(' · ')} → 해당 조건 ${conds.length}건${conds.length ? `(${conds.map((c) => c.name).join(' · ')})` : ''}이 받는 사람 0명이 됩니다.${(impact.affectedEscStages || []).length ? ` 승격 ${impact.affectedEscStages.length}단계도 영향을 받습니다.` : ''}`;
+  return `이 사람만 받는 그룹: ${zero.map((g) => g.name).join(' · ')} → 해당 조건 ${conds.length}건${conds.length ? `(${conds.map((c) => c.name).join(' · ')})` : ''}이 받는 사람 0명이 됩니다.`;
 }
 
 /**

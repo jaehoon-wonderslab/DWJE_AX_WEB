@@ -48,10 +48,10 @@ async function openLive(empNo = '10004') {
     assert(header.includes('전 권한'), 'live super admin header');
     const groups = (await table.locator('.tabulator-row .tbtn[aria-expanded]').allTextContents()).map((t) => t.replace(/^[−+]\s*/, ''));
     assert.deepEqual(groups.slice(0, 2), ['AI 어시스턴트', '대시보드'], `live group order ${groups.join(',')}`);
-    const unassigned = await table.locator('input[type="checkbox"][aria-label$="· 미배정 조회 허용"]').first();
+    const unassigned = await table.locator('input[type="checkbox"][aria-label$="· 미배정 접근 허용"]').first();
     assert(await unassigned.isDisabled(), 'live unassigned locked');
     // 관리 화면 행 — 시스템관리 그룹으로 표를 내려 찾습니다(가상 렌더라 화면 밖 행은 DOM 에 없습니다)
-    const adminBox = page.getByRole('checkbox', { name: '메뉴 접근 권한 · 품질보증팀 조회 허용', exact: true });
+    const adminBox = page.getByRole('checkbox', { name: '메뉴 접근 권한 · 품질보증팀 접근 허용', exact: true });
     for (let i = 0; i < 40 && !(await adminBox.count()); i += 1) {
       await table.evaluate((el) => { el.querySelector('.tabulator-tableholder').scrollTop += 250; });
       await page.waitForTimeout(120);
@@ -78,16 +78,15 @@ async function openLive(empNo = '10004') {
     assert(dHeader.includes('0건 고정'), 'live data unassigned header');
     assert(await page.getByRole('checkbox', { name: '생산·출하 수량 · 미배정 열람 허용', exact: true }).isDisabled());
     assert(!(await page.getByRole('checkbox', { name: '생산·출하 수량 · 미배정 열람 허용', exact: true }).isChecked()));
-    assert((await grid.locator('.tabulator-cell[tabulator-field="applyLabel"]', { hasText: '적용 중 (고정)' }).count()) >= 7, 'live built-in fixed');
-    await page.getByPlaceholder('예) 10001').fill('10001');
-    await page.getByRole('button', { name: '확인', exact: true }).click();
-    await page.getByText('김품질(10001) · 품질보증팀').waitFor({ timeout: 30000 });
-    assert(await page.getByText('●●●● 비공개').first().isVisible(), 'live preview shows masked kind');
-    // 서버 3단계 미리보기는 applied 를 줍니다 — 적용 열이 「적용 중」 으로 채워집니다
-    assert((await page.getByText('적용 중', { exact: true }).count()) >= 7, 'live preview applied column');
-    const dLogs = page.locator('.tabulator').nth(2);
+    // 2026-10-02 — 적용 열 · 「계정으로 확인」 카드는 뺐고, 변경 이력은 탭입니다
+    assert.equal(await grid.locator('.tabulator-col[tabulator-field="applyLabel"]').count(), 0, 'live no apply column');
+    await page.locator('#data-perm-tab-logs').click();
+    const dLogs = page.locator('[id="data-perm-panel-logs"] .tabulator');
     await dLogs.locator('.tabulator-row').first().waitFor({ timeout: 30000 });
+    // 대상 칸에 내부 항목 키(f_xxxx)가 그대로 나오지 않습니다
+    const targets = await dLogs.locator('.tabulator-cell[tabulator-field="targetLabel"]').allInnerTexts();
+    assert(!targets.some((t) => /(^|\/ )f_[a-z0-9]+$/i.test(t.trim())), `대상 칸 내부 키 노출: ${targets.filter((t) => /f_[a-z0-9]+/i.test(t)).slice(0, 3)}`);
     assert.deepEqual(errors, []);
-    console.log('PASS: live(18081) — menu locks/headers/group order/change logs/audit link, data locks/built-in fixed/account preview/change logs');
+    console.log('PASS: live(18081) — menu locks/headers/group order/change logs/audit link, data locks/no apply column/change logs tab/readable targets');
   } finally { await browser.close(); }
 })().catch((e) => { console.error(String(e?.stack || e).slice(0, 1500)); process.exitCode = 1; });

@@ -14,16 +14,13 @@ export const LIVE_CHANNELS = ['MAIL', 'POPUP'];
 /** 개별 설비 항목 → 코드 (서버가 문자열 또는 객체로 줄 수 있습니다) */
 const pickCode = (p) => (p && typeof p === 'object' ? p.targetCd ?? p.eqptCd ?? p.code ?? '' : String(p ?? ''));
 
-/** 고급 설정 기본값 (ALC-09) — 값이 이와 다르면 고급 설정을 펼쳐 둡니다 */
-export const ADVANCED_DEFAULTS = { scopeDim: 'NONE', windowTime: '', evalIntervalSec: 60, ignoreWindow: false, autoClose: false, msgTemplate: '', escStages: [] };
-/** 평가 주기 선택지 (초) — 엔진 틱 60초가 하한 */
-export const EVAL_INTERVALS = [60, 300, 600, 1800, 3600];
-/** 메시지 틀에 쓸 수 있는 변수 (엔진 MessageRenderer) */
-export const TEMPLATE_VARS = ['severity', 'condNm', 'scope', 'metricNm', 'value', 'unit', 'op', 'threshold', 'link'];
-/** 지정 시각이 보이는 조건 — 유효 시간대 1회(ONCE)이거나 지속 조건이 일 마감·일 1회 */
-export const needsWindowTime = (v) => v.validWindow === 'ONCE' || v.duration === 'DAY_CLOSE' || v.duration === 'DAY_ONCE';
-
-const escStagesOf = (esc) => (Array.isArray(esc) ? esc.filter((e) => e && e.on).map((e) => Number(e.stage)) : []);
+/*
+ * 「고급 설정」(평가 단위 · 평가 주기 · 지정 시각 · 시간대 무시 · 자동 해제 · 메시지 틀 · 승격 적용)은 2026-10-03 에
+ * 엔진 · API · DB 와 함께 없앴습니다. 모든 조건이 고정값으로 동작합니다(평가 단위 = 지표 수집 단위, 60초 주기,
+ * 시간대 지킴, 해제 기록 없음, 엔진 기본 메시지, 조건별 승격 없음, 일 마감 · 일 1회 = 08:00 기준).
+ */
+/** 더 이상 고를 수 없는 유효 시간대 — 지정 시각 1회(ONCE)는 지정 시각이 없어져 뜻이 없습니다 */
+export const RETIRED_WINDOWS = ['ONCE'];
 
 /** 편집 초기값 — 상세 응답을 폼 키로 */
 export function condInitial(detail) {
@@ -31,21 +28,11 @@ export function condInitial(detail) {
     return {
       severity: 'WARN', channels: ['MAIL'], groupIds: [], validWindow: 'ALWAYS', dedupMin: 'M30', op: 'GE',
       duration: 'IMMEDIATE', targetScope: 'ALL_EQPT', target: '', pickTargets: [], thresholdVal: '',
-      ...ADVANCED_DEFAULTS, advOpen: false,
     };
   }
   const groupIds = Array.isArray(detail.groupIds) && detail.groupIds.length
     ? detail.groupIds
     : (detail.groups || []).map((g) => (g && typeof g === 'object' ? g.groupId : null)).filter((x) => x !== null && x !== undefined);
-  const adv = {
-    scopeDim: detail.scopeDim ?? ADVANCED_DEFAULTS.scopeDim,
-    windowTime: detail.windowTime ?? '',
-    evalIntervalSec: detail.evalIntervalSec ?? ADVANCED_DEFAULTS.evalIntervalSec,
-    ignoreWindow: !!detail.ignoreWindow,
-    autoClose: !!detail.autoClose,
-    msgTemplate: detail.msgTemplate ?? '',
-    escStages: escStagesOf(detail.escalation),
-  };
   return {
     name: detail.name ?? '',
     metricStdId: detail.metricStdId ?? detail.metricId ?? '',
@@ -60,9 +47,6 @@ export function condInitial(detail) {
     groupIds,
     validWindow: detail.validWindow ?? '',
     dedupMin: detail.dedupMin ?? '',
-    ...adv,
-    // 기본과 다른 고급 값이 있으면 펼쳐서 보입니다 (메시지 틀은 서버 기본 틀이 늘 있어 제외)
-    advOpen: adv.scopeDim !== 'NONE' || !!adv.windowTime || Number(adv.evalIntervalSec) !== 60 || adv.ignoreWindow || adv.autoClose || adv.escStages.length > 0,
   };
 }
 
@@ -93,27 +77,11 @@ export function condBody(v, initial, detail) {
     groupIds: v.groupIds || [],
     validWindow: v.validWindow,
     dedupMin: v.dedupMin,
-    // 고급 설정 (ALC-09)
-    scopeDim: v.scopeDim || 'NONE',
-    windowTime: needsWindowTime(v) ? String(v.windowTime || '').trim() || null : null,
-    evalIntervalSec: Number(v.evalIntervalSec) || 60,
-    ignoreWindow: !!v.ignoreWindow,
-    autoClose: !!v.autoClose,
-    msgTemplate: String(v.msgTemplate ?? ''),
-    escalation: [1, 2, 3].map((stage) => ({ stage, on: (v.escStages || []).map(Number).includes(stage) })),
   };
   if (!detail) {
     const body = { ...full };
     if (!body.target) delete body.target;
     if (body.targetScope !== 'PICK') delete body.pickTargets;
-    // 기본값 그대로인 고급 설정은 보내지 않습니다 — 서버 기본값을 씁니다
-    if (!body.msgTemplate.trim()) delete body.msgTemplate;
-    if (body.windowTime === null) delete body.windowTime;
-    if (body.scopeDim === 'NONE') delete body.scopeDim;
-    if (body.evalIntervalSec === 60) delete body.evalIntervalSec;
-    if (!body.ignoreWindow) delete body.ignoreWindow;
-    if (!body.autoClose) delete body.autoClose;
-    if (!body.escalation.some((e) => e.on)) delete body.escalation;
     return body;
   }
   const before = {
@@ -122,11 +90,6 @@ export function condBody(v, initial, detail) {
     thresholdVal: initial.thresholdVal === '' ? null : Number(initial.thresholdVal),
     target: String(initial.target || '').trim(),
     pickTargets: initial.targetScope === 'PICK' ? initial.pickTargets : [],
-    scopeDim: initial.scopeDim || 'NONE',
-    windowTime: initial.windowTime || null,
-    evalIntervalSec: Number(initial.evalIntervalSec) || 60,
-    msgTemplate: String(initial.msgTemplate ?? ''),
-    escalation: [1, 2, 3].map((stage) => ({ stage, on: (initial.escStages || []).includes(stage) })),
   };
   const body = {};
   Object.keys(full).forEach((k) => {
@@ -138,18 +101,6 @@ export function condBody(v, initial, detail) {
   if ('targetScope' in body && body.targetScope !== 'PICK' && initial.pickTargets?.length) body.pickTargets = [];
   if (detail.updatedAt) body.updatedAt = detail.updatedAt;
   return body;
-}
-
-/** 메시지 틀에서 허용 변수 밖의 {{…}} (저장 시 경고) */
-export function unknownTemplateVars(t) {
-  const found = [...String(t || '').matchAll(/\{\{\s*([^}\s]+)\s*\}\}/g)].map((m) => m[1]);
-  return [...new Set(found.filter((x) => !TEMPLATE_VARS.includes(x)))];
-}
-
-/** 메시지 틀 미리보기 1건 — 실제 값 대신 예시를 넣습니다 */
-export function previewTemplate(t, sample = {}) {
-  const ex = { severity: '위험', condNm: '불량률 임계 초과', scope: 'PR-01', metricNm: '공정 불량률', value: '5.2', unit: '%', op: '>=', threshold: '3.0', link: '/alert/list', ...sample };
-  return String(t || '').replace(/\{\{\s*([^}\s]+)\s*\}\}/g, (all, k) => (k in ex ? ex[k] : all));
 }
 
 /** 입력 검증 — 필수 외의 규칙 (서버도 같은 규칙으로 400, ALC-12) */
@@ -164,10 +115,7 @@ export function validateCond(v) {
   if (v.targetScope === 'PICK' && (v.pickTargets || []).length > 500) e.pickTargets = '개별 설비는 500대까지 고를 수 있습니다.';
   if (!(v.channels || []).length) e.channels = '발송 채널을 1개 이상 선택해 주십시오.';
   if (!(v.groupIds || []).length) e.groupIds = '수신 그룹을 1개 이상 선택해 주십시오.';
-  const wt = String(v.windowTime || '').trim();
-  if (v.validWindow === 'ONCE' && !wt) e.windowTime = '지정 시각 1회는 시각(HH:mm)이 필요합니다.';
-  else if (needsWindowTime(v) && wt && !/^([01]\d|2[0-3]):[0-5]\d$/.test(wt)) e.windowTime = '시각은 HH:mm 형식으로 입력해 주십시오.';
-  if (String(v.msgTemplate || '').length > 4000) e.msgTemplate = '메시지 틀은 4,000자까지 입력할 수 있습니다.';
+  if (RETIRED_WINDOWS.includes(v.validWindow)) e.validWindow = '지정 시각 1회는 더 이상 쓰지 않습니다. 다른 유효 시간대를 고르십시오.';
   return e;
 }
 

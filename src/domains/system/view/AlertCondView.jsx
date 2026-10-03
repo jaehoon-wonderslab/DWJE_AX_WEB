@@ -7,17 +7,17 @@
  * 쓰기 권한이 없으면 등록·편집·중지/활성·테스트 버튼을 숨기지 않고 비활성으로 두고 이유를 툴팁으로 보입니다(R-06).
  * 삭제는 통합관리자만 할 수 있습니다(R-13).
  */
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Badge, Button, Card, ExportMenuButton, Filters, FormAlert, Hint, Loading, Pagination, SelectField, StatCard, Table, TextField,
+  Badge, Button, Card, ExportMenuButton, FormAlert, Hint, Loading, StatCard, Table,
   openConfirmModal,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
-import { labelOf, withAll } from '@domains/common/model/codeRepository';
+import { labelOf } from '@domains/common/model/codeRepository';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { evalBadge, groupNameOf, receivingOf, relativeTime, targetLabel, windowLabel } from '../controller/useAlertCondController';
@@ -27,11 +27,15 @@ import AlertTestResult, { normalizeTestResult } from './AlertTestResult';
 
 // 선택지·표시명은 서버 공통코드에서 받습니다 (ALM_SEVERITY · ALM_CHANNEL · ALM_OP · ALM_TARGET · ALM_WINDOW · ALM_DEDUP · ALM_DURATION)
 
+/** 요약 카드 높이 맞춤 · 엔진 카드 값(날짜·시각·상태)은 작은 글자로 */
+const STAT_FILL = { flex: 1 };
+const ENGINE_VALUE = { fontSize: 16, lineHeight: 22, letterSpacing: 0 };
+
 export default function AlertCondView({
-  firstLoad, loading, items, summary, codes, groups, groupOptions, metricOptions, metrics, escalationRules, loadError, listError, filters,
-  setSeverity, setEnabled, setChannel, setGroupId, setKeyword, reload,
+  firstLoad, loading, items, summary, codes, groups, groupOptions, metricOptions, metrics, loadError, listError,
+  reload,
   canWrite, canDelete, canAlertList, canRecipient, exportView, exportAll, exportTotal,
-  loadCondDetail, searchEquipments, submitCond, toggleCond, testCond, removeCond, paging, itemsMeta,
+  loadCondDetail, searchEquipments, submitCond, toggleCond, testCond, removeCond, itemsMeta,
 }) {
   const sev = codes?.ALM_SEVERITY || [];
   const chan = codes?.ALM_CHANNEL || [];
@@ -67,7 +71,6 @@ export default function AlertCondView({
       groupOptions,
       metricOptions,
       metrics,
-      escalationRules,
       loadError,
       searchEquipments,
       onSubmit: async (body) => {
@@ -122,14 +125,36 @@ export default function AlertCondView({
       onConfirm: () => removeCond(row.condId),
     });
 
+  /**
+   * 표 행 — 그리는 글자와 같은 값을 머리글 필터용으로 붙입니다(2026-10-02).
+   * 칸은 render 로 그려 Tabulator 가 글자를 모르므로, 같은 함수로 만든 글자를 filterField 로 씁니다.
+   */
+  const rows = useMemo(() => items.map((r) => ({
+    ...r,
+    stateLabel: r.on ? '활성' : '중지',
+    metricLabel: `${r.metric ?? r.metricNm ?? ''}${r.unitNm ? ` (${r.unitNm})` : ''}`,
+    thresholdLabel: r.blindFieldKey && r.threshold == null && r.thresholdVal == null ? '●●●● 비공개' : `${labelOf(op, r.op)} ${r.threshold ?? r.thresholdVal ?? ''}${r.unitNm ? ` ${r.unitNm}` : ''}`,
+    durationLabel: labelOf(dur, r.duration) || '—',
+    targetText: targetLabel(r, codes?.ALM_TARGET),
+    severityLabel: labelOf(sev, r.severity) || '—',
+    channelsLabel: (r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—',
+    groupsLabel: (r.groups || []).map(groupNameOf).join(' · ') || '—',
+    windowText: windowLabel(r, win) || '—',
+    dedupLabel: labelOf(dedup, r.dedupMin) || '—',
+    evalLabel: evalBadge(r).label || '—',
+  })), [items, op, dur, sev, chan, win, dedup, codes]);
+
   /** 지금 표에 보이는 행·열 순서 — 「조회 목록」 엑셀이 그리드와 같게 (관리 열 제외) */
   const gridState = () => {
     const t = tableRef.current;
     if (!t) return { rows: items };
     try {
+      const titleOf = Object.fromEntries(t.getColumns().map((c) => [c.getField(), c.getDefinition().title]));
       return {
         rows: t.getData('active'),
         order: t.getColumns().map((c) => c.getField()).filter((f) => f && f !== 'action'),
+        // 엑셀 조건 요약에 쓰는 머리글 필터(2026-10-02 위쪽 조회 조건 대신)
+        filters: (t.getHeaderFilters?.() || []).map((f) => ({ field: f.field, title: titleOf[f.field], value: f.value })),
       };
     } catch (e) {
       return { rows: items };
@@ -140,24 +165,17 @@ export default function AlertCondView({
 
   const eng = summary.engine;
   const engineTone = eng.judge === 'STOPPED' ? 'down' : eng.judge === 'DELAY' ? 'down' : '';
-  const lastRun = summary.engineRaw?.lastRunAt ? String(summary.engineRaw.lastRunAt).slice(11, 16) : '';
-  const filtered = filters.appliedKeyword || filters.severity !== '전체' || filters.enabled !== '전체' || filters.channel !== '전체' || filters.groupId !== '전체';
+  // 엔진 마지막 실행 — 「yyyy-MM-dd HH:mm:ss (상태)」(2026-10-02)
+  const lastRunAt = summary.engineRaw?.lastRunAt ? String(summary.engineRaw.lastRunAt).replace('T', ' ').slice(0, 19) : '';
+  const engineValue = `${lastRunAt || '실행 기록 없음'} (${eng.label})`;
 
   return (
     <View>
       <PageHead
         title="이상 알림 발송 조건 관리"
-        desc="언제 · 무엇을 기준으로 알림을 낼지 정합니다. 받는 사람은 수신 그룹으로 연결합니다."
         actions={
+          // 머리말 설명과 「수신 그룹 n개 관리 →」 는 뺐습니다(2026-10-02)
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* 수신 그룹 수는 카드 대신 이 링크로 (ALC-07) */}
-            <Button
-              label={`수신 그룹 ${summary.groupCnt}개 관리 →`}
-              size="sm"
-              variant="ghost"
-              disabled={!canRecipient}
-              onPress={() => goToScreen('sys-recip')}
-            />
             <ExportMenuButton
               viewCount={items.length}
               totalCount={exportTotal}
@@ -183,40 +201,28 @@ export default function AlertCondView({
       {!canWrite ? <Hint icon="lock">{`읽기 전용 — ${WRITE_DENIED_TIP} 목록·요약·엑셀은 그대로 볼 수 있습니다.`}</Hint> : null}
       {loadError ? <FormAlert tone="error">{`${loadError}. 조건을 등록할 수 없습니다.`}</FormAlert> : null}
 
-      {/* 요약 카드 4종 (ALC-07) */}
+      {/* 요약 카드 4종 (ALC-07) — 부제는 뺐고(2026-10-02) 높이를 맞춥니다 */}
       <Grid cols={4}>
-        <StatCard label="등록 조건" value={summary.total} unit="건" sub={`활성 ${summary.enabled} · 중지 ${summary.disabled}`} />
-        <StatCard
-          label="오늘 발송"
-          value={summary.todaySent}
-          unit="건"
-          sub={`억제 ${summary.suppressed ?? '—'} · 제외 ${summary.skipped ?? '—'} · 실패 ${summary.failed ?? '—'}`}
-          tone={Number(summary.failed) > 0 ? 'down' : ''}
-        />
+        <StatCard label="등록 조건" value={summary.total} unit="건" style={STAT_FILL} />
+        <StatCard label="오늘 발송" value={summary.todaySent} unit="건" tone={Number(summary.failed) > 0 ? 'down' : ''} style={STAT_FILL} />
         <StatCard
           label="판정 이상 조건"
           value={summary.evalKnown ? summary.breach + summary.stale : '—'}
           unit={summary.evalKnown ? '건' : ''}
-          sub={summary.evalKnown ? `발생 ${summary.breach} · 수집 중단 ${summary.stale}` : '판정 집계 준비 중'}
           tone={summary.breach ? 'down' : ''}
+          style={STAT_FILL}
         />
-        <StatCard label="엔진 상태" value={eng.label} sub={lastRun ? `마지막 실행 ${lastRun} · 대기 ${summary.engineRaw?.pendingQueueCnt ?? 0}건` : '엔진 실행 기록 없음'} tone={engineTone} />
+        {/* 마지막 실행 시각과 상태 — 「2026-10-03 05:39:12 (정상)」 */}
+        <StatCard label="엔진 상태" value={engineValue} tone={engineTone} style={STAT_FILL} valueStyle={ENGINE_VALUE} />
       </Grid>
       <Gap />
 
       <Hint>
-        발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다. 수신 그룹을 골라 연결합니다. 멤버·연락처는 알림 수신자 관리에서 바꿉니다.
+        {/* 문장마다 줄을 바꿉니다(2026-10-03) */}
+        {'발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다.\n수신 그룹을 골라 연결합니다.\n멤버·연락처는 알림 수신자 관리에서 바꿉니다.'}
       </Hint>
 
-      {/* 조회 조건 (ALC-11) — 검색어는 조회·Enter 로만 보냅니다 */}
-      <Filters>
-        <SelectField label="심각도" value={filters.severity} options={withAll(sev)} onChange={setSeverity} nativeSelect />
-        <SelectField label="상태" value={filters.enabled} options={['전체', '활성', '중지']} onChange={setEnabled} nativeSelect />
-        <SelectField label="발송 채널" value={filters.channel} options={withAll(chan)} onChange={setChannel} nativeSelect />
-        <SelectField label="수신 그룹" value={filters.groupId} options={withAll(groupOptions)} onChange={setGroupId} nativeSelect />
-        <TextField label="검색" value={filters.keyword} onChangeText={setKeyword} onSubmitEditing={reload} placeholder="조건명 · 지표" accessibilityLabel="조건 검색" />
-        <Button label="조회" variant="primary" onPress={reload} />
-      </Filters>
+      {/* 위쪽 조회 조건 줄은 뺐습니다(2026-10-02) — 표 머리글 필터로 거릅니다(목록형: 상태·지표·지속·심각도·시간대·중복·판정 / 글자: 조건명·임계값·대상·채널·그룹) */}
 
       <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건${loading ? ' · 불러오는 중' : ''}`} tight>
         {listError ? (
@@ -225,7 +231,7 @@ export default function AlertCondView({
             <Button label="다시 시도" size="sm" onPress={reload} />
           </View>
         ) : null}
-        {!items.length && !filtered && !groups.length && canRecipient ? (
+        {!items.length && !groups.length && canRecipient ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
             <Button label="수신 그룹 만들기" size="sm" onPress={() => goToScreen('sys-recip')} />
           </View>
@@ -236,23 +242,25 @@ export default function AlertCondView({
           minWidth={2380}
           instanceRef={tableRef}
           keyExtractor={(r) => r.condId}
-          emptyText={filtered
-            ? '조회 조건에 맞는 조건이 없습니다.'
+          filterable
+          pageSize={100}
+          emptyText={items.length
+            ? '머리글 필터에 맞는 조건이 없습니다.'
             : "등록된 발송 조건이 없습니다. 먼저 알림 수신자 관리에서 수신 그룹을 만든 뒤 '조건 등록' 으로 첫 조건을 만드세요."}
           columns={[
-            { key: 'on', title: '상태', width: 90, render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
+            { key: 'on', title: '상태', width: 100, filter: 'list', filterField: 'stateLabel', filterOptions: ['활성', '중지'], render: (r) => <Badge tone={r.on ? 'green' : ''}>{r.on ? '활성' : '중지'}</Badge> },
             { key: 'name', title: '조건명', width: 170 },
-            { key: 'metric', title: '감지 지표', width: 190, render: (r) => <Text style={s.td}>{`${r.metric ?? r.metricNm ?? ''}${r.unitNm ? ` (${r.unitNm})` : ''}`}</Text> },
+            { key: 'metric', title: '감지 지표', width: 190, filter: 'list', filterField: 'metricLabel', render: (r) => <Text style={s.td}>{`${r.metric ?? r.metricNm ?? ''}${r.unitNm ? ` (${r.unitNm})` : ''}`}</Text> },
             {
-              key: 'threshold', title: '비교 · 임계값', width: 150,
+              key: 'threshold', title: '비교 · 임계값', width: 150, filterable: true, filterField: 'thresholdLabel',
               render: (r) => <Text style={s.td}>{r.blindFieldKey && r.threshold == null && r.thresholdVal == null ? '●●●● 비공개' : `${labelOf(op, r.op)} ${r.threshold ?? r.thresholdVal ?? ''}${r.unitNm ? ` ${r.unitNm}` : ''}`}</Text>,
             },
-            { key: 'duration', title: '지속 조건', width: 130, render: (r) => <Text style={s.td}>{labelOf(dur, r.duration)}</Text> },
-            { key: 'target', title: '대상 범위', width: 160, render: (r) => <Text style={s.td}>{targetLabel(r, codes?.ALM_TARGET)}</Text> },
-            { key: 'severity', title: '심각도', width: 110, render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
-            { key: 'channels', title: '발송 채널', width: 150, render: (r) => <Text style={s.td}>{(r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—'}</Text> },
+            { key: 'duration', title: '지속 조건', width: 130, filter: 'list', filterField: 'durationLabel', render: (r) => <Text style={s.td}>{labelOf(dur, r.duration)}</Text> },
+            { key: 'target', title: '대상 범위', width: 160, filterable: true, filterField: 'targetText', render: (r) => <Text style={s.td}>{targetLabel(r, codes?.ALM_TARGET)}</Text> },
+            { key: 'severity', title: '심각도', width: 110, filter: 'list', filterField: 'severityLabel', filterOptions: ['위험', '주의', '낮음'], render: (r) => <Badge tone={r.severity === 'CRIT' ? 'red' : r.severity === 'WARN' ? 'amber' : ''}>{labelOf(sev, r.severity)}</Badge> },
+            { key: 'channels', title: '발송 채널', width: 150, filterable: true, filterField: 'channelsLabel', render: (r) => <Text style={s.td}>{(r.channels || []).map((c) => labelOf(chan, c)).join(' · ') || '—'}</Text> },
             {
-              key: 'groups', title: '수신 그룹', width: 200,
+              key: 'groups', title: '수신 그룹', width: 200, filterable: true, filterField: 'groupsLabel',
               // 사용 중지 그룹은 회색·취소선
               render: (r) => (
                 <Text style={s.td}>
@@ -265,21 +273,21 @@ export default function AlertCondView({
               ),
             },
             {
-              key: 'receivingCnt', title: '수신 인원', width: 100,
+              key: 'receivingCnt', title: '수신 인원', width: 100, filterable: false,
               render: (r) => {
                 const n = receivingOf(r);
                 return <Text style={[s.td, n === 0 ? { color: theme.color.destructive, fontWeight: '700' } : null]}>{n === null ? '—' : `${n}명`}</Text>;
               },
             },
-            { key: 'validWindow', title: '유효 시간대', width: 120, render: (r) => <Text style={s.td}>{windowLabel(r, win)}</Text> },
-            { key: 'dedupMin', title: '중복 억제', width: 110, render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
-            { key: 'evalState', title: '판정', width: 130, sortable: false, render: (r) => { const b = evalBadge(r); return b.label === '—' ? <Text style={s.td}>—</Text> : <Badge tone={b.tone}>{b.label}</Badge>; } },
+            { key: 'validWindow', title: '유효 시간대', width: 120, filter: 'list', filterField: 'windowText', render: (r) => <Text style={s.td}>{windowLabel(r, win)}</Text> },
+            { key: 'dedupMin', title: '중복 억제', width: 110, filter: 'list', filterField: 'dedupLabel', render: (r) => <Text style={s.td}>{labelOf(dedup, r.dedupMin)}</Text> },
+            { key: 'evalState', title: '판정', width: 130, sortable: false, filter: 'list', filterField: 'evalLabel', render: (r) => { const b = evalBadge(r); return b.label === '—' ? <Text style={s.td}>—</Text> : <Badge tone={b.tone}>{b.label}</Badge>; } },
             {
-              key: 'lastEvalAt', title: '마지막 평가', width: 120, sortable: false,
+              key: 'lastEvalAt', title: '마지막 평가', width: 120, sortable: false, filterable: false,
               render: (r) => <Text style={s.td}>{relativeTime(r.evalState?.lastEvalAt) || '—'}</Text>,
             },
             {
-              key: 'alert7dCnt', title: '최근 7일', width: 90, align: 'right',
+              key: 'alert7dCnt', title: '최근 7일', width: 90, align: 'right', filterable: false,
               render: (r) => (r.alert7dCnt === undefined || r.alert7dCnt === null
                 ? <Text style={[s.td, { textAlign: 'right' }]}>—</Text>
                 : canAlertList && r.alert7dCnt > 0
@@ -289,6 +297,7 @@ export default function AlertCondView({
             {
               key: 'action',
               title: '관리',
+              filterable: false,
               width: 260,
               sortable: false,
               render: (r) => (
@@ -307,9 +316,8 @@ export default function AlertCondView({
               ),
             },
           ]}
-          rows={items}
+          rows={rows}
         />
-        <Pagination meta={itemsMeta} {...(paging?.bind || {})} />
       </Card>
     </View>
   );

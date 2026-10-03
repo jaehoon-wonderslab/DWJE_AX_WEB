@@ -8,24 +8,24 @@
  *    아무도 받지 못하는 조건은 저장 전에 한 번 더 묻습니다.
  *  · 감지 지표를 고르면 단위·지표 기준값이 보이고 「주의값 넣기」·「위험값 넣기」 로 임계값을 채웁니다(ALC-10).
  *  · 대상 범위는 엔진이 해석하는 「전체 설비」·「개별 설비 선택」 만 고를 수 있습니다(ALC-05).
- *  · 고급 설정(평가 단위·지정 시각·시간대 무시·자동 해제·평가 주기·메시지 틀·승격 적용)은 접어 둡니다(ALC-09).
+ *  · 고급 설정(평가 단위·지정 시각·시간대 무시·자동 해제·평가 주기·메시지 틀·승격 적용)은 2026-10-03 에 엔진·API·DB 와 함께 없앴습니다.
+ *    유효 시간대 「지정 시각 1회(ONCE)」 도 고를 수 없습니다. 일 마감 · 일 1회 지속 조건은 08:00 기준입니다.
  *
  * openFormModal 의 `custom` 칸은 칸 아래 오류가 그려지지 않아, 그 칸의 검증 오류는 토스트로도 알립니다.
  */
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Button, CheckRow, Field, FormAlert, SelectField, TextAreaField, TextField, openFormModal } from '@shared/components/ui';
+import { Button, Field, FormAlert, TextField, openFormModal } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import {
-  ENGINE_TARGETS, EVAL_INTERVALS, LIVE_CHANNELS, TEMPLATE_VARS, condBody, condInitial, needsWindowTime, previewTemplate, reachOf,
-  unknownTemplateVars, validateCond,
+  ENGINE_TARGETS, LIVE_CHANNELS, RETIRED_WINDOWS, condBody, condInitial, reachOf, validateCond,
 } from '../model/alertFormModel';
 import { askConfirm } from './AlertAsk';
 
 /** custom 칸 — 오류가 칸 아래 그려지지 않아 토스트로도 알리는 키 */
-const CUSTOM_KEYS = ['thresholdVal', 'pickTargets', 'windowTime', 'msgTemplate'];
+const CUSTOM_KEYS = ['thresholdVal', 'pickTargets'];
 
 /** 개별 설비 검색·선택 (type:'custom') */
 function EquipmentPicker({ value = [], onChange, search }) {
@@ -142,25 +142,6 @@ function ReachPreview({ values, groups, channelLabel }) {
   );
 }
 
-/** 메시지 틀 — 변수 칩을 누르면 끝에 넣고, 예시 1건을 보여 줍니다 */
-function TemplateField({ value, onChange }) {
-  const s = useCommonStyles();
-  const unknown = unknownTemplateVars(value);
-  return (
-    <View style={{ gap: 6 }}>
-      <TextAreaField label="메시지 틀" value={value || ''} rows={3} onChangeText={onChange} placeholder="비우면 서버 기본 틀을 씁니다" full />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {TEMPLATE_VARS.map((k) => (
-          <TouchableOpacity key={k} onPress={() => onChange(`${value || ''}{{${k}}}`)} accessibilityLabel={`변수 ${k} 넣기`} style={s.chip}>
-            <Text style={s.chipText}>{`{{${k}}}`}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {value ? <Text style={s.textSm}>{`미리보기: ${previewTemplate(value)}`}</Text> : null}
-      {unknown.length ? <FormAlert tone="error">{`허용되지 않은 변수: ${unknown.map((x) => `{{${x}}}`).join(' ')}`}</FormAlert> : null}
-    </View>
-  );
-}
 
 /**
  * 발송 조건 폼을 엽니다.
@@ -172,13 +153,12 @@ function TemplateField({ value, onChange }) {
  * @param {Array} cfg.groupOptions 수신 그룹 선택지 [{value,label}]
  * @param {Array} cfg.metricOptions 감지 지표 선택지 [{value,label}]
  * @param {Array} cfg.metrics 감지 지표 원본 (기준값·단위)
- * @param {Array} cfg.escalationRules 승격 규칙 (대상 그룹이 비었는지 안내)
  * @param {string} [cfg.loadError] 선택지 조회 실패 안내 (ALC-02)
  * @param {Function} cfg.searchEquipments 설비 검색
  * @param {Function} cfg.onSubmit (body) => Promise<boolean> 성공 여부
  */
 export function openAlertCondForm({
-  detail, codes = {}, groups = [], groupOptions = [], metricOptions = [], metrics = [], escalationRules = [], loadError, searchEquipments, onSubmit,
+  detail, codes = {}, groups = [], groupOptions = [], metricOptions = [], metrics = [], loadError, searchEquipments, onSubmit,
 }) {
   const initial = condInitial(detail);
   const sev = codes.ALM_SEVERITY || [];
@@ -221,10 +201,9 @@ export function openAlertCondForm({
   const reachGroups = [...groups];
   (detail?.groups || []).forEach((g) => { if (g && typeof g === 'object' && !reachGroups.some((x) => String(x.groupId) === String(g.groupId))) reachGroups.push(g); });
 
-  const scopeDims = [{ value: 'NONE', label: '지표 수집 단위 따름' }, ...(codes.ALM_SCOPE_DIM || []).filter((c) => c.value !== 'NONE')];
-  const emptyEsc = escalationRules.filter((r) => r.targetGroupId === null || r.targetGroupId === undefined).map((r) => r.stageNm || `${r.stage}차`);
-
-  const adv = (render) => ({ values, value, onChange }) => (values.advOpen ? render({ values, value, onChange }) : null);
+  // 유효 시간대 — 지정 시각 1회(ONCE)는 더 이상 고를 수 없습니다(이미 저장된 값이면 표시를 붙여 남깁니다)
+  const windowOptions = (codes.ALM_WINDOW || []).filter((w) => !RETIRED_WINDOWS.includes(w.value));
+  if (RETIRED_WINDOWS.includes(initial.validWindow)) windowOptions.push({ value: initial.validWindow, label: `${label(codes.ALM_WINDOW, initial.validWindow)} (사용 안 함 — 다른 시간대를 고르십시오)` });
 
   return openFormModal({
     title: detail ? '발송 조건 편집' : '발송 조건 등록',
@@ -259,69 +238,9 @@ export function openAlertCondForm({
       { key: 'severity', label: '심각도', type: 'select', options: sev },
       { key: 'channels', label: '발송 채널', type: 'check', options: channelOptions, required: true, full: true },
       { key: 'groupIds', label: '수신 그룹', type: 'check', options: gOptions, required: true, full: true },
-      { key: 'validWindow', label: '유효 시간대', type: 'select', options: codes.ALM_WINDOW || [] },
+      { key: 'validWindow', label: '유효 시간대', type: 'select', options: windowOptions },
       { key: 'dedupMin', label: '중복 억제', type: 'select', options: codes.ALM_DEDUP || [] },
       { key: 'reachNote', type: 'custom', full: true, render: ({ values }) => <ReachPreview values={values} groups={reachGroups} channelLabel={channelLabel} /> },
-      {
-        key: 'advOpen',
-        type: 'custom',
-        full: true,
-        render: ({ value, onChange }) => (
-          <Button
-            label={`${value ? '▾' : '▸'} 고급 설정 (평가 단위 · 지정 시각 · 시간대 무시 · 자동 해제 · 평가 주기 · 메시지 틀 · 승격 적용)`}
-            size="sm"
-            variant="ghost"
-            onPress={() => onChange(!value)}
-          />
-        ),
-      },
-      {
-        key: 'scopeDim', type: 'custom',
-        render: adv(({ value, onChange }) => (
-          <SelectField label="평가 단위" value={value} options={scopeDims} onChange={onChange} nativeSelect full hint="설비별이면 설비마다 따로 판정·억제합니다" />
-        )),
-      },
-      {
-        key: 'evalIntervalSec', type: 'custom',
-        render: adv(({ value, onChange }) => (
-          <SelectField label="평가 주기" value={value} options={EVAL_INTERVALS.map((n) => ({ value: n, label: n < 60 ? `${n}초` : `${n / 60}분` }))} onChange={(v) => onChange(Number(v))} nativeSelect full hint="엔진 틱 60초가 하한입니다" />
-        )),
-      },
-      {
-        key: 'windowTime', type: 'custom',
-        render: adv(({ value, onChange, values }) => (needsWindowTime(values)
-          ? <TextField label="지정 시각" required={values.validWindow === 'ONCE'} value={value || ''} onChangeText={onChange} placeholder="HH:mm (예: 09:00)" accessibilityLabel="지정 시각" full />
-          : null)),
-      },
-      {
-        key: 'ignoreWindow', type: 'custom',
-        render: adv(({ value, onChange, values }) => (
-          <View style={{ gap: 4, paddingTop: 6 }}>
-            <CheckRow label="시간대 무시 (유효 시간대 밖에도 보냄)" checked={!!value} onToggle={() => onChange(!value)} />
-            {values.severity === 'CRIT' && !value ? <Text style={{ fontSize: 13 }}>위험 등급은 시간대 무시를 켜 두는 것을 검토하세요.</Text> : null}
-          </View>
-        )),
-      },
-      {
-        key: 'autoClose', type: 'custom',
-        render: adv(({ value, onChange }) => <View style={{ paddingTop: 6 }}><CheckRow label="정상 복귀 시 해제 기록" checked={!!value} onToggle={() => onChange(!value)} /></View>),
-      },
-      { key: 'msgTemplate', type: 'custom', full: true, render: adv(({ value, onChange }) => <TemplateField value={value} onChange={onChange} />) },
-      {
-        key: 'escStages', type: 'custom', full: true,
-        render: adv(({ value, onChange }) => {
-          const list = (value || []).map(Number);
-          const toggle = (st) => onChange(list.includes(st) ? list.filter((x) => x !== st) : [...list, st].sort());
-          return (
-            <Field label="승격 적용" full>
-              <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap', paddingTop: 6 }}>
-                {[1, 2, 3].map((st) => <CheckRow key={st} label={`${st}차`} checked={list.includes(st)} onToggle={() => toggle(st)} />)}
-              </View>
-              {list.length && emptyEsc.length ? <FormAlert tone="error">{`대상 그룹 미지정(${emptyEsc.join(' · ')}) — 승격해도 아무도 받지 못합니다.`}</FormAlert> : null}
-            </Field>
-          );
-        }),
-      },
     ],
     note: `판정은 이 조건의 임계값으로 합니다. 지표 기준값은 참고용입니다. 수신 그룹을 골라 연결하며, 멤버·연락처는 알림 수신자 관리에서 바꿉니다.${offline.length ? ` ${offline.join(' · ')} 채널은 연동 전이라 고를 수 없습니다.` : ''}`,
     submitLabel: detail ? '수정' : '등록',
@@ -330,11 +249,6 @@ export function openAlertCondForm({
       const reach = reachOf(v.groupIds, v.channels, reachGroups);
       if (reach.byGroup.length && !reach.total) {
         const yes = await askConfirm({ title: '받는 사람 없음', message: '이 조건으로는 아무도 받지 못합니다. 그래도 저장할까요?', confirmLabel: '저장', danger: true });
-        if (!yes) return false;
-      }
-      const unknown = unknownTemplateVars(v.msgTemplate);
-      if (unknown.length) {
-        const yes = await askConfirm({ title: '메시지 틀 확인', message: `허용되지 않은 변수 ${unknown.map((x) => `{{${x}}}`).join(' ')} 는 바뀌지 않고 그대로 나갑니다. 그래도 저장할까요?`, confirmLabel: '저장' });
         if (!yes) return false;
       }
       return onSubmit(condBody(v, initial, detail));

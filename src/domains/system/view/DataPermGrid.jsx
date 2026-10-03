@@ -36,32 +36,8 @@ export default function DataPermGrid({ fields, depts, cellValue, lockReason, app
   const signature = JSON.stringify(depts.map(d => [String(d.id), d.name, d.userCnt || 0, d.locked || '']));
 
   const columns = useMemo(() => [
-    { title: '데이터 항목', field: 'name', width: 170, minWidth: 140, formatter: cell => {
-      const row = cell.getRow().getData();
-      return `<span class="strong">${escapeTitle(cell.getValue())}</span>${row.builtIn ? ' <span class="muted">(기본)</span>' : ''}`;
-    } },
-    { title: '분류', field: 'categoryNm', width: 110, minWidth: 100, formatter: 'plaintext' },
-    { title: '적용', field: 'applyLabel', width: 110, minWidth: 100, formatter: cell => {
-      // 「적용 중」/「미적용」 + 전환 버튼 (DTP-04). 기본 7종은 끌 수 없어 「고정」 (DTP-05)
-      const row = cell.getRow().getData();
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:flex-start';
-      const label = document.createElement('span');
-      label.className = row.applyFlg === 'N' ? 'muted' : 'strong';
-      label.textContent = `${row.applyLabel}${row.builtIn && row.applyFlg !== 'N' ? ' (고정)' : ''}`;
-      wrap.appendChild(label);
-      if (!(row.builtIn && row.applyFlg !== 'N')) {
-        const button = document.createElement('button');
-        button.className = 'tbtn';
-        button.textContent = row.applyFlg === 'N' ? '켜기' : '끄기';
-        button.disabled = !!row.applyLock;
-        button.title = row.applyLock || `${row.name} 적용 ${button.textContent}`;
-        button.setAttribute('aria-label', `${row.name} 적용 ${button.textContent}`);
-        button.onclick = event => { event.stopPropagation(); latest.current.onApply?.(row.key); };
-        wrap.appendChild(button);
-      }
-      return wrap;
-    } },
+    // 「(기본)」 표시 · 분류 열 · 적용 열은 뺐습니다(2026-10-02 디자인 피드백)
+    { title: '데이터 항목', field: 'name', width: 170, minWidth: 140, formatter: cell => `<span class="strong">${escapeTitle(cell.getValue())}</span>` },
     { title: '포함 데이터', field: 'included', minWidth: 260, widthGrow: 2, formatter: 'textarea', variableHeight: true, bottomCalc: () => '허용 항목 수' },
     ...JSON.parse(signature).map(([deptId, name, userCnt, locked]) => {
       const field = `dept_${deptId}`;

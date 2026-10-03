@@ -2,8 +2,7 @@
  * [View] SY-05 알림 수신자 관리 (경로: /system/recipient · 화면 ID sys-recip)
  *
  * '누구에게 · 어떤 연락처로' 보낼지를 관리합니다.
- * 사용 API 15건 — /api/v1/alert-recipient-groups(목록·상세·등록·수정·사용 중지·테스트), /alert-recipients(요약·목록·후보·영향·등록·수정·상태·삭제),
- * /alert-escalation-rules(조회)
+ * 사용 API 14건 — /api/v1/alert-recipient-groups(목록·상세·등록·수정·사용 중지·테스트), /alert-recipients(요약·목록·후보·영향·등록·수정·상태·삭제)
  *
  * 표는 Tabulator(`TabulatorGrid`)로 그립니다 — 열 너비를 내용에 맞춰 잡고(autoWidth),
  * 머리글 경계를 끌어 사람이 직접 조절할 수 있으며, 칸 경계를 그어(bordered) 어느 값이
@@ -23,7 +22,7 @@ import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { labelOf } from '@domains/common/model/codeRepository';
-import { accountState, escLabel, memberNameOf, receivableLabel, recipientState } from '../controller/useRecipientController';
+import { accountState, memberNameOf, receivableLabel, recipientState } from '../controller/useRecipientController';
 import AlertGuardButton, { WORKER_DENIED_TIP, WRITE_DENIED_TIP, htmlGuardButton } from './AlertGuardButton';
 import { askConfirm } from './AlertAsk';
 import AlertTestResult, { normalizeTestResult } from './AlertTestResult';
@@ -53,7 +52,7 @@ function gridStateOf(table, fallback) {
 }
 
 export default function RecipientView({
-  firstLoad, listLoading, loadError, listError, codes, summary, recipientTotal, groups, recipients, escalationEmpty, tab, setTab, filters,
+  firstLoad, listLoading, loadError, listError, codes, summary, recipientTotal, groups, recipients, tab, setTab, filters,
   setGroupFilter, setStateFilter, setUserStateFilter, setKeyword, setShowInactive, reload, canWrite, showWorker, exportView, exportAll,
   loadGroupDetail, loadDeptOptions, loadMemberCandidates, loadImpact, changeState, removeRecipient, setGroupUse, searchCandidates,
   submitGroup, submitRecipient, testGroup, paging, itemsMeta,
@@ -120,13 +119,13 @@ export default function RecipientView({
     });
   };
 
-  /** 사용 중지/사용 (RCP-08) — 중지는 한 번 묻습니다. 조건·승격이 쓰는 그룹이면 서버가 409 로 막습니다 */
+  /** 사용 중지/사용 (RCP-08) — 중지는 한 번 묻습니다. 조건이 쓰는 그룹이면 서버가 409 로 막습니다 */
   const toggleGroupUse = async (row) => {
     const on = row.useFlg === 'N';
     if (!on) {
       const yes = await askConfirm({
         title: '수신 그룹 사용 중지',
-        message: `'${row.name}' 그룹으로는 알림이 나가지 않습니다. 이 그룹을 쓰는 발송 조건이나 승격 규칙이 있으면 먼저 연결을 바꿔야 합니다.`,
+        message: `'${row.name}' 그룹으로는 알림이 나가지 않습니다. 이 그룹을 쓰는 발송 조건이 있으면 먼저 연결을 바꿔야 합니다.`,
         confirmLabel: '사용 중지',
         danger: true,
       });
@@ -191,7 +190,6 @@ export default function RecipientView({
         receivableZero: receivable === 0,
         condCnt: g.condCnt ?? (Array.isArray(g.conds) ? g.conds.length : null),
         condNames: (g.conds || []).map((c) => c.name).join(' · '),
-        escLabel: escLabel(g),
         useLabel: g.useFlg === 'N' ? '사용 중지' : '사용',
         memberNames: (g.memberNames || (g.members || []).map(memberNameOf)).filter(Boolean).join(' · '),
       };
@@ -252,7 +250,6 @@ export default function RecipientView({
       // 발송 조건 관리 권한자는 눌러 그 화면으로 갑니다
       cellClick: (e) => { if (e.target.closest('[data-act="conds"]')) handlers.current.goConds(); },
     },
-    { title: '승격 대상', field: 'escLabel', minWidth: 90, headerFilter: false, formatter: (c) => dash(c.getValue()) },
     {
       title: '구성원', field: 'memberNames',
       formatter: (c) => (showWorker
@@ -392,7 +389,6 @@ export default function RecipientView({
       </Grid>
       <Gap />
 
-      {escalationEmpty ? <FormAlert tone="info">승격 규칙에 대상 그룹이 없어 미확인 알림이 승격되지 않습니다.</FormAlert> : null}
       <Hint>
         발송 조건은 이 화면의 수신 그룹을 골라 연결합니다. 그룹 이름을 바꿔도 연결은 유지됩니다. 멤버를 빼거나 부재로 바꾸면 해당 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.
       </Hint>

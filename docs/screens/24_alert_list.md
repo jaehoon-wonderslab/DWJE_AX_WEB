@@ -9,7 +9,9 @@
 | 기능 ID | AL-01 |
 | 접근 권한 | 전 부서 (발송 로그 카드는 전산팀·통합관리자) |
 
-임계값 초과 건과 패턴 이상을 목록으로 관리합니다. **확인되지 않은 건은 상위 담당으로 승격됩니다.**
+임계값 초과 건과 패턴 이상을 목록으로 관리합니다.
+
+> **2026-10-03 변경** — 승격 기능을 엔진 · API · DB 에서 모두 없앴습니다. 「승격 대기」 카드, 발송 로그의 「승격」 열, 상세의 「승격 단계」 행을 함께 뺐습니다(아래 「제거됨」 표시).
 
 ## 1. 컴포넌트
 
@@ -19,7 +21,7 @@
 | 1 | 탭 | `Tabs` — `미확인 {unread}` / `확인됨 {read}` / `전체` |
 | 2 | 조회 조건 | `Filters` + `SelectField`(심각도 / 설비 / 기간) + `Button primary(조회)` |
 | 3 | 알림 목록 | `Card(tight)` + `Table`(minWidth 940) |
-| 4 | 승격 대기 | `Card(tight)` + `Table`(minWidth 760) |
+| 4 | ~~승격 대기~~ (제거됨 2026-10-03) | ~~`Card(tight)` + `Table`(minWidth 760)~~ |
 | 5 | 알림 발송 로그 | `Card(tight)` + `Table`(minWidth 860) |
 | 6 | 상세 모달 | `openModal` + `AlertDetail`(`KeyValue` + `TextAreaField` + 확인 버튼) |
 
@@ -60,7 +62,9 @@
 
 행 클릭 → 상세 모달. 빈 상태 : "해당 조건의 알림이 없습니다."
 
-### 2-3. 승격 대기 (`GET /alerts/escalation-targets`)
+### 2-3. 승격 대기 (`GET /alerts/escalation-targets`) — 제거됨(2026-10-03)
+
+> 엔진이 승격하지 않고 승격 규칙 설정과 이 API 를 없애 카드를 뺐습니다. 아래는 예전 구성입니다.
 
 알림 · 대상(mono) · 경과(`{elapsedMin}분`) · 다음 승격(`Badge amber`) · 승격 시점 · 전달 대상
 부제 : "미확인 상태가 지속되면 아래 순서로 상위 담당에게 전달됩니다"
@@ -108,7 +112,7 @@
 | 102 | `getAlerts` | 알림 목록 조회 | GET | `/api/v1/alerts` | type(CRIT|WARN|LOW), eqptCd, period(today|7d|30d), ackState(OPEN|ACKED|CLOSED), condId, alertId, includeTest, page, size | items[{alertId,level,type,eqptCd,basisValue,threshold,agent,occurredAt,elapsed,ackState}], meta | 전 부서 | — | 1 |
 | 103 | `getAlertsByAlertId` | 알림 상세 조회 | GET | `/api/v1/alerts/{alertId}` | — | eqptCd, eqptNm, lotNo, basisValue, threshold, mainDefectType, causeCandidates[], recommendation, agent | 전 부서 | yield, mold | 1 |
 | 104 | `postAlertsByAlertIdAck` | 알림 확인 처리 | POST | `/api/v1/alerts/{alertId}/ack` | actionNote | ackAt, ackBy | 전 부서 | — | 1 |
-| 105 | `getAlertsEscalationTargets` | 승격 대상 조회 | GET | `/api/v1/alerts/escalation-targets` | — | stages[{stage,waitMin,targets[]}] | 전 부서 | — | 2 |
+| ~~105~~ | ~~`getAlertsEscalationTargets`~~ | 승격 대상 조회 — **제거됨(2026-10-03)** | GET | `/api/v1/alerts/escalation-targets` | — | stages[{stage,waitMin,targets[]}] | 전 부서 | — | 2 |
 | 106 | `getAlertsSendLogs` | 알림 발송 로그 조회 | GET | `/api/v1/alerts/send-logs` | from, to, condId, channel, page, size | items[{ts,condNm,channel,recipient,result,delaySec}], meta | 전산팀·통합관리자 | — | 2 |
 
 
@@ -119,7 +123,7 @@
 - [ ] 알림 목록 표 + `Dot` 등급 + 확인 버튼
 - [ ] 상세 모달 (원인 후보 · 권고 조치 · 조치 내용 입력 · 확인 처리)
 - [ ] 관련 화면 이동 링크
-- [ ] 승격 대기 표
+- [x] ~~승격 대기 표~~ (제거됨 2026-10-03)
 - [ ] 발송 로그 표 (전산팀·통합관리자)
 - [ ] 엑셀 다운로드 · 발송 조건 화면 이동(권한 분기)
 - [ ] (개선) 목록 페이징

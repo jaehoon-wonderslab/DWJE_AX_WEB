@@ -5,7 +5,7 @@
  * 발송 조건(SY-04)은 여기서 만든 수신 그룹을 골라 연결합니다.
  *
  * 당번·승격은 2026-09-16 에 이 화면에서 걷어냈습니다 — 당번은 서버 표까지 정리했고,
- * 승격 규칙은 [알림 현황] 의 「승격 대상」이 계속 쓰므로 서버에만 남아 있습니다.
+ * 승격 규칙은 2026-10-03 에 엔진 · API · DB 에서 모두 없앴습니다(「승격 대상」 열 · 안내도 함께 뺌).
  *
  * 2026-10-01 기획 06 반영
  *  · RCP-01 이름·연락처·구성원은 데이터 권한(worker)이 없으면 화면·엑셀 모두 '비공개'
@@ -62,11 +62,6 @@ export function receivableLabel(g) {
   return n === undefined || n === null ? '' : `${n}/${m}`;
 }
 
-/** 승격 대상 표기 — 「1차 · 2차」 */
-export function escLabel(g) {
-  return (g.escStages || []).map((st) => (typeof st === 'object' ? st.stageNm || `${st.stage}차` : `${st}차`)).join(' · ');
-}
-
 /** 이름 표기 — 서버가 이름 문자열 또는 {empNo,name} 객체로 줄 수 있습니다 */
 export const memberNameOf = (m) => (m && typeof m === 'object' ? m.name ?? '' : m);
 
@@ -96,7 +91,7 @@ export function useRecipientController() {
   // 채널·유효 시간대 선택지와 표기는 서버 공통코드가 정본입니다
   const { data: codes } = useAsync(() => loadCodeGroups('ALM_CHANNEL', 'ALM_WINDOW'), [], { silent: true, initialData: {} });
 
-  // 머리(요약·그룹·승격 규칙)는 탭과 무관하게 한 번 — 사용 중지 그룹 보기를 바꿀 때만 다시
+  // 머리(요약·그룹)는 탭과 무관하게 한 번 — 사용 중지 그룹 보기를 바꿀 때만 다시
   const { data, loading, reload: reloadHead } = useAsync(() => repo.loadRecipientHead({ includeInactive: showInactive }), [showInactive]);
 
   const paging = usePaging({ resetKey: `${groupFilter}|${stateFilter}|${userStateFilter}|${keyword}` });
@@ -116,7 +111,6 @@ export function useRecipientController() {
   );
 
   const groups = data?.groups?.items || [];
-  const escalation = data?.escalation?.stages || data?.escalation?.items || [];
   const recipients = listData?.items || [];
 
   const reload = useCallback(() => {
@@ -151,7 +145,6 @@ export function useRecipientController() {
       { field: 'memberCnt', head: '멤버', attr: 'memberCnt', value: (g) => g.memberCnt ?? (g.memberEmpNos || g.members || []).length },
       { field: 'receivableLabel', head: '수신 가능', attr: 'receivableCnt', value: (g) => g.receivableLabel ?? receivableLabel(g) },
       { field: 'condCnt', head: '사용 조건', attr: 'condCnt', value: (g) => g.condCnt ?? (g.conds || []).length ?? '' },
-      { field: 'escLabel', head: '승격 대상', attr: 'escStages', value: (g) => g.escLabel ?? escLabel(g) },
       { field: 'memberNames', head: '구성원', attr: 'members', worker: true, value: (g) => g.memberNames ?? (g.members || []).map(memberNameOf).join(' · ') },
       { field: 'useFlg', head: '상태', attr: 'useFlg', value: (g) => (g.useFlg === 'N' ? '사용 중지' : '사용') },
     ],
@@ -279,11 +272,6 @@ export function useRecipientController() {
     return list;
   }, [recipients]);
 
-  /** 승격 규칙의 대상 그룹이 모두 비었는지 (RCP-09 안내) */
-  const escalationEmpty = escalation.length > 0
-    ? escalation.every((r) => r.targetGroupId === null || r.targetGroupId === undefined)
-    : Number(data?.summary?.escNoTargetCnt) > 0;
-
   /** 수신/부재 전환 (RCP-07) */
   const changeState = (recipientId, next, reason) => run(() => repo.setRecipientState(recipientId, next, reason));
 
@@ -321,7 +309,6 @@ export function useRecipientController() {
     recipientTotal,
     groups,
     recipients,
-    escalationEmpty,
     paging,
     itemsMeta: listData?.meta,
     tab,

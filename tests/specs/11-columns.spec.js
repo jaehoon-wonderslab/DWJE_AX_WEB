@@ -71,7 +71,6 @@ const TABLES = (f) => [
   ]],
   ['alert/view/AlertListView.jsx', [
     ['/alerts', { size: 5 }, 'items'],
-    ['/alerts/escalation-targets', {}, 'items'],
     ['/alerts/send-logs', {}, 'items'],
   ]],
   ['system/view/AccountView.jsx', [

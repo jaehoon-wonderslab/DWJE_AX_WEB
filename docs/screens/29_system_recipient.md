@@ -17,6 +17,9 @@
 
 > **2026-09-16 변경** — 「당번 · 승격」 탭을 걷어냈습니다. 당번은 서버 API 4건과 표(`ax.tb_alm_duty`)까지 정리했고,
 > 승격 규칙은 [알림 현황] 의 「승격 대상」이 계속 읽으므로 서버 API·표를 남긴 채 이 화면에서만 뺐습니다.
+>
+> **2026-10-03 변경** — 엔진이 승격하지 않게 되어 승격 규칙을 API(`/alert-escalation-rules` 조회 · 수정, `/alerts/escalation-targets`)와 표(`ax.tb_alm_escalation_rule`, 보관 표에 값 보존)까지 없앴습니다.
+> 이 화면의 「승격 대상」 열, 상단 「승격 규칙에 대상 그룹이 없어…」 안내, 그룹 편집 「연계」 의 승격 대상 문구, 부재 전환 영향의 승격 단계 문구를 뺐습니다.
 > 표는 공통 `Table`(React 포털) 대신 **`TabulatorGrid`** 로 그립니다.
 
 ## 1. 컴포넌트
@@ -57,7 +60,7 @@
 | 멤버 | `memberCnt`, 우측 정렬 |
 | **수신 가능** | `receivableCnt`(없으면 `receivingCnt`)/멤버, 0 이면 red (minWidth 90) |
 | **사용 조건** | `condCnt`, 툴팁 조건명. `alert-cond` 권한자는 눌러 그 화면으로 (minWidth 90) |
-| **승격 대상** | `escStages` 「1차 · 2차」 (minWidth 90) |
+| ~~**승격 대상**~~ | ~~`escStages` 「1차 · 2차」~~ — 제거됨(2026-10-03) |
 | 구성원 `memberNames` | ` · ` 연결 1줄 · **`worker` 마스킹** |
 | **상태** | `useFlg` 사용 / 사용 중지 (minWidth 80) |
 | 관리 | `편집` · `테스트 발송` · `사용 중지/사용` |
@@ -97,7 +100,7 @@
 | 부재로 | `GET /{recipientId}/impact` 로 영향(받는 사람 0명이 되는 그룹·조건)과 사유(300자)를 묻고 → `PATCH /{recipientId}/state {state:'ABSENT', reason}` |
 | 수신으로 | 바로 `PATCH …/state {state:'RECV'}` |
 | 삭제 | 영향을 보여 주고 확인 → `DELETE /{recipientId}`. 409(영향 있음)면 한 번 더 확인 후 `?force=true` |
-| 사용 중지 / 사용 | 중지는 확인 후 `PATCH /alert-recipient-groups/{groupId}/state {on}`. 조건·승격이 쓰면 서버 409 사유를 토스트 |
+| 사용 중지 / 사용 | 중지는 확인 후 `PATCH /alert-recipient-groups/{groupId}/state {on}`. 조건이 쓰면 서버 409 사유를 토스트 |
 | 사용 중지 그룹 보기 | 그룹 목록을 `includeInactive=true` 로 다시 부름 |
 | 발송 조건 관리 | `/system/alert-condition` |
 | 엑셀 다운로드 ▾ | 지금 탭의 옵션 패널(아래 3-2) |
@@ -146,22 +149,22 @@ P1 이후 항목(검색형 멤버 선택기·부재/수신 전환·삭제·사�
 
 ## 5. 사용 API
 
-총 **15건** (2단계 신규: 그룹 상세 · 후보 계정, 3단계 신규: 영향 조회 · 수신자 삭제 · 그룹 사용 중지, 승격 규칙 조회는 안내용)
+총 **14건** (2단계 신규: 그룹 상세 · 후보 계정, 3단계 신규: 영향 조회 · 수신자 삭제 · 그룹 사용 중지. 승격 규칙 조회는 2026-10-03 에 제거)
 
 | # | 서비스 함수 | API 명 | Method | Path | 요청 | 응답 |
 |---|---|---|---|---|---|---|
-| 165.1 | `getAlertRecipientsByRecipientIdImpact` | 수신자 영향 **(신규)** | GET | `/api/v1/alert-recipients/{recipientId}/impact` | — | empNo, groups[{groupId,name,receivableCntAfter}], zeroGroups[], affectedConds[], affectedEscStages[] |
+| 165.1 | `getAlertRecipientsByRecipientIdImpact` | 수신자 영향 **(신규)** | GET | `/api/v1/alert-recipients/{recipientId}/impact` | — | empNo, groups[{groupId,name,receivableCntAfter}], zeroGroups[], affectedConds[] |
 | 165.2 | `deleteAlertRecipientsByRecipientId` | 수신자 삭제 **(신규)** | DELETE | `/api/v1/alert-recipients/{recipientId}` | force | success / 409 data{zeroGroups, affectedConds} |
 | 160.1 | `patchAlertRecipientGroupsByGroupIdState` | 그룹 사용 중지 **(신규)** | PATCH | `/api/v1/alert-recipient-groups/{groupId}/state` | on | useFlg, changed / 409 |
 | 165 | `patchAlertRecipientsByRecipientIdState` | 수신/부재 전환 | PATCH | `/api/v1/alert-recipients/{recipientId}/state` | state(필수), reason | success |
-| 169 | `getAlertEscalationRules` | 승격 규칙 조회 | GET | `/api/v1/alert-escalation-rules` | — | stages[{stage,targetGroupId}] — 대상 그룹이 모두 비면 상단 안내 |
+| ~~169~~ | ~~`getAlertEscalationRules`~~ | 승격 규칙 조회 — **제거됨(2026-10-03)** | GET | `/api/v1/alert-escalation-rules` | — | stages[{stage,targetGroupId}] — 대상 그룹이 모두 비면 상단 안내 |
 
 
 | # | 서비스 함수 | API 명 | Method | Path | 요청 파라미터 | 응답 주요 필드 | 접근 권한 | blind | 우선순위 |
 |---|---|---|---|---|---|---|---|---|---|
 | 157 | `getAlertRecipientsSummary` | 수신자 관리 요약 | GET | `/api/v1/alert-recipients/summary` | — | groupCnt, recipientCnt{receiving,absent}, nightCnt | 전산팀·통합관리자 | — | 2 |
 | 158 | `getAlertRecipientGroups` | 수신 그룹 목록 | GET | `/api/v1/alert-recipient-groups` | includeInactive | items[{groupId,name,deptId,dept,useFlg,channels[],validWindow,night,members[{empNo,name}],memberEmpNos[]}], masked | 조회 | worker | 1 |
-| 158.1 | `getAlertRecipientGroupsByGroupId` | 수신 그룹 상세 **(신규)** | GET | `/api/v1/alert-recipient-groups/{groupId}` | groupId | groupId, name, deptId, dept, useFlg, channels[], members[{empNo,name,dept,state,userState}], receivableCnt, conds[], escStages[], deptOptions[], updatedAt | 조회 | worker | 1 |
+| 158.1 | `getAlertRecipientGroupsByGroupId` | 수신 그룹 상세 **(신규)** | GET | `/api/v1/alert-recipient-groups/{groupId}` | groupId | groupId, name, deptId, dept, useFlg, channels[], members[{empNo,name,dept,state,userState}], receivableCnt, conds[], deptOptions[], updatedAt | 조회 | worker | 1 |
 | 159 | `postAlertRecipientGroups` | 수신 그룹 등록 | POST | `/api/v1/alert-recipient-groups` | name, deptId, channels[](MAIL), validWindow, night, memberEmpNos[] | groupId | 쓰기 | — | 1 |
 | 160 | `putAlertRecipientGroupsByGroupId` | 수신 그룹 수정 | PUT | `/api/v1/alert-recipient-groups/{groupId}` | 바뀐 키만 + updatedAt (`preserveEmpty: deptId, channels, memberEmpNos`) | success / 409 동시 수정 | 쓰기 | — | 1 |
 | 161 | `postAlertRecipientGroupsByGroupIdTestSend` | 수신 그룹 테스트 발송 | POST | `/api/v1/alert-recipient-groups/{groupId}/test-send` | — | alertId, queuedCnt, sentCnt, recipients[], skipped[] | 쓰기 | — | 2 |
@@ -174,8 +177,7 @@ P1 이후 항목(검색형 멤버 선택기·부재/수신 전환·삭제·사�
 > 2026-09-16 에 걷어냈다가 2026-10-01 기획 06 RCP-07 로 「부재로/수신으로」 버튼을 되살렸습니다(본문 `state` 필수 · `reason`).
 > 예전 `toggleRecipientState` 는 지우고 `setRecipientState` 를 씁니다.
 >
-> 승격 규칙(`PUT /api/v1/alert-escalation-rules`, No.169)은 이 화면에서 **고치지 않습니다.** 조회만 해서 대상 그룹이 비었는지 안내합니다(RCP-09, 06 Q-04 결정 대기).
-> 규칙은 [알림 현황] 의 「승격 대상」(`GET /api/v1/alerts/escalation-targets`)이 읽습니다.
+> 승격 규칙(`GET/PUT /api/v1/alert-escalation-rules`, No.169)과 「승격 대상」(`GET /api/v1/alerts/escalation-targets`)은 **제거됨(2026-10-03)** 입니다. 엔진이 승격하지 않아 RCP-09 안내도 뺐습니다.
 > 당번 4건(No.166~168, `/api/v1/alert-duties`)은 서버에서 제거됐습니다.
 
 ## 6. 사용 DB 표

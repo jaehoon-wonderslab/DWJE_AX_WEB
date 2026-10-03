@@ -10,7 +10,7 @@ import { EXTRA_PAGES, permRows } from '@shared/constants/menu';
 import { nowStamp } from '@shared/utils/formatUtil';
 import {
   ALERT_CONDITIONS, AUDIT_LOGS, CHAT_HISTORY_SEED, CHAT_HISTORY_SUMMARY,
-  DATA_ACCESS_AUDIT, DOWNLOAD_LOGS, ESCALATION_RULES,
+  DATA_ACCESS_AUDIT, DOWNLOAD_LOGS,
   GW_DEPT_MAP_SEED, GW_DEPT_SOURCE, GW_UNASSIGNED_USERS,
   GLOSSARY, GLOSSARY_DOMAINS, PERM_LOGS, RECIPIENT_GROUPS,
   RECIPIENTS, RETENTION_POLICY, SYNC_DRIFTS, SYNC_FAIL_REASON, SYNC_JOBS, SYNC_MAPS, SYNC_POLICY,
@@ -28,7 +28,6 @@ function store() {
       conditions: JSON.parse(JSON.stringify(ALERT_CONDITIONS)),
       recipients: JSON.parse(JSON.stringify(RECIPIENTS)),
       groups: JSON.parse(JSON.stringify(RECIPIENT_GROUPS)),
-      escalation: JSON.parse(JSON.stringify(ESCALATION_RULES)),
       glossary: JSON.parse(JSON.stringify(GLOSSARY)),
       chatHistory: [...CHAT_HISTORY_SEED],
       downloadLogs: [...DOWNLOAD_LOGS],
@@ -999,8 +998,6 @@ export const systemMock = {
       metricStdId: c.metricId,
       metricNm: c.metric,
       groups: c.groupIds.map((id) => groups.find((g) => g.groupId === id)).filter(Boolean).map((g) => ({ groupId: g.groupId, name: g.name, useFlg: 'Y', memberCnt: g.members.length, receivingCnt: g.members.length })),
-      windowTime: null, scopeDim: 'NONE', evalIntervalSec: 60, ignoreWindow: false, autoClose: false,
-      escalation: [1, 2, 3].map((stage) => ({ stage, on: false })),
     };
   },
 
@@ -1232,18 +1229,10 @@ export const systemMock = {
     if (on === undefined) return fail('E-VALID-001', '바꿀 상태(on)를 보내 주십시오.');
     const next = on === true || on === 'true';
     const using = alertConds().filter((c) => c.on && c.groupIds.includes(g.groupId));
-    if (!next && using.length) return fail('E-RULE-001', `발송 조건 ${using.length}건·승격 규칙 0단계가 이 그룹을 씁니다. 먼저 연결을 바꿔 주십시오.`);
+    if (!next && using.length) return fail('E-RULE-001', `발송 조건 ${using.length}건이 이 그룹을 씁니다. 먼저 연결을 바꿔 주십시오.`);
     const changed = (g.useFlg !== 'N') !== next;
     g.useFlg = next ? 'Y' : 'N';
     return ok(`'${g.name}' 그룹을 ${next ? '사용' : '사용 중지'}로 바꿨습니다.`, { useFlg: g.useFlg, changed });
-  },
-
-  getAlertEscalationRules: () => ({ items: store().escalation }),
-
-  putAlertEscalationRules: ({ stages, rules }) => {
-    const st = store();
-    st.escalation = stages || rules || st.escalation;
-    return ok('승격 규칙을 수정했습니다.', { items: st.escalation });
   },
 
   /* ═══════════ SY-06 용어 사전 ═══════════ */

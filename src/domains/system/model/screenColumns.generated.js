@@ -938,47 +938,27 @@ export const SCREEN_COLUMNS = [
         "field": "byLabel"
       },
       {
-        "title": "데이터 종류",
-        "field": "name"
-      },
-      {
-        "title": "적용",
-        "field": "appliedLabel"
-      },
-      {
-        "title": "결과",
-        "field": "result"
-      },
-      {
         "title": "데이터 항목",
         "field": "name"
-      },
-      {
-        "title": "분류",
-        "field": "categoryNm"
-      },
-      {
-        "title": "적용",
-        "field": "applyLabel"
       },
       {
         "title": "포함 데이터",
         "field": "included"
       },
       {
-        "title": "이 화면에 보이는 열",
+        "title": "열 이름",
         "field": "title"
       },
       {
-        "title": "가리기",
+        "title": "② 가리기",
         "field": "hide"
       },
       {
-        "title": "종류",
+        "title": "③ 종류",
         "field": "kind"
       },
       {
-        "title": "같은 값이 보이는 다른 화면",
+        "title": "함께 가려지는 다른 화면",
         "field": "also"
       },
       {

@@ -238,7 +238,7 @@ export const ENDPOINTS = {
   getCommonMastersEquipments: {
     no: 9, domain: '인증·공통', comp: 'CM-05', screen: '공통', funcId: '',
     name: '설비 목록 조회', method: 'GET', path: '/api/v1/common/masters/equipments',
-    params: 'processId, keyword',
+    params: 'processId, keyword, factory(작업장 이름의 공장 표기 — 예 M-1공장)',
     response: 'equipments[{eqptCd,eqptNm,wcCd,state}]',
     roles: '전 부서', blind: [], priority: 1,
     tables: 'mes.tb_md_eqpt, mes.tb_md_eqpt_by_workcenter',
@@ -1070,14 +1070,7 @@ export const ENDPOINTS = {
     roles: '전 부서', blind: [], priority: 1,
     tables: 'ax.tb_alm_alert, ax.tb_log_audit',
   },
-  getAlertsEscalationTargets: {
-    no: 105, domain: '이상 알림', comp: 'AL-01', screen: '알림 목록·상세', funcId: 'AL-01-F04',
-    name: '승격 대상 조회', method: 'GET', path: '/api/v1/alerts/escalation-targets',
-    params: '',
-    response: 'stages[{stage,waitMin,targets[]}]',
-    roles: '전 부서', blind: [], priority: 2,
-    tables: 'ax.tb_alm_escalation_rule, ax.tb_alm_cond_escalation',
-  },
+
   getAlertsSendLogs: {
     no: 106, domain: '이상 알림', comp: 'AL-01', screen: '알림 목록·상세', funcId: 'AL-01-F01',
     name: '알림 발송 로그 조회', method: 'GET', path: '/api/v1/alerts/send-logs',
@@ -1491,9 +1484,9 @@ export const ENDPOINTS = {
     no: 152.2, domain: '시스템관리', comp: 'SY-04', screen: '이상 알림 발송 조건 관리', funcId: 'SY-04-F02',
     name: '발송 조건 상세', method: 'GET', path: '/api/v1/alert-conditions/{condId}',
     params: 'condId',
-    response: 'condId, name, on, metricStdId, metricNm, unit, unitNm, op, thresholdVal, thresholdText, thresholdUnit, duration, targetScope, target, pickTargets[], severity, channels[], groupIds[], groups[{groupId,name,useFlg,memberCnt,receivingCnt}], validWindow, windowTime, dedupMin, scopeDim, evalIntervalSec, ignoreWindow, autoClose, blindFieldKey, msgTemplate, escalation[{stage,on}], updatedAt',
+    response: 'condId, name, on, metricStdId, metricNm, unit, unitNm, op, thresholdVal, thresholdText, thresholdUnit, duration, targetScope, target, pickTargets[], severity, channels[], groupIds[], groups[{groupId,name,useFlg,memberCnt,receivingCnt}], validWindow, dedupMin, blindFieldKey, updatedAt',
     roles: '전산팀·통합관리자', blind: [], priority: 1,
-    tables: 'ax.tb_alm_cond, ax.tb_alm_cond_channel, ax.tb_alm_cond_group, ax.tb_alm_cond_target, ax.tb_alm_cond_escalation',
+    tables: 'ax.tb_alm_cond, ax.tb_alm_cond_channel, ax.tb_alm_cond_group, ax.tb_alm_cond_target',
   },
   postAlertConditions: {
     no: 153, domain: '시스템관리', comp: 'SY-04', screen: '이상 알림 발송 조건 관리', funcId: 'SY-04-F01',
@@ -1509,7 +1502,7 @@ export const ENDPOINTS = {
     // 대상 설명(target)을 비우면 서버가 대상 구분 표기명을 넣고, 개별 설비(pickTargets)를 비우면 선택을 지웁니다(ALC-04·05)
     preserveEmpty: ['target', 'pickTargets'],
     name: '발송 조건 수정', method: 'PUT', path: '/api/v1/alert-conditions/{condId}',
-    params: '등록과 같음 + 고급 설정(scopeDim · windowTime · evalIntervalSec · ignoreWindow · autoClose · msgTemplate · escalation[{stage ·on}]) — 보낸 키만 바뀜(부분 변경), updatedAt(동시 수정 검사)',
+    params: '등록과 같음 — 보낸 키만 바뀜(부분 변경), updatedAt(동시 수정 검사). 고급 설정 7개 키는 2026-10-03 에 없앴고 보내도 서버가 무시합니다',
     response: 'condId, updatedAt, reach{receivingCnt,byGroup[{groupId,receivingCnt,channelMatch}]}',
     roles: '전산팀·통합관리자', blind: [], priority: 1,
     tables: 'ax.tb_alm_cond',
@@ -1562,7 +1555,7 @@ export const ENDPOINTS = {
     no: 158.1, domain: '시스템관리', comp: 'SY-05', screen: '알림 수신자 관리', funcId: 'SY-05-F01',
     name: '수신 그룹 상세', method: 'GET', path: '/api/v1/alert-recipient-groups/{groupId}',
     params: 'groupId',
-    response: 'groupId, name, validWindow, night, deptId, dept, useFlg, channels[], members[{empNo,name,dept,state,userState}], receivableCnt, conds[{condId,name,on}], escStages[], deptOptions[{value,label}], updatedAt, masked',
+    response: 'groupId, name, validWindow, night, deptId, dept, useFlg, channels[], members[{empNo,name,dept,state,userState}], receivableCnt, conds[{condId,name,on}], deptOptions[{value,label}], updatedAt, masked',
     roles: '전산팀·통합관리자', blind: ['worker'], priority: 1,
     tables: 'ax.tb_alm_recip_group, ax.tb_alm_recip_group_channel, ax.tb_alm_recip_group_member, ax.tb_sys_dept',
   },
@@ -1642,7 +1635,7 @@ export const ENDPOINTS = {
     no: 165.1, domain: '시스템관리', comp: 'SY-05', screen: '알림 수신자 관리', funcId: 'SY-05-F04',
     name: '수신자 영향 조회', method: 'GET', path: '/api/v1/alert-recipients/{recipientId}/impact',
     params: 'recipientId',
-    response: 'empNo, groups[{groupId,name,receivableCntAfter}], zeroGroups[{groupId,name}], affectedConds[{condId,name}], affectedEscStages[]',
+    response: 'empNo, groups[{groupId,name,receivableCntAfter}], zeroGroups[{groupId,name}], affectedConds[{condId,name}]',
     roles: '전산팀·통합관리자', blind: [], priority: 2,
     tables: 'ax.tb_alm_recipient, ax.tb_alm_recip_group_member, ax.tb_alm_cond_group, ax.tb_alm_esc_rule',
   },
@@ -1656,7 +1649,7 @@ export const ENDPOINTS = {
     tables: 'ax.tb_alm_recipient, ax.tb_alm_recip_group_member',
   },
   patchAlertRecipientGroupsByGroupIdState: {
-    // 2026-10-01 기획 06 RCP-08 — 사용 중지/사용. 활성 조건·승격 규칙이 참조하면 409 + 참조 목록
+    // 2026-10-01 기획 06 RCP-08 — 사용 중지/사용. 활성 조건이 참조하면 409 + 참조 목록(승격 규칙은 2026-10-03 에 없앰)
     no: 160.1, domain: '시스템관리', comp: 'SY-05', screen: '알림 수신자 관리', funcId: 'SY-05-F01',
     name: '수신 그룹 사용 중지/사용', method: 'PATCH', path: '/api/v1/alert-recipient-groups/{groupId}/state',
     params: 'on(true|false · 필수)',
@@ -1664,23 +1657,8 @@ export const ENDPOINTS = {
     roles: '전산팀·통합관리자', blind: [], priority: 2,
     tables: 'ax.tb_alm_recip_group',
   },
-  getAlertEscalationRules: {
-    no: 169, domain: '시스템관리', comp: 'SY-05', screen: '알림 수신자 관리', funcId: 'SY-05-F07',
-    name: '승격 규칙 조회', method: 'GET', path: '/api/v1/alert-escalation-rules',
-    params: '',
-    response: 'stages[{stage,stageNm,waitMin,targetGroupId,targetDesc}]',
-    roles: '전산팀·통합관리자', blind: [], priority: 2,
-    tables: 'ax.tb_alm_escalation_rule',
-    note: '수신자 관리 화면에서는 걷어냈다(2026-09-16). 규칙은 알림 현황의 승격 대상이 읽는다',
-  },
-  putAlertEscalationRules: {
-    no: 169, domain: '시스템관리', comp: 'SY-05', screen: '알림 수신자 관리', funcId: 'SY-05-F07',
-    name: '승격 규칙 수정', method: 'PUT', path: '/api/v1/alert-escalation-rules',
-    params: 'stages[{stage,waitMin,targetGroupId}]',
-    response: 'success',
-    roles: '전산팀·통합관리자', blind: [], priority: 2,
-    tables: 'ax.tb_alm_escalation_rule',
-  },
+
+
   getGlossarySummary: {
     no: 170, domain: '시스템관리', comp: 'SY-06', screen: '용어 사전 관리', funcId: 'SY-06-F06',
     name: '용어 사전 요약', method: 'GET', path: '/api/v1/glossary/summary',

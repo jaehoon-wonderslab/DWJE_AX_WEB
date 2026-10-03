@@ -33,7 +33,6 @@ const { open, WEB } = require('../lib/browser');
       return ok(route, { items: rows }, { page: 1, size: Number(p.get('size') || 50), total: rows.length, totalPages: 1 });
     }
     if (path === '/77') return ok(route, alert);
-    if (path.startsWith('/escalation-targets')) return ok(route, { items: [] });
     if (path.startsWith('/send-logs')) return ok(route, { items: [] }, { page: 1, size: 50, total: 0 });
     return route.continue();
   });

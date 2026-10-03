@@ -178,7 +178,7 @@ export function useDataFieldManagerController({ readOnly = false, onChanged, onD
     const notApplied = (res.data?.notApplied || []).map(kindName);
     toast([
       res.message || `${changed.length}개 열을 저장했습니다.`,
-      notApplied.length ? `「${notApplied.join('」·「')}」 종류는 미적용 상태입니다 — 바깥 표에서 적용을 켜야 가려집니다.` : '',
+      notApplied.length ? `「${notApplied.join('」·「')}」 종류는 미적용 상태라 지금은 가려지지 않습니다.` : '',
       raced.length ? '다른 관리자가 먼저 바꾼 열이 있어 목록을 다시 읽었습니다.' : '',
     ].filter(Boolean).join(' '));
     resetDraft();

@@ -2,7 +2,7 @@
  * 이상 알림 목 핸들러 (API 5건)
  */
 import { nowStamp } from '@shared/utils/formatUtil';
-import { ALERT_SEND_LOG, ALERTS, ESCALATION_TARGETS } from './data/alert';
+import { ALERT_SEND_LOG, ALERTS } from './data/alert';
 import { mockState } from './state';
 
 function store() {
@@ -47,7 +47,6 @@ export const alertMock = {
     return { success: true, code: 'SUCCESS', message: '확인 처리했습니다.', data: { state: '확인됨', ackAt: row.ackAt } };
   },
 
-  getAlertsEscalationTargets: () => ({ items: ESCALATION_TARGETS }),
 
   getAlertsSendLogs: ({ page = 1, size = 50 }) => ({ items: ALERT_SEND_LOG, meta: { page, size, total: ALERT_SEND_LOG.length } }),
 };

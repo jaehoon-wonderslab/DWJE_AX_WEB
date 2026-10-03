@@ -73,7 +73,6 @@ async function setup(opts = {}) {
     : ok(route, { items: [{ stdId: 9, category: 'DEFECT', name: '공정 불량률', unit: 'PCT', unitNm: '%', normal: 2, warn: 5, critical: 10, collecting: true }, { stdId: 3, category: 'UPTIME', name: '설비 가동률', unit: 'PCT', unitNm: '%', collecting: false }] }, { meta: { page: 1, size: 200, total: 2 } })));
   // 2단계 계약 — alert-cond 권한만이면 members 키가 없고 memberCnt·receivingCnt 만 옵니다
   await page.route('**/api/v1/alert-recipient-groups**', (route) => ok(route, { items: [{ groupId: 15, name: 'E2E 알림 검증', channels: ['MAIL', 'POPUP'], useFlg: 'Y', memberCnt: 1, receivingCnt: 1 }, { groupId: 11, name: '엔진 가동', channels: ['MAIL'], useFlg: 'Y', memberCnt: 2, receivingCnt: 0 }] }));
-  await page.route('**/api/v1/alert-escalation-rules**', (route) => ok(route, { stages: [1, 2, 3].map((stage) => ({ stage, stageNm: `${stage}차`, targetGroupId: null, on: true })) }));
   await page.route('**/api/v1/common/masters/equipments**', (route) => ok(route, { equipments: [{ eqptCd: 'PR-01', eqptNm: '1호기 프레스' }, { eqptCd: 'PR-02', eqptNm: '2호기 프레스' }] }));
   await page.route('**/api/v1/alert-conditions**', async (route) => {
     const req = route.request();
@@ -133,7 +132,8 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
   try {
     // 삭제 버튼 — 모든 행 비활성 + R-13 툴팁
     const denied = page.locator(`[data-denied="1"][title="${R13}"]`);
-    assert.equal(await denied.count(), state.conds.length, 'every delete is denied for non super admin');
+    // 2026-10-02 — 목록을 전량(size=0)으로 받습니다. 시험 목은 size=0 에 「다른 쪽 조건」 1건을 더 줍니다
+    assert.equal(await denied.count(), await page.locator('.tabulator-row').count(), 'every delete is denied for non super admin');
     assert(await rowButton(page, 0, '삭제').isDisabled(), 'delete disabled');
     assert(!(await rowButton(page, 0, '편집').isDisabled()), 'edit enabled for writer');
     assert(!(await page.getByRole('button', { name: '조건 등록', exact: true }).isDisabled()), 'create enabled');
@@ -176,28 +176,36 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     assert.equal('msgTemplate' in pick, false, 'advanced values untouched are not resent');
 
     // ALC-07·08 — 요약 카드·판정 열
-    for (const t of ['억제 7 · 제외 0 · 실패 1', '발생 1 · 수집 중단 1', '정상', '수신 그룹 2개 관리 →']) {
-      assert(await page.getByText(t, { exact: true }).count(), `summary shows ${t}`);
+    // 2026-10-02 — 요약 카드 부제 · 「수신 그룹 n개 관리 →」 는 뺐고, 엔진 카드는 「마지막 실행 (상태)」
+    for (const t of ['억제 7 · 제외 0 · 실패 1', '발생 1 · 수집 중단 1', '수신 그룹 2개 관리 →']) {
+      assert.equal(await page.getByText(t, { exact: true }).count(), 0, `summary caption removed: ${t}`);
     }
+    assert(await page.getByText('2026-10-01 10:24:00 (정상)', { exact: true }).count(), 'engine card shows last run (state)');
     assert(await page.getByText('수집 중단', { exact: true }).count(), 'stale badge');
     assert(await page.getByText('발생 1 · 정상 2', { exact: true }).count(), 'breach badge');
     assert(await page.getByText('0명', { exact: true }).count(), 'zero receivers');
 
-    // ALC-11 — 검색은 Enter 에만, 채널 필터는 서버로
+    // 2026-10-02 — 위쪽 조회 조건 줄을 빼고 표 머리글 필터로 거릅니다(서버에 다시 묻지 않음)
+    assert.equal(await page.getByLabel('조건 검색', { exact: true }).count(), 0, 'no top filter row');
+    assert(state.listQueries.every((q) => q.size === '0'), 'list loads everything (size=0)');
     const before = state.listQueries.length;
-    await page.getByLabel('조건 검색', { exact: true }).fill('가동률');
-    await page.waitForTimeout(700);
-    assert.equal(state.listQueries.length, before, 'typing does not reload');
-    await page.getByLabel('조건 검색', { exact: true }).press('Enter');
-    await page.waitForTimeout(700);
-    assert.equal(state.listQueries.at(-1).keyword, '가동률', 'keyword sent on Enter');
-    await page.getByRole('combobox', { name: '발송 채널', exact: true }).selectOption('POPUP');
-    await page.waitForTimeout(700);
-    assert.equal(state.listQueries.at(-1).channel, 'POPUP');
-    await page.getByRole('combobox', { name: '발송 채널', exact: true }).selectOption('전체');
-    await page.getByLabel('조건 검색', { exact: true }).fill('');
-    await page.getByRole('button', { name: '조회', exact: true }).click();
-    await page.waitForTimeout(700);
+    const grid = page.locator('.tabulator').first();
+    // 상태 — 목록 필터
+    await grid.locator('.tabulator-col[tabulator-field="on"] .tabulator-header-filter input').click();
+    await page.locator('.tabulator-edit-list .tabulator-edit-list-item').filter({ hasText: /^중지$/ }).first().click();
+    await page.waitForTimeout(400);
+    const stopped = await grid.locator('.tabulator-row').allInnerTexts();
+    assert(stopped.length >= 1 && stopped.every((t) => t.includes('중지')), `state list filter: ${stopped.length}`);
+    await grid.locator('.tabulator-col[tabulator-field="on"] .tabulator-header-filter input').click();
+    await page.locator('.tabulator-edit-list .tabulator-edit-list-item').filter({ hasText: /^전체$/ }).first().click();
+    await page.waitForTimeout(400);
+    // 조건명 — 글자 필터
+    await grid.locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input').fill('단가');
+    await page.waitForTimeout(500);
+    assert.equal(await grid.locator('.tabulator-row').count(), 1, 'name text filter');
+    assert.equal(state.listQueries.length, before, 'header filters do not reload');
+    await grid.locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input').fill('');
+    await page.waitForTimeout(400);
 
     // ALC-06·10·09 — 등록: 위험값 넣기, 0명 그룹 → 경고·확인, 승격 경고
     await page.getByRole('button', { name: '조건 등록', exact: true }).click();
@@ -208,17 +216,18 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     assert.equal(await page.getByLabel('임계값', { exact: true }).inputValue(), '10');
     await page.getByText('엔진 가동', { exact: true }).last().click();
     assert(await page.getByText('이 조건으로는 아무도 받지 못합니다', { exact: true }).count(), 'reach preview warns 0');
-    await page.getByRole('button', { name: /고급 설정/ }).click();
-    await page.getByText('1차', { exact: true }).last().click();
-    assert(await page.getByText('대상 그룹 미지정', { exact: false }).count(), 'escalation target warning');
+    // 2026-10-03 — 「고급 설정」 과 유효 시간대 「지정 시각 1회」 는 없앴습니다
+    assert.equal(await page.getByRole('button', { name: /고급 설정/ }).count(), 0, 'no advanced settings');
+    assert.equal(await page.getByRole('combobox', { name: '유효 시간대', exact: true }).locator('option', { hasText: '지정 시각 1회' }).count(), 0, 'ONCE window not selectable');
     await page.getByRole('button', { name: '등록', exact: true }).last().click();
     await page.getByText('그래도 저장할까요?', { exact: false }).waitFor();
     await page.getByRole('button', { name: '저장', exact: true }).click();
     await page.waitForTimeout(700);
     const created = state.posts.at(-1);
     assert.equal(created.thresholdVal, 10); assert.deepEqual(created.groupIds, [11]); assert.equal(created.metricStdId, 9);
-    assert.deepEqual(created.escalation, [{ stage: 1, on: true }, { stage: 2, on: false }, { stage: 3, on: false }]);
-    assert.equal('msgTemplate' in created, false, 'empty template uses server default');
+    for (const k of ['escalation', 'msgTemplate', 'scopeDim', 'evalIntervalSec', 'windowTime', 'ignoreWindow', 'autoClose']) {
+      assert.equal(k in created, false, `advanced key not sent: ${k}`);
+    }
 
     // ALC-03 — 테스트 결과 모달
     await rowButton(page, 0, '테스트').click();
@@ -235,16 +244,21 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
     assert.equal(await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).count(), 0, 'Esc closes the panel');
+    // 조회 목록 = 머리글 필터를 건 결과(조건명에 「단가」)
+    await page.locator('.tabulator').first().locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input').fill('단가');
+    await page.waitForTimeout(500);
     await excel.click();
     await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click();
     await page.waitForTimeout(700);
+    await page.locator('.tabulator').first().locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input').fill('');
+    await page.waitForTimeout(400);
     await excel.click();
     await page.getByRole('menuitem', { name: /전체 다운로드/ }).click();
     await page.waitForTimeout(900);
     const [view, all] = state.logs.slice(-2);
-    assert.equal(view.scopeCd, 'VIEW'); assert.equal(view.rowCnt, 3, 'view = rows on this page'); assert.equal(view.menuId ?? view.reportId, 'alert-cond');
+    assert.equal(view.scopeCd, 'VIEW'); assert.equal(view.rowCnt, 1, 'view = rows left by the header filter'); assert.equal(view.menuId ?? view.reportId, 'alert-cond');
     assert.equal(view.blindCnt, 1, 'threshold guarded by price is blinded');
-    assert(String(view.condSummary).includes('쪽=1'));
+    assert(String(view.condSummary).includes('열 필터 조건명=단가'), view.condSummary);
     assert.equal(all.scopeCd, 'ALL'); assert.equal(all.rowCnt, 4, 'all = size=0 result'); assert(state.listSizes.includes(0), 'size=0 requested');
 
     // 390px — 관리 열까지 가로 스크롤
@@ -281,7 +295,7 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     assert(await ro.page.getByText('감지 지표 목록을 불러오지 못했습니다', { exact: false }).count(), 'metric load error shown');
     assert(await ro.page.getByText('읽기 전용', { exact: false }).count());
     assert(await ro.page.getByText('알림 엔진 마지막 실행이 67분 전입니다', { exact: false }).count(), 'engine stopped banner');
-    assert(await ro.page.getByText('중지 의심', { exact: true }).count());
+    assert(await ro.page.getByText('2026-10-01 10:24:00 (중지 의심)', { exact: true }).count(), 'engine card shows (중지 의심)');
     await ro.page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).click();
     await ro.page.getByRole('menuitem', { name: /전체 다운로드/ }).click();
     await ro.page.waitForTimeout(800);
@@ -304,5 +318,5 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     assert.deepEqual(sa.state.errors, []);
   } finally { await sa.browser.close(); }
 
-  console.log('PASS: alert-cond — P1 cards·engine banner·eval columns·filters(Enter·channel)·reach 0 confirm·metric std fill·escalation warn, toggle body {on}, confirm on stop, detail-based edit sends changed keys only, PICK targets, test result modal, R-13 delete lock/tooltip, read-only write lock/tooltip, metric 403 error, excel VIEW/ALL(size=0) blindCnt, 390px 관리 column');
+  console.log('PASS: alert-cond — P1 cards·engine banner·eval columns·header filters(list·text)·reach 0 confirm·metric std fill·no advanced settings, toggle body {on}, confirm on stop, detail-based edit sends changed keys only, PICK targets, test result modal, R-13 delete lock/tooltip, read-only write lock/tooltip, metric 403 error, excel VIEW/ALL(size=0) blindCnt, 390px 관리 column');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

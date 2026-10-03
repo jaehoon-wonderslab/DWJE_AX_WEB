@@ -12,15 +12,15 @@
  */
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import Grid, { Gap } from '@shared/components/layout/Grid';
+import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, Card, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, TabulatorGrid, TextField, openConfirmModal,
+  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, TabulatorGrid, openConfirmModal,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
-import { APPLY_TIMING, NO_WRITE_TEXT } from '../controller/useDataPermController';
+import { NO_WRITE_TEXT } from '../controller/useDataPermController';
 import DataFieldManager from './DataFieldManager';
 import DataPermGrid from './DataPermGrid';
 
@@ -31,19 +31,17 @@ const LOG_COLUMNS = [
   { title: '변경 내용', field: 'detailLabel', minWidth: 300, headerSort: false, formatter: 'textarea' },
   { title: '수행자', field: 'byLabel', minWidth: 150, headerSort: false },
 ];
-/** 계정 기준 미리보기 표 — 종류 · 적용 · 결과 */
-const PREVIEW_COLUMNS = [
-  { title: '데이터 종류', field: 'name', minWidth: 160, headerSort: false },
-  { title: '적용', field: 'appliedLabel', minWidth: 100, headerSort: false },
-  { title: '결과', field: 'result', minWidth: 170, headerSort: false },
-];
+/** 탭 — 값은 시험에서 쓰는 이름입니다(2026-10-02 표 · 이력을 탭으로 나눔) */
+const TAB_MATRIX = 'matrix';
+const TAB_LOGS = 'logs';
 
 export default function DataPermView({
   loading, loadError, readOnly, busy, fields, depts, cellValue, lockReason, applyLockReason, toggle, planApply, applyApply,
-  logs, logsLoading, logsError, canSeeAudit, preview, previewRows, previewError, previewing, loadPreview,
+  logs, logsLoading, logsError, canSeeAudit,
   viewCount, exportView, exportAll, reload,
 }) {
-  const [empNo, setEmpNo] = useState('');
+  // 「계정으로 확인」 카드는 뺐습니다(2026-10-02) — 컨트롤러의 미리보기(preview)는 쓰지 않습니다
+  const [tab, setTab] = useState(TAB_MATRIX);
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
   const openModal = useUiStore((state) => state.openModal);
@@ -56,8 +54,9 @@ export default function DataPermView({
   const openFieldManager = () => {
     const guard = { dirty: 0 };
     return openModal({
-      title: '항목 관리 — 화면 보고 가리기',
-      sub: readOnly ? '읽기 전용 — 지금 무엇이 가려지는지 확인만 할 수 있습니다' : '화면에 보이는 열을 골라 가릴 종류에 넣습니다',
+      title: '항목 관리',
+      // 부제는 뺐습니다(2026-10-02) — 읽기 전용이면 안에서 알립니다
+      ...(readOnly ? { sub: '읽기 전용 — 지금 무엇이 가려지는지 확인만 할 수 있습니다' } : null),
       maxWidth: 980,
       render: () => <DataFieldManager onChanged={reload} readOnly={readOnly} onDirtyChange={(n) => { guard.dirty = n; }} />,
       // 바꾼 열이 남아 있으면 「닫기」 전에 묻습니다(DTP-14). 바깥·× 로 닫는 것은 공통 모달이 가로채지 못합니다
@@ -88,19 +87,22 @@ export default function DataPermView({
 
   if (loading) return <Loading />;
 
+  /** 탭 머리 오른쪽 — 그 탭에 쓰는 단추만 둡니다(예전 머리말·카드 오른쪽 단추를 옮김) */
+  const tabActions = {
+    [TAB_MATRIX]: (
+      <>
+        {busy ? <Text style={s.textXs}>저장 중…</Text> : null}
+        <ExportMenuButton viewCount={viewCount} onExportView={exportView} onExportAll={exportAll} />
+        <Button label="항목 관리" size="sm" icon="settings" onPress={openFieldManager} />
+      </>
+    ),
+    [TAB_LOGS]: canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null,
+  };
+
   return (
     <View>
-      <PageHead
-        title="데이터 접근 권한"
-        desc={`부서별로 볼 수 있는 데이터 종류를 지정합니다. 계정은 소속 부서의 설정을 그대로 상속합니다. ${APPLY_TIMING}`}
-        actions={
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <ExportMenuButton viewCount={viewCount} onExportView={exportView} onExportAll={exportAll} />
-            <Button label="메뉴 접근 권한" size="sm" icon="lock" onPress={() => goToScreen('sys-menu')} />
-            <Button label="항목 관리" size="sm" icon="settings" onPress={openFieldManager} />
-          </View>
-        }
-      />
+      {/* 머리말 설명과 [메뉴 접근 권한] 단추는 뺐습니다(2026-10-02) */}
+      <PageHead title="데이터 접근 권한" />
 
       {readOnly ? (
         <>
@@ -110,52 +112,40 @@ export default function DataPermView({
       ) : null}
 
       {/* 체크는 누르는 즉시 서버에 저장됩니다 — 따로 저장하는 단계가 없어 「변경 저장」 버튼을 두지 않습니다 */}
-      <Hint>{`체크는 누르는 즉시 저장되어 그 부서 전 계정에 적용됩니다. 체크를 끈 항목은 화면·엑셀·인쇄물에서 「비공개」로 가려집니다. ${APPLY_TIMING} 미배정 부서는 데이터 권한 0건으로 고정되어 있습니다(모든 종류 비공개).`}</Hint>
-
-      <Card
-        title="부서별 데이터 접근 권한 관리"
-        sub="체크된 항목만 열람할 수 있습니다. 통합관리자 부서는 전 권한, 미배정 부서는 0건으로 고정됩니다."
-        right={busy ? <Text style={s.textXs}>저장 중…</Text> : null}
-        bodyStyle={{ padding: 20, minWidth: 0 }}
-      >
-        {loadError ? (
-          <View style={{ gap: 10 }}>
-            <FormAlert>{loadError}</FormAlert>
-            <View style={{ flexDirection: 'row' }}><Button label="다시 시도" size="sm" icon="refresh" onPress={reload} /></View>
-          </View>
-        ) : !fields.length ? (
-          <EmptyState text="데이터 종류가 없습니다 — 항목 관리에서 만드세요" />
-        ) : (
-          <DataPermGrid fields={fields} depts={depts} cellValue={cellValue} lockReason={lockReason} applyLockReason={applyLockReason} toggle={toggle} onApply={onApply} />
-        )}
-      </Card>
+      <Hint>체크는 누르는 즉시 저장되어 적용됩니다. 체크를 끈 항목은 화면·엑셀·인쇄물에서 「비공개」로 가려집니다.</Hint>
 
       <Gap size={20} />
-      <Grid cols={[1, 1]}>
-        <Card title="계정으로 확인" sub="그 계정에게 종류별로 원본이 보이는지 「비공개」 인지 확인합니다" bodyStyle={{ padding: 20, minWidth: 0, gap: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <TextField label="사번" value={empNo} onChangeText={setEmpNo} placeholder="예) 10001" style={{ minWidth: 160, flex: 1 }} onSubmitEditing={() => loadPreview(empNo)} />
-            <Button label={previewing ? '확인 중…' : '확인'} size="sm" icon="search" onPress={() => loadPreview(empNo)} disabled={previewing} />
-          </View>
-          {previewError ? <FormAlert>{previewError}</FormAlert> : null}
-          {preview ? (
-            <>
-              <Text style={[s.textSm, { fontWeight: '600' }]}>{`${preview.name || '-'}(${preview.empNo || empNo}) · ${preview.dept || '-'}`}</Text>
-              <TabulatorGrid autoWidth bordered headerFilter={false} rows={previewRows} rowKey="fieldKey" columns={PREVIEW_COLUMNS} emptyText="데이터 종류가 없습니다." />
-            </>
-          ) : null}
-        </Card>
-        <Card
-          title="최근 변경 이력"
-          sub="데이터 접근 권한 변경 최근 20건"
-          right={canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null}
-          bodyStyle={{ padding: 20, minWidth: 0 }}
-        >
-          {logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
-            <TabulatorGrid autoWidth bordered headerFilter={false} rows={logs} rowKey="_key" columns={LOG_COLUMNS} emptyText="변경 이력이 없습니다." />
-          )}
-        </Card>
-      </Grid>
+      <CardTabs
+        id="data-perm"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: TAB_MATRIX, label: '부서별 데이터 접근 권한 관리', icon: 'shield', count: fields.length },
+          { value: TAB_LOGS, label: '최근 변경 이력', icon: 'history', count: logsLoading ? undefined : logs.length },
+        ]}
+        right={tabActions[tab]}
+      >
+        {tab === TAB_MATRIX ? (
+          loadError ? (
+            <View style={{ gap: 10 }}>
+              <FormAlert>{loadError}</FormAlert>
+              <View style={{ flexDirection: 'row' }}><Button label="다시 시도" size="sm" icon="refresh" onPress={reload} /></View>
+            </View>
+          ) : !fields.length ? (
+            <EmptyState text="데이터 종류가 없습니다 — 항목 관리에서 만드세요" />
+          ) : (
+            <DataPermGrid fields={fields} depts={depts} cellValue={cellValue} lockReason={lockReason} applyLockReason={applyLockReason} toggle={toggle} onApply={onApply} />
+          )
+        ) : null}
+        {tab === TAB_LOGS ? (
+          <>
+            <Text style={[s.textSm, { marginBottom: 12 }]}>데이터 접근 권한 변경 최근 20건</Text>
+            {logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
+              <TabulatorGrid autoWidth bordered headerFilter={false} rows={logs} rowKey="_key" columns={LOG_COLUMNS} emptyText="변경 이력이 없습니다." />
+            )}
+          </>
+        ) : null}
+      </CardTabs>
     </View>
   );
 }
