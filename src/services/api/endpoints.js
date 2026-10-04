@@ -1071,6 +1071,15 @@ export const ENDPOINTS = {
     tables: 'ax.tb_alm_alert, ax.tb_log_audit',
   },
 
+  getAlertsPopups: {
+    // 2026-10-04 — 발송 채널 POPUP 으로 나에게 온 알림. 우측 상단 토스트(5초)가 1분마다 읽습니다
+    no: 105.1, domain: '이상 알림', comp: 'AL-01', screen: '알림 목록·상세', funcId: 'AL-01-F05',
+    name: '내 팝업 알림 조회', method: 'GET', path: '/api/v1/alerts/popups',
+    params: 'after(sendId — 없으면 기준점 lastSendId 만)',
+    response: 'items[{sendId,alertId,title,level,levelNm,occurredAt,eqptCd,eqptNm,condNm,test}](최대 5 · 오름차순), lastSendId',
+    roles: '전 부서(alert-list)', blind: [], priority: 1,
+    tables: 'ax.tb_alm_send_log, ax.tb_alm_alert',
+  },
   getAlertsSendLogs: {
     no: 106, domain: '이상 알림', comp: 'AL-01', screen: '알림 목록·상세', funcId: 'AL-01-F01',
     name: '알림 발송 로그 조회', method: 'GET', path: '/api/v1/alerts/send-logs',

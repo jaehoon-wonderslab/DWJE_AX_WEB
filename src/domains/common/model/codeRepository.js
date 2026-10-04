@@ -21,7 +21,8 @@ async function loadAll() {
     const grouped = {};
     (data?.codes || []).forEach((c) => {
       if (c.useYn === 'N') return;
-      (grouped[c.groupCd] = grouped[c.groupCd] || []).push({ value: c.cd, label: c.nm, sort: c.sort });
+      // attr1 — 그룹별 부가 값. ALM_CHANNEL 은 알림 엔진 어댑터 코드(비어 있으면 발송 연동 전, V76)
+      (grouped[c.groupCd] = grouped[c.groupCd] || []).push({ value: c.cd, label: c.nm, sort: c.sort, attr1: c.attr1 ?? null });
     });
     Object.values(grouped).forEach((list) => list.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)));
     cache = grouped;

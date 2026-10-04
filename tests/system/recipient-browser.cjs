@@ -20,10 +20,11 @@ const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
 
 const WRITE_TIP = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
+// ALM_CHANNEL attr1 = 엔진 어댑터 코드(V76). 채널은 메일 · 시스템 팝업 2개만 — SMS 는 사용 중지(useYn N)
 const CODES = [
-  ['ALM_CHANNEL', 'MAIL', '메일'], ['ALM_CHANNEL', 'POPUP', '시스템 팝업'],
+  ['ALM_CHANNEL', 'MAIL', '메일', 'MAIL'], ['ALM_CHANNEL', 'POPUP', '시스템 팝업', 'POPUP'], ['ALM_CHANNEL', 'SMS', 'SMS', null, 'N'],
   ['ALM_WINDOW', 'ALWAYS', '24시간 상시'], ['ALM_WINDOW', 'D0820', '08:00 ~ 20:00'],
-].map(([groupCd, cd, nm], i) => ({ groupCd, cd, nm, sort: i, useYn: 'Y' }));
+].map(([groupCd, cd, nm, attr1, useYn], i) => ({ groupCd, cd, nm, attr1: attr1 ?? null, sort: i, useYn: useYn || 'Y' }));
 
 function me({ write = true, worker = true } = {}) {
   return {
@@ -157,12 +158,23 @@ async function scrollToManage(page) {
     await rowBtn(page, 0, 'edit').click();
     const nameInput = page.getByPlaceholder('예) 엔진 가동', { exact: true });
     await nameInput.waitFor();
-    assert(await page.getByText('메일 외에 시스템 팝업도 받습니다', { exact: false }).count(), 'extra channel note');
+    // 발송 채널(2026-10-04) — 메일 · 시스템 팝업 2개만 체크로 고르고, 사용 중지된 SMS 는 선택지에 없음
+    assert(await page.getByText('발송 채널', { exact: true }).count(), 'channel field');
+    assert(await page.getByText('시스템 팝업', { exact: true }).count(), 'popup option');
+    assert(!(await page.getByText('SMS', { exact: true }).count()), 'SMS not selectable');
     assert(await page.getByText('조건 A · 조건 B', { exact: false }).count(), 'conds using this group');
     await nameInput.fill('엔진 가동 2');
     await page.getByRole('button', { name: '수정', exact: true }).click();
     await page.waitForTimeout(600);
     assert.deepEqual(state.puts.at(-1), { id: 11, body: { name: '엔진 가동 2', updatedAt: '2026-09-16 21:17:35' } }, 'name-only save keeps dept/channels/members');
+
+    // 채널 바꾸기 — 시스템 팝업을 빼면 channels 만 보냄
+    await rowBtn(page, 0, 'edit').click();
+    await page.getByPlaceholder('예) 엔진 가동', { exact: true }).waitFor();
+    await page.getByText('시스템 팝업', { exact: true }).last().click();
+    await page.getByRole('button', { name: '수정', exact: true }).click();
+    await page.waitForTimeout(600);
+    assert.deepEqual(state.puts.at(-1), { id: 11, body: { channels: ['MAIL'], updatedAt: '2026-09-16 21:17:35' } }, 'channel change sends channels only');
 
     // 멤버 전원 제외 + 대응 부서 해제 → 확인 → memberEmpNos:[] · deptId:null
     await rowBtn(page, 0, 'edit').click();
@@ -356,5 +368,5 @@ async function scrollToManage(page) {
     assert.deepEqual(ro.state.errors, []);
   } finally { await ro.browser.close(); }
 
-  console.log('PASS: sys-recip — card tabs (no desc·cond button·hint·night/absent), P1 member picker(size=0)·delete 409→force·group use 409·inactive always listed·member list(name(empNo), 외 N명, filter, modal)·no account/hp/messenger·no search row (size=0, header list filters for group/position)·no recipient edit (mail = account email, read-only), detail-based group edit keeps channels/dept/members, empty members confirm + preserveEmpty [], dept null, group test modal, account column, candidate search fills mail, read-only locks + tooltip, worker masking in xls (blindCnt = file note), VIEW/ALL(includeInactive, size=0), 390px 관리 columns');
+  console.log('PASS: sys-recip — card tabs (no desc·cond button·hint·night/absent), P1 member picker(size=0)·delete 409→force·group use 409·inactive always listed·member list(name(empNo), 외 N명, filter, modal)·no account/hp/messenger·no search row (size=0, header list filters for group/position)·no recipient edit (mail = account email, read-only), detail-based group edit keeps channels/dept/members, group channel select (live only, change sends channels), empty members confirm + preserveEmpty [], dept null, group test modal, account column, candidate search fills mail, read-only locks + tooltip, worker masking in xls (blindCnt = file note), VIEW/ALL(includeInactive, size=0), 390px 관리 columns');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

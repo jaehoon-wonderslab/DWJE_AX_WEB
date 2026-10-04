@@ -151,8 +151,7 @@ export default function RecipientView({
       deptOptions,
       candidates,
       showWorker,
-      mailLabel: labelOf(chan, 'MAIL') || '메일',
-      channelLabel: (c) => labelOf(chan, c),
+      channelCodes: chan,
       onSubmit: async (body) => {
         const res = await submitGroup(row?.groupId, body);
         return res.ok || res.code === 'E-NOTFOUND';

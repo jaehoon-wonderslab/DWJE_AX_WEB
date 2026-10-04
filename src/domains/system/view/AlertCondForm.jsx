@@ -20,7 +20,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import {
-  ENGINE_TARGETS, LIVE_CHANNELS, RETIRED_WINDOWS, condBody, condInitial, reachOf, validateCond,
+  ENGINE_TARGETS, RETIRED_WINDOWS, liveChannelsOf, condBody, condInitial, reachOf, validateCond,
 } from '../model/alertFormModel';
 import { askConfirm } from './AlertAsk';
 
@@ -179,14 +179,15 @@ export function openAlertCondForm({
   const unsupported = targetCodes.filter((t) => !ENGINE_TARGETS.includes(t.value)).map((t) => t.label);
 
   // 발송 채널 — 연동 전 채널은 고를 수 없지만, 이미 저장된 값이면 보이고 그대로 남습니다
-  const channelOptions = chan.filter((c) => LIVE_CHANNELS.includes(c.value));
-  LIVE_CHANNELS.forEach((cd) => {
+  const live = liveChannelsOf(chan);
+  const channelOptions = chan.filter((c) => live.includes(c.value));
+  live.forEach((cd) => {
     if (!channelOptions.some((c) => c.value === cd)) channelOptions.push({ value: cd, label: cd === 'MAIL' ? '메일' : '시스템 팝업' });
   });
   (initial.channels || []).forEach((cd) => {
     if (!channelOptions.some((c) => c.value === cd)) channelOptions.push({ value: cd, label: `${label(chan, cd)} (연동 전)` });
   });
-  const offline = chan.filter((c) => !LIVE_CHANNELS.includes(c.value)).map((c) => c.label);
+  const offline = chan.filter((c) => !live.includes(c.value)).map((c) => c.label);
 
   // 수신 그룹 — 선택지에 없는 저장값(사용 중지 그룹 등)도 지우지 않고 보입니다
   const gOptions = [...groupOptions];

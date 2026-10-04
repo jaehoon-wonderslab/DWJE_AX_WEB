@@ -6,7 +6,7 @@
  *  · 팝오버: 최근 미확인 알림 5건(등급 점 · 제목 · 대상 설비 · 발생 시각). 항목을 누르면 목록 화면으로.
  *  · 하단 「알림 전체 보기」 → /alert/list (권한 ID alert-list 는 그대로).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import * as alertService from '@services/api/alertService';
 import { unwrapPaged } from '@services/api/request';
@@ -17,14 +17,19 @@ import { useTheme } from '@shared/theme/useTheme';
 import Icon from '../ui/Icon';
 import { IconButton } from '../ui/Button';
 import { Loading } from '../ui/Feedback';
+import AlertPopupToasts from './AlertPopupToasts';
 
 const PAGE_SIZE = 5;
 /** 배지 갱신 주기 — 알림 엔진의 판정 주기(기본 1분)와 맞춥니다 */
 const POLL_MS = 60_000;
 
 /** @param {boolean} silent 주기 갱신이면 true — 매분 전역 로딩 표시가 번쩍이지 않게 합니다 */
+/** 팝업 토스트 확인 주기 — 엔진이 팝업을 기록하면 이 안에 뜹니다(배지 주기보다 짧게) */
+const POPUP_POLL_MS = 20_000;
+
+// 테스트 발송 알림도 포함합니다(2026-10-04) — 시스템 팝업으로 받은 테스트 알림도 「이상 알림」 에 보이도록. 「테스트」 로 표시합니다
 async function fetchOpenAlerts(silent = false) {
-  const res = await unwrapPaged(alertService.getAlerts({ ackState: 'OPEN', period: '7d', page: 1, size: PAGE_SIZE }, { silent }), 'items');
+  const res = await unwrapPaged(alertService.getAlerts({ ackState: 'OPEN', period: '7d', includeTest: true, page: 1, size: PAGE_SIZE }, { silent }), 'items');
   const items = res?.items || res?.list || [];
   const total = res?.meta?.total ?? items.length;
   return { items, total };
@@ -36,6 +41,9 @@ export default function AlertBell() {
   const { goToScreen } = useAppNavigation();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState({ items: [], total: null, loading: false, failed: false });
+  /** 떠 있는 팝업 토스트 · 마지막으로 받은 발송 로그 번호(null 이면 아직 기준점 전) */
+  const [popups, setPopups] = useState([]);
+  const cursor = useRef(null);
 
   const load = useCallback(async (silent = false) => {
     setState((prev) => ({ ...prev, loading: true, failed: false }));
@@ -46,6 +54,43 @@ export default function AlertBell() {
       setState((prev) => ({ ...prev, loading: false, failed: true }));
     }
   }, []);
+
+  /**
+   * 나에게 온 팝업 — 처음엔 기준점만 받고(지난 팝업은 띄우지 않음), 그 뒤 새 것만 토스트로 띄웁니다.
+   * 새 팝업이 오면 배지도 바로 다시 셉니다.
+   */
+  const pollPopups = useCallback(async () => {
+    try {
+      const res = await alertService.getAlertsPopups(cursor.current == null ? {} : { after: cursor.current }, { silent: true });
+      const data = res?.data ?? res;
+      if (!data) return;
+      const fresh = cursor.current == null ? [] : data.items || [];
+      if (data.lastSendId != null) cursor.current = data.lastSendId;
+      if (fresh.length) {
+        setPopups((prev) => [...prev, ...fresh.filter((f) => !prev.some((p) => p.sendId === f.sendId))].slice(-5));
+        load(true);
+      }
+    } catch {
+      /* 조용히 다음 주기에 다시 — 토스트는 놓쳐도 배지 · 목록에는 남습니다 */
+    }
+  }, [load]);
+
+  useEffect(() => {
+    pollPopups();
+    const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    const timer = setInterval(() => { if (visible()) pollPopups(); }, POPUP_POLL_MS);
+    return () => clearInterval(timer);
+  }, [pollPopups]);
+
+  /** 알림 하나로 — 목록 화면이 그 알림 상세를 엽니다(테스트 알림이면 includeTest 도) */
+  const openAlert = (a) => {
+    setOpen(false);
+    if (!a?.alertId) {
+      goToScreen('alert-list');
+      return;
+    }
+    goToScreen('alert-list', { alertId: String(a.alertId), ...(a.test ? { includeTest: 'true' } : {}) });
+  };
 
   // 진입 시 세고, 이후 주기적으로 다시 셉니다 — 엔진이 새 알림을 만들면 새로고침 없이 배지가 오릅니다
   useEffect(() => {
@@ -79,6 +124,14 @@ export default function AlertBell() {
 
   return (
     <View>
+      <AlertPopupToasts
+        items={popups}
+        onClose={(sendId) => setPopups((prev) => prev.filter((p) => p.sendId !== sendId))}
+        onOpen={(it) => {
+          setPopups((prev) => prev.filter((p) => p.sendId !== it.sendId));
+          openAlert(it);
+        }}
+      />
       <View>
         <IconButton name="bell" onPress={toggle} title="이상 알림" active={open} />
         {badge ? (
@@ -130,12 +183,15 @@ export default function AlertBell() {
                 return (
                   <Pressable
                     key={a.alertId || a.id || i}
-                    onPress={goList}
+                    onPress={() => openAlert(a)}
                     style={({ hovered }) => ({ flexDirection: 'row', gap: 10, paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: theme.divider, backgroundColor: hovered ? theme.surface : 'transparent' })}
                   >
                     <View style={{ width: 3, borderRadius: 2, backgroundColor: dot, marginTop: 2 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={s.listTitle} numberOfLines={1}>{a.title || a.type || '알림'}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[s.listTitle, { flexShrink: 1 }]} numberOfLines={1}>{a.title || a.type || '알림'}</Text>
+                        {a.test ? <Text style={[s.caption, { color: theme.color.info }]}>테스트</Text> : null}
+                      </View>
                       {a.desc ? <Text style={[s.listDesc, { fontSize: 15.5, lineHeight: 16 }]} numberOfLines={2}>{a.desc}</Text> : null}
                       <Text style={[s.caption, { marginTop: 4 }]} numberOfLines={1}>
                         {[a.eqptNm || a.eqptCd, a.agent, a.occurredAt].filter(Boolean).join(' · ')}

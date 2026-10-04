@@ -48,5 +48,7 @@ export const alertMock = {
   },
 
 
+  // 목 모드에는 엔진이 없어 팝업이 오지 않습니다 — 기준점만
+  getAlertsPopups: ({ after } = {}) => ({ items: [], lastSendId: Number(after) || 0 }),
   getAlertsSendLogs: ({ page = 1, size = 50 }) => ({ items: ALERT_SEND_LOG, meta: { page, size, total: ALERT_SEND_LOG.length } }),
 };

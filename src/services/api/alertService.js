@@ -39,6 +39,18 @@ export function getAlertsByAlertId(params) {
 }
 
 /**
+ * 나에게 온 팝업 알림 — 우측 상단 토스트(5초)용 (2026-10-04)
+ *
+ * `GET /api/v1/alerts/popups`
+ * @param {object} [params] after(sendId) — 없으면 기준점(lastSendId)만, items 는 빈 목록
+ * @returns {Promise<object>} items[{sendId,alertId,title,level,levelNm,occurredAt,eqptCd,eqptNm,condNm,test}], lastSendId
+ * @privateRemarks 접근 권한 알림 목록(alert-list) · 우선순위 1
+ */
+export function getAlertsPopups(params, options) {
+  return request('getAlertsPopups', params, options);
+}
+
+/**
  * 알림 확인 처리
  *
  * `POST /api/v1/alerts/{alertId}/ack`

@@ -9,7 +9,7 @@
  *
  * 2026-10-01 기획 06 반영
  *  · RCP-01 이름·연락처·구성원은 데이터 권한(worker)이 없으면 화면·엑셀 모두 '비공개'
- *  · RCP-02 그룹 편집은 상세 응답으로 채우고, 수정은 바뀐 키만 — 채널은 보내지 않아 보존
+ *  · RCP-02 그룹 편집은 상세 응답으로 채우고, 수정은 바뀐 키만 — 발송 채널은 2026-10-04 부터 폼에서 고르며 바꿨을 때만 보냄
  *  · RCP-03 그룹 테스트 결과(수신 예정·제외 사유)
  *  · RCP-04 수신자 계정 상태(사용·정지·승인 대기)
  *  · RCP-06 수신자 등록은 후보 계정 검색 (미배정 소속 제외, R-14)
@@ -292,7 +292,7 @@ export function useRecipientController() {
     /** 수신 그룹 사용 중지/사용 (RCP-08) — 참조 중이면 서버가 409 와 이유를 줍니다 */
     setGroupUse: (groupId, on) => run(() => repo.setGroupUse(groupId, on)),
     searchCandidates: repo.searchRecipientCandidates,
-    /** 수신 그룹 등록·수정 — 본문은 alertFormModel.groupBody 가 만듭니다(수정 시 채널은 보내지 않음) */
+    /** 수신 그룹 등록·수정 — 본문은 alertFormModel.groupBody 가 만듭니다(채널은 바꿨을 때만 보냄) */
     submitGroup: (groupId, body) => run(() => (groupId ? repo.updateGroup(groupId, body) : repo.createGroup(body))),
     /** 수신자 등록(empNo, 계정 메일이 없을 때만 mail) — 수정은 화면에서 없앴습니다(2026-10-03) */
     submitRecipient: (recipientId, body) => run(() => (recipientId ? repo.updateRecipient(recipientId, body) : repo.createRecipient(body))),

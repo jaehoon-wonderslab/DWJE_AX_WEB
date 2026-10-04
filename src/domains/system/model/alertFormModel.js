@@ -11,6 +11,16 @@ export const ENGINE_TARGETS = ['ALL_EQPT', 'PICK'];
 /** 지금 연동된 채널 — SMS·메신저는 연동 전 (기획 05 4.1 비목표) */
 export const LIVE_CHANNELS = ['MAIL', 'POPUP'];
 
+/**
+ * 실제로 보낼 수 있는 채널 코드 — 공통코드 ALM_CHANNEL 의 attr1(엔진 어댑터 코드)이 있는 것(V76).
+ * attr1 을 아직 주지 않는 서버(V76 전)면 LIVE_CHANNELS 로 대신합니다.
+ * @param {Array<{value:string, attr1?:string|null}>} chan ALM_CHANNEL 코드 목록
+ */
+export function liveChannelsOf(chan = []) {
+  const ready = chan.filter((c) => c.attr1).map((c) => c.value);
+  return ready.length ? ready : LIVE_CHANNELS;
+}
+
 /** 개별 설비 항목 → 코드 (서버가 문자열 또는 객체로 줄 수 있습니다) */
 const pickCode = (p) => (p && typeof p === 'object' ? p.targetCd ?? p.eqptCd ?? p.code ?? '' : String(p ?? ''));
 
@@ -176,7 +186,7 @@ export const memberEmpNo = (m) => (m && typeof m === 'object' ? m.empNo ?? '' : 
 
 /** 수신 그룹 편집 초기값 — 상세 응답에서 (기획 06 RCP-02) */
 export function groupInitial(detail, defaults = {}) {
-  if (!detail) return { name: '', deptId: '', validWindow: defaults.validWindow ?? 'ALWAYS', memberEmpNos: [] };
+  if (!detail) return { name: '', deptId: '', validWindow: defaults.validWindow ?? 'ALWAYS', channels: ['MAIL'], memberEmpNos: [] };
   const members = Array.isArray(detail.members) && detail.members.length && typeof detail.members[0] === 'object'
     ? detail.members.map(memberEmpNo)
     : (detail.memberEmpNos || detail.members || []).map(memberEmpNo);
@@ -184,6 +194,7 @@ export function groupInitial(detail, defaults = {}) {
     name: detail.name ?? '',
     deptId: detail.deptId ?? '',
     validWindow: detail.validWindow ?? '',
+    channels: [...(detail.channels || [])],
     memberEmpNos: members.filter(Boolean),
   };
 }
@@ -200,18 +211,21 @@ export function groupBody(v, initial, detail) {
     name: String(v.name || '').trim(),
     deptId,
     validWindow: v.validWindow,
+    // 발송 채널 — 2026-10-04 부터 폼에서 고르고 바꿉니다(바꾸지 않으면 수정 본문에 넣지 않아 그대로 남음)
+    channels: [...(v.channels || [])],
     memberEmpNos: (v.memberEmpNos || []).map(String),
   };
   if (!detail) {
-    const body = { ...full, channels: ['MAIL'] };
+    const body = { ...full };
     if (body.deptId === null) delete body.deptId;
     return body;
   }
-  const before = { ...initial, deptId: initial.deptId === '' ? null : Number(initial.deptId), memberEmpNos: (initial.memberEmpNos || []).map(String) };
+  const before = { ...initial, deptId: initial.deptId === '' ? null : Number(initial.deptId), memberEmpNos: (initial.memberEmpNos || []).map(String), channels: [...(initial.channels || [])] };
   const body = {};
+  const sorted = (k) => k === 'memberEmpNos' || k === 'channels';
   Object.keys(full).forEach((k) => {
-    const a = k === 'memberEmpNos' ? [...full[k]].sort() : full[k];
-    const b = k === 'memberEmpNos' ? [...before[k]].sort() : before[k];
+    const a = sorted(k) ? [...full[k]].sort() : full[k];
+    const b = sorted(k) ? [...before[k]].sort() : before[k];
     if (!same(a, b)) body[k] = full[k];
   });
   if (detail.updatedAt) body.updatedAt = detail.updatedAt;
@@ -222,6 +236,7 @@ export function groupBody(v, initial, detail) {
 export function validateGroup(v) {
   const e = {};
   if (v.name && String(v.name).trim().length > 50) e.name = '그룹명은 50자까지 입력할 수 있습니다.';
+  if (Array.isArray(v.channels) && !v.channels.length) e.channels = '발송 채널을 1개 이상 고르세요.';
   return e;
 }
 

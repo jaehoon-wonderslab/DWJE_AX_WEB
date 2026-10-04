@@ -14,7 +14,7 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { askConfirm } from './AlertAsk';
-import { groupBody, groupInitial, memberEmpNo, validateGroup, validateRecipient } from '../model/alertFormModel';
+import { groupBody, groupInitial, liveChannelsOf, memberEmpNo, validateGroup, validateRecipient } from '../model/alertFormModel';
 
 export { askConfirm };
 
@@ -99,9 +99,17 @@ function MemberPicker({ value = [], onChange, candidates = [], showWorker }) {
  * @param {(cd:string)=>string} cfg.channelLabel 채널 표기
  * @param {Function} cfg.onSubmit (body) => Promise<boolean>
  */
-export function openGroupForm({ detail, windowOptions = [], deptOptions = [], candidates = [], showWorker = true, mailLabel = '메일', channelLabel = (c) => c, onSubmit }) {
+export function openGroupForm({ detail, windowOptions = [], deptOptions = [], candidates = [], showWorker = true, channelCodes = [], onSubmit }) {
   const initial = groupInitial(detail, { validWindow: windowOptions[0]?.value });
-  const extraChannels = (detail?.channels || []).filter((c) => c !== 'MAIL');
+  // 발송 채널(2026-10-04) — 엔진이 실제로 보내는 채널(ALM_CHANNEL.attr1, V76)만 고릅니다.
+  // 연동 전 채널은 이미 저장돼 있을 때만 「(연동 전)」 으로 보이고, 빼면 다시 고를 수 없습니다
+  const live = liveChannelsOf(channelCodes);
+  const channelOptions = channelCodes.filter((c) => live.includes(c.value)).map((c) => ({ value: c.value, label: c.label }));
+  live.forEach((cd) => { if (!channelOptions.some((o) => o.value === cd)) channelOptions.push({ value: cd, label: cd === 'MAIL' ? '메일' : cd === 'POPUP' ? '시스템 팝업' : cd }); });
+  (initial.channels || []).forEach((cd) => {
+    if (!channelOptions.some((o) => o.value === cd)) channelOptions.push({ value: cd, label: `${channelCodes.find((c) => c.value === cd)?.label || cd} (연동 전)` });
+  });
+  const offline = channelCodes.filter((c) => !live.includes(c.value)).map((c) => c.label);
   const condCnt = (detail?.conds || []).length;
   const deptChoices = [{ value: '', label: '없음' }, ...deptOptions];
   if (initial.deptId !== '' && !deptChoices.some((o) => String(o.value) === String(initial.deptId))) {
@@ -118,21 +126,14 @@ export function openGroupForm({ detail, windowOptions = [], deptOptions = [], ca
       { key: 'name', label: '그룹명', required: true, placeholder: '예) 엔진 가동' },
       { key: 'deptId', label: '대응 부서', type: 'select', options: deptChoices },
       { key: 'validWindow', label: '유효 시간대', type: 'select', options: windowOptions },
-      {
-        key: 'channelNote',
-        label: '발송 채널',
-        type: 'static',
-        value: extraChannels.length
-          ? `${mailLabel} 외에 ${extraChannels.map(channelLabel).join(' · ')}도 받습니다(화면에서 바꿀 수 없음)`
-          : `${mailLabel} (고정)`,
-      },
+      { key: 'channels', label: '발송 채널', type: 'check', options: channelOptions, required: true, full: true },
       { key: 'memberEmpNos', type: 'custom', full: true, render: ({ value, onChange }) => <MemberPicker value={value || []} onChange={onChange} candidates={candidates} showWorker={showWorker} /> },
       ...(detail ? [{
         key: 'condNote', label: '연계', type: 'static', full: true,
         value: `이 그룹을 쓰는 발송 조건: ${condCnt ? (detail.conds || []).map((c) => c.name).join(' · ') : '없음'}`,
       }] : []),
     ],
-    note: '멤버를 빼면 이 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.',
+    note: `발송 조건의 채널과 이 그룹의 채널이 겹치는 채널로만 보냅니다. 멤버를 빼면 이 그룹을 쓰는 조건의 받는 사람이 줄어듭니다.${offline.length ? ` ${offline.join(' · ')} 채널은 연동 전이라 고를 수 없습니다.` : ''}`,
     submitLabel: detail ? '수정' : '등록',
     onSubmit: async (v) => {
       const body = groupBody(v, initial, detail);
