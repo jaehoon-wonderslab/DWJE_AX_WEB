@@ -245,6 +245,37 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     await sizeSel.selectOption('10');
     await page.waitForTimeout(300);
     assert.equal(await logCard.locator('.tabulator-row').count(), 10, 'page size 10 applies');
+    // 2026-10-07 — 「작업자」 머리글, 열마다 검색칸, 시각은 직접 입력 + 달력(datetime-local)
+    const heads = await logCard.locator('.tabulator-col-title').allTextContents();
+    assert.deepEqual(heads.map((t) => t.trim()), ['시각', '대상', '변경 내용', '작업자'], `log headers ${heads}`);
+    for (const f of ['targetLabel', 'detailLabel', 'byLabel']) {
+      assert.equal(await logCard.locator(`.tabulator-col[tabulator-field="${f}"] .tabulator-header-filter input`).count(), 1, `filter on ${f}`);
+    }
+    await sizeSel.selectOption('50');
+    await page.waitForTimeout(300);
+    const tsText = logCard.locator('.tabulator-col[tabulator-field="ts"] input[type="search"]');
+    await tsText.fill('2026-10-01 14');
+    await page.waitForTimeout(400);
+    assert.equal(await logCard.locator('.tabulator-row').count(), 1, 'ts typed filter');
+    await tsText.fill('');
+    await page.waitForTimeout(400);
+    assert.equal(await logCard.locator('.tabulator-row').count(), 30, 'ts filter cleared');
+    assert.equal(await logCard.getByRole('button', { name: '시각 달력에서 선택' }).count(), 1, 'calendar button');
+    // 달력에서 고른 값 — 숨긴 datetime-local 칸에 값을 넣고 change 를 보냅니다(브라우저 선택기는 자동화로 조작하지 않음)
+    await logCard.locator('.tabulator-col[tabulator-field="ts"] input[type="datetime-local"]').evaluate((el) => {
+      el.value = '2026-09-30T09:00';
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForTimeout(400);
+    assert.equal(await tsText.inputValue(), '2026-09-30 09:00', 'picker fills text');
+    assert.equal(await logCard.locator('.tabulator-row').count(), 1, 'ts picker filter');
+    await tsText.fill('');
+    const byFilter = logCard.locator('.tabulator-col[tabulator-field="byLabel"] .tabulator-header-filter input');
+    await byFilter.fill('최전산');
+    await page.waitForTimeout(500);
+    assert.equal(await logCard.locator('.tabulator-row').count(), 1, 'performer filter');
+    await byFilter.fill('');
+    await page.waitForTimeout(400);
     assert.equal(await page.getByRole('button', { name: '부서 추가', exact: true }).count(), 0, 'add-dept button only on matrix tab');
     await page.locator('#menu-perm-tab-matrix').click();
     await table.waitFor();
@@ -340,5 +371,5 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     assert.deepEqual(ro.state.errors, []);
   } finally { await ro.browser.close(); }
 
-  console.log('PASS: menu-perm — empty dept dim, parent/child confirm+warn, multi actType logs, grants popover/note, change-log card, action label, group order(menu.js), one access cell per dept, super/unassigned/admin locks, body without perm, no write-revoke confirm, 409 keep+toast, 1 group request, add dept(POST /system/depts, no system dept in init perm), header cleanup, logs paging(10/25/50/100), tree toggle, excel VIEW/ALL blindCnt 0, read-only(unassigned), 390px scroll');
+  console.log('PASS: menu-perm — empty dept dim, parent/child confirm+warn, multi actType logs, grants popover/note, change-log card, action label, group order(menu.js), one access cell per dept, super/unassigned/admin locks, body without perm, no write-revoke confirm, 409 keep+toast, 1 group request, add dept(POST /system/depts, no system dept in init perm), header cleanup, logs paging(10/25/50/100), logs column filters + ts text/calendar, 작업자 header, tree toggle, excel VIEW/ALL blindCnt 0, read-only(unassigned), 390px scroll');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

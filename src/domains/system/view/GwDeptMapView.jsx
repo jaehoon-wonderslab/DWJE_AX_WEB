@@ -351,15 +351,21 @@ export default function GwDeptMapView({
     if (!picked.length) return;
     const names = picked.slice(0, LIST_MAX).map((u) => (u.name ? `${u.name}(${u.empNo})` : u.empNo)).join(', ');
     const rest = picked.length > LIST_MAX ? ` 외 ${picked.length - LIST_MAX}명` : '';
+    // 배정 계정은 미배정으로 되돌릴 수도 있어 미배정 부서를 맨 끝에 붙입니다(2026-10-07 피드백 — 「부서」 탭에는 있는데 선택지에 없음).
+    // 서버는 미배정으로 옮길 때 그 계정의 추가 허용을 거둡니다(API 계정 부서 이동 moveDept)
+    const unassignedDept = summary?.unassignedDept;
+    const assignedPickOptions = unassignedDept?.deptId != null && !depts.some((d) => String(d.id) === String(unassignedDept.deptId))
+      ? [...movePickOptions, { value: unassignedDept.deptId, label: unassignedDept.deptNm || '미배정' }]
+      : movePickOptions;
     openFormModal({
       title: '선택 계정 부서 변경',
       sub: `선택 ${picked.length}명`,
       initial: { deptId: '' },
       fields: [
-        { key: 'deptId', label: '부서', type: 'select', options: movePickOptions, required: true, full: true },
+        { key: 'deptId', label: '부서', type: 'select', options: assignedPickOptions, required: true, full: true },
         { key: 'who', label: '바꿀 사람', type: 'static', full: true, value: `${names}${rest}` },
       ],
-      note: '고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',
+      note: `고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다. ${unassignedDept?.deptNm || '미배정'}으로 옮기면 고정 권한만 남고 계정별 추가 허용은 회수됩니다.`,
       submitLabel: `${picked.length}명 변경`,
       onSubmit: async (v) => {
         const targets = picked.filter((u) => String(u.deptId) !== String(v.deptId)).map((u) => u.empNo);

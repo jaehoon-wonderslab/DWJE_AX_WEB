@@ -57,7 +57,7 @@ function EquipmentPicker({ value = [], onChange, search }) {
         <TextField
           value={keyword}
           onChangeText={setKeyword}
-          placeholder="설비 코드·이름 (예: PR-01)"
+          placeholder="1공장 프레스 설비 코드·이름 (예: PRESS 01호기)"
           accessibilityLabel="설비 검색"
           onSubmitEditing={run}
           style={{ flexGrow: 1, flexBasis: 200, marginBottom: 0 }}
@@ -208,7 +208,7 @@ export function openAlertCondForm({
 
   return openFormModal({
     title: detail ? '발송 조건 편집' : '발송 조건 등록',
-    sub: '언제 · 무엇을 기준으로 보낼지 정합니다. 받는 사람은 수신 그룹으로 연결합니다',
+    // 부제(「언제 · 무엇을 기준으로 …」)는 뺐습니다(2026-10-07)
     wide: true,
     initial,
     validate: (v) => {
@@ -243,7 +243,8 @@ export function openAlertCondForm({
       { key: 'dedupMin', label: '중복 억제', type: 'select', options: codes.ALM_DEDUP || [] },
       { key: 'reachNote', type: 'custom', full: true, render: ({ values }) => <ReachPreview values={values} groups={reachGroups} channelLabel={channelLabel} /> },
     ],
-    note: `판정은 이 조건의 임계값으로 합니다. 지표 기준값은 참고용입니다. 수신 그룹을 골라 연결하며, 멤버·연락처는 알림 수신자 관리에서 바꿉니다.${offline.length ? ` ${offline.join(' · ')} 채널은 연동 전이라 고를 수 없습니다.` : ''}`,
+    // 아래 안내(「판정은 이 조건의 임계값으로 …」)는 뺐습니다(2026-10-07). 연동 전 채널 안내만 남깁니다
+    note: offline.length ? `${offline.join(' · ')} 채널은 연동 전이라 고를 수 없습니다.` : undefined,
     submitLabel: detail ? '수정' : '등록',
     onSubmit: async (v) => {
       // 아무도 받지 못하는 조건 — 저장은 막지 않고 한 번 더 묻습니다 (ALC-06)

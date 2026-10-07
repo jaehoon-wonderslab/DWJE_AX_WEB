@@ -196,7 +196,10 @@ export default function AlertCondView({
       />
 
       {eng.judge === 'STOPPED' ? (
-        <FormAlert tone="error">{`알림 엔진 마지막 실행이 ${eng.lagMin ?? '?'}분 전입니다. 조건을 저장해도 판정되지 않습니다.`}</FormAlert>
+        // 아래 요약 카드와 붙지 않게 띄웁니다(2026-10-07)
+        <View style={{ marginBottom: 16 }}>
+          <FormAlert tone="error">{`알림 엔진 마지막 실행이 ${eng.lagMin ?? '?'}분 전입니다. 조건을 저장해도 판정되지 않습니다.`}</FormAlert>
+        </View>
       ) : null}
       {!canWrite ? <Hint icon="lock">{`읽기 전용 — ${WRITE_DENIED_TIP} 목록·요약·엑셀은 그대로 볼 수 있습니다.`}</Hint> : null}
       {loadError ? <FormAlert tone="error">{`${loadError}. 조건을 등록할 수 없습니다.`}</FormAlert> : null}
@@ -217,14 +220,12 @@ export default function AlertCondView({
       </Grid>
       <Gap />
 
-      <Hint>
-        {/* 문장마다 줄을 바꿉니다(2026-10-03) */}
-        {'발송 조건은 언제 · 무엇을 기준으로 보낼지 정합니다.\n수신 그룹을 골라 연결합니다.\n멤버·연락처는 알림 수신자 관리에서 바꿉니다.'}
-      </Hint>
+      {/* 「발송 조건은 언제 · 무엇을 …」 안내 상자는 뺐습니다(2026-10-07) */}
 
       {/* 위쪽 조회 조건 줄은 뺐습니다(2026-10-02) — 표 머리글 필터로 거릅니다(목록형: 상태·지표·지속·심각도·시간대·중복·판정 / 글자: 조건명·임계값·대상·채널·그룹) */}
 
-      <Card title="발송 조건" sub={`${itemsMeta?.total ?? items.length}건${loading ? ' · 불러오는 중' : ''}`} tight>
+      {/* 카드 부제 「n건」 은 뺐습니다(2026-10-07) — 건수는 위 「등록 조건」 카드에 있습니다 */}
+      <Card title="발송 조건" sub={loading ? '불러오는 중' : undefined} tight>
         {listError ? (
           <View style={{ padding: 16, gap: 8 }}>
             <FormAlert tone="error">{`발송 조건을 불러오지 못했습니다 — ${listError}`}</FormAlert>

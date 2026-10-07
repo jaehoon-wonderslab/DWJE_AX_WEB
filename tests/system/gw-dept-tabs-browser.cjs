@@ -7,7 +7,7 @@
  *    [부서 등록] 초기 권한 선택지에 시스템 부서 없음 · 숫자로 전송, 1000px 에서 「관리」 열까지 가로 스크롤
  *  · 계정 관리에는 「부서」 탭이 없음
  *  · 배정 계정 탭 — 미배정 계정은 빠짐, 체크한 계정을 고른 부서로 변경(사람마다 PUT users/{empNo}/dept, 이미 그 부서인 사람은 보내지 않음),
- *    실패한 사람은 결과 창에 사유, 쪽 나누기(기본 50 · 10/25/50/100), 머리글 「전체 선택」은 지금 쪽만 고르고
+ *    부서 선택지 끝에 미배정(되돌리기), 실패한 사람은 결과 창에 사유, 쪽 나누기(기본 50 · 10/25/50/100), 머리글 「전체 선택」은 지금 쪽만 고르고
  *    필터 · 쪽 이동 · 표시 건수가 바뀌면 선택이 풀림
  *
  * page.route 로 시스템 API 를 흉내 냅니다(로그인만 실제 API).
@@ -190,6 +190,9 @@ const { open, WEB } = require('../lib/browser');
       await panel.locator('.tabulator-row', { hasText: empNo }).locator('input[type="checkbox"]').check();
     }
     await page.getByRole('button', { name: '선택 3명 부서 변경', exact: true }).click();
+    const assignedOpts = await page.getByRole('combobox', { name: '부서', exact: true }).locator('option').allTextContents();
+    assert.equal(assignedOpts[assignedOpts.length - 1], '미배정', `배정 계정 선택지 끝에 미배정: ${assignedOpts}`);
+    assert(!assignedOpts.includes('통합관리자'), '통합관리자 선택지 없음');
     await page.getByRole('combobox', { name: '부서', exact: true }).selectOption('4');
     const before = sent.length;
     await modalButton('3명 변경').click();

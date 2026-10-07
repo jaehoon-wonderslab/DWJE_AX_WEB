@@ -73,7 +73,10 @@ async function setup(opts = {}) {
     : ok(route, { items: [{ stdId: 9, category: 'DEFECT', name: '공정 불량률', unit: 'PCT', unitNm: '%', normal: 2, warn: 5, critical: 10, collecting: true }, { stdId: 3, category: 'UPTIME', name: '설비 가동률', unit: 'PCT', unitNm: '%', collecting: false }] }, { meta: { page: 1, size: 200, total: 2 } })));
   // 2단계 계약 — alert-cond 권한만이면 members 키가 없고 memberCnt·receivingCnt 만 옵니다
   await page.route('**/api/v1/alert-recipient-groups**', (route) => ok(route, { items: [{ groupId: 15, name: 'E2E 알림 검증', channels: ['MAIL', 'POPUP'], useFlg: 'Y', memberCnt: 1, receivingCnt: 1 }, { groupId: 11, name: '엔진 가동', channels: ['MAIL'], useFlg: 'Y', memberCnt: 2, receivingCnt: 0 }] }));
-  await page.route('**/api/v1/common/masters/equipments**', (route) => ok(route, { equipments: [{ eqptCd: 'PR-01', eqptNm: '1호기 프레스' }, { eqptCd: 'PR-02', eqptNm: '2호기 프레스' }] }));
+  await page.route('**/api/v1/common/masters/equipments**', (route) => {
+    state.eqptQuery = Object.fromEntries(new URL(route.request().url()).searchParams);
+    return ok(route, { equipments: [{ eqptCd: 'PR-01', eqptNm: '1호기 프레스' }, { eqptCd: 'PR-02', eqptNm: '2호기 프레스' }] });
+  });
   await page.route('**/api/v1/alert-conditions**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -120,6 +123,8 @@ async function setup(opts = {}) {
   await page.goto(`${WEB}/system/alert-condition`);
   await page.getByText('시험 조건 5', { exact: true }).first().waitFor({ timeout: 90000 });
   await page.waitForTimeout(500);
+  // 2026-10-07 — 안내 상자 · 카드 부제 「n건」 없음
+  assert.equal(await page.getByText('발송 조건은 언제 · 무엇을 기준으로', { exact: false }).count(), 0, 'no hint box');
   return { page, browser, state };
 }
 
@@ -167,6 +172,12 @@ const rowButton = (page, rowIdx, label) => page.locator('.tabulator-row').nth(ro
     await page.getByLabel('설비 검색', { exact: true }).fill('PR');
     await page.getByRole('button', { name: '설비 검색', exact: true }).click();
     await page.getByLabel('PR-01 추가', { exact: true }).click();
+    // 1공장 프레스만(2026-10-07) — factory · kind 를 함께 보냅니다
+    assert.equal(state.eqptQuery?.factory, 'M-1공장', 'factory');
+    assert.equal(state.eqptQuery?.kind, 'PRESS', 'press only');
+    // 폼 부제 · 아래 안내 문장은 뺐습니다(2026-10-07)
+    assert.equal(await page.getByText('받는 사람은 수신 그룹으로 연결합니다', { exact: false }).count(), 0, 'no form sub');
+    assert.equal(await page.getByText('판정은 이 조건의 임계값으로 합니다', { exact: false }).count(), 0, 'no form note');
     await page.getByRole('button', { name: '수정', exact: true }).click();
     await page.waitForTimeout(600);
     const pick = state.puts.at(-1).body;

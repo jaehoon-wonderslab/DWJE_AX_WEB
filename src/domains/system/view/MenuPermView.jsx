@@ -14,7 +14,7 @@ import { Text, View } from 'react-native';
 import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Loading, TabulatorGrid, openConfirmModal, openFormModal,
+  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Loading, TabulatorGrid, dateTimeHeaderFilter, openConfirmModal, openFormModal,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
@@ -23,12 +23,16 @@ import { NO_WRITE_TEXT } from '../controller/useMenuPermController';
 // 부서 권한 복사 폼은 2026-10-07 「부서 추가」 로 바꾸며 쓰지 않습니다(파일은 되살릴 수 있게 남겨 둠)
 import MenuPermGrid from './MenuPermGrid';
 
-/** 변경 이력 표 — 시각 · 대상 · 변경 내용 · 수행자 (좁은 화면은 표 안에서 가로 스크롤) */
+/**
+ * 변경 이력 표 — 시각 · 대상 · 변경 내용 · 작업자 (좁은 화면은 표 안에서 가로 스크롤)
+ * 열마다 머리글 검색칸이 있습니다(2026-10-07). 시각은 글자를 직접 치거나 달력 단추로 날짜 · 시각을 고릅니다.
+ * 「수행자」 → 「작업자」(2026-10-07)
+ */
 const LOG_COLUMNS = [
-  { title: '시각', field: 'ts', minWidth: 160, headerSort: false },
+  { title: '시각', field: 'ts', minWidth: 210, headerSort: false, ...dateTimeHeaderFilter() },
   { title: '대상', field: 'targetLabel', minWidth: 220, headerSort: false },
   { title: '변경 내용', field: 'detailLabel', minWidth: 320, headerSort: false, formatter: 'textarea' },
-  { title: '수행자', field: 'byLabel', minWidth: 150, headerSort: false },
+  { title: '작업자', field: 'byLabel', minWidth: 150, headerSort: false },
 ];
 
 /** 변경 이력 한 쪽 건수 — 전량을 받아 표에서 쪽을 나눕니다(2026-10-07). 표시 건수는 10 · 25 · 50 · 100 중에서 고릅니다 */
@@ -196,7 +200,6 @@ export default function MenuPermView({
               fillWidth
               widthHint={false}
               bordered
-              headerFilter={false}
               pageSize={LOG_PAGE_SIZE}
               pageSizes={LOG_PAGE_SIZES}
               rows={logs}

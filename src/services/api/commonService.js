@@ -272,7 +272,7 @@ export function getCommonMastersProcesses(params) {
  * 설비 목록 조회
  *
  * `GET /api/v1/common/masters/equipments`
- * @param {object} params processId, keyword
+ * @param {object} params processId, keyword, factory, kind(PRESS)
  * @returns {Promise<object>} equipments[{eqptCd,eqptNm,wcCd,state}]
  * @privateRemarks 접근 권한 전 부서 · 우선순위 1
  */

@@ -10,7 +10,7 @@ import { clearSession, saveSession } from '@shared/utils/authStorage';
  * 실제 판정은 서버가 담당하고 이 스토어는 /auth/me 의 유효 권한을 표시합니다.
  *  · menuPerms — 접근 가능한 화면 ID 배열 ('*' 는 전체)
  *  · dataPerms — 접근 가능한 데이터 항목 key 배열 ('*' 는 전체)
- *  · dataFields — 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
+ *  · dataFields — 적용 중인 데이터 항목 정의 [{ key, name, attrs[] }]
  *  · 쓰기 판정 — 2026-10-03 부터 별도 쓰기 칸이 없습니다. 화면에 접근할 수 있으면 그 화면의 모든 동작을 허용하고,
  *    미배정 계정만 쓰기 불가입니다(통합관리자는 전부 통과). /auth/me 의 writePerms 는 호환용이라 보지 않습니다.
  *  · pwdChangeRequired — 초기 비밀번호를 바꾸기 전인지. true 이면 서버가 거의 모든 API 를 막으므로(R-04)
@@ -35,7 +35,7 @@ export const useAuthStore = create((set, get) => ({
   refreshToken: '',
   menuPerms: [], // 접근 가능한 화면 ID 목록
   dataPerms: [], // 접근 가능한 데이터 항목 key 목록
-  dataFields: [], // 적용 중인 데이터 항목 정의 [{ key, name, category, attrs[] }]
+  dataFields: [], // 적용 중인 데이터 항목 정의 [{ key, name, attrs[] }]
   /** 응답 필드명 → 항목 key. dataFields 에서 파생합니다 (조회할 때마다 훑지 않으려고 미리 만듭니다) */
   attrIndex: {},
   servingModelVer: '', // 현재 서비스 중인 AI 모델 버전 (사이드바 표기용)
