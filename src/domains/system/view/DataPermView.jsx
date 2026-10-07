@@ -9,81 +9,48 @@
  *  · sys-data 쓰기 권한이 없으면 읽기 전용 — 체크·항목 관리의 저장·삭제가 꺼집니다(엑셀은 그대로)
  *  · 엑셀은 「조회 목록 / 전체」 두 범위
  * 사용 API — GET/PUT /api/v1/system/data-perms · /api/v1/system/data-fields/* (mapping 포함)
+ *
+ * 2026-10-07 — 항목 단위 권한(V82). 표를 「항목 × 부서」 하나로 바꿨습니다(ItemPermGrid).
+ *  · 행 = 항목(화면에 보이는 이름), 출력 화면 열, 부서마다 열람 체크 — 묶음(종류) · [항목 관리] 단추 · 모달은 없습니다
+ *  · 「제거됨」: DataFieldManager(항목 관리 모달) · DataPermGrid(종류 × 부서 표) — 파일은 남겨 둡니다(되살릴 수 있게)
+ * 사용 API — GET /api/v1/system/data-perms · PUT /api/v1/system/data-fields/item-perms
  */
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, TabulatorGrid, openConfirmModal,
+  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, TabulatorGrid, dateTimeHeaderFilter,
 } from '@shared/components/ui';
-import { useAppNavigation } from '@shared/hooks/useAppNavigation';
-import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { NO_WRITE_TEXT } from '../controller/useDataPermController';
-import DataFieldManager from './DataFieldManager';
-import DataPermGrid from './DataPermGrid';
+import ItemPermGrid from './ItemPermGrid';
 
-/** 변경 이력 표 — 시각 · 대상 · 변경 내용 · 수행자 (DTP-10) */
+/**
+ * 변경 이력 표 — 시각 · 대상 · 변경 내용 · 작업자 (DTP-10)
+ * 2026-10-07: 「수행자」 → 「작업자」, 열마다 머리글 검색칸(시각은 직접 입력 + 달력), 전량을 받아 쪽 나누기
+ */
 const LOG_COLUMNS = [
-  { title: '시각', field: 'ts', minWidth: 160, headerSort: false },
+  { title: '시각', field: 'ts', minWidth: 210, headerSort: false, ...dateTimeHeaderFilter() },
   { title: '대상', field: 'targetLabel', minWidth: 160, headerSort: false },
   { title: '변경 내용', field: 'detailLabel', minWidth: 300, headerSort: false, formatter: 'textarea' },
-  { title: '수행자', field: 'byLabel', minWidth: 150, headerSort: false },
+  { title: '작업자', field: 'byLabel', minWidth: 150, headerSort: false },
 ];
+/** 변경 이력 표시 건수 — 10 · 25 · 50 · 100, 기본 50 */
+const LOG_PAGE_SIZES = [10, 25, 50, 100];
+const LOG_PAGE_SIZE = 50;
 /** 탭 — 값은 시험에서 쓰는 이름입니다(2026-10-02 표 · 이력을 탭으로 나눔) */
 const TAB_MATRIX = 'matrix';
 const TAB_LOGS = 'logs';
 
 export default function DataPermView({
-  loading, loadError, readOnly, busy, fields, depts, cellValue, lockReason, applyLockReason, toggle, planApply, applyApply,
-  logs, logsLoading, logsError, canSeeAudit,
+  loading, loadError, readOnly, busy, depts, lockReason,
+  items, itemCell, toggleItem, offTableOf,
+  logs, logsLoading, logsError,
   viewCount, exportView, exportAll, reload,
 }) {
-  // 「계정으로 확인」 카드는 뺐습니다(2026-10-02) — 컨트롤러의 미리보기(preview)는 쓰지 않습니다
   const [tab, setTab] = useState(TAB_MATRIX);
   const s = useCommonStyles();
-  const { goToScreen } = useAppNavigation();
-  const openModal = useUiStore((state) => state.openModal);
-
-  /**
-   * 무엇을 가릴지 정하는 곳 — 화면을 고르고 그 화면에 보이는 열을 골라 종류에 넣습니다.
-   * 새 종류가 생기면 아래 표에 행이 늘어나므로 닫지 않아도 표를 다시 읽습니다.
-   * 쓰기 권한이 없으면 열어서 보기만 합니다.
-   */
-  const openFieldManager = () => {
-    const guard = { dirty: 0 };
-    return openModal({
-      title: '항목 관리',
-      // 부제는 뺐습니다(2026-10-02) — 읽기 전용이면 안에서 알립니다
-      ...(readOnly ? { sub: '읽기 전용 — 지금 무엇이 가려지는지 확인만 할 수 있습니다' } : null),
-      maxWidth: 980,
-      render: () => <DataFieldManager onChanged={reload} readOnly={readOnly} onDirtyChange={(n) => { guard.dirty = n; }} />,
-      // 바꾼 열이 남아 있으면 「닫기」 전에 묻습니다(DTP-14). 바깥·× 로 닫는 것은 공통 모달이 가로채지 못합니다
-      footer: (close) => (
-        <Button
-          label="닫기"
-          onPress={() => {
-            if (!guard.dirty) { close(); return; }
-            openConfirmModal({
-              title: '저장하지 않은 변경',
-              message: `바꾼 열 ${guard.dirty}개가 저장되지 않았습니다. 닫으면 버립니다.`,
-              confirmLabel: '버리고 닫기',
-              danger: true,
-              onConfirm: close,
-            });
-          }}
-        />
-      ),
-    });
-  };
-
-  /** 적용 켜기/끄기 — 확인 창을 거칩니다 (DTP-04) */
-  const onApply = (fieldKey) => {
-    const plan = planApply(fieldKey);
-    if (!plan) return;
-    openConfirmModal({ ...plan.confirm, onConfirm: () => applyApply(plan) });
-  };
 
   if (loading) return <Loading />;
 
@@ -93,10 +60,11 @@ export default function DataPermView({
       <>
         {busy ? <Text style={s.textXs}>저장 중…</Text> : null}
         <ExportMenuButton viewCount={viewCount} onExportView={exportView} onExportAll={exportAll} />
-        <Button label="항목 관리" size="sm" icon="settings" onPress={openFieldManager} />
+        {/* [항목 관리] 단추는 뺐습니다(2026-10-07) — 이 표에서 항목마다 부서를 바로 정합니다 */}
       </>
     ),
-    [TAB_LOGS]: canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null,
+    // [보안 감사 로그에서 더 보기] 는 뺐습니다(2026-10-07)
+    [TAB_LOGS]: null,
   };
 
   return (
@@ -112,7 +80,8 @@ export default function DataPermView({
       ) : null}
 
       {/* 체크는 누르는 즉시 서버에 저장됩니다 — 따로 저장하는 단계가 없어 「변경 저장」 버튼을 두지 않습니다 */}
-      <Hint>체크는 누르는 즉시 저장되어 적용됩니다. 체크를 끈 항목은 화면·엑셀·인쇄물에서 「비공개」로 가려집니다.</Hint>
+      {/* 한 줄 안내 대신 동작 방식을 풀어 씁니다(2026-10-07 「사람이 이해하기 어려운 구조」 피드백) */}
+      <DataPermGuide />
 
       <Gap size={20} />
       <CardTabs
@@ -120,7 +89,7 @@ export default function DataPermView({
         value={tab}
         onChange={setTab}
         items={[
-          { value: TAB_MATRIX, label: '부서별 데이터 접근 권한 관리', icon: 'shield', count: fields.length },
+          { value: TAB_MATRIX, label: '부서별 데이터 접근 권한 관리', icon: 'shield', count: viewCount },
           { value: TAB_LOGS, label: '최근 변경 이력', icon: 'history', count: logsLoading ? undefined : logs.length },
         ]}
         right={tabActions[tab]}
@@ -131,21 +100,56 @@ export default function DataPermView({
               <FormAlert>{loadError}</FormAlert>
               <View style={{ flexDirection: 'row' }}><Button label="다시 시도" size="sm" icon="refresh" onPress={reload} /></View>
             </View>
-          ) : !fields.length ? (
-            <EmptyState text="데이터 종류가 없습니다 — 항목 관리에서 만드세요" />
+          ) : !items.length ? (
+            <EmptyState text="항목이 없습니다." />
           ) : (
-            <DataPermGrid fields={fields} depts={depts} cellValue={cellValue} lockReason={lockReason} applyLockReason={applyLockReason} toggle={toggle} onApply={onApply} />
+            <ItemPermGrid items={items} depts={depts} itemCell={itemCell} lockReason={lockReason} toggleItem={toggleItem} offTableOf={offTableOf} />
           )
         ) : null}
         {tab === TAB_LOGS ? (
-          <>
-            <Text style={[s.textSm, { marginBottom: 12 }]}>데이터 접근 권한 변경 최근 20건</Text>
-            {logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
-              <TabulatorGrid autoWidth bordered headerFilter={false} rows={logs} rowKey="_key" columns={LOG_COLUMNS} emptyText="변경 이력이 없습니다." />
-            )}
-          </>
+          // 「최근 20건」 부제 · 열 너비 안내는 뺐습니다(2026-10-07)
+          logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
+            <TabulatorGrid
+              autoWidth
+              fillWidth
+              widthHint={false}
+              bordered
+              pageSize={LOG_PAGE_SIZE}
+              pageSizes={LOG_PAGE_SIZES}
+              rows={logs}
+              rowKey="_key"
+              columns={LOG_COLUMNS}
+              emptyText="변경 이력이 없습니다."
+            />
+          )
         ) : null}
       </CardTabs>
+    </View>
+  );
+}
+
+/**
+ * 이 화면이 하는 일 — 처음 보는 관리자가 표를 읽을 수 있게 네 줄로 풀어 둡니다(2026-10-07)
+ *  · 행(데이터 항목) = 함께 가릴 값 묶음, 열(부서) = 누가 볼 수 있나, 체크 = 볼 수 있음
+ */
+function DataPermGuide() {
+  const lines = [
+    ['표의 행', '「항목」 은 화면에 보이는 값의 이름입니다. 같은 항목이 여러 화면에 나오면 「출력 화면」 칸에 모두 적힙니다.'],
+    ['부서 칸 체크', '체크한 부서의 사람은 그 항목을 그대로 봅니다. 체크를 끄면 그 부서 사람에게는 모든 출력 화면 · 엑셀 · 인쇄물에서 「●●●● 비공개」 로 보입니다.'],
+    ['저장', '체크는 누르는 즉시 저장됩니다. 다른 사람의 화면에는 그 화면을 다시 열 때 반영됩니다.'],
+    ['가릴 수 없는 항목', '화면마다 다른 값을 담는 공용 키, 로그인 · 권한에 쓰는 시스템 값은 체크할 수 없습니다. 메뉴(화면) 자체를 막으려면 메뉴 접근 권한 화면을 씁니다.'],
+  ];
+  return (
+    <View nativeID="data-perm-guide">
+      <Hint>
+        {lines.map(([head, body], i) => (
+          <Text key={head}>
+            {i ? '\n' : ''}
+            <Text style={{ fontWeight: '700' }}>{head}</Text>
+            {`  ${body}`}
+          </Text>
+        ))}
+      </Hint>
     </View>
   );
 }

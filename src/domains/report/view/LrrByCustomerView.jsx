@@ -64,6 +64,8 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
 
   const exportHead = ['고객사', '출하수량', 'LRR 수량', 'LRR(%)', '출하 비중(%)'];
   const exportRows = byCustomer.map((r) => [r.customer ?? '—', r.shipQty, r.lrrQty, r.lrrRate, r.shipShare]);
+  // 열 순서대로의 응답 필드명 — 내려받기 함수가 화면과 같은 기준으로 「비공개」 를 채웁니다(2026-10-07)
+  const exportAttrs = ['customer', 'shipQty', 'lrrQty', 'lrrRate', 'shipShare'];
 
   /** 피벗 표 하나를 그립니다 (기간 열은 응답에서 만들어집니다) */
   const PivotCard = ({ title, sub, pv, valueLabel }) => (
@@ -72,9 +74,10 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
         <XlsTable
           maxHeight={420}
           columns={[
-            { key: 'label', title: valueLabel, width: 160 },
-            { key: 'total', title: '합계', width: 96 },
-            ...pv.periods.map((p) => ({ key: p, title: p, width: 88 })),
+            // attr — 데이터 접근 권한 판정용 응답 필드명(XlsTable). 칸 값은 LRR 수량입니다
+            { key: 'label', attr: valueLabel === '고객사' ? 'customer' : null, title: valueLabel, width: 160 },
+            { key: 'total', attr: 'lrrQty', title: '합계', width: 96 },
+            ...pv.periods.map((p) => ({ key: p, attr: 'lrrQty', title: p, width: 88 })),
           ]}
           rows={pv.rows.map((r) => ({
             key: r.label,
@@ -99,8 +102,8 @@ export default function LrrByCustomerView({ loading, data, role, filters, setBas
         actions={
           <>
             <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: '고객사별 LRR', role, rowCount: exportRows.length })} />
-            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `고객사별LRR_${baseYear}`, head: exportHead, rows: exportRows })} />
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: '고객사별 LRR', head: exportHead, rows: exportRows })} />
+            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `고객사별LRR_${baseYear}`, head: exportHead, attrs: exportAttrs, rows: exportRows })} />
+            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: '고객사별 LRR', head: exportHead, attrs: exportAttrs, rows: exportRows })} />
           </>
         }
       />

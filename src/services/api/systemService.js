@@ -285,7 +285,7 @@ export function postSystemDataFields(params) {
  * 데이터 항목 수정
  *
  * `PUT /api/v1/system/data-fields/{fieldKey}`
- * @param {object} params fieldKey, name, desc, category
+ * @param {object} params fieldKey, name, desc
  * @returns {Promise<object>} success
  */
 export function putSystemDataFieldsByFieldKey(params) {
@@ -342,12 +342,20 @@ export function patchSystemDataFieldsByFieldKeyApply(params) {
  * 「화면 열 → 종류」 매핑 원자 저장 (2026-10-01 신규, 기획 04 DTP-02)
  *
  * `PUT /api/v1/system/data-fields/mapping`
- * @param {object} params newFields[{fieldKey,name,desc,category,grantAllDepts,apply}], moves[{attrName,toFieldKey,remark}], screenId
+ * @param {object} params newFields[{fieldKey,name,desc,grantAllDepts,apply}], moves[{attrName,toFieldKey,remark}], screenId
  * @returns {Promise<object>} created[], moved[{attrName,from,to}], released[{attrName,from}], applied[], notApplied[]
  * @remarks 한 트랜잭션 — 하나라도 실패하면 전부 되돌립니다. 쓰기 권한(requireWrite sys-data)
  */
 export function putSystemDataFieldsMapping(params) {
   return request('putSystemDataFieldsMapping', params);
+}
+
+/**
+ * 항목별 부서 열람 저장 (2026-10-07, V82) — 항목 하나(같은 뜻의 응답 필드명들)의 부서별 열람을 한 번에 저장합니다.
+ * @param {{name:string, attrs:string[], perms:Record<string, boolean>}} params
+ */
+export function putSystemDataFieldsItemPerms(params) {
+  return request('putSystemDataFieldsItemPerms', params);
 }
 
 /**

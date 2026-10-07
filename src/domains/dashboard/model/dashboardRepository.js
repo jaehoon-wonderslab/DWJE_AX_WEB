@@ -8,6 +8,7 @@ import * as commonService from '@services/api/commonService';
 import * as dashboardService from '@services/api/dashboardService';
 import { command, unwrap, unwrapAll, unwrapPaged } from '@services/api/request';
 import { fillRates, fillRatesAll } from '@domains/common/model/metricModel';
+import { canAttr } from '@shared/utils/maskUtil';
 import { hourlySlot } from './aiDashboardFilterModel';
 
 /* ───────── DB-01 AI 통합 대시보드 (API 12건) ───────── */
@@ -274,29 +275,34 @@ export async function fetchEquipmentMatrix({ date, from, to, plant }) {
         plant: r.plantNm || r.plantCd || '',
         processNm: r.processNm || nameOf[r.processId] || r.processId || '',
         eqptCd: r.eqptCd,
-        eqptNm: r.eqptNm || r.eqptCd,
-        product: r.productNm || r.product || '',
+        // 이름이 데이터 접근 권한으로 가려지면(서버 null) 코드로 바꿔 넣지 않습니다 — 가린 자리를 코드가 대신 채우면
+        // 가린 의미가 없습니다. 표가 「이름 비공개」 로 그립니다(2026-10-07 데이터 항목 설계 7.1)
+        eqptNm: r.eqptNm ?? (canAttr('eqptNm') ? r.eqptCd : null),
+        product: r.productNm || (canAttr('productNm') ? r.product : '') || '',
         productEtcCnt: r.productEtcCnt || 0,
-        qty: r.qty || 0,
-        ngQty: r.ngQty || 0,
-        defectRate: r.defectRate || 0,
+        // 가린 값(null)을 0 으로 바꾸지 않습니다 — 0% 는 「잘 돌아간 설비」 로 읽힙니다
+        qty: r.qty ?? null,
+        ngQty: r.ngQty ?? null,
+        defectRate: r.defectRate ?? null,
       }))
-      .sort((a, b) => b.defectRate - a.defectRate),
+      .sort((a, b) => (b.defectRate || 0) - (a.defectRate || 0)),
     /** 나쁜 공정이 위로 오게 — 평균 불량률 내림차순 */
     groups: Object.entries(byProc)
       .map(([processId, items]) => {
         const qty = items.reduce((n, x) => n + (x.qty || 0), 0);
         const ng = items.reduce((n, x) => n + (x.ngQty || 0), 0);
+        // 불량률을 볼 수 없는 계정에게는 수량으로 다시 계산해 주지 않습니다(서버가 가린 값을 화면이 되살리는 셈)
+        const rateOk = canAttr('defectRate') && items.every((x) => x.ngQty != null && x.qty != null);
         return {
           processId,
           processNm: nameOf[processId] || processId,
           qty,
           ngQty: ng,
-          defectRate: qty ? Math.round((ng / qty) * 10000) / 100 : 0,
+          defectRate: rateOk && qty ? Math.round((ng / qty) * 10000) / 100 : rateOk ? 0 : null,
           items: items.slice().sort((a, b) => (b.defectRate || 0) - (a.defectRate || 0)),
         };
       })
-      .sort((a, b) => b.defectRate - a.defectRate),
+      .sort((a, b) => (b.defectRate || 0) - (a.defectRate || 0)),
   };
 }
 

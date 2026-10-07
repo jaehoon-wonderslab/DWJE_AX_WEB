@@ -23,6 +23,27 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import * as repo from '../model/systemRepository';
 import { attrNamesOf, attrTitleOf, includedSummary, remarkOf } from '../model/dataFieldModel';
+import { buildDataItems } from '../model/dataItemModel';
+import { SCREEN_COLUMNS, SCREEN_USES } from '../model/screenColumns.generated';
+
+/**
+ * 항목(이름) 묶기에 넘기는 업무 화면 — 시스템관리 화면은 대상이 아닙니다(DTP-01).
+ * 같은 값이 한 화면에서 여러 제목으로 나와도 제목마다 따로 넘깁니다(다른 화면의 같은 제목과 이어지게).
+ */
+const ITEM_SCREENS = SCREEN_COLUMNS.filter((x) => x.group !== '시스템관리').map((x) => ({ ...x, rows: x.columns }));
+
+/**
+ * 표 밖(카드 · 차트 · 요약 문구)에서 그 이름을 쓰는 화면 — 필드명 → 화면 이름들(2026-10-07 「화면 표에 없음」 피드백).
+ * 화면 코드(view · controller)를 글자로 훑은 목록이라 화면 몫의 파일 단위입니다(scripts/build-screen-columns.cjs).
+ */
+const USED_BY = (() => {
+  const m = new Map();
+  SCREEN_USES.filter((x) => x.group !== '시스템관리').forEach((x) => x.keys.forEach((k) => {
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(x.name);
+  }));
+  return m;
+})();
 
 const SCREEN_ID = 'sys-data';
 
@@ -53,7 +74,8 @@ export function useDataPermController() {
   const running = useRef(false);
 
   const { data, loading, reload, error } = useAsync(() => repo.loadDataPerms(), []);
-  const logs = useAsync(() => repo.loadPermChangeLogs('DATA_PERM', 20), [], { silent: true });
+  // 2026-10-07 최근 20건 → 전량(size=0)을 받아 표에서 쪽을 나눕니다(기본 50건)
+  const logs = useAsync(() => repo.loadPermChangeLogs('DATA_PERM', 0), [], { silent: true });
 
   const fields = useMemo(() => (data?.fields || []).map((f) => ({ ...f, included: includedSummary(f) })), [data]);
 
@@ -72,12 +94,12 @@ export function useDataPermController() {
     const nameOf = (key) => {
       if (live.has(key)) return live.get(key);
       if (gone.has(key)) return `${gone.get(key)} (삭제됨)`;
-      return /^f_[a-z0-9]+$/i.test(key) ? '삭제된 항목' : key;
+      return /^[fi]_[a-z0-9]+$/i.test(key) ? '삭제된 항목' : key;
     };
     // 「변경 내용」 의 [키 / 이름] · [키] 도 같은 이름으로 바꿉니다(대상 칸과 같은 표기)
     const detailOf = (text) => String(text || '')
       .replace(/\[([A-Za-z][\w-]*) \/ ([^\]]+)\]/g, (whole, key) => `[${nameOf(key)}]`)
-      .replace(/\[([A-Za-z][\w-]*)\]/g, (whole, key) => (live.has(key) || gone.has(key) || /^f_[a-z0-9]+$/i.test(key) ? `[${nameOf(key)}]` : whole));
+      .replace(/\[([A-Za-z][\w-]*)\]/g, (whole, key) => (live.has(key) || gone.has(key) || /^[fi]_[a-z0-9]+$/i.test(key) ? `[${nameOf(key)}]` : whole));
     return list.map((l) => {
       const label = String(l.targetLabel ?? l.target ?? '');
       const m = label.match(/^(.*\s\/\s)?([A-Za-z][\w-]*)$/);
@@ -92,6 +114,49 @@ export function useDataPermController() {
   const matrix = useMemo(() => data?.matrix || {}, [data]);
 
   const deptOf = useCallback((deptId) => depts.find((d) => String(d.id) === String(deptId)), [depts]);
+
+  // ── 항목 × 부서 (2026-10-07, V82 항목 단위 권한) ──────────────────
+  //  표의 행은 「항목」(화면에 보이는 이름 — 같은 뜻의 API 데이터 키 여러 개)입니다. 묶음(종류)은 화면에 보이지 않습니다.
+  //  칸(항목 × 부서) = 그 항목의 키를 모두 볼 수 있으면 체크, 하나도 못 보면 빈칸, 섞이면 「일부」.
+  const reservedAttrs = useMemo(() => new Set(data?.reservedAttrs || []), [data]);
+  const kindByKey = useMemo(() => new Map((data?.fields || []).map((f) => [f.key, f])), [data]);
+  const ownerOf = useMemo(() => {
+    const m = {};
+    (data?.fields || []).forEach((f) => attrNamesOf(f).forEach((a) => { m[a] = f.key; }));
+    return m;
+  }, [data]);
+  const items = useMemo(() => buildDataItems({
+    screens: ITEM_SCREENS,
+    kinds: data?.fields || [],
+    reserved: reservedAttrs,
+    // 화면 표에 없는 키는 그 키가 든 항목(서버 데이터 항목)의 이름을 씁니다 — 서버 메모를 이름으로 쓰지 않습니다(V82 뒤 항목 = 이름 있는 한 줄)
+    titleOfAttr: (k) => k.name,
+  }), [data, reservedAttrs]);
+
+  /** 표 밖에서 그 항목의 키를 쓰는 화면(표에 나오는 화면은 뺌) */
+  const offTableOf = useCallback((item) => {
+    const set = new Set();
+    item.keys.forEach((k) => (USED_BY.get(k.attr) || []).forEach((n) => { if (!item.screens.includes(n)) set.add(n); }));
+    return [...set];
+  }, []);
+
+  /** 칸 상태 — 'on' 볼 수 있음 · 'off' 못 봄 · 'mixed' 키마다 다름 · 'na' 가릴 수 없는 항목 */
+  const itemCell = useCallback((item, deptId) => {
+    const dept = deptOf(deptId);
+    if (dept?.locked === 'SUPER_ADMIN') return 'on';
+    if (!item.selectable.length) return 'na';
+    if (dept?.locked === 'UNASSIGNED') return 'off';
+    const allowed = matrix[String(deptId)] || [];
+    const each = item.selectable.map((a) => {
+      const k = ownerOf[a];
+      return !k || kindByKey.get(k)?.applyFlg !== 'Y' || allowed.includes(k);
+    });
+    if (each.every(Boolean)) return 'on';
+    if (!each.some(Boolean)) return 'off';
+    return 'mixed';
+  }, [deptOf, matrix, ownerOf, kindByKey]);
+
+
 
   /** 칸 값 — 통합관리자는 전체, 미배정은 0건 고정 */
   const cellValue = useCallback((fieldKey, deptId) => {
@@ -154,6 +219,15 @@ export function useDataPermController() {
     return run(() => repo.setDataPerm(deptId, fieldKey, allowed));
   }, [lockReason, deptOf, cellValue, toast, run]);
 
+  /** 항목 칸 체크 — 그 항목의 키를 항목 하나로 모으고 그 부서의 열람을 바꿉니다(PUT item-perms 1회) */
+  const toggleItem = useCallback(async (item, deptId) => {
+    const reason = lockReason(deptOf(deptId));
+    if (reason) { toast(reason); return { ok: false, message: reason }; }
+    if (!item.selectable.length) { toast('가릴 수 없는 항목입니다.'); return { ok: false }; }
+    const next = itemCell(item, deptId) !== 'on';
+    return run(() => repo.saveItemPerms({ name: item.name, attrs: item.selectable, perms: { [String(deptId)]: next } }));
+  }, [lockReason, deptOf, itemCell, toast, run]);
+
   /**
    * 적용 전환 계획 — 확인 창 문구를 돌려줍니다. 바꿀 수 없으면 null (DTP-04)
    * 켜기: 가리는 값 · 열람 허용 부서 · 가려지는 부서(계정 수, 미배정은 항상 포함)를 보여 줍니다.
@@ -214,17 +288,39 @@ export function useDataPermController() {
     };
   }), [preview, fields]);
 
-  // ── 엑셀 (조회 목록 / 전체, DTP-12·18) ─────────────────
+  // ── 엑셀 — 항목 × 부서 (2026-10-07) ─────────────────
+  const CELL_TEXT = { on: '열람', off: '비공개', mixed: '일부', na: '가릴 수 없음' };
+  const itemHead = useMemo(() => ['항목', '출력 화면', ...depts.map((d) => d.name)], [depts]);
+  const itemAttrs = useMemo(() => ['name', 'screens', ...depts.map((d) => `dept_${d.id}`)], [depts]);
+  const itemRow = useCallback((it) => [
+    it.name,
+    [...it.screens, ...offTableOf(it).map((n) => `${n}(표 밖)`)].join(', ') || '웹 화면에 나오지 않음',
+    ...depts.map((d) => (d.locked === 'SUPER_ADMIN' ? '전 권한' : CELL_TEXT[itemCell(it, d.id)])),
+  ], [depts, itemCell, offTableOf]); // eslint-disable-line react-hooks/exhaustive-deps
+  const exportItems = useCallback(async (scope) => {
+    const list = scope === 'ALL' ? items : items.filter((it) => it.selectable.length);
+    downloadXls({
+      name: '데이터 접근 권한',
+      head: itemHead,
+      attrs: itemAttrs,
+      rows: list.map(itemRow),
+      scope,
+      condSummary: `항목 ${list.length}개${scope === 'ALL' ? '(가릴 수 없는 항목 포함)' : ''} · 부서 ${depts.length}개`,
+      menuId: SCREEN_ID,
+    });
+  }, [items, itemHead, itemAttrs, itemRow, depts]);
+
+  // ── 엑셀 (조회 목록 / 전체, DTP-12·18) — 「제거됨」 2026-10-07: 종류(묶음) 표 기준. 항목 × 부서 표(exportItems)로 바꿈 ──
   const deptCells = useCallback(
     (f) => depts.map((d) => (d.locked === 'SUPER_ADMIN' ? '전 권한' : cellValue(f.key, d.id) ? '열람' : '비공개')),
     [depts, cellValue]
   );
-  const head = useMemo(() => ['데이터 항목', '분류', '적용', '포함 데이터', ...depts.map((d) => d.name)], [depts]);
+  // 「분류」 열은 뺐습니다(2026-10-07 — 분류 자체를 없앰)
+  const head = useMemo(() => ['데이터 항목', '적용', '포함 데이터', ...depts.map((d) => d.name)], [depts]);
   // 열마다 응답 필드명 — 예약어·관리 화면 키라 가려지는 칸은 없지만 마스킹 판정과 이력 blindCnt 를 맞추려고 넘깁니다(R-10)
-  const attrs = useMemo(() => ['name', 'categoryNm', 'applyFlg', 'desc', ...depts.map((d) => `dept_${d.id}`)], [depts]);
+  const attrs = useMemo(() => ['name', 'applyFlg', 'desc', ...depts.map((d) => `dept_${d.id}`)], [depts]);
   const toRow = useCallback((f) => [
     `${f.name}${f.builtIn ? ' (기본)' : ''}`,
-    f.categoryNm || f.category || '',
     f.applyFlg === 'N' ? '미적용' : '적용 중',
     f.included ?? includedSummary(f),
     ...deptCells(f),
@@ -299,9 +395,14 @@ export function useDataPermController() {
     previewError,
     previewing,
     loadPreview,
-    viewCount: fields.length,
-    exportView,
-    exportAll,
+    // 항목 × 부서 (2026-10-07)
+    items,
+    itemCell,
+    toggleItem,
+    offTableOf,
+    viewCount: items.filter((it) => it.selectable.length).length,
+    exportView: () => exportItems('VIEW'),
+    exportAll: () => exportItems('ALL'),
     reload,
   };
 }

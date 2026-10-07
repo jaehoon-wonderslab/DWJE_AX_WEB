@@ -135,8 +135,29 @@ function columnsOf(file) {
   return out;
 }
 
+/**
+ * 화면 코드가 읽는 값 이름 — 표 열 밖(카드 · 차트 · 요약 문구 · 엑셀)에서 쓰는 응답 필드명까지 찾기 위한 목록(2026-10-07).
+ * `r.ngQty` · `summary?.okQty` · `'failRate'` 처럼 코드에 나오는 낙타 표기 이름을 모읍니다. 데이터 접근 권한 화면의
+ * 「출력 화면」 칸이 「표 밖에서 쓰는 화면」 을 알려 줄 때 씁니다(어떤 이름이 응답 필드명인지는 화면이 항목 표와 맞춰 봅니다).
+ */
+const USE_RE = /(?:\?\.|\.)([a-z][A-Za-z0-9]{2,40})\b|['"]([a-z][A-Za-z0-9]{2,40})['"]/g;
+const GROUP_KEYS = new Set(['qty', 'yield', 'price', 'customer', 'plan', 'mold', 'worker']);
+function usesOf(file) {
+  const src = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+  const out = new Set();
+  for (const m of src.matchAll(USE_RE)) {
+    // 따옴표 속 기본 묶음 key(canData('qty') · field="yield")는 묶음 이름이지 응답 값이 아닙니다 — 점 접근(r.qty)만 셉니다
+    if (m[2] && GROUP_KEYS.has(m[2])) continue;
+    const k = m[1] || m[2];
+    // 일반 낱말(map · filter …)도 섞이지만 화면이 항목 표의 필드명과 맞춰 보므로 상관없습니다(qty · cavity 같은 한 낱말 필드명이 있습니다)
+    out.add(k);
+  }
+  return out;
+}
+
 function build() {
   const screens = [];
+  const uses = [];
   for (const item of readMenu()) {
     // 라우트는 파일(`/report/ship-plan.jsx`) 이거나 폴더(`/report/scrap/index.jsx`)입니다
     const route = [`${item.path}.jsx`, `${item.path}/index.jsx`].map((r) => path.join(ROOT, 'app/(main)', r)).find((r) => fs.existsSync(r));
@@ -151,6 +172,12 @@ function build() {
     }
     const columns = [...byField.values()];
     if (columns.length) screens.push({ id: item.id, name: item.name, group: item.group, columns });
+    const used = new Set();
+    // 여러 화면이 같이 쓰는 공통 모델(src/domains/common)과 생성물은 빼고 그 화면 몫의 파일만 봅니다 — 넣으면 모든 화면이 모든 이름을 쓰는 것처럼 보입니다
+    // 화면 몫의 그리기(view) · 상태(controller) 파일만 — 여러 화면이 같이 쓰는 model · 공통 폴더를 넣으면 모든 화면이 모든 이름을 쓰는 것처럼 보입니다
+    const own = (f) => f.includes(`${path.sep}src${path.sep}domains${path.sep}`) && /[\\/](view|controller)[\\/]/.test(f) && !f.includes(`${path.sep}src${path.sep}domains${path.sep}common${path.sep}`);
+    if (item.group !== '시스템관리') for (const f of reachableFiles(route)) if (own(f)) usesOf(f).forEach((k) => used.add(k));
+    if (used.size) uses.push({ id: item.id, name: item.name, group: item.group, keys: [...used].sort() });
   }
   const body = `/**
  * 자동 생성 — 직접 고치지 마십시오. \`node scripts/build-screen-columns.cjs\` 로 다시 만듭니다.
@@ -159,6 +186,12 @@ function build() {
  * 데이터 항목 관리(화면 보고 가리기)가 이 목록으로 「이 화면의 어떤 열을 가릴지」를 보여 줍니다.
  */
 export const SCREEN_COLUMNS = ${JSON.stringify(screens, null, 2)};
+
+/**
+ * 화면(메뉴)마다 코드가 읽는 낙타 표기 이름 — 표 열 밖(카드 · 차트 · 요약 · 엑셀)에서 쓰는 응답 필드명을 찾는 데 씁니다.
+ * 응답 필드명이 아닌 이름(함수 · 상태 이름)도 섞여 있습니다. 항목 표의 필드명과 맞춰 본 것만 의미가 있습니다.
+ */
+export const SCREEN_USES = ${JSON.stringify(uses)};
 `;
   return body;
 }
@@ -173,6 +206,5 @@ if (process.argv.includes('--check')) {
   console.log('화면 열 목록 최신');
 } else {
   fs.writeFileSync(OUT, next);
-  const data = JSON.parse(next.slice(next.indexOf('['), next.lastIndexOf(']') + 1));
-  console.log(`화면 ${data.length}곳 · 열 ${data.reduce((a, s) => a + s.columns.length, 0)}개 → ${path.relative(ROOT, OUT)}`);
+  console.log(`화면 열 · 쓰는 이름 목록 → ${path.relative(ROOT, OUT)} (${Math.round(next.length / 1024)}KB)`);
 }

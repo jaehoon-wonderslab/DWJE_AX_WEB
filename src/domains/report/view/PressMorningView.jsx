@@ -13,7 +13,7 @@ import PageHead from '@shared/components/layout/PageHead';
 import { Button, DateField, EmptyState, Filters, Loading, SelectField } from '@shared/components/ui';
 import { useAuthStore } from '@shared/stores/useAuthStore';
 import { downloadCsv, downloadXls, printDocument } from '@shared/utils/exportUtil';
-import MorningSheet, { MORNING_HEAD, morningExportRows } from './components/MorningSheet';
+import MorningSheet, { MORNING_EXPORT_ATTRS, MORNING_HEAD, morningExportRows } from './components/MorningSheet';
 
 const NODE_ID = 'rpt-press-morning-doc';
 const TITLE = '아침회의 자료 (PRESS)';
@@ -60,8 +60,8 @@ export default function PressMorningView({
         actions={
           <>
             <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title: TITLE, role, rowCount: exportRows.length })} />
-            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: fileName, head: MORNING_HEAD, rows: exportRows, blindCount: blindCnt })} />
-            <Button label="엑셀 다운로드" size="sm" icon="download" variant="primary" onPress={() => downloadXls({ name: fileName, head: MORNING_HEAD, rows: exportRows, blindCount: blindCnt })} />
+            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: fileName, head: MORNING_HEAD, attrs: MORNING_EXPORT_ATTRS, rows: exportRows, blindCount: blindCnt })} />
+            <Button label="엑셀 다운로드" size="sm" icon="download" variant="primary" onPress={() => downloadXls({ name: fileName, head: MORNING_HEAD, attrs: MORNING_EXPORT_ATTRS, rows: exportRows, blindCount: blindCnt })} />
           </>
         }
       />

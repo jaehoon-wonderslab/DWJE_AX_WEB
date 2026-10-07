@@ -149,6 +149,12 @@ export default function TabulatorGrid({
   treeChildIndent = 14,
   /** 카드 벽에 붙지 않도록 표 둘레에 여백을 줍니다 (GRID_INSET) — style 로 개별 값을 덮을 수 있습니다 */
   inset = false,
+  /**
+   * 행 구성이 그대로이고 값만 바뀌면(같은 rowKey 들) 갈아 끼우지 않고 그 자리에서 고칩니다(Tabulator `updateData`, 2026-10-07).
+   * 갈아 끼우면 표가 잠깐 비었다 다시 차면서 쪽 · 스크롤 위치가 맨 위로 돌아갑니다 — 체크하자마자 저장하는 권한 표에서 씁니다.
+   * `tableOptions` 에 `index: rowKey` 를 함께 줘야 합니다(Tabulator 가 행을 찾는 열).
+   */
+  updateInPlace = false,
 }) {
   const ref = useRef(null);
   const instance = useRef(null);
@@ -550,6 +556,14 @@ export default function TabulatorGrid({
     const table = instance.current;
     if (!table) return;
     const apply = () => {
+      if (updateInPlace && rowKey) {
+        const cur = table.getData();
+        const ids = new Set(cur.map((r) => r[rowKey]));
+        if (cur.length === rows.length && rows.every((r) => ids.has(r[rowKey]))) {
+          table.updateData(rows).catch(() => { /* 표가 이미 정리된 경우 */ });
+          return;
+        }
+      }
       /**
        * 갈아 끼우는 **동안 내내** 부모에게 알리지 않습니다
        *
@@ -570,7 +584,7 @@ export default function TabulatorGrid({
     };
     if (table.initialized) apply();
     else table.on('tableBuilt', apply);
-  }, [rows, selectable, rowKey]);
+  }, [rows, selectable, rowKey, updateInPlace]);
 
   /**
    * "선택 해제"처럼 부모가 선택 목록을 직접 바꾼 경우에도 표 안의 체크 상태를 맞춥니다.

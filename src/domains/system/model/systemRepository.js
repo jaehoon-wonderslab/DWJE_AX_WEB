@@ -410,6 +410,14 @@ export const setDataPerm = (deptId, fieldKey, allowed) =>
   command(systemService.putSystemDataPerms({ deptId, fieldKey, allowed }));
 
 /**
+ * 항목별 부서 열람 저장(2026-10-07, V82) — 항목 하나(같은 뜻의 응답 필드명들)를 서버 항목 하나로 모으고 부서별 열람을 정합니다.
+ * @param {{name:string, attrs:string[], perms:Record<string, boolean>}} p perms 는 바꿀 부서만
+ * @returns {Promise<{ok, data:{fieldKey, created, removed[]}, message}>}
+ */
+export const saveItemPerms = ({ name, attrs, perms }) =>
+  command(systemService.putSystemDataFieldsItemPerms({ name, attrs, perms }));
+
+/**
  * 데이터 항목 관리 — 관리 화면은 **미적용 항목까지** 봐야 하므로 /system/data-fields 를 따로 읽습니다.
  * (화면에 실제로 적용되는 목록은 로그인 때 받는 /auth/me 의 dataFields 입니다)
  */
@@ -430,7 +438,7 @@ export async function loadDataFields() {
  * 꺼져 있던 종류에 값을 붙여도 자동으로 켜지 않습니다 — 응답 `notApplied` 로 안내합니다(DTP-04).
  *
  * @param {object} p
- * @param {Array<{fieldKey,name,desc,category,grantAllDepts,apply}>} p.newFields 새 종류
+ * @param {Array<{fieldKey,name,desc,grantAllDepts,apply}>} p.newFields 새 종류 (분류 category 는 2026-10-07 없앰)
  * @param {Array<{attrName,toFieldKey,remark}>} p.moves 필드명 이동 (`toFieldKey:null` = 가리지 않음)
  * @param {string} p.screenId 어느 화면에서 고른 열인지 (감사 기록용)
  * @returns {Promise<{ok, data:{created[],moved[],released[],applied[],notApplied[]}, message, code}>}
@@ -438,11 +446,11 @@ export async function loadDataFields() {
 export const saveDataFieldMapping = ({ newFields = [], moves = [], screenId }) =>
   command(systemService.putSystemDataFieldsMapping({ newFields, moves, screenId }));
 /**
- * 데이터 항목(종류) 등록 — 서버 본문은 `fieldKey · name · desc · category` 입니다.
+ * 데이터 항목(종류) 등록 — 서버 본문은 `fieldKey · name · desc` 입니다(분류는 2026-10-07 없앰).
  * 화면은 `key` 로 들고 있어 이름을 바꿔 보냅니다(예전에는 `key` 를 그대로 보내 서버가 400 으로 거절했습니다).
  */
-export const createDataField = ({ key, fieldKey, name, desc, category } = {}) =>
-  command(systemService.postSystemDataFields({ fieldKey: fieldKey || key, name, desc, category }));
+export const createDataField = ({ key, fieldKey, name, desc } = {}) =>
+  command(systemService.postSystemDataFields({ fieldKey: fieldKey || key, name, desc }));
 export const updateDataField = (v) => command(systemService.putSystemDataFieldsByFieldKey(v));
 export const removeDataField = (fieldKey) => command(systemService.deleteSystemDataFieldsByFieldKey({ fieldKey }));
 /** 응답 필드명 등록 — remark 에 그 이름의 뜻(DB 컬럼 설명)을 남겨 두면 나중에 무엇을 가렸는지 읽을 수 있습니다 */
@@ -518,8 +526,10 @@ export async function loadAllAlertConditions() {
  */
 /** 발송 조건의 개별 설비 — 1공장 설비만 고릅니다(2026-10-03). 공장은 서버가 작업장 이름 「(M-1공장)」 으로 가립니다 */
 export const ALERT_EQUIPMENT_FACTORY = 'M-1공장';
+/** 그중 프레스 설비만(2026-10-07) — 서버가 작업장 이름의 「프레스」 로 가립니다(kind=PRESS) */
+export const ALERT_EQUIPMENT_KIND = 'PRESS';
 export async function searchEquipments(keyword) {
-  const data = await unwrap(commonService.getCommonMastersEquipments({ keyword: keyword || undefined, factory: ALERT_EQUIPMENT_FACTORY }), { equipments: [] });
+  const data = await unwrap(commonService.getCommonMastersEquipments({ keyword: keyword || undefined, factory: ALERT_EQUIPMENT_FACTORY, kind: ALERT_EQUIPMENT_KIND }), { equipments: [] });
   const list = data?.equipments || data?.items || [];
   // 같은 설비가 작업장 2곳에 걸려 두 행으로 올 수 있습니다 — 설비코드로 한 번만(같은 key 로 그리면 React 오류)
   const seen = new Set();

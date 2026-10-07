@@ -5,19 +5,17 @@
  * 목 모드 개발 서버는 API 를 네트워크로 부르지 않아 가로챌 수 없으므로, 로컬 대상 개발 서버(npm run web)에서 돌립니다.
  *   WEB_URL=http://localhost:8081 node tests/system/data-perm-browser.cjs
  *
- * 확인하는 것
- *  · 부서 머리글 「부서명 · n명」, 통합관리자 「전 권한」·미배정 「0건 고정」, 미배정 열 전부 잠금·꺼짐(응답이 잘못 와도)
- *  · 체크 1회 본문 {deptId, fieldKey, allowed}, 응답 전 두 번째 클릭은 요청 0건, 표를 다시 만들지 않음
- *  · 서버 409 — 상태 유지 + 토스트 / 분류·적용 열
- *  · 항목 관리 — 시스템관리 화면 없음, 예약어 행 잠금, 저장 = PUT /data-fields/mapping 1건, 실패 시 고른 내용 유지,
- *    미적용 종류 안내(notApplied), 자동 적용 켜기(PATCH apply) 없음
- *  · 엑셀 옵션 패널 — 조회 목록(VIEW, 종류 행 수) · 전체(ALL, 가리는 값 포함), blindCnt 0
- *  · 읽기 전용(미배정 계정 — 2026-10-03 부터 접근이 있으면 쓰기 가능, 미배정만 불가) — 체크·항목 관리 저장 비활성, 「읽기 전용」, 엑셀은 활성
- *  · 390px 에서 마지막 부서(미배정) 열 머리글·값까지 가로 스크롤, 머리글과 본문 정렬
+ * 확인하는 것 (2026-10-07 항목 단위 권한 — 「항목 × 부서」 표 하나, 항목 관리 모달 · 종류 표는 「제거됨」)
+ *  · 머리글: 항목 · 출력 화면 · 부서(「부서명 · n명」, 통합관리자 부제 없음, 미배정 「0건 고정」), [항목 관리] · 포함 데이터 · 적용 열 없음
+ *  · 안내 상자(표의 행 · 부서 칸 체크 · 저장 · 가릴 수 없는 항목), 머리글 필터, 쪽 나누기 10 · 25 · 50(기본) · 100
+ *  · 통합관리자 · 미배정 칸 잠금(미배정은 꺼짐), 가릴 수 없는 항목(공용 키) 칸 잠금 + 이유
+ *  · 체크 1회 = PUT /system/data-fields/item-perms {name, attrs, perms} 1건, 응답 전 두 번째 클릭은 요청 0건, 표를 다시 만들지 않음
+ *  · 서버 409 — 상태 유지 + 토스트 / 변경 이력 탭 / 엑셀 항목 × 부서(VIEW · ALL, blindCnt 0) / 390px 가로 스크롤 / 읽기 전용
  */
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright-core');
 const { WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 async function openFixture() {
   const probe = await fetch(WEB).catch(() => null);
@@ -35,9 +33,9 @@ async function openFixture() {
 }
 
 const FIELDS = [
-  { key: 'qty', name: '생산·출하 수량', desc: '투입·양품·불량 수량', category: 'QTY', categoryNm: '수량', applyFlg: 'Y', builtIn: true, attrs: ['ngQty'] },
-  { key: 'price', name: '단가·금액', desc: '품목 단가', category: 'COST', categoryNm: '원가', applyFlg: 'Y', builtIn: true, attrs: ['unitPrice'] },
-  { key: 'f_eq', name: '설비 코드', desc: '', category: 'EQUIP', categoryNm: '설비', applyFlg: 'N', builtIn: false, attrs: ['zzEqptCode'], attrDetails: [{ attrName: 'zzEqptCode', remark: 'AI 통합 대시보드 · 설비 코드' }] },
+  { key: 'qty', name: '생산·출하 수량', desc: '투입·양품·불량 수량', applyFlg: 'Y', builtIn: true, attrs: ['ngQty'] },
+  { key: 'price', name: '단가·금액', desc: '품목 단가', applyFlg: 'Y', builtIn: true, attrs: ['unitPrice'] },
+  { key: 'f_eq', name: '설비 코드', desc: '', applyFlg: 'N', builtIn: false, attrs: ['zzEqptCode'], attrDetails: [{ attrName: 'zzEqptCode', remark: 'AI 통합 대시보드 · 설비 코드' }] },
 ];
 const DEPTS = [
   { deptId: 1, deptNm: '통합관리자', superAdmin: true, locked: 'SUPER_ADMIN', userCnt: 1 },
@@ -51,7 +49,7 @@ async function setup({ write = true } = {}) {
   const state = {
     // 미배정 행을 일부러 잘못 넣어도 화면은 0건으로 보여야 합니다
     matrix: { 1: FIELDS.map((f) => f.key), 2: ['qty'], 3: ['qty', 'price'], 59: ['qty'] },
-    puts: [], mappings: [], applies: [], kindEdits: [], logs: [], errors: [], failPut: false, failMapping: false, delayMs: 0,
+    puts: [], itemPerms: [], mappings: [], applies: [], kindEdits: [], logs: [], errors: [], failPut: false, failMapping: false, delayMs: 0,
   };
   page.on('pageerror', (e) => state.errors.push(e.message));
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: { success: true, data: {
@@ -60,8 +58,6 @@ async function setup({ write = true } = {}) {
     menuPerms: ['ai-chat', 'sys-menu', 'sys-data'], writePerms: write ? ['sys-data'] : [], dataPerms: ['qty'], dataFields: [], pwdChangeRequired: false,
   } } }));
   await page.route('**/api/v1/common/codes**', (route) => route.fulfill({ json: { success: true, data: { codes: [
-    { groupCd: 'DATA_FIELD_CATEGORY', cd: 'QTY', nm: '수량', sort: 1, useYn: 'Y' },
-    { groupCd: 'DATA_FIELD_CATEGORY', cd: 'EQUIP', nm: '설비', sort: 2, useYn: 'Y' },
   ] } } }));
   await page.route('**/api/v1/system/perm-logs**', (route) => route.fulfill({ json: { success: true, data: { items: [
     { ts: '2026-09-30 14:10:00', target: 'price', actType: 'DATA_PERM', detail: '품질보증팀 단가·금액 회수', by: '최전산', byEmpNo: '10004' },
@@ -88,11 +84,24 @@ async function setup({ write = true } = {}) {
       if (!body.allowed) state.matrix[body.deptId] = list.filter((k) => k !== body.fieldKey);
       return route.fulfill({ json: { success: true, message: '데이터 권한을 바꿨습니다.', data: { allowed: !!body.allowed } } });
     }
-    return route.fulfill({ json: { success: true, data: { fields: FIELDS, depts: DEPTS, matrix: state.matrix } } });
+    return route.fulfill({ json: { success: true, data: { fields: FIELDS, depts: DEPTS, matrix: state.matrix, reservedAttrs: ['name', 'empNo', 'dept', 'question'] } } });
   });
   await page.route('**/api/v1/system/data-fields**', async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
+    // 항목별 부서 열람(2026-10-07, V82) — 시험에서는 필드명이 든 종류의 칸을 바꾼 것으로 흉내 냅니다
+    if (req.method() === 'PUT' && path.endsWith('/item-perms')) {
+      const body = req.postDataJSON(); state.itemPerms.push(body);
+      if (state.delayMs) await new Promise((r) => setTimeout(r, state.delayMs));
+      if (state.failPut) { state.failPut = false; return route.fulfill({ status: 409, json: { success: false, code: 'E-RULE-001', message: '검증용 데이터 권한 거부' } }); }
+      const owner = FIELDS.find((f) => f.attrs.includes(body.attrs[0]))?.key;
+      Object.entries(body.perms).forEach(([d, allowed]) => {
+        const list = state.matrix[d] || (state.matrix[d] = []);
+        if (allowed && owner && !list.includes(owner)) list.push(owner);
+        if (!allowed) state.matrix[d] = list.filter((k) => k !== owner);
+      });
+      return route.fulfill({ json: { success: true, message: '항목 권한을 저장했습니다.', data: { fieldKey: owner, created: false, removed: [], attrs: body.attrs } } });
+    }
     if (req.method() === 'PUT' && path.endsWith('/mapping')) {
       const body = req.postDataJSON(); state.mappings.push(body);
       if (state.failMapping) { state.failMapping = false; return route.fulfill({ status: 409, json: { success: false, code: 'E-RULE-001', message: '시스템이 쓰는 필드명이라 가릴 수 없습니다. [defectType]' } }); }
@@ -118,119 +127,87 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
 (async () => {
   const { page, browser, state } = await setup();
   try {
-    const table = page.locator('.tabulator').first();
+    const table = page.locator('#data-perm-panel-matrix .tabulator').first();
+    await table.waitFor();
     const header = await table.locator('.tabulator-headers').innerText();
     assert(header.includes('미배정 · 349명') && header.includes('0건 고정'), 'unassigned header');
-    assert(header.includes('통합관리자 · 1명') && header.includes('전 권한'), 'super admin header');
+    assert(header.includes('통합관리자 · 1명') && !header.includes('전 권한'), 'super admin header without 「전 권한」');
     assert(header.includes('검증부서 · 3명'), 'dept header with account count');
-    for (const f of FIELDS) {
-      const cell = box(page, `${f.name} · 미배정 열람 허용`);
-      assert(await cell.isDisabled(), `unassigned locked ${f.key}`);
-      assert(!(await cell.isChecked()), `unassigned shows 0 (${f.key})`);
-      assert(await box(page, `${f.name} · 통합관리자 열람 허용`).isDisabled());
-    }
-    // 2026-10-02 — 분류 · 적용 열과 「(기본)」 표시, 「계정으로 확인」 카드, 머리말 [메뉴 접근 권한] 을 뺐습니다
+    // 2026-10-07 항목 × 부서 — 열: 항목 · 출력 화면 · 부서들, [항목 관리] 단추 · 포함 데이터 · 적용 열 없음
+    const heads = (await table.locator('.tabulator-col-title').allTextContents()).map((t) => t.trim()).filter(Boolean);
+    assert.deepEqual(heads.slice(0, 2), ['항목', '출력 화면'], `heads ${heads}`);
+    assert.equal(await page.getByRole('button', { name: '항목 관리', exact: true }).count(), 0, 'no 항목 관리 button');
+    assert.equal(await table.locator('.tabulator-col[tabulator-field="included"]').count(), 0, 'no included column');
     assert.equal(await table.locator('.tabulator-col[tabulator-field="applyLabel"]').count(), 0, 'no apply column');
-    assert.equal(await table.locator('.tabulator-col[tabulator-field="categoryNm"]').count(), 0, 'no category column');
-    assert.equal(await table.getByText('(기본)', { exact: true }).count(), 0, 'no (기본) mark');
     assert.equal(await page.getByPlaceholder('예) 10001').count(), 0, 'no account preview card');
-    assert.equal(await page.getByRole('button', { name: '메뉴 접근 권한', exact: true }).count(), 0, 'no menu-perm link');
+    const guide = await page.locator('#data-perm-guide').innerText();
+    for (const head of ['표의 행', '부서 칸 체크', '저장', '가릴 수 없는 항목']) assert(guide.includes(head), `guide ${head}`);
+    assert(!guide.includes('항목 관리'), 'guide without 항목 관리');
+    assert.equal(await table.locator('select.tabulator-page-size').inputValue(), '50', 'default page size 50');
+    assert.deepEqual(await table.locator('select.tabulator-page-size option').allTextContents(), ['10', '25', '50', '100']);
 
-    // 포함 데이터 요약(DTP-07)
-    assert.equal(await table.locator('.tabulator-cell[tabulator-field="included"]', { hasText: '설비 코드' }).count(), 1, 'included summary from attrDetails');
+    // 머리글 필터로 항목 찾기 · 출력 화면은 화면 이름만
+    const itemFilter = table.locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input');
+    await itemFilter.fill('불량 수량');
+    await box(page, '불량 수량 · 검증부서 열람').waitFor();
+    assert(await table.getByText('불량 현황 조회', { exact: true }).first().isVisible(), 'screen name listed');
+    assert(await box(page, '불량 수량 · 검증부서 열람').isChecked(), 'qty allowed for 검증부서');
+    assert(await box(page, '불량 수량 · 미배정 열람').isDisabled(), 'unassigned locked');
+    assert(!(await box(page, '불량 수량 · 미배정 열람').isChecked()), 'unassigned shows 0');
+    assert(await box(page, '불량 수량 · 통합관리자 열람').isDisabled(), 'super admin locked');
+    // 가릴 수 없는 항목 — 칸 잠금, 이유 표시
+    await itemFilter.fill('확인된 값');
+    await table.getByText('가릴 수 없음 (공용 키)', { exact: true }).first().waitFor();
+    assert(await box(page, '확인된 값 · 검증부서 열람').isDisabled(), 'generic item locked');
 
-    // 변경 이력 (DTP-10) — 「최근 변경 이력」 탭
-    assert.equal(await page.getByRole('button', { name: '항목 관리', exact: true }).count(), 1, '항목 관리 on matrix tab');
-    await page.locator('#data-perm-tab-logs').click();
-    await page.getByText('품질보증팀 단가·금액 회수').waitFor();
-    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'no audit link without sys-audit');
-    assert.equal(await page.getByRole('button', { name: '항목 관리', exact: true }).count(), 0, '항목 관리 only on matrix tab');
-    await page.locator('#data-perm-tab-matrix').click();
-    await table.waitFor();
-    state.applies.length = 0;
-
-    // 체크 1회 — 응답 전 두 번째 클릭은 요청 0건, 표는 그대로
+    // 체크 1회 = PUT item-perms 1건, 응답 전 두 번째 클릭은 요청 0건, 표는 그대로
+    await itemFilter.fill('단가·금액');
+    await box(page, '단가·금액 · 검증부서 열람').waitFor();
+    // 화면 코드 어디에도 쓰지 않는 키(unitPrice)는 「웹 화면에 나오지 않음」(2026-10-07 — 예전 「화면 표에 없음」)
+    assert(await table.getByText('웹 화면에 나오지 않음', { exact: true }).first().isVisible(), 'not on web label');
+    assert.equal(await table.getByText('화면 표에 없음', { exact: true }).count(), 0, 'old label gone');
     await table.evaluate((el) => { el.dataset.mark = 'same'; });
     state.delayMs = 400;
-    await box(page, '단가·금액 · 검증부서 열람 허용').click();
-    await box(page, '단가·금액 · 검증부서 열람 허용').click({ force: true }).catch(() => {});
+    await box(page, '단가·금액 · 검증부서 열람').click();
+    await box(page, '단가·금액 · 검증부서 열람').click({ force: true }).catch(() => {});
     await page.waitForTimeout(1200);
     state.delayMs = 0;
-    assert.equal(state.puts.length, 1, 'second click during save makes no request');
-    assert.deepEqual(state.puts[0], { deptId: '2', fieldKey: 'price', allowed: true });
-    assert(await box(page, '단가·금액 · 검증부서 열람 허용').isChecked());
+    assert.equal(state.itemPerms.length, 1, 'second click during save makes no request');
+    assert.deepEqual(state.itemPerms[0], { name: '단가·금액', attrs: ['unitPrice'], perms: { 2: true } });
+    assert(await box(page, '단가·금액 · 검증부서 열람').isChecked());
     assert.equal(await page.locator('.tabulator[data-mark="same"]').count(), 1, 'table not rebuilt');
+    assert.equal(state.puts.length + state.mappings.length, 0, 'no old per-kind requests');
 
     // 서버 409 — 상태 유지 + 토스트
+    await itemFilter.fill('불량 수량');
     state.failPut = true;
-    await box(page, '생산·출하 수량 · 둘째부서 열람 허용').click();
+    await box(page, '불량 수량 · 둘째부서 열람').click();
     await page.getByText('검증용 데이터 권한 거부').first().waitFor();
-    assert(await box(page, '생산·출하 수량 · 둘째부서 열람 허용').isChecked(), 'failed save keeps state');
+    assert(await box(page, '불량 수량 · 둘째부서 열람').isChecked(), 'failed save keeps state');
+    await itemFilter.fill('');
 
-    // ── 항목 관리 ──
-    await page.getByRole('button', { name: '항목 관리', exact: true }).click();
-    const screenSelect = page.getByRole('combobox', { name: '화면' });
-    await screenSelect.waitFor();
-    const screenOptions = await screenSelect.locator('option').allTextContents();
-    assert(!screenOptions.some((t) => t.startsWith('시스템관리')), 'no system screens');
-    assert(screenOptions.some((t) => t.includes('AI 통합 대시보드')));
-    // 2026-10-03 — 본인 이력 화면에서 「부서·사용자」 열이 빠져, 시험용 예약어(question)로 잠금을 봅니다
-    await screenSelect.selectOption('chat-history');
-    const reserved = page.getByRole('checkbox', { name: '질문 가리기', exact: true });
-    await reserved.waitFor();
-    assert.equal(await reserved.getAttribute('aria-disabled'), 'true', 'reserved attr locked');
-    await screenSelect.selectOption('dash-ai');
-    await page.getByRole('checkbox', { name: '불량 유형 가리기', exact: true }).click();
-    // 종류를 미적용 종류(설비 코드)로 바꿉니다
-    await page.locator('select').filter({ has: page.locator('option', { hasText: '설비 코드 (미적용)' }) }).first().selectOption('f_eq');
-    state.failMapping = true;
-    // 2026-10-02 — [저장] 은 「화면별 가리기」 탭 머리에 있고 바꾼 열 수를 함께 보입니다
-    await page.getByRole('button', { name: '저장 (1)', exact: true }).click();
-    await page.getByText('시스템이 쓰는 필드명이라 가릴 수 없습니다. [defectType]', { exact: false }).first().waitFor();
-    assert.equal(state.mappings.length, 1, 'one mapping request');
-    assert.deepEqual(state.mappings[0], {
-      screenId: 'dash-ai', newFields: [],
-      moves: [{ attrName: 'defectType', toFieldKey: 'f_eq', remark: 'AI 통합 대시보드 · 불량 유형' }],
-    });
-    assert(await page.getByText('저장하지 않은 변경 1개', { exact: false }).isVisible(), 'draft kept after failure');
-    await page.getByRole('button', { name: '저장 (1)', exact: true }).click();
-    await page.getByText('「설비 코드」 종류는 미적용 상태라', { exact: false }).first().waitFor();
-    assert.equal(state.mappings.length, 2);
-    assert.equal(state.applies.length, 0, 'no automatic apply');
+    // 변경 이력 (DTP-10) — 「최근 변경 이력」 탭
+    await page.locator('#data-perm-tab-logs').click();
+    await page.getByText('품질보증팀 단가·금액 회수').waitFor();
+    const logGrid = page.locator('#data-perm-panel-logs .tabulator');
+    const logHeads = (await logGrid.locator('.tabulator-col-title').allTextContents()).map((t) => t.trim());
+    assert.deepEqual(logHeads, ['시각', '대상', '변경 내용', '작업자'], `log heads ${logHeads}`);
+    assert.equal(await logGrid.locator('select.tabulator-page-size').inputValue(), '50', 'log default page size 50');
+    await page.locator('#data-perm-tab-matrix').click();
+    await table.waitFor();
 
-    // 종류 편집 (DTP-11) — 「가리기 종류」 탭. 51자는 화면에서 막고, 고친 값은 PUT /data-fields/{key}
-    await page.locator('#field-manager-tab-kinds').click();
-    await page.getByRole('button', { name: '편집', exact: true }).nth(2).click();
-    const nameInput = page.getByPlaceholder('예) LOT·시리얼 · 작업자 연락처');
-    await nameInput.fill('가'.repeat(51));
-    await page.getByRole('button', { name: '저장', exact: true }).last().click();
-    await page.getByText('종류 이름은 50자 이내로 입력해 주세요.').waitFor();
-    assert.equal(state.kindEdits.length, 0, 'too long name never sent');
-    await nameInput.fill('설비 코드2');
-    await page.getByPlaceholder('이 종류로 무엇을 가리는지 (300자 이내)').fill('설비 코드와 설비명');
-    await page.getByRole('button', { name: '저장', exact: true }).last().click();
-    await page.getByText('데이터 항목을 수정했습니다.').first().waitFor();
-    assert.deepEqual(state.kindEdits[0], { name: '설비 코드2', desc: '설비 코드와 설비명', category: 'EQUIP' });
-
-    // 닫기 전 확인 (DTP-14) — 바꾼 열이 있으면 묻습니다
-    await page.locator('#field-manager-tab-hide').click();
-    await page.getByRole('checkbox', { name: '불량 유형 가리기', exact: true }).click();
-    await page.getByRole('button', { name: '닫기', exact: true }).last().click();
-    await page.getByText('저장되지 않았습니다. 닫으면 버립니다', { exact: false }).waitFor();
-    await page.getByRole('button', { name: '버리고 닫기', exact: true }).click();
-    await page.getByRole('combobox', { name: '화면' }).waitFor({ state: 'detached' });
-    await page.waitForTimeout(300);
-
-    // ── 엑셀 옵션 패널 ──
+    // ── 엑셀 — 항목 × 부서 ──
     await page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).click();
-    await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click();
+    const [viewDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
+    const viewBook = await readXlsx(await viewDl.path());
+    assert.deepEqual(viewBook.head.slice(0, 3), ['항목', '출력 화면', '통합관리자'], `excel head ${viewBook.head}`);
     await page.waitForTimeout(500);
     await page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).click();
     await page.getByRole('menuitem', { name: /전체 다운로드/ }).click();
     await page.waitForTimeout(800);
     const [view, all] = state.logs.slice(-2);
-    assert.equal(view.scopeCd, 'VIEW'); assert.equal(view.rowCnt, FIELDS.length); assert.equal(view.blindCnt, 0); assert.equal(view.menuId ?? view.reportId, 'sys-data');
-    assert.equal(all.scopeCd, 'ALL'); assert(all.rowCnt > FIELDS.length, 'all includes 가리는 값 rows'); assert.equal(all.blindCnt, 0);
+    assert.equal(view.scopeCd, 'VIEW'); assert.equal(view.blindCnt, 0); assert.equal(view.menuId ?? view.reportId, 'sys-data');
+    assert.equal(all.scopeCd, 'ALL'); assert(all.rowCnt > view.rowCnt, 'all includes locked items'); assert.equal(all.blindCnt, 0);
 
     // ── 390px 가로 스크롤 ──
     await page.setViewportSize({ width: 390, height: 844 });
@@ -252,20 +229,15 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
   const ro = await setup({ write: false });
   try {
     await ro.page.getByText('읽기 전용', { exact: false }).first().waitFor();
-    const boxes = ro.page.locator('.tabulator input[type="checkbox"]');
-    for (let i = 0; i < await boxes.count(); i += 1) assert(await boxes.nth(i).isDisabled(), 'read-only checkbox disabled');
-    await ro.page.getByRole('button', { name: '항목 관리', exact: true }).click();
-    const first = ro.page.getByRole('checkbox', { name: '불량 유형 가리기', exact: true });
-    await first.waitFor();
-    assert.equal(await first.getAttribute('aria-disabled'), 'true', 'field manager read-only');
-    await ro.page.getByRole('button', { name: '닫기', exact: true }).last().click();
+    const boxes = ro.page.locator('#data-perm-panel-matrix .tabulator input[type="checkbox"]');
+    for (let i = 0; i < Math.min(await boxes.count(), 40); i += 1) assert(await boxes.nth(i).isDisabled(), 'read-only checkbox disabled');
     await ro.page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).click();
     await ro.page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click();
     await ro.page.waitForTimeout(500);
     assert.equal(ro.state.logs.at(-1)?.scopeCd, 'VIEW', 'read-only can download');
-    assert.equal(ro.state.puts.length + ro.state.mappings.length, 0);
+    assert.equal(ro.state.puts.length + ro.state.itemPerms.length + ro.state.mappings.length, 0);
     assert.deepEqual(ro.state.errors, []);
   } finally { await ro.browser.close(); }
 
-  console.log('PASS: data-perm — kind edit(50자 검사·PUT), close guard, included summary, built-in fixed, apply confirm+PATCH, account preview, change log, dept headers/locks(super·unassigned 0건), single request while saving, no rebuild, 409 keep+toast, category/apply columns, field manager(no system screens, reserved locked, 1 mapping request, draft kept on failure, notApplied notice, no auto apply), excel VIEW/ALL blindCnt 0, read-only, 390px scroll');
-})().catch((e) => { console.error(e); process.exitCode = 1; });
+  console.log('PASS: data-perm — 항목 × 부서 표(항목 · 출력 화면 · 부서, 항목 관리 없음), dept headers/locks(super·unassigned 0건), header filter · 50/page, generic item locked with reason, item-perms 1 request · no double request · no rebuild, 409 keep+toast, change log, excel 항목 × 부서 VIEW/ALL blindCnt 0, 390px scroll, read-only');
+})().catch((e) => { console.error(e); process.exit(1); });

@@ -141,7 +141,10 @@ export default function DefectStatusView({
     });
     return { key: 'root', name, children: toNodes(rows) };
   };
-  const typeDetailRows = useMemo(() => defectTypeTree(productRows), [productRows]);
+  // 불량률을 볼 수 없는 계정에게는 수량으로 다시 계산해 주지 않습니다(서버가 가린 값을 되살리는 셈, 2026-10-07)
+  // 화면 표시는 위 rateText 가 이미 가리지만, 행 자료(엑셀 · 차트가 같이 씀)에도 값을 만들지 않습니다
+  const typeRateOk = rateOk && useAuthStore.getState().canAttr('defectRate');
+  const typeDetailRows = useMemo(() => defectTypeTree(productRows, { rateOk: typeRateOk }), [productRows, typeRateOk]);
   const typeDetailColumns = useMemo(() => {
     const byField = new Map(productColumns.map(c => [c.field, c]));
     return [...TREE_COLUMNS, ...['defectNm', 'itemCd', 'itemNm', 'eqptCd', 'eqptNm', 'plantNm', 'wcNm',

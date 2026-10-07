@@ -44,6 +44,26 @@ export function legendDate(iso) {
   return `${dateBoxOf(iso)}(${WEEKDAYS[d.getDay()]})`;
 }
 
+/**
+ * 열마다 데이터 접근 권한을 판정할 응답 필드명 — [화면 열 key, 서버 응답 키 …] (2026-10-07 데이터 항목 설계 7.1)
+ *
+ * 「항목 관리 > 화면별 가리기」 는 화면 열 key(tgt · act …)를 저장하고, 서버는 응답 키(dayTarget · dayActual …)로 가립니다.
+ * 둘 중 하나라도 막히면 그 열을 「비공개」 로 그립니다. 상태는 달성률에서 나오므로 달성률이 막혀도 가립니다.
+ */
+const MORNING_ATTRS = {
+  st: ['st', 'state', 'rate'],
+  proc: ['proc', 'process'],
+  issue: ['issue'],
+  tgt: ['tgt', 'dayTarget'],
+  act: ['act', 'dayActual'],
+  rate: ['rate'],
+  week: ['week', 'weekTarget', 'weekActual', 'weekRate'],
+  eqpt: ['eqpt', 'impactEqptCnt'],
+  memo: ['memo', 'decision'],
+  dri: ['dri'],
+  due: ['due'],
+};
+
 /** 양식 열 — 스크린샷의 순서·폭 그대로 */
 export const MORNING_COLUMNS = [
   { key: 'st', title: '상태', width: 58 },
@@ -57,12 +77,19 @@ export const MORNING_COLUMNS = [
   { key: 'memo', title: '결정항목 / 기타', width: 170, align: 'left' },
   { key: 'dri', title: 'DRI', width: 82 },
   { key: 'due', title: '기한', width: 68 },
-];
+].map((c) => ({ ...c, attr: MORNING_ATTRS[c.key] }));
 
 /** 엑셀 머리글 — 화면 열과 같되 주간누적만 3열로 폅니다 (셀 안 줄바꿈을 피합니다) */
 export const MORNING_HEAD = [
   '상태', '공정/Process', '이슈 항목', '일목표', '실적', '달성률',
   '주간목표', '주간실적', '주간달성률', '영향범위(생산장비 대수)', '결정항목 / 기타', 'DRI', '기한',
+];
+
+/** 엑셀 열마다의 응답 필드명 — `MORNING_HEAD` 와 같은 순서. 내려받기 함수가 화면과 같은 기준으로 가립니다 */
+export const MORNING_EXPORT_ATTRS = [
+  MORNING_ATTRS.st, MORNING_ATTRS.proc, MORNING_ATTRS.issue, MORNING_ATTRS.tgt, MORNING_ATTRS.act, MORNING_ATTRS.rate,
+  ['week', 'weekTarget'], ['week', 'weekActual'], ['week', 'weekRate'],
+  MORNING_ATTRS.eqpt, MORNING_ATTRS.memo, MORNING_ATTRS.dri, MORNING_ATTRS.due,
 ];
 
 /**
@@ -72,7 +99,8 @@ export const MORNING_HEAD = [
  */
 export function morningExportRows(rows = [], mask = (f, v) => v) {
   return rows.map((r) => [
-    hasTarget(r.dayTarget) ? signalOf(r.state).label : '-',
+    // 상태는 달성률에서 나오므로 달성률이 비공개면 함께 가립니다
+    hasTarget(r.dayTarget) ? (mask('yield', 0) === '비공개' ? '비공개' : signalOf(r.state).label) : '-',
     dash(r.process),
     dash(r.issue),
     hasTarget(r.dayTarget) ? mask('qty', kk(r.dayTarget)) : '-',
@@ -132,7 +160,9 @@ export default function MorningSheet({ nodeId, title, baseDate, resultDate, rows
         columns={MORNING_COLUMNS}
         rows={rows.map((r, i) => {
           const known = hasTarget(r.dayTarget);
-          const sig = known ? signalOf(r.state) : { label: '-', tone: '' };
+          // 상태 색은 달성률에서 나옵니다 — 달성률이 비공개면 상태도 그리지 않습니다
+          const rateHidden = known && mask('yield', 0) === '비공개';
+          const sig = !known ? { label: '-', tone: '' } : rateHidden ? { label: '비공개', tone: '' } : signalOf(r.state);
           return {
             key: r.processId ? `${r.processId}-${r.issue || i}` : `${r.process || ''}-${i}`,
             cells: [

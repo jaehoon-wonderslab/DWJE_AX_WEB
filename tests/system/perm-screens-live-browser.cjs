@@ -73,13 +73,15 @@ async function openLive(empNo = '10004') {
 
     // ── 데이터 접근 권한 ──
     await page.goto(`${WEB}/system/data-perm`);
-    const grid = page.locator('.tabulator').first();
+    // 2026-10-07 항목 × 부서 표 — 머리글 필터로 항목을 찾습니다(쪽 나누기 50)
+    const grid = page.locator('#data-perm-panel-matrix .tabulator').first();
     await grid.waitFor({ timeout: 60000 });
+    await grid.locator('.tabulator-col[tabulator-field="name"] .tabulator-header-filter input').fill('불량 수량');
     await page.waitForTimeout(800);
     const dHeader = await grid.locator('.tabulator-headers').innerText();
     assert(dHeader.includes('0건 고정'), 'live data unassigned header');
-    assert(await page.getByRole('checkbox', { name: '생산·출하 수량 · 미배정 열람 허용', exact: true }).isDisabled());
-    assert(!(await page.getByRole('checkbox', { name: '생산·출하 수량 · 미배정 열람 허용', exact: true }).isChecked()));
+    assert(await page.getByRole('checkbox', { name: '불량 수량 · 미배정 열람', exact: true }).isDisabled());
+    assert(!(await page.getByRole('checkbox', { name: '불량 수량 · 미배정 열람', exact: true }).isChecked()));
     // 2026-10-02 — 적용 열 · 「계정으로 확인」 카드는 뺐고, 변경 이력은 탭입니다
     assert.equal(await grid.locator('.tabulator-col[tabulator-field="applyLabel"]').count(), 0, 'live no apply column');
     await page.locator('#data-perm-tab-logs').click();
@@ -87,7 +89,7 @@ async function openLive(empNo = '10004') {
     await dLogs.locator('.tabulator-row').first().waitFor({ timeout: 30000 });
     // 대상 칸에 내부 항목 키(f_xxxx)가 그대로 나오지 않습니다
     const targets = await dLogs.locator('.tabulator-cell[tabulator-field="targetLabel"]').allInnerTexts();
-    assert(!targets.some((t) => /(^|\/ )f_[a-z0-9]+$/i.test(t.trim())), `대상 칸 내부 키 노출: ${targets.filter((t) => /f_[a-z0-9]+/i.test(t)).slice(0, 3)}`);
+    assert(!targets.some((t) => /(^|\/ )[fi]_[a-z0-9]+$/i.test(t.trim())), `대상 칸 내부 키 노출: ${targets.filter((t) => /f_[a-z0-9]+/i.test(t)).slice(0, 3)}`);
     assert.deepEqual(errors, []);
     console.log('PASS: live(18081) — menu locks/headers/group order/change logs/audit link, data locks/no apply column/change logs tab/readable targets');
   } finally { await browser.close(); }

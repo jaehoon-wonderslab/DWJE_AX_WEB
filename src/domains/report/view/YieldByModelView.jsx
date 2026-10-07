@@ -78,6 +78,8 @@ export default function YieldByModelView({
     const mt = src?.mgmtTypes || mgmtTypes;
     return {
       head: ['No', 'Date', 'Model', '투입 수량', '양품 수량', '불량 수량', '불량률', '수율', ...lt, ...mt],
+      // 열 순서대로의 응답 필드명 — 내려받기 함수가 이것으로 「비공개」 를 채웁니다(화면 표와 같은 판정)
+      attrs: ['', '', '', 'inputQty', 'okQty', 'ngQty', 'defectRate', 'yield', ...lt.map(() => 'ngQty'), ...mt.map(() => 'ngQty')],
       rows: (src?.rows || []).map((r, i) => [
         r.no ?? i + 1, r.date || yearMonth, r.model, r.inputQty, r.okQty, r.ngQty, r.defectRate, r.yield,
         ...lt.map((t) => r.loss?.[t] ?? 0),
@@ -94,10 +96,10 @@ export default function YieldByModelView({
     } catch {
       toast('전체를 불러오지 못해 현재 쪽만 내려받습니다');
     }
-    const { head, rows: body } = buildExport(src);
+    const { head, attrs, rows: body } = buildExport(src);
     const ym = String(src?.yearMonth || data.yearMonth || lastDataDate().slice(0, 7));
-    if (kind === 'csv') downloadCsv({ name: `제품별수율_${ym}`, head, rows: body });
-    else downloadXls({ name: `제품별 수율 ${ym}`, head, rows: body });
+    if (kind === 'csv') downloadCsv({ name: `제품별수율_${ym}`, head, attrs, rows: body });
+    else downloadXls({ name: `제품별 수율 ${ym}`, head, attrs, rows: body });
   };
 
   return (
@@ -142,13 +144,14 @@ export default function YieldByModelView({
               { key: 'no', title: 'No', width: 46 },
               { key: 'date', title: 'Date', width: 92 },
               { key: 'model', title: 'Model', width: 92, align: 'left' },
-              { key: 'inputQty', title: '투입 수량', width: 110 },
-              { key: 'okQty', title: '양품 수량', width: 110 },
-              { key: 'ngQty', title: '불량 수량', width: 100 },
-              { key: 'defectRate', title: '불량률%', width: 82 },
-              { key: 'yield', title: '수율', width: 80 },
-              ...lossTypes.map((h) => ({ key: `loss-${h}`, title: h, width: 100 })),
-              ...mgmtTypes.map((h) => ({ key: `mgmt-${h}`, title: h, width: 104 })),
+              // attr — 데이터 접근 권한 판정용 응답 필드명(XlsTable). Loss · 관리 항목은 유형별 불량 수량이라 ngQty 로 판정합니다
+              { key: 'inputQty', attr: 'inputQty', title: '투입 수량', width: 110 },
+              { key: 'okQty', attr: 'okQty', title: '양품 수량', width: 110 },
+              { key: 'ngQty', attr: 'ngQty', title: '불량 수량', width: 100 },
+              { key: 'defectRate', attr: 'defectRate', title: '불량률%', width: 82 },
+              { key: 'yield', attr: 'yield', title: '수율', width: 80 },
+              ...lossTypes.map((h) => ({ key: `loss-${h}`, attr: 'ngQty', title: h, width: 100 })),
+              ...mgmtTypes.map((h) => ({ key: `mgmt-${h}`, attr: 'ngQty', title: h, width: 104 })),
             ]}
             rows={[
               {

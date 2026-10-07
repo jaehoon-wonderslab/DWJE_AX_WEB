@@ -403,3 +403,22 @@ export const saveDailyReportRows = (targetDate, rows) =>
  * 웹 화면·메뉴를 걷어냈고, 서버 API 는 그 시스템이 쓰므로 그대로 둡니다.
  * 되살릴 일이 생기면 이 자리에 loadDowntimes · registerDowntime · updateDowntime 을 다시 둡니다.
  */
+
+/**
+ * 열마다 데이터 접근 권한을 판정할 응답 필드명 — [화면 열 key, 서버 응답 키 …] (2026-10-07 데이터 항목 설계 7.1)
+ * 「항목 관리 > 화면별 가리기」 가 저장하는 화면 열 key 와 서버 응답 키 중 하나라도 막히면 그 열을 「비공개」 로 그립니다.
+ * 상태는 달성률에서 나오므로 달성률이 막혀도 가립니다. 화면(DailyReportView) 과 엑셀(useDailyReportController)이 같은 목록을 씁니다.
+ */
+export const DAILY_ATTRS = {
+  state: ['state', 'rate'],
+  process: ['process'],
+  product: ['product', 'productNm'],
+  target: ['target', 'targetQty', 'dayTarget'],
+  qty: ['qty', 'dayActual'],
+  rate: ['rate'],
+  week: ['week', 'weekQty', 'weekTargetQty', 'weekTarget', 'weekRate'],
+  scope: ['scope', 'eqptCnt', 'impactEqptCnt'],
+  decision: ['decision'],
+  dri: ['dri'],
+  due: ['due'],
+};

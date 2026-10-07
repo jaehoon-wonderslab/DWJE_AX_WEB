@@ -1,4 +1,7 @@
 /**
+ * 「제거됨」 2026-10-07 — 데이터 접근 권한을 항목 단위로 바꾸며 화면에서 뺐습니다(DataPermView → ItemPermGrid).
+ * 어디서도 import 하지 않습니다. 되살릴 수 있게 파일은 남겨 둡니다(AGENTS.md 「제거한 화면은 「제거됨」 으로 표시」).
+ *
  * [View] SY-03 부서 × 데이터 항목 표
  *
  * 메뉴 접근 권한(MenuPermGrid)과 같은 Tabulator 표입니다 — 두 권한 화면을 오가며 쓰는 일이
@@ -23,7 +26,8 @@ const TABLE_OPTIONS = {
 
 function deptHeader(name, userCnt, locked) {
   const count = `${Number(userCnt || 0).toLocaleString('ko-KR')}명`;
-  const second = locked === 'SUPER_ADMIN' ? '전 권한' : locked === 'UNASSIGNED' ? '0건 고정' : '';
+  // 통합관리자 「전 권한」 부제는 뺐습니다(2026-10-07) — 잠금 이유는 머리글 툴팁 · 칸 툴팁에 있습니다
+  const second = locked === 'UNASSIGNED' ? '0건 고정' : '';
   return `<div class="strong">${escapeTitle(`${name} · ${count}`)}</div>${second ? `<div class="muted" style="font-weight:400">${escapeTitle(second)}</div>` : ''}`;
 }
 
@@ -72,7 +76,6 @@ export default function DataPermGrid({ fields, depts, cellValue, lockReason, app
         key: f.key,
         name: f.name,
         builtIn: !!f.builtIn,
-        categoryNm: f.categoryNm || f.category || '—',
         applyFlg: f.applyFlg,
         applyLabel: f.applyFlg === 'N' ? '미적용' : '적용 중',
         applyLock: applyLockReason ? applyLockReason(f) : '',

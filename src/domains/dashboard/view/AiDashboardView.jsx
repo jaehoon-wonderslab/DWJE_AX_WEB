@@ -26,6 +26,7 @@ import {
 } from '@shared/components/ui';
 import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
+import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { saveChartAsPng } from '@shared/utils/exportUtil';
 import { comma, fixed, rate } from '@shared/utils/formatUtil';
@@ -69,6 +70,9 @@ export default function AiDashboardView({
   headExtra = null,
 }) {
   const s = useCommonStyles();
+  const canAttr = useAuthStore((st) => st.canAttr);
+  /** KPI 부가 문구의 수량 — 가려진 값(서버 null)은 0 이 아니라 「비공개」, 값이 없으면 「—」 */
+  const qtyText = (attr, v) => (v != null ? `${comma(v)} EA` : canAttr(attr) ? '—' : '비공개');
   const theme = useTheme();
   const toast = useUiStore((state) => state.toast);
 
@@ -208,7 +212,8 @@ export default function AiDashboardView({
               value={summary?.defectRate != null ? fixed(summary.defectRate, 2) : '—'}
               unit={summary?.defectRate != null ? '%' : ''}
               tone={(summary?.defectRate || 0) > 3.0 ? 'down' : 'up'}
-              sub={`양품 ${comma(summary?.okQty ?? 0)} EA / 불량 ${comma(summary?.ngQty ?? 0)} EA`}
+              /* 수량을 볼 수 없으면(서버 null) 0 이 아니라 비공개로 적습니다(2026-10-07) */
+              sub={`양품 ${qtyText('okQty', summary?.okQty)} / 불량 ${qtyText('ngQty', summary?.ngQty)}`}
             />
 
             <StatCard

@@ -17,6 +17,7 @@
 import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { TabulatorGrid } from '@shared/components/ui';
+import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useCommonStyles } from '@shared/theme/styles';
 
 /** HTML 셀에 넣는 글자 — 서버 값(설비명·공정명)에 < & 가 있어도 태그로 읽히지 않게 */
@@ -33,8 +34,16 @@ function rateHtml(v) {
 
 const dash = (v) => (v === null || v === undefined || v === '' ? '<span class="muted">—</span>' : String(v));
 
+/** 데이터 접근 권한으로 가린 칸 — 표의 「●●●● 비공개」 배지와 같은 글자 */
+const BLIND_HTML = '<span class="muted">비공개</span>';
+
 export default function EquipmentMatrix({ data, loading }) {
   const s = useCommonStyles();
+  // 칸을 직접 HTML 로 만들어 표의 열 field(eqpt · product · rate)로는 가릴 수 없습니다 — 응답 필드명으로 직접 판정합니다
+  useAuthStore((st) => st.attrIndex);
+  const canAttr = useAuthStore((st) => st.canAttr);
+  const rateOk = canAttr('defectRate');
+  const qtyOk = canAttr('qty') && canAttr('ngQty');
   const items = data?.items || [];
   // 줄 수가 아니라 **서로 다른 설비 대수**입니다 — 한 대가 여러 줄이 될 수 있습니다
   const eqptCnt = data?.eqptCnt ?? items.length;
@@ -55,9 +64,9 @@ export default function EquipmentMatrix({ data, loading }) {
         // formatter:'html' 이라 DB 글자는 이스케이프합니다
         eqpt: `${e.eqptNm ? esc(e.eqptNm) : '<span class="muted">이름 비공개</span>'}<span class="muted"> ${esc(e.eqptCd)}</span><div class="muted">${esc(e.processNm)}</div>`,
         product: dash(e.product ? `${e.product}${e.productEtcCnt ? ` 외 ${comma(e.productEtcCnt)}종` : ''}` : ''),
-        rate: `${rateHtml(e.defectRate)}<div class="muted num">${comma(e.ngQty)} / ${comma(e.qty)} EA</div>`,
+        rate: `${rateOk && e.defectRate != null ? rateHtml(e.defectRate) : BLIND_HTML}<div class="muted num">${qtyOk && e.qty != null ? `${comma(e.ngQty)} / ${comma(e.qty)} EA` : '수량 비공개'}</div>`,
       })),
-    [items]
+    [items, rateOk, qtyOk]
   );
 
   if (loading && !items.length) return <Text style={s.textXs}>설비 현황을 불러오는 중입니다.</Text>;

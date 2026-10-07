@@ -96,7 +96,8 @@ export function countMasked(rows, fieldKeys) {
  * 서버가 내려준 대응표가 판정합니다. 화면이 항목 key 를 알 필요가 없습니다.
  *
  * @param {(string|number)[][]} rows 원본 표 (행 = 값 배열)
- * @param {string[]} attrs 열 순서대로의 응답 필드명. 빈 칸은 통제 대상 아님
+ * @param {(string|string[])[]} attrs 열 순서대로의 응답 필드명. 빈 칸은 통제 대상 아님.
+ *        화면 열 field 와 서버 응답 키가 다르면 배열로 둘 다 적습니다 — 하나라도 막히면 가립니다(2026-10-07)
  * @returns {{rows:(string|number)[][], blindCount:number}} 가린 표와 가려진 칸 수
  */
 export function maskRows(rows, attrs) {
@@ -104,7 +105,7 @@ export function maskRows(rows, attrs) {
   if (!Array.isArray(attrs) || !attrs.length) return { rows: list, blindCount: 0 };
 
   // 열마다 한 번만 판정합니다 — 행이 수천 개일 때 칸마다 스토어를 읽으면 느려집니다
-  const blocked = attrs.map((a) => !!a && !canAttr(a));
+  const blocked = attrs.map((a) => (Array.isArray(a) ? a : [a]).some((x) => !!x && !canAttr(x)));
   if (!blocked.some(Boolean)) return { rows: list, blindCount: 0 };
 
   let blindCount = 0;
@@ -116,4 +117,36 @@ export function maskRows(rows, attrs) {
     })
   );
   return { rows: masked, blindCount };
+}
+
+/**
+ * 객체 행(트리 포함)을 응답 필드명 기준으로 가립니다 (2026-10-07 데이터 항목 설계 7.1).
+ *
+ * `maskRows` 는 값 배열 행만 받습니다. 실적 집계 트리처럼 객체 행(`_children` 아래로 내려가는 트리)을
+ * 그대로 내보내는 곳은 이 함수를 씁니다. 원본은 바꾸지 않고 복사본을 돌려줍니다.
+ * 막힌 필드는 값이 있든 없든(서버가 이미 null 로 비웠든) 「비공개」 로 채웁니다 — 빈칸이나 「—」 로 보이면
+ * 값이 없는 것인지 가린 것인지 구분할 수 없기 때문입니다.
+ *
+ * @param {object[]} rows 객체 행
+ * @param {string[]} attrs 가릴지 판정할 필드명(행 객체의 키 = 응답 필드명)
+ * @param {string} [childKey] 하위 행 키
+ * @returns {{rows:object[], blindCount:number}}
+ */
+export function maskObjectRows(rows, attrs, childKey = '_children') {
+  const list = Array.isArray(rows) ? rows : [];
+  const blocked = (Array.isArray(attrs) ? attrs : []).filter((a) => a && !canAttr(a));
+  if (!blocked.length) return { rows: list, blindCount: 0 };
+
+  let blindCount = 0;
+  const walk = (row) => {
+    if (!row || typeof row !== 'object') return row;
+    const next = { ...row };
+    blocked.forEach((a) => {
+      next[a] = BLIND_TEXT;
+      blindCount += 1;
+    });
+    if (Array.isArray(row[childKey])) next[childKey] = row[childKey].map(walk);
+    return next;
+  };
+  return { rows: list.map(walk), blindCount };
 }

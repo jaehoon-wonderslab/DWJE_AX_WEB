@@ -43,6 +43,11 @@ export default function ShipPlanView({
   };
   const plan = (v) => masked(canData(planField), comma(v));
   const cust = (v) => masked(canData('customer'), v ?? '—');
+  // 데이터 접근 권한 판정용 응답 필드명 — [화면 열 key, 서버 응답 키] (2026-10-07 데이터 항목 설계 7.1).
+  // 「항목 관리 > 화면별 가리기」 로 고른 열(total · customer)도 표(XlsTable) · 엑셀에서 가려집니다
+  const planAttr = isAmount ? 'planAmount' : 'planQty';
+  const TOTAL_ATTR = ['total', planAttr];
+  const MONTH_ATTR = ['monthly', planAttr];
 
   const months = data?.months || [];
   const rows = data?.rows || [];
@@ -84,7 +89,7 @@ export default function ShipPlanView({
       tone: 'group',
       cells: [
         { v: '', align: 'left' },
-        { v: 'TOTAL', align: 'left', bold: true },
+        { v: 'TOTAL', align: 'left', bold: true, attr: null },
         { v: plan(ms.total), num: true, bold: true },
         ...ms.monthly.map((v) => ({ v: plan(v), num: true, bold: true })),
       ],
@@ -106,6 +111,7 @@ export default function ShipPlanView({
   const peakQty = monthTotals.length ? Math.max(0, ...monthTotals.map((v) => Number(v) || 0)) : 0;
   const exportHead = ['모델', '고객사', `총합계 (${unitLabel})`, ...months];
   const exportRows = rows.map((r) => [r.model, cust(r.customer), plan(r.total), ...months.map((_, i) => plan(monthlyOf(r)[i] ?? 0))]);
+  const exportAttrs = ['', 'customer', TOTAL_ATTR, ...months.map(() => MONTH_ATTR)];
 
   return (
     <View>
@@ -115,8 +121,8 @@ export default function ShipPlanView({
         actions={
           <>
             <Button label="인쇄 · PDF" size="sm" icon="printer" onPress={() => printDocument({ nodeId: NODE_ID, title, role, rowCount: exportRows.length })} />
-            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `출하계획_${yearNum}`, head: exportHead, rows: exportRows, blindCount: blindCnt })} />
-            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: title, head: exportHead, rows: exportRows, blindCount: blindCnt })} />
+            <Button label="CSV" size="sm" icon="download" onPress={() => downloadCsv({ name: `출하계획_${yearNum}`, head: exportHead, attrs: exportAttrs, rows: exportRows, blindCount: blindCnt })} />
+            <Button label="엑셀 다운로드" size="sm" icon="download" onPress={() => downloadXls({ name: title, head: exportHead, attrs: exportAttrs, rows: exportRows, blindCount: blindCnt })} />
           </>
         }
       />
@@ -153,9 +159,9 @@ export default function ShipPlanView({
               maxHeight={560}
               columns={[
                 { key: 'model', title: '모델', width: 130 },
-                { key: 'customer', title: '고객사', width: 96 },
-                { key: 'total', title: '총합계', width: 110 },
-                ...months.map((m) => ({ key: m, title: m, width: 96 })),
+                { key: 'customer', attr: 'customer', title: '고객사', width: 96 },
+                { key: 'total', attr: TOTAL_ATTR, title: '총합계', width: 110 },
+                ...months.map((m) => ({ key: m, attr: MONTH_ATTR, title: m, width: 96 })),
               ]}
               rows={pivotRows}
             />

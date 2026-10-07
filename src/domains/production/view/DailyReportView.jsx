@@ -22,7 +22,7 @@ import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import { comma, dateWithWeekday, fixed, shiftDate } from '@shared/utils/formatUtil';
 import { TOP_N_OPTIONS } from '../controller/useDailyReportController';
-import { PRESS_LEVELS } from '../model/productionRepository';
+import { DAILY_ATTRS, PRESS_LEVELS } from '../model/productionRepository';
 
 /** 값이 없으면 '—' */
 const text = (v) => (v === null || v === undefined || v === '' ? '—' : String(v));
@@ -49,7 +49,7 @@ const COLUMNS = [
   { key: 'decision', title: '결정항목 / 기타', width: 156, align: 'left' },
   { key: 'dri', title: 'DRI', width: 82 },
   { key: 'due', title: '기한', width: 68 },
-];
+].map((c) => ({ ...c, attr: DAILY_ATTRS[c.key] }));
 
 /** 달성률 구간 → XlsTable 색 */
 const TONE = { normal: 'ok', watch: 'warn', risk: 'bad' };
@@ -60,6 +60,7 @@ export default function DailyReportView({
 }) {
   const s = useCommonStyles();
   const theme = useTheme();
+  const canData = useAuthStore((state) => state.canData);
 
   const resultDate = shiftDate(targetDate, -1);
 
@@ -89,15 +90,19 @@ export default function DailyReportView({
     ),
   });
 
+  // 달성률 · 상태는 아침회의 자료(RP-01 · RP-02)와 같이 수율·불량률 종류로 가립니다(2026-10-07 — 예전에는 이 화면만 가리지 않았습니다)
+  const rateOk = canData('yield');
   const sheetRows = rows.map((r) => ({
     key: r.product,
     cells: [
-      { v: r.level?.label || '—', tone: TONE[r.level?.level] || undefined, bold: true },
+      rateOk
+        ? { v: r.level?.label || '—', tone: TONE[r.level?.level] || undefined, bold: true }
+        : { v: '비공개', bold: true },
       { v: r.process },
       { v: r.productNm, align: 'left', wrap: true },
       { node: <TargetCell row={r} onChange={(v) => setManualCell(r.product, 'target', v)} /> },
       qtyCell(r.qty),
-      { v: r.rate === null ? '—' : `${fixed(r.rate)}%`, num: true, bold: true },
+      { v: !rateOk ? '비공개' : r.rate === null ? '—' : `${fixed(r.rate)}%`, num: true, bold: true },
       { node: <WeekCell row={r} /> },
       { v: r.eqptCnt === null ? '—' : `Press ${comma(r.eqptCnt)}대` },
       inputCell(r, 'decision', '—', 'left'),

@@ -26,7 +26,7 @@ import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import { comma, fixed } from '@shared/utils/formatUtil';
-import { loadPressReport, pressLevel, saveDailyReportRows, shiftWindow } from '../model/productionRepository';
+import { DAILY_ATTRS, loadPressReport, pressLevel, saveDailyReportRows, shiftWindow } from '../model/productionRepository';
 
 /** 표시 개수 선택지 — 0 은 전량 */
 export const TOP_N_OPTIONS = [
@@ -133,20 +133,28 @@ export function useDailyReportController() {
   /** 양식 그대로 내려받습니다 (열 순서·머리글 동일) */
   const exportExcel = useCallback(() => {
     const qty = canData('qty');
+    const rateOk = canData('yield');
     const hide = (v) => (v === null || v === undefined ? '—' : qty ? comma(v) : '비공개');
+    const pctOf = (v) => (!rateOk ? '비공개' : v === null || v === undefined ? '—' : `${fixed(v)}%`);
     downloadXls({
       name: `생산관리팀 (PRESS) 아침회의자료 ${targetDate}`,
       head: ['상태', '공정/Process', '이슈 항목', '일목표', '실적', '달성률', '주간목표', '주간실적', '주간달성률', '영향범위(생산장비 대수)', '결정항목 / 기타', 'DRI', '기한'],
+      // 열 순서대로의 응답 필드명 — 화면 표(DAILY_ATTRS)와 같은 기준으로 내려받기 함수가 가립니다(2026-10-07)
+      attrs: [
+        DAILY_ATTRS.state, DAILY_ATTRS.process, DAILY_ATTRS.product, DAILY_ATTRS.target, DAILY_ATTRS.qty, DAILY_ATTRS.rate,
+        ['week', 'weekTarget', 'weekTargetQty'], ['week', 'weekQty'], ['week', 'weekRate'],
+        DAILY_ATTRS.scope, DAILY_ATTRS.decision, DAILY_ATTRS.dri, DAILY_ATTRS.due,
+      ],
       rows: rows.map((r) => [
-        r.level?.label || '—',
+        rateOk ? r.level?.label || '—' : '비공개',
         r.process,
         r.productNm,
         hide(r.target),
         hide(r.qty),
-        r.rate === null ? '—' : `${fixed(r.rate)}%`,
+        pctOf(r.rate),
         hide(r.weekTarget),
         hide(r.weekQty),
-        r.weekRate === null ? '—' : `${fixed(r.weekRate)}%`,
+        pctOf(r.weekRate),
         r.eqptCnt === null ? '—' : `Press ${comma(r.eqptCnt)}대`,
         r.decision || '—',
         r.dri || '—',

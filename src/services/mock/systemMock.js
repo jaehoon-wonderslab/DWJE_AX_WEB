@@ -767,25 +767,25 @@ export const systemMock = {
     reservedAttrs: MOCK_RESERVED_ATTRS,
   }),
 
-  postSystemDataFields: ({ fieldKey, key, name, desc, category }) => {
+  // 분류(category)는 2026-10-07 없앴습니다 — 받아도 저장하지 않습니다
+  postSystemDataFields: ({ fieldKey, key, name, desc }) => {
     const k = fieldKey || key;
     if (!k || !name) return fail('E-VALID-001', '항목 key 와 이름은 필수입니다.');
     if (!/^[a-z][a-z0-9_-]{1,29}$/.test(k)) return fail('E-VALID-001', '항목 key 는 영문 소문자로 시작하는 2~30자여야 합니다.');
     if (allDataFields().some((f) => f.key === k)) return fail('E-RULE-001', `이미 등록된 항목 key 입니다. [${k}]`);
     // 등록만으로는 아무것도 가려지지 않습니다. 부서 허용을 정한 뒤 「적용」을 켜야 걸립니다
-    allDataFields().push({ key: k, name, desc: desc || '', category: category || '', attrs: [], applyFlg: 'N' });
+    allDataFields().push({ key: k, name, desc: desc || '', attrs: [], applyFlg: 'N' });
     logPerm(name, '항목 등록', `데이터 항목 ${k} 등록 (미적용)`);
     return ok('데이터 항목을 등록했습니다 — 부서 허용을 정한 뒤 「적용」을 켜세요.', { key: k });
   },
 
-  putSystemDataFieldsByFieldKey: ({ fieldKey, name, desc, category }) => {
+  putSystemDataFieldsByFieldKey: ({ fieldKey, name, desc }) => {
     const f = allDataFields().find((x) => x.key === fieldKey);
     if (!f) return fail('E-NOTFOUND', '항목을 찾을 수 없습니다.');
     if (name !== undefined && (!String(name).trim() || String(name).length > 50)) return fail('E-VALID-001', '항목 이름은 1~50자로 입력해 주십시오.');
     if (desc && String(desc).length > 300) return fail('E-VALID-001', '설명은 300자 이내로 입력해 주십시오.');
     if (name) f.name = name;
     if (desc !== undefined) f.desc = desc;
-    if (category !== undefined) f.category = category;
     logPerm(f.name, '항목 수정', `데이터 항목 ${fieldKey} 수정`);
     return ok('데이터 항목을 수정했습니다.');
   },
@@ -841,7 +841,7 @@ export const systemMock = {
     // ── 여기부터 반영 ──
     const created = [];
     newFields.forEach((f) => {
-      list.push({ key: f.fieldKey, name: String(f.name).trim(), desc: f.desc || '', category: f.category || '', attrs: [], applyFlg: 'N' });
+      list.push({ key: f.fieldKey, name: String(f.name).trim(), desc: f.desc || '', attrs: [], applyFlg: 'N' });
       created.push(f.fieldKey);
       // 새 종류는 통합관리자·미배정을 뺀 전 부서 허용으로 시작합니다(미배정은 어떤 종류도 보지 못함, DTP-16)
       if (f.grantAllDepts !== false) {
@@ -870,6 +870,56 @@ export const systemMock = {
     const notApplied = [...new Set(moved.map((m) => m.to))].filter((k) => list.find((x) => x.key === k)?.applyFlg !== 'Y');
     logPerm(screenId || '-', '데이터 권한', `매핑 저장 [${screenId || '-'}] 새 종류 ${created.length} · 이동 ${moved.length} · 해제 ${released.length} · 적용 ${applied.length}`);
     return ok(`${moved.length + released.length}개 열을 저장했습니다.`, { created, moved, released, applied, notApplied });
+  },
+
+  // 항목별 부서 열람 저장(2026-10-07, V82) — 서버와 같은 순서: 대상 항목(재사용/새로) → 빈 항목 삭제 → 부서 반영
+  putSystemDataFieldsItemPerms: ({ name, attrs = [], perms = {} }) => {
+    const list = allDataFields();
+    const nm = String(name || '').trim();
+    if (!nm) return fail('E-VALID-001', '항목 이름을 입력해 주세요.');
+    const keys = [...new Set(attrs.map((a) => String(a).trim()))];
+    if (!keys.length) return fail('E-VALID-001', '응답 필드명이 없습니다.');
+    const bad = keys.find((a) => MOCK_RESERVED_ATTRS.includes(a));
+    if (bad) return fail('E-RULE-001', `시스템이 쓰는 필드명이라 가릴 수 없습니다. [${bad}]`);
+    for (const id of Object.keys(perms)) {
+      if (dataScopeOf(id) === '*' || isUnassignedDept(id)) return fail('E-RULE-001', '통합관리자 · 미배정 부서의 데이터 권한은 바꿀 수 없습니다.');
+    }
+    const owners = keys.map((a) => list.find((x) => x.attrs.includes(a)) || null);
+    const ownerKeys = [...new Set(owners.filter(Boolean).map((x) => x.key))];
+    const builtIn = ['qty', 'yield', 'price', 'customer', 'plan', 'mold', 'worker'];
+    const one = ownerKeys.length === 1 && owners.every(Boolean) ? list.find((x) => x.key === ownerKeys[0]) : null;
+    let target = one && !builtIn.includes(one.key) && one.attrs.length === keys.length ? one : null;
+    let created = false;
+    const removed = [];
+    if (!target) {
+      target = { key: `i_${Date.now().toString(36)}`, name: nm, desc: '', attrs: [], applyFlg: 'Y' };
+      list.push(target);
+      store().depts.forEach((d) => {
+        if (dataScopeOf(d.id) === '*' || isUnassignedDept(d.id)) return;
+        const can = ownerKeys.every((k) => list.find((x) => x.key === k)?.applyFlg !== 'Y' || (mockState.dataScope[d.id] || []).includes(k));
+        if (!Array.isArray(mockState.dataScope[d.id])) mockState.dataScope[d.id] = [];
+        if (can) mockState.dataScope[d.id].push(target.key);
+      });
+      keys.forEach((a) => {
+        const o = list.find((x) => x.attrs.includes(a));
+        if (o) o.attrs = o.attrs.filter((x) => x !== a);
+        target.attrs.push(a);
+        rememberRemark(target, a, `항목 · ${nm}`);
+      });
+      created = true;
+      ownerKeys.forEach((k) => {
+        const o = list.find((x) => x.key === k);
+        if (o && !builtIn.includes(k) && !o.attrs.length) { list.splice(list.indexOf(o), 1); removed.push(k); }
+      });
+    }
+    Object.entries(perms).forEach(([id, allowed]) => {
+      if (!Array.isArray(mockState.dataScope[id])) mockState.dataScope[id] = [];
+      const cur = mockState.dataScope[id];
+      if (allowed && !cur.includes(target.key)) cur.push(target.key);
+      if (!allowed) mockState.dataScope[id] = cur.filter((k) => k !== target.key);
+    });
+    logPerm(nm, '데이터 권한', `항목 [${target.key} / ${nm}] ${keys.join(',')}`);
+    return ok('항목 권한을 저장했습니다.', { fieldKey: target.key, created, removed, attrs: keys });
   },
 
   deleteSystemDataFieldsByFieldKeyAttrsByAttrName: ({ fieldKey, attrName }) => {

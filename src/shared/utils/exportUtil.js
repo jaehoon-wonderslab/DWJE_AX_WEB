@@ -21,7 +21,7 @@ import { toast } from '@shared/stores/useUiStore';
 import { API_BASE_URL, USE_MOCK } from '@services/api/client';
 import * as systemService from '@services/api/systemService';
 import { useAuthStore } from '@shared/stores/useAuthStore';
-import { maskRows } from '@shared/utils/maskUtil';
+import { BLIND_TEXT, maskObjectRows, maskRows } from '@shared/utils/maskUtil';
 import { HOME_PATH, HOME_SCREEN_ID, screenIdOf } from '@shared/navigation/routes';
 
 const isWeb = Platform.OS === 'web' && typeof document !== 'undefined';
@@ -558,16 +558,23 @@ function unclipForPrint(win) {
   }
 }
 
+/** 실적 집계 트리 엑셀에서 가릴지 판정하는 행 필드명 — 화면 표(`ProductionResultView`)의 열 field 와 같습니다 */
+const TREE_ATTRS = ['inputQty', 'okQty', 'ngQty', 'defectRate', 'uptimeRate', 'downtimeMin', 'plantNm', 'processNm', 'equipCd', 'equipNm'];
+
 /**
  * 계층 트리 데이터(일자 ➔ 제품 ➔ 공정/프레스 기기)를 엑셀 그룹핑(+/- 아웃라인)이 적용된
  * 순수 .xlsx 파일로 내려받습니다.
  *
  * 첫 줄은 「비공개 처리 n건(데이터 접근 권한 기준)」, 둘째 줄이 머리글입니다(DLG-15).
  *
- * @param {object} config { name, head, rows, blindCount, scope?, condSummary?, menuId? }
+ * 가리기는 이 함수가 직접 합니다(2026-10-07 데이터 항목 설계 7.1). 예전에는 호출부가 `attrs` 를 넘겨야 했는데,
+ * 행이 객체 트리라 값 배열용 `maskRows` 로는 가릴 수 없었고 실제 호출부도 넘기지 않아 화면에서 가린 값이
+ * 엑셀에는 원본 그대로 나갔습니다. 이제 아래 `TREE_ATTRS`(행 객체의 필드명)로 판정합니다.
+ *
+ * @param {object} config { name, rows, blindCount, scope?, condSummary?, menuId? }
  * @returns {Promise<boolean>} 저장했는지
  */
-export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0, scope, condSummary, menuId }) {
+export async function downloadXlsxTree({ name, rows, blindCount = 0, scope, condSummary, menuId }) {
   if (!isWeb) {
     toast('앱에서는 파일 내려받기를 지원하지 않습니다 — 웹에서 이용하세요');
     return false;
@@ -576,8 +583,12 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
     toast('내려받을 데이터가 없습니다');
     return false;
   }
-  const noAttrs = attrsMissing(attrs, name);
-  ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
+  const noAttrs = false;
+  {
+    const out = maskObjectRows(rows, TREE_ATTRS);
+    rows = out.rows;
+    blindCount = out.blindCount || blindCount;
+  }
 
   try {
     // Metro에서 외부 node_modules 경로의 동적 청크가 404가 되는 것을 방지합니다.
@@ -646,7 +657,9 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
     };
 
     const numFmt = (v) => (v != null && typeof v === 'number' ? v : v ?? '—');
-    const pctFmt = (v) => (v != null && v !== '' ? (typeof v === 'number' ? `${v.toFixed(1)}%` : `${v}%`) : '—');
+    // 「비공개」 뒤에 % · 분을 붙이지 않습니다
+    const pctFmt = (v) => (v === BLIND_TEXT ? v : v != null && v !== '' ? (typeof v === 'number' ? `${v.toFixed(1)}%` : `${v}%`) : '—');
+    const minFmt = (v) => (v === BLIND_TEXT ? v : v != null ? `${v}분` : '—');
 
     let totalExportedRows = 0;
 
@@ -666,7 +679,7 @@ export async function downloadXlsxTree({ name, head, attrs, rows, blindCount = 0
         ngQty: numFmt(r1.ngQty),
         defectRate: pctFmt(r1.defectRate),
         uptimeRate: pctFmt(r1.uptimeRate),
-        downtimeMin: r1.downtimeMin != null ? `${r1.downtimeMin}분` : '—',
+        downtimeMin: minFmt(r1.downtimeMin),
       });
       row1.height = 25;
       row1.font = { name: 'Pretendard', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
