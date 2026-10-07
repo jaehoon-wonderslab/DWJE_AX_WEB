@@ -95,11 +95,11 @@ const tabText = async (page, value) => (await page.locator(`#gw-dept-tab-${value
     // GWD-04 저장 후 옮기기
     await page.locator('.tabulator-row', { hasText: target.gwDeptNm }).getByRole('button', { name: '지정', exact: true }).click();
     // 「최근 이력」 칸 · 「AX 부서를 고르면 …」 안내 · 아래 안내 문장은 뺐습니다(2026-10-02)
-    await page.getByRole('combobox', { name: 'AX 부서', exact: true }).waitFor();
+    await page.getByRole('combobox', { name: '부서', exact: true }).waitFor();
     assert.equal(await page.getByText('AX 부서를 고르면 함께 옮길 수 있습니다', { exact: false }).count(), 0, '고르기 전 안내 없음');
     assert.equal(await page.getByText('최근 이력', { exact: true }).count(), 0, '최근 이력 칸 없음');
     assert.equal(await page.getByText('다음 동기화부터 새로 가입하는 사람에게', { exact: false }).count(), 0, '아래 안내 없음');
-    const ax = page.getByRole('combobox', { name: 'AX 부서', exact: true });
+    const ax = page.getByRole('combobox', { name: '부서', exact: true });
     await ax.selectOption(String(depts[0].deptId));
     await page.getByText(`저장 후 이 부서 미배정 계정 ${target.unassignedCnt}명도 ${depts[0].deptNm}(으)로 옮기기`).waitFor();
     // GWD-06 가입 제외면 AX 부서 고를 수 없음

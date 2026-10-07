@@ -247,8 +247,8 @@ export default function GwDeptMapView({
           key: 'deptId',
           type: 'custom',
           render: ({ value, onChange, values }) => (values.joinYn === 'N'
-            ? <SelectField label="AX 부서" value="" options={[{ value: '', label: '가입 제외 — 저장하지 않음' }]} onChange={() => {}} nativeSelect full />
-            : <SelectField label="AX 부서" value={value} options={deptOptions} onChange={onChange} nativeSelect full />),
+            ? <SelectField label="부서" value="" options={[{ value: '', label: '가입 제외 — 저장하지 않음' }]} onChange={() => {}} nativeSelect full />
+            : <SelectField label="부서" value={value} options={deptOptions} onChange={onChange} nativeSelect full />),
         },
         { key: 'remark', label: '메모', type: 'textarea', rows: 2, full: true, placeholder: '예) IPQC 는 품질보증팀 소속 (발주자 확인 2026-09-30)' },
         // 「최근 이력」 칸은 뺐습니다(2026-10-02) — 매핑 변경은 계정 관리 > 계정·권한 변경 이력에 남습니다
@@ -296,7 +296,7 @@ export default function GwDeptMapView({
       sub: `${user.name} (${user.empNo}) · 그룹웨어 ${user.gwDeptNm}`,
       // 처음에는 아무 부서도 고르지 않은 상태로 엽니다(2026-10-07) — 고르지 않으면 저장이 막힙니다
       initial: { deptId: '' },
-      fields: [{ key: 'deptId', label: 'AX 부서', type: 'select', options: movePickOptions, required: true, full: true }],
+      fields: [{ key: 'deptId', label: '부서', type: 'select', options: movePickOptions, required: true, full: true }],
       note: '옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',
       submitLabel: '옮기기',
       onSubmit: async (v) => (await moveUser(user.empNo, v.deptId)).ok,
@@ -316,7 +316,7 @@ export default function GwDeptMapView({
       sub: `선택 ${picked.length}명`,
       initial: { deptId: '' },
       fields: [
-        { key: 'deptId', label: 'AX 부서', type: 'select', options: movePickOptions, required: true, full: true },
+        { key: 'deptId', label: '부서', type: 'select', options: movePickOptions, required: true, full: true },
         { key: 'who', label: '옮길 사람', type: 'static', full: true, value: `${names}${rest}` },
       ],
       note: '고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',

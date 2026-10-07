@@ -120,7 +120,7 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
 
     // GWD-02 지정 모달 부서 선택지에 통합관리자 없음
     await page.locator('.tabulator-row', { hasText: 'IPQC파트(M)' }).getByRole('button', { name: '지정', exact: true }).click();
-    const axSelect = page.getByRole('combobox', { name: 'AX 부서', exact: true });
+    const axSelect = page.getByRole('combobox', { name: '부서', exact: true });
     await axSelect.waitFor();
     const opts = await axSelect.locator('option').allTextContents();
     assert(!opts.some((o) => o.includes('통합관리자')) && !opts.includes('미배정'), `지정 선택지: ${opts}`);
@@ -146,7 +146,7 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
 
     // 부서 지정 모달 — 통합관리자 없음
     await page.locator('.tabulator-row', { hasText: 'MF0' }).getByRole('button', { name: '부서 지정', exact: true }).click();
-    const moveOpts = await page.getByRole('combobox', { name: 'AX 부서', exact: true }).locator('option').allTextContents();
+    const moveOpts = await page.getByRole('combobox', { name: '부서', exact: true }).locator('option').allTextContents();
     assert(!moveOpts.includes('통합관리자'), `부서 지정 선택지: ${moveOpts}`);
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
@@ -176,10 +176,10 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     assert.equal((await bulkBtn.innerText()).trim(), '선택 3명 부서 지정');
     await bulkBtn.click();
     await page.getByText('선택 계정 부서 지정').waitFor();
-    const bulkOpts = await page.getByRole('combobox', { name: 'AX 부서', exact: true }).locator('option').allTextContents();
+    const bulkOpts = await page.getByRole('combobox', { name: '부서', exact: true }).locator('option').allTextContents();
     assert(!bulkOpts.includes('통합관리자'), `일괄 지정 선택지: ${bulkOpts}`);
     await page.getByText('아이피0(IP0), 아이피1(IP1), 아이피2(IP2)').waitFor();
-    await page.getByRole('combobox', { name: 'AX 부서', exact: true }).selectOption('2');
+    await page.getByRole('combobox', { name: '부서', exact: true }).selectOption('2');
     const sentBefore = sent.length;
     await page.getByRole('button', { name: '3명 옮기기', exact: true }).click();
     await page.getByText('부서 지정 결과').waitFor();
