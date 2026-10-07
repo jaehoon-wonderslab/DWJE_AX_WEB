@@ -14,6 +14,10 @@ const assert = require('node:assert/strict');
 const { open, WEB } = require('../lib/browser');
 const { BASE } = require('../lib/api');
 
+/** 탭(CardTabs) 글자 — 이름과 건수 배지를 한 줄로 이어 「부서 매핑 12」 처럼 돌려줍니다 */
+const tabText = async (page, value) => (await page.locator(`#gw-dept-tab-${value}`).innerText()).replace(/\s+/g, ' ').trim();
+
+
 (async () => {
   const { browser, page } = await open();
   const errors = [];
@@ -57,8 +61,8 @@ const { BASE } = require('../lib/api');
     await page.locator('.tabulator-row').first().waitFor({ timeout: 60000 });
 
     // GWD-06 탭 건수 = 전체 수, 매핑 표 열 검색 없음
-    assert(await page.getByText(`부서 매핑 ${maps.length}`, { exact: true }).count(), `부서 매핑 ${maps.length}`);
-    assert(await page.getByText(`미배정 계정 ${users.length}`, { exact: true }).count(), `미배정 계정 ${users.length}`);
+    assert.equal(await tabText(page, 'map'), `부서 매핑 ${maps.length}`);
+    assert.equal(await tabText(page, 'users'), `미배정 계정 ${users.length}`);
     assert(await searchBox.count(), '매핑 표 열 머리글 필터 있음');
     assert.equal(await page.getByPlaceholder('그룹웨어 부서 · AX 부서 · 메모').count(), 0, '상단 검색칸 없음');
 
@@ -70,7 +74,7 @@ const { BASE } = require('../lib/api');
     const q = target.gwDeptNm.slice(0, 4).toLowerCase();
     const shown = await page.locator('.tabulator-row .tabulator-cell[tabulator-field="gwDeptNm"]').allInnerTexts();
     assert(shown.length && shown.every((t) => t.toLowerCase().includes(q)), `열 필터 결과는 그 이름만: ${shown.slice(0, 5)}`);
-    assert(await page.getByText(`부서 매핑 ${maps.length}`, { exact: true }).count(), '검색해도 탭 건수는 전체');
+    assert.equal(await tabText(page, 'map'), `부서 매핑 ${maps.length}`, '검색해도 탭 건수는 전체');
     await searchBox.fill('');
     await page.waitForTimeout(600);
 

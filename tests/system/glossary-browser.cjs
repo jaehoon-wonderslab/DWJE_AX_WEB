@@ -17,8 +17,8 @@
  *  GLS-01 공식 용어 403 → 「공식 용어는 통합관리자만 편집할 수 있습니다.」 · GLS-02 skipped 칩 · GLS-03 점검 필요 유사어 카드·모달 · 400 안내
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 /** 앱 번들이 부르는 API(기본 8080)를 API_URL 로 돌립니다 — 8080 이 멈췄을 때 다른 포트의 API 로 시험합니다 */
 const REAL_API = process.env.API_URL || 'http://localhost:8080';
@@ -206,12 +206,12 @@ async function lastColumnVisible(page, field) {
     assert.equal(gridRows, 60, `전부 받음 — 모든 쪽 60행 (${counter})`);
     await exportBtn.click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
-    const html = fs.readFileSync(await dl.path(), 'utf8');
-    const fileRows = (html.match(/<tr>/g) || []).length - 1;
+    const xl = await readXlsx(await dl.path());
+    const fileRows = xl.body.length;
     assert.equal(fileRows, gridRows, `파일 ${fileRows}행 = 그리드 ${gridRows}행`);
-    assert(html.includes('비공개 처리 1건') && html.includes('<td>비공개 용어</td>'), '가린 용어 비공개 · 파일 안 비공개 처리 n건');
-    assert(!/>분류</.test(html), '엑셀에 분류 열 없음');
-    assert(/>공식 용어<[\s\S]*>뜻<[\s\S]*>유사어</.test(html) && !/>등록자</.test(html), '엑셀 열 = 공식 용어 · 뜻 · 유사어 (등록자 없음, 2026-10-04)');
+    assert(xl.meta.includes('비공개 처리 1건') && xl.body.some((r) => r.includes('비공개 용어')), '가린 용어 비공개 · 파일 안 비공개 처리 n건');
+    assert(!xl.head.includes('분류'), '엑셀에 분류 열 없음');
+    assert.deepEqual(xl.head, ['공식 용어', '뜻', '유사어'], `엑셀 열 = 공식 용어 · 뜻 · 유사어 (등록자 없음, 2026-10-04): ${xl.head}`);
     assert.equal(st.logs.at(-1)?.scopeCd, 'VIEW', '이력 범위 VIEW');
     assert.equal(st.logs.at(-1)?.menuId, 'sys-gloss', '이력 화면 sys-gloss');
     // 서버 쪽 나눔이 없어져 「쪽=」 은 빠졌습니다(2026-10-04)

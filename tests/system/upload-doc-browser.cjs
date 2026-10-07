@@ -17,8 +17,8 @@
  *  7. 폭 360px 에서 패널이 화면 안, 폭 390px 에서 표를 끝까지 가로 스크롤해 마지막 열 「관리」 머리글·값이 보임
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 /**
  * 로그인 API(8080)가 응답하지 않을 때도 목 모드 화면은 데모 자동 로그인으로 열립니다.
@@ -41,14 +41,8 @@ const step = async (name, fn) => {
   try { await fn(); results.push(`ok   ${name}`); } catch (e) { results.push(`FAIL ${name} — ${e.message}`); throw e; }
 };
 
-/** 내려받은 .xls(HTML 표) 의 본문 행 — 머리글 제외 */
-async function readXls(download) {
-  const file = await download.path();
-  const html = fs.readFileSync(file, 'utf8');
-  const rows = [...html.matchAll(/<tr>(.*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<t[dh]>(.*?)<\/t[dh]>/g)].map((c) => c[1]));
-  const meta = (html.match(/<p>(.*?)<\/p>/) || [])[1] || '';
-  return { head: rows[0] || [], body: rows.slice(1), meta };
-}
+/** 내려받은 .xlsx — 머리글 · 본문 행 · 첫 줄(meta) */
+const readXls = async (download) => readXlsx(await download.path());
 
 (async () => {
   const { browser, page } = await openPage();

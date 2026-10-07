@@ -1066,10 +1066,6 @@ export const SCREEN_COLUMNS = [
       {
         "title": "메일",
         "field": "mail"
-      },
-      {
-        "title": "비고",
-        "field": "remark"
       }
     ]
   },
@@ -1087,7 +1083,7 @@ export const SCREEN_COLUMNS = [
         "field": "definition"
       },
       {
-        "title": "유사어 (등록자)",
+        "title": "유사어",
         "field": "variants"
       },
       {
@@ -1115,24 +1111,24 @@ export const SCREEN_COLUMNS = [
         "field": "at"
       },
       {
-        "title": "수행자",
-        "field": "actorNm"
+        "title": "작업자",
+        "field": "actorText"
       },
       {
         "title": "대상",
-        "field": "targetCd"
+        "field": "targetText"
       },
       {
         "title": "구분",
-        "field": "actionCd"
+        "field": "actionText"
       },
       {
         "title": "변경 전",
-        "field": "before"
+        "field": "beforeText"
       },
       {
         "title": "변경 후",
-        "field": "after"
+        "field": "afterText"
       }
     ]
   },

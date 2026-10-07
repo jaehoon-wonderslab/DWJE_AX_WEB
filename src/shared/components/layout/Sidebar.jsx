@@ -25,7 +25,6 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { MENU } from '@shared/constants/menu';
-import { DEPTS } from '@shared/constants/dataFields';
 import { positionLabel } from '@shared/constants/accounts';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { hubGroupOf } from '@shared/navigation/routes';
@@ -83,7 +82,6 @@ export default function Sidebar({ collapsed = false, onClose }) {
   const aiItem = MENU.find((g) => g.solo)?.items.find((it) => can(it.id)) || null;
   const aiOn = aiItem ? aiItem.id === currentId : false;
 
-  const dept = DEPTS.find((d) => d.id === userInfo?.dept);
   // 서랍으로 띄울 때는 접을 자리가 없으므로 언제나 펼친 모습입니다
   const drawer = typeof onClose === 'function';
   const shrunk = collapsed && !drawer;
@@ -265,22 +263,23 @@ export default function Sidebar({ collapsed = false, onClose }) {
           accessibilityLabel="계정 메뉴"
           style={({ hovered }) => ({ padding: shrunk ? 8 : 12, borderRadius: theme.metrics.radius, backgroundColor: menuOpen || hovered ? theme.surfaceHover : theme.surface, borderWidth: 1, borderColor: menuOpen ? theme.hairlineStrong : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: shrunk ? 'center' : 'flex-start' })}
         >
-          <View style={{ width: 30, height: 30, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
-          </View>
+          {/* 아바타(부서 약자 동그라미)는 뺐습니다(2026-10-07) — 계정 사진을 제공할 수 없습니다.
+              메뉴를 접으면 이름이 숨으므로 그때만 사람 아이콘으로 단추임을 보입니다 */}
+          {shrunk ? <Icon name="user" size={18} color={theme.color.secondaryForeground} /> : null}
           {!shrunk ? (
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>
                 {userInfo?.name || '게스트'} <Text style={{ fontWeight: '500', color: theme.color.mutedForeground }}>{positionLabel(userInfo?.pos)}</Text>
               </Text>
               <Text style={s.caption} numberOfLines={1}>
-                {userInfo?.dept || '—'}{servingModelVer ? ` · 모델 ${servingModelVer}` : ''}
+                {/* 사번을 앞에 붙였습니다(2026-10-07) — 계정 메뉴의 같은 줄은 중복이라 뺐습니다 */}
+                {[userInfo?.empNo, userInfo?.dept || '—'].filter(Boolean).join(' · ')}{servingModelVer ? ` · 모델 ${servingModelVer}` : ''}
               </Text>
             </View>
           ) : null}
           {!shrunk ? <Icon name={menuOpen ? 'chevronDown' : 'chevronUp'} size={13} color={theme.color.mutedForeground} /> : null}
         </Pressable>
-        {menuOpen ? <UserMenu placement="up" onClose={() => setMenuOpen(false)} /> : null}
+        {menuOpen ? <UserMenu placement="up" showAccount={shrunk} onClose={() => setMenuOpen(false)} /> : null}
       </View>
     </View>
   );

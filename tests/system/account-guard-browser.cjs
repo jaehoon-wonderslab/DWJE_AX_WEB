@@ -79,35 +79,8 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     assert(await rowOf('계정', 'U1').getByText('변경 전', { exact: true }).count(), '초기 비밀번호 변경 전 배지');
     assert((await page.locator('body').innerText()).includes('잠김 1'), '요약 부제의 잠김 수');
 
-    // ACC-04 · ACC-14 부서 표 — 시스템 부서 삭제 비활성, 미배정 고정 권한 (부서 탭)
-    await openAccountTab(page, '부서');
-    const superRow = rowOf('부서', '통합관리자');
-    const unassignedRow = rowOf('부서', '자동 가입');
-    for (const r of [superRow, unassignedRow]) {
-      const del = r.getByRole('button', { name: '삭제', exact: true });
-      assert(await del.isDisabled(), '시스템 부서 삭제 비활성');
-      assert((await titleOf(del)).includes('삭제할 수 없습니다'), '삭제 비활성 이유 툴팁');
-    }
-    // 소속 계정이 있는 부서는 [삭제] 를 끄고 이유를 보입니다(2026-10-02, 서버도 409) — 빈 부서만 삭제할 수 있습니다
-    const busyDel = rowOf('부서', '품질보증팀').getByRole('button', { name: '삭제', exact: true });
-    assert(await busyDel.isDisabled(), '소속 계정이 있는 부서 삭제 비활성');
-    assert((await titleOf(busyDel)).includes('소속 계정 3명'), '삭제 비활성 이유(소속 계정 수)');
-    assert(await rowOf('부서', '빈부서').getByRole('button', { name: '삭제', exact: true }).isEnabled(), '빈 부서 삭제는 활성');
-    assert(await unassignedRow.getByText('고정 권한 · 변경 불가').count(), '미배정 고정 권한 배지');
-    assert(await unassignedRow.getByText('5(고정)').count() && await unassignedRow.getByText('0(고정)').count(), '미배정 권한 수 5(고정)/0(고정)');
-    assert(await superRow.getByText('전체', { exact: true }).count(), '통합관리자 권한 수 전체');
-    // 미배정 부서 편집 — 부서명은 바꿀 수 없음
-    await unassignedRow.getByRole('button', { name: '편집', exact: true }).click();
-    assert(await page.getByText('미배정 부서는 이름을 바꿀 수 없습니다', { exact: false }).count(), '미배정 부서명 잠금 안내');
-    assert.equal(await page.getByPlaceholder('예) 공정기술팀', { exact: true }).count(), 0, '미배정 부서명 입력칸 없음');
-    // 약칭 칸은 없앴습니다(2026-10-02) — 미배정 부서는 설명만 고칩니다
-    assert.equal(await page.getByPlaceholder('예) PE', { exact: true }).count(), 0, '약칭 입력칸 없음');
-    await page.getByPlaceholder('예) 공정 조건 · 금형 관리', { exact: true }).fill('자동 가입 · 설명 수정');
-    await modalButton('수정').click();
-    await page.waitForTimeout(300);
-    assert.equal(lastSent().path, 'depts/59');
-    assert.equal(lastSent().body.deptNm, undefined, '미배정 부서명은 보내지 않음');
-    assert.equal('abbr' in lastSent().body, false, '약칭은 보내지 않음');
+    // ACC-04 · ACC-14 부서 표는 부서 매핑 화면의 「부서」 탭으로 옮겼습니다(2026-10-07) — gw-dept-tabs-browser.cjs 가 봅니다
+    assert.equal(await page.locator('#account-tab-depts').count(), 0, '계정 관리 부서 탭 없음');
 
     // ACC-02 본인 계정 편집 — 소속 부서·수동 메뉴 읽기 전용
     await openAccountTab(page, '계정');
@@ -179,8 +152,8 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     summary.canWrite = false;
     await page.goto(`${WEB}/system/account`);
     await grid('계정').locator('.tabulator-row').first().waitFor();
-    // 「계정 등록」 은 계정 탭, 「부서 등록」 은 부서 탭 머리에 있습니다
-    for (const [tab, name] of [['부서', '부서 등록'], ['계정', '계정 등록']]) {
+    // 「계정 등록」 은 계정 탭 머리에 있습니다(부서 탭은 2026-10-07 부서 매핑으로 옮김)
+    for (const [tab, name] of [['계정', '계정 등록']]) {
       await openAccountTab(page, tab);
       const b = page.getByRole('button', { name, exact: true }).first();
       assert(await b.isDisabled(), `${name} 비활성`);
@@ -193,10 +166,10 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     assert(await page.getByText(`조회 전용입니다 — ${WRITE_DENIED}`).count(), '조회 전용 안내');
     assert(await page.getByRole('button', { name: /엑셀 다운로드/ }).isEnabled(), '엑셀은 조회 권한으로 활성(R-10)');
 
-    // 좁은 화면 — 계정·부서 표 마지막 열까지 가로 스크롤
+    // 좁은 화면 — 계정 표 마지막 열까지 가로 스크롤(부서 표는 gw-dept-tabs-browser.cjs)
     await page.setViewportSize({ width: 1000, height: 900 });
     await page.waitForTimeout(600); // 표가 새 폭으로 다시 그려질 때까지
-    for (const label of ['계정', '부서']) {
+    for (const label of ['계정']) {
       await openAccountTab(page, label);
       const result = await grid(label).evaluate(async (root) => {
         const scroll = [...root.querySelectorAll('div')].find((el) => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth && (el.querySelector('.tabulator') || el.classList.contains('tabulator-tableholder')));

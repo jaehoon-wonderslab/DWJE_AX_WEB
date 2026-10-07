@@ -29,6 +29,50 @@ function deptHeader(name, userCnt, locked) {
   return `<div${dim}><div class="strong">${escapeTitle(`${name} · ${count}`)}</div>${second ? `<div class="muted" style="font-weight:400">${escapeTitle(second)}</div>` : ''}</div>`;
 }
 
+/** 트리 펼침 단추 색 — 밝은·어두운 테마 모두에서 보이도록 글자색을 물려받습니다 */
+const TREE_LINE = 'rgba(127,127,127,0.45)';
+/** 펼침 표시(▸/▾) 꺾쇠 — 접힘이면 오른쪽, 펼침이면 아래 */
+const CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/**
+ * 그룹 행 머리 — 트리처럼 보이게(2026-10-07): 테두리 상자 안 꺾쇠 + 굵은 그룹명 + 화면 수.
+ * 예전 「+ 그룹명」 · 「− 그룹명」 단추는 표 안 다른 단추와 구별되지 않았습니다.
+ */
+function groupToggle(row, onToggle) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'tree-toggle';
+  button.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;text-align:left';
+  const box = document.createElement('span');
+  box.style.cssText = `display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;border:1px solid ${TREE_LINE};border-radius:5px;transition:transform .15s;transform:rotate(${row.collapsed ? 0 : 90}deg)`;
+  box.innerHTML = CHEVRON;
+  const name = document.createElement('span');
+  name.textContent = row.group;
+  const count = document.createElement('span');
+  count.textContent = String(row.childCount || 0);
+  count.style.cssText = 'font-weight:500;opacity:.55';
+  button.append(box, name, count);
+  button.title = `${row.group} ${row.collapsed ? '펼치기' : '접기'}`;
+  button.setAttribute('aria-label', button.title);
+  button.setAttribute('aria-expanded', String(!row.collapsed));
+  button.onclick = onToggle;
+  return button;
+}
+
+/** 화면 행의 트리 연결선 — 그룹 꺾쇠 상자 가운데(칸 왼쪽 12px + 10px)에서 내려와 오른쪽으로 꺾습니다 */
+function treeGuide(cellEl, last) {
+  cellEl.style.position = 'relative';
+  const guide = document.createElement('span');
+  guide.setAttribute('aria-hidden', 'true');
+  guide.style.cssText = `position:absolute;left:22px;top:0;${last ? 'height:50%' : 'bottom:0'};border-left:1px solid ${TREE_LINE}`;
+  const stub = document.createElement('span');
+  stub.setAttribute('aria-hidden', 'true');
+  stub.style.cssText = `position:absolute;left:22px;top:50%;width:14px;border-top:1px solid ${TREE_LINE}`;
+  const wrap = document.createDocumentFragment();
+  wrap.append(guide, stub);
+  return wrap;
+}
+
 export default function MenuPermGrid({
   screens, depts, collapsed, toggleCollapsed, cellValue, lockReason, cellWarn, groupLockReason, grantCounts = {},
   onToggle, onToggleGroup, onShowGrants,
@@ -40,17 +84,11 @@ export default function MenuPermGrid({
   // 부서 구성만 바뀔 때 표를 다시 만듭니다 — 체크만 바뀌면 자료만 갈아 끼워 펼침·열 너비·스크롤을 유지합니다
   const signature = JSON.stringify(depts.map(d => [String(d.id), d.name, d.userCnt || 0, d.locked || '']));
   const columns = useMemo(() => [
-    { title: '메뉴 그룹', field: 'group', width: 180, minWidth: 140, formatter: cell => {
+    { title: '메뉴 그룹', field: 'group', width: 200, minWidth: 160, formatter: cell => {
       const row = cell.getRow().getData();
-      if (row.kind !== 'group') return '';
-      const button = document.createElement('button');
-      button.className = 'tbtn';
-      button.textContent = `${row.collapsed ? '+' : '−'} ${row.group}`;
-      button.title = `${row.group} ${row.collapsed ? '펼치기' : '접기'}`;
-      button.setAttribute('aria-label', button.title);
-      button.setAttribute('aria-expanded', String(!row.collapsed));
-      button.onclick = () => latest.current.toggleCollapsed(row.group);
-      return button;
+      // 펼친 그룹의 화면 행 — 트리 연결선(│ · └)만 그립니다
+      if (row.kind !== 'group') return treeGuide(cell.getElement(), row.treeLast);
+      return groupToggle(row, () => latest.current.toggleCollapsed(row.group));
     } },
     { title: '화면', field: 'label', width: 350, minWidth: 220, formatter: 'textarea', variableHeight: true, bottomCalc: () => '전체 화면 허용 수' },
     { title: '구분', field: 'kindLabel', width: 140, minWidth: 120, formatter: 'plaintext' },
@@ -121,18 +159,20 @@ export default function MenuPermGrid({
       // 그룹 일괄은 동작 행(업로드 같은 버튼 권한)을 빼고 셉니다(MNP-05)
       const countable = children.filter(screen => !screen.action);
       const isCollapsed = collapsed.has(group);
-      const bulk = { id: `group:${group}`, group, label: '그룹 일괄(동작 제외)', plainLabel: '그룹 일괄', kind: 'group', kindLabel: '그룹 일괄', grantCount: '', collapsed: isCollapsed };
+      const bulk = { id: `group:${group}`, group, label: '그룹 일괄(동작 제외)', plainLabel: '그룹 일괄', kind: 'group', kindLabel: '그룹 일괄', grantCount: '', collapsed: isCollapsed, childCount: children.length };
       depts.forEach(dept => {
         const field = `dept_${dept.id}`;
         const count = countable.filter(screen => cellValue(screen.id, dept.id)).length;
         bulk[field] = countable.length && count === countable.length ? '허용' : count ? '일부 허용' : '차단';
         bulk[`${field}__lock`] = countable.length ? groupLockReason(group, dept) : '바꿀 화면이 없습니다.';
       });
-      return [bulk, ...(isCollapsed ? [] : children).map(screen => {
+      return [bulk, ...(isCollapsed ? [] : children).map((screen, index, shown) => {
         const base = screen.label || screen.name;
         const suffix = `${screen.admin ? ' (관리)' : ''}${screen.common ? ' (전사 공통)' : ''}`;
         const row = {
           id: screen.id, group: screen.group, label: `${base}${suffix}`, plainLabel: base, kind: 'screen',
+          // 그룹의 마지막 화면 — 트리 연결선을 └ 로 끝냅니다
+          treeLast: index === shown.length - 1,
           // 동작 행은 화면이 아니라 버튼 권한이라 구분을 밝히고 배경을 옅게 나눕니다(MNP-05)
           kindLabel: screen.action ? '동작' : screen.sub ? '하위 화면' : '메뉴',
           action: !!screen.action,

@@ -71,6 +71,25 @@ const USER_EXPORT = {
 };
 const USER_ORDER = ['empNo', 'name', 'gwDeptNm', 'posNm', 'stateNm', 'pwdChangeRequired', 'joinedAt', 'lastLoginAt'];
 
+/** 배정 계정 탭 엑셀(2026-10-07) — 계정 목록(GET /system/users) 응답 필드 */
+const ASSIGNED_EXPORT = {
+  empNo: [{ head: '사번', attr: 'empNo' }],
+  name: [{ head: '이름', attr: 'name' }],
+  dept: [{ head: '부서', attr: 'dept' }],
+  posNm: [{ head: '직급', attr: 'posNm' }],
+  stateLabel: [{ head: '상태', attr: 'stateLabel' }],
+  joinSrcLabel: [{ head: '가입 경로', attr: 'joinSrcLabel' }],
+  requestedAt: [{ head: '가입 일시', attr: 'requestedAt' }],
+  lastLoginAt: [{ head: '최근 로그인', attr: 'lastLoginAt' }],
+};
+const ASSIGNED_ORDER = ['empNo', 'name', 'dept', 'posNm', 'stateLabel', 'joinSrcLabel', 'requestedAt', 'lastLoginAt'];
+/** 탭별 엑셀 이름 · 열 정의 */
+const TAB_EXPORT = {
+  map: { name: '그룹웨어 부서 매핑', spec: MAP_EXPORT, order: MAP_ORDER, key: 'gwDeptNm' },
+  users: { name: '미배정 계정', spec: USER_EXPORT, order: USER_ORDER, key: 'empNo' },
+  assigned: { name: '배정 계정', spec: ASSIGNED_EXPORT, order: ASSIGNED_ORDER, key: 'empNo' },
+};
+
 /** 미배정 계정 상태 표기 (GWD-12) — 그룹웨어 원천에서 사라진 정지 계정은 「퇴사」 */
 export const userStateLabel = (u) => (u.retired || u.stateReason === 'RETIRED' ? '퇴사' : u.stateNm || USER_STATE_NM[u.state] || u.state || '');
 const USER_STATE_NM = { ACTIVE: '사용', LOCKED: '잠김', SUSPENDED: '정지', PENDING: '승인 대기' };
@@ -142,6 +161,8 @@ export function useGwDeptMapController() {
   const [userState, setUserState] = useState('전체');
   const [selectedMaps, setSelectedMaps] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  /** 배정 계정 탭에서 체크한 사번(2026-10-07) */
+  const [selectedAssigned, setSelectedAssigned] = useState([]);
   const timers = useRef({});
   useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
   const debounced = (key, apply) => (v) => {
@@ -155,6 +176,12 @@ export function useGwDeptMapController() {
   const sumQ = useAsync(() => repo.loadGwSummary(), []);
   const mapsQ = useAsync(() => repo.loadGwMaps(), []);
   const usersQ = useAsync(() => repo.loadGwUsers(), []);
+  /**
+   * 배정 계정(2026-10-07) — 미배정이 아닌 부서의 계정. 계정 목록 API 는 계정 관리 조회 권한이 있어야 해서,
+   * 그 권한이 없으면 부르지 않고 탭 안에 안내만 둡니다(화면 위 「일부 목록을 받지 못했습니다」 로 올리지 않음).
+   */
+  const canSeeAccounts = can('sys-account');
+  const assignedQ = useAsync(() => (canSeeAccounts ? repo.loadGwAssignedUsers() : Promise.resolve({ items: [] })), [canSeeAccounts], { silent: true });
   const allMaps = mapsQ.data?.items || EMPTY;
   const allUsers = usersQ.data?.items || EMPTY;
   const depts = sumQ.data?.depts || EMPTY;
@@ -163,7 +190,12 @@ export function useGwDeptMapController() {
   const loadError = firstError(sumQ.data) || errOf(mapsQ.error) || errOf(usersQ.error);
   // logsQ 는 아래에서 만듭니다 — 함수 안에서 늦게 읽으므로 참조만 둡니다
   const logsReload = useRef(() => {});
-  const reload = useCallback(() => { sumQ.reload(); mapsQ.reload(); usersQ.reload(); logsReload.current(); }, [sumQ.reload, mapsQ.reload, usersQ.reload]);
+  const reload = useCallback(() => { sumQ.reload(); mapsQ.reload(); usersQ.reload(); assignedQ.reload(); logsReload.current(); }, [sumQ.reload, mapsQ.reload, usersQ.reload, assignedQ.reload]);
+  const unassignedDeptId = summary?.unassignedDept?.deptId;
+  const unassignedDeptNm = summary?.unassignedDept?.deptNm || '미배정';
+  const assigned = useMemo(() => (assignedQ.data?.items || EMPTY).filter((u) => (
+    unassignedDeptId != null ? String(u.deptId) !== String(unassignedDeptId) : u.dept !== unassignedDeptNm
+  )), [assignedQ.data, unassignedDeptId, unassignedDeptNm]);
 
   const maps = useMemo(() => {
     const kw = keyword.toLowerCase();
@@ -198,11 +230,15 @@ export function useGwDeptMapController() {
   /* ───────── 표에 보이는 행 (GWD-01 · GWD-15) ───────── */
   const mapTableRef = useRef(null);
   const userTableRef = useRef(null);
+  const assignedTableRef = useRef(null);
   const [visibleMaps, setVisibleMapsState] = useState(null);
   const [visibleUsers, setVisibleUsersState] = useState(null);
   // 같은 행이면 상태를 바꾸지 않습니다 — 표가 자료를 갈아 끼울 때마다 알려 오므로 그대로 두면 서로를 부릅니다
   const setVisibleMaps = useCallback((rows) => setVisibleMapsState((prev) => (prev && keysOf(prev, 'gwDeptNm') === keysOf(rows, 'gwDeptNm') ? prev : rows)), []);
   const setVisibleUsers = useCallback((rows) => setVisibleUsersState((prev) => (prev && keysOf(prev, 'empNo') === keysOf(rows, 'empNo') ? prev : rows)), []);
+  const [visibleAssigned, setVisibleAssignedState] = useState(null);
+  const setVisibleAssigned = useCallback((rows) => setVisibleAssignedState((prev) => (prev && keysOf(prev, 'empNo') === keysOf(rows, 'empNo') ? prev : rows)), []);
+  const shownAssigned = visibleAssigned ?? assigned;
   const shownUsers = visibleUsers ?? users;
   const shownMaps = visibleMaps ?? maps;
 
@@ -360,6 +396,28 @@ export function useGwDeptMapController() {
     return { ok: !failed.length, moved, failed };
   };
 
+  /**
+   * 배정 계정 일괄 부서 변경(2026-10-07) — 체크한 사람을 고른 부서 하나로 옮깁니다. 한 명씩 PUT /system/users/{empNo}/dept.
+   * 서버는 이미 부서가 있는 계정을 옮길 때 계정 관리 쓰기 권한을 보고, 본인 부서 변경(409)·통합관리자 부서 배정(403)을 막습니다.
+   * 실패한 사람은 사번과 사유를 돌려줍니다.
+   */
+  const moveAssigned = async (empNos, deptId) => {
+    let moved = 0;
+    const failed = [];
+    for (const empNo of empNos) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await repo.moveUserDept(empNo, deptId);
+      if (res.ok) moved += 1;
+      else {
+        const name = assigned.find((u) => u.empNo === empNo)?.name || '';
+        failed.push({ empNo, name, message: res.code === 'E-AUTH-002' ? '계정 관리 쓰기 권한이 필요합니다' : res.message || '실패' });
+      }
+    }
+    toast(failed.length ? `${moved}명의 부서를 바꿨고 ${failed.length}명은 바꾸지 못했습니다.` : `${moved}명의 부서를 바꿨습니다.`);
+    if (moved) { setSelectedAssigned([]); reload(); }
+    return { ok: !failed.length, moved, failed };
+  };
+
   /** 이름 변경 이어받기 후보 (GWD-11) — 매핑 행이 없는 그룹웨어 부서, 사업장 표시를 뗀 이름이 같은 것 먼저 */
   const inheritCandidates = useCallback((oldName) => {
     const base = baseName(oldName);
@@ -386,12 +444,14 @@ export function useGwDeptMapController() {
   };
 
   /* ───────── 엑셀 (GWD-15) ───────── */
-  const tabName = tab === 'users' ? '미배정 계정' : '그룹웨어 부서 매핑';
+  const tabExport = TAB_EXPORT[tab] || TAB_EXPORT.map;
+  const tabName = tabExport.name;
   const exportView = useCallback(async () => {
     const isUsers = tab === 'users';
-    const table = (isUsers ? userTableRef : mapTableRef).current;
-    const spec = isUsers ? USER_EXPORT : MAP_EXPORT;
-    let rows = isUsers ? shownUsers : shownMaps;
+    const isAssigned = tab === 'assigned';
+    const table = (isAssigned ? assignedTableRef : isUsers ? userTableRef : mapTableRef).current;
+    const { spec, order } = tabExport;
+    let rows = isAssigned ? shownAssigned : isUsers ? shownUsers : shownMaps;
     let sorters = [];
     try {
       if (table) {
@@ -399,26 +459,25 @@ export function useGwDeptMapController() {
         sorters = table.getSorters().map((x) => `정렬 ${spec[x.field]?.[0]?.head || x.field}${x.dir === 'desc' ? '↓' : '↑'}`);
       }
     } catch { /* 표가 정리되는 중이면 보관한 행을 씁니다 */ }
-    const fields = visibleFields(table, spec) || (isUsers ? USER_ORDER : MAP_ORDER);
+    const fields = visibleFields(table, spec) || order;
     const sheet = buildSheet(spec, fields, rows);
     const cond = [
       `탭=${tabName}`,
-      isUsers ? (userKeyword ? `검색어=${userKeyword}` : '') : (keyword ? `검색어=${keyword}` : ''),
-      !isUsers && state !== '전체' ? `상태=${gwStateLabel(state)}` : '',
+      isAssigned ? '' : isUsers ? (userKeyword ? `검색어=${userKeyword}` : '') : (keyword ? `검색어=${keyword}` : ''),
+      !isUsers && !isAssigned && state !== '전체' ? `상태=${gwStateLabel(state)}` : '',
       ...sorters,
     ].filter(Boolean).join(' · ');
     downloadXls({ name: tabName, ...sheet, scope: 'VIEW', condSummary: cond, menuId: SCREEN_ID });
-  }, [tab, tabName, shownUsers, shownMaps, userKeyword, keyword, state]);
+  }, [tab, tabName, tabExport, shownAssigned, shownUsers, shownMaps, userKeyword, keyword, state]);
 
   /** 전체 — 이미 조건 없이 받아 둔 전량을 씁니다(GWD-06 이후 목록은 늘 전량) */
   const exportAll = useCallback(async () => {
-    const isUsers = tab === 'users';
-    const items = isUsers ? allUsers : allMaps;
+    const items = tab === 'assigned' ? assigned : tab === 'users' ? allUsers : allMaps;
     const limit = repo.GW_EXPORT_LIMIT;
     if (items.length > limit) toast(`상한 ${limit.toLocaleString('ko-KR')}건까지 내려받았습니다`);
-    const sheet = buildSheet(isUsers ? USER_EXPORT : MAP_EXPORT, isUsers ? USER_ORDER : MAP_ORDER, items.slice(0, limit));
+    const sheet = buildSheet(tabExport.spec, tabExport.order, items.slice(0, limit));
     downloadXls({ name: tabName, ...sheet, scope: 'ALL', condSummary: `탭=${tabName} · 전체(조건 무시)`, menuId: SCREEN_ID });
-  }, [tab, tabName, toast, allUsers, allMaps]);
+  }, [tab, tabName, tabExport, toast, assigned, allUsers, allMaps]);
 
   return {
     loading,
@@ -433,12 +492,23 @@ export function useGwDeptMapController() {
     /** 탭 건수는 검색과 무관한 전체 수입니다 (GWD-06) */
     mapTotal: allMaps.length,
     userTotal: allUsers.length,
+    /** 배정 계정 탭(2026-10-07) — 미배정이 아닌 부서의 계정. 계정 관리 조회 권한이 없으면 목록을 부르지 않습니다 */
+    assigned,
+    assignedTotal: canSeeAccounts ? assigned.length : undefined,
+    assignedLoading: assignedQ.loading && !assignedQ.data,
+    assignedError: !canSeeAccounts ? '배정 계정 목록은 계정 관리 조회 권한이 있어야 볼 수 있습니다.'
+      : assignedQ.error ? `배정 계정 목록을 받지 못했습니다 — ${assignedQ.error.message || '서버 오류'}` : '',
+    selectedAssigned,
+    setSelectedAssigned,
+    assignedTableRef,
+    setVisibleAssigned,
+    moveAssigned,
     /** 표 재조회 중 — 카드 부제 「갱신 중…」 */
-    refreshing: mapsQ.loading || usersQ.loading,
+    refreshing: mapsQ.loading || usersQ.loading || (canSeeAccounts && assignedQ.loading),
     depts,
     tab,
     // 탭을 바꾸면 표가 새로 만들어지므로 보관한 「보이는 행」 을 비웁니다(새 표가 다시 알려 줍니다)
-    setTab: (next) => { setVisibleMapsState(null); setVisibleUsersState(null); setTab(next); },
+    setTab: (next) => { setVisibleMapsState(null); setVisibleUsersState(null); setVisibleAssignedState(null); setTab(next); },
     filters: { keyword: keywordInput, state, userKeyword: userKeywordInput, userState },
     setUserState,
     /** 이름으로 매핑 행 찾기 — 미배정 표 「매핑 없음」 을 누르면 그 부서 지정 모달 (GWD-12) */
@@ -471,8 +541,8 @@ export function useGwDeptMapController() {
     reload,
     // 엑셀 — 조회 권한이면 받을 수 있습니다(R-10). canWrite 와 무관합니다
     exportTabName: tabName,
-    exportViewCount: tab === 'users' ? shownUsers.length : shownMaps.length,
-    exportTotalCount: tab === 'users' ? allUsers.length : allMaps.length,
+    exportViewCount: tab === 'assigned' ? shownAssigned.length : tab === 'users' ? shownUsers.length : shownMaps.length,
+    exportTotalCount: tab === 'assigned' ? assigned.length : tab === 'users' ? allUsers.length : allMaps.length,
     exportView,
     exportAll,
     exportReassignResult,

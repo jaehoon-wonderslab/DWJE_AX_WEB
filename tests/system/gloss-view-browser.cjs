@@ -18,8 +18,8 @@
  *  (12) 2026-10-03 분류 삭제 — 분류 열·분류 칩·분류 선택·분류 카드·상세의 분류 칩 없음, /glossary/domains 요청 없음, 엑셀 분류 열 없음
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 /** 앱 번들이 부르는 API(기본 8080)를 API_URL 로 돌립니다 — 8080 이 멈췄을 때 다른 포트의 API 로 시험합니다 */
 const REAL_API = process.env.API_URL || 'http://localhost:8080';
@@ -169,11 +169,11 @@ async function setup(page, opts = {}) {
     const gridRows = await page.locator('.tabulator-row').count();
     await exportBtn.click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
-    const html = fs.readFileSync(await dl.path(), 'utf8');
-    assert.equal((html.match(/<tr>/g) || []).length - 1, gridRows, '파일 행 = 그리드 행');
-    assert(html.includes('<td>비공개 용어</td>') && html.includes('비공개 처리 1건'), '가린 용어 비공개 · 건수');
-    assert(!/박생산/.test(html), '조회 화면 파일에 등록자 없음');
-    assert(!/>분류</.test(html), '엑셀에 분류 열 없음');
+    const xl = await readXlsx(await dl.path());
+    assert.equal(xl.body.length, gridRows, '파일 행 = 그리드 행');
+    assert(xl.body.some((r) => r.includes('비공개 용어')) && xl.meta.includes('비공개 처리 1건'), '가린 용어 비공개 · 건수');
+    assert(!/박생산/.test(xl.text), '조회 화면 파일에 등록자 없음');
+    assert(!xl.head.includes('분류'), '엑셀에 분류 열 없음');
     assert(!/분류=/.test(st.logs.at(-1)?.condSummary || ''), '이력 조건 요약에 분류 없음');
     await exportBtn.click();
     await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /전체 다운로드/ }).click()]);

@@ -11,9 +11,9 @@
  *   WEB_URL=http://localhost:8081 node tests/system/account-export-browser.cjs
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
 const { pickListFilter } = require('../lib/accountTabs');
+const { readXlsx } = require('../lib/xlsx');
 
 (async () => {
   const { browser, page } = await open();
@@ -27,7 +27,7 @@ const { pickListFilter } = require('../lib/accountTabs');
 
   const users = Array.from({ length: 24 }, (_, i) => ({
     empNo: `E${String(i).padStart(2, '0')}`, name: `내보내기 ${i}`, deptId: 2, dept: i % 2 ? '품질보증팀' : '제조팀', pos: 'STAFF', posNm: '사원',
-    state: i % 5 === 0 ? 'LOCKED' : 'ACTIVE', stateNm: i % 5 === 0 ? '잠김' : '사용', loginFailCnt: i, pwdChangeRequired: i % 3 === 0,
+    state: i % 5 === 0 ? 'SUSPENDED' : 'ACTIVE', stateNm: i % 5 === 0 ? '정지' : '사용', loginFailCnt: i, pwdChangeRequired: i % 3 === 0,
     lastLoginAt: `2026-09-${String(10 + i).padStart(2, '0')} 08:00`, extraMenuIds: [],
   }));
   const summary = { userCnt: { total: 24, active: 19, locked: 5, suspended: 0, pending: 0 }, deptCnt: 2, canWrite: false, currentUser: { superAdmin: false } };
@@ -58,9 +58,8 @@ const { pickListFilter } = require('../lib/accountTabs');
   const exportBtn = page.getByRole('button', { name: /엑셀 다운로드/ });
   const readDownload = async (itemName) => {
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: itemName }).click()]);
-    const text = fs.readFileSync(await dl.path(), 'utf8');
-    const rows = [...text.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1].replace(/<[^>]+>/g, '').trim()));
-    return { text, head: rows[0], body: rows.slice(1) };
+    assert(/\.xlsx$/.test(dl.suggestedFilename()), `엑셀 파일: ${dl.suggestedFilename()}`);
+    return readXlsx(await dl.path());
   };
 
   try {
@@ -85,9 +84,9 @@ const { pickListFilter } = require('../lib/accountTabs');
     await page.waitForTimeout(150);
     assert.equal(await page.getByRole('menu').count(), 0, '바깥 클릭으로 닫힘');
 
-    // 열 필터 「상태=잠김」 + 정렬 「로그인 실패↓」
-    // 상태 머리글은 목록입니다(2026-10-02) — 눌러서 「잠김」 을 고릅니다
-    await pickListFilter(grid, 'state', '잠김');
+    // 열 필터 「상태=미사용」 + 정렬 「로그인 실패↓」
+    // 상태 머리글은 「사용 / 미사용」 목록입니다(2026-10-06) — 미사용 = 정지 · 승인 대기
+    await pickListFilter(grid, 'state', '미사용');
     const failHeader = grid.locator('.tabulator-col[tabulator-field="loginFailCnt"] .tabulator-col-title');
     await failHeader.click(); await page.waitForTimeout(150); await failHeader.click(); await page.waitForTimeout(300);
     const gridNames = await grid.locator('.tabulator-row .tabulator-cell[tabulator-field="empNo"]').allInnerTexts();
@@ -98,13 +97,13 @@ const { pickListFilter } = require('../lib/accountTabs');
     const view = await readDownload(/조회 목록 다운로드/);
     assert.deepEqual(view.head, ['아이디', '이름', '이메일', '소속 부서', '직급', '관리자', '상태', '가입 경로', '초기 비밀번호', '로그인 실패', '최근 접속'], `열 순서: ${view.head}`);
     assert.deepEqual(view.body.slice(0, 5).map((r) => r[0]), gridNames.map((t) => t.trim()), '행 순서 = 그리드 정렬');
-    assert(view.body.slice(0, 5).every((r) => r[6] === '잠김'), '상태는 한글 표기');
+    assert(view.body.slice(0, 5).every((r) => r[6] === '정지'), '상태는 한글 표기');
     assert(view.text.includes('비공개 처리'), '파일 안 비공개 건수 표기');
     await page.waitForTimeout(300);
     const vlog = logs.at(-1);
     assert.equal(vlog.scopeCd, 'VIEW');
     assert.equal(vlog.menuId, 'sys-account');
-    assert(vlog.condSummary.includes('열 필터 상태=잠김') && vlog.condSummary.includes('정렬 로그인 실패↓'), vlog.condSummary);
+    assert(vlog.condSummary.includes('열 필터 상태=미사용') && vlog.condSummary.includes('정렬 로그인 실패↓'), vlog.condSummary);
 
     // 열 필터를 걸어도 전체 파일은 조건 무시(계정 탭에는 검색줄이 없습니다, 2026-10-02)
     await grid.locator('.tabulator-col[tabulator-field="name"] input').fill('내보내기 1');

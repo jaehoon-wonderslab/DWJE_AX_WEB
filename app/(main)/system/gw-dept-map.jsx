@@ -6,12 +6,15 @@ import React from 'react';
 import PageContainer from '@shared/components/layout/PageContainer';
 import { useGwDeptMapController } from '@domains/system/controller/useGwDeptMapController';
 import GwDeptMapView from '@domains/system/view/GwDeptMapView';
+import { useDeptManageController } from '@domains/system/controller/useDeptManageController';
 
 export default function GwDeptMapPage() {
   const controller = useGwDeptMapController();
+  // 「부서」 탭(2026-10-07, 계정 관리에서 옮김) — 부서 목록 · 등록 · 편집 · 삭제
+  const deptAdmin = useDeptManageController({ onChanged: controller.reload });
   return (
     <PageContainer>
-      <GwDeptMapView {...controller} />
+      <GwDeptMapView {...controller} deptAdmin={deptAdmin} />
     </PageContainer>
   );
 }

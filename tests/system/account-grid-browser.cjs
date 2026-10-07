@@ -39,7 +39,7 @@ const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
     await page.locator('[id="account-grid-계정"] .tabulator-row').first().waitFor();
     // 2026-10-02 — 표가 탭으로 나뉘고 기본 100행입니다(가입 승인 대기 카드는 없앴습니다)
     assert.equal(await page.locator('[id="account-grid-가입 승인 대기"]').count(), 0, 'pending card removed');
-    for (const label of ['계정', '부서', '변경 이력']) {
+    for (const label of ['계정', '변경 이력']) { // 부서 탭은 2026-10-07 부서 매핑으로 옮김
       const grid = await openAccountTab(page, label);
       assert.equal(await grid.locator('.tabulator-row').count(), 32, `${label} default page size 100 shows all 32`);
       assert.equal(await grid.locator('.tabulator-page-size').inputValue(), '100', `${label} page size selector default`);
@@ -63,7 +63,7 @@ const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
       assert.equal(await logPanel.locator('input').nth(0).inputValue(), ymd(from), 'log period from = today - 7');
       assert.equal(await logPanel.locator('input').nth(1).inputValue(), ymd(new Date()), 'log period to = today');
     }
-    for (const [label, field, query] of [['계정', 'loginFailCnt', '31'], ['계정', 'name', '계정 31'], ['부서', 'name', '부서 31'], ['변경 이력', 'by', '수행자 31']]) {
+    for (const [label, field, query] of [['계정', 'empNo', 'UI31'], ['계정', 'name', '계정 31'], ['변경 이력', 'by', '수행자 31']]) {
       const target = await openAccountTab(page, label);
       const input = target.locator(`.tabulator-col[tabulator-field="${field}"] input`);
       await input.fill(query); await page.waitForTimeout(400);
@@ -73,6 +73,10 @@ const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
     }
     // 상태 · 직급 · 가입 경로 · 초기 비밀번호는 검색칸이 아니라 목록입니다(Tabulator list 머리글 필터)
     const grid = await openAccountTab(page, '계정');
+    // 2026-10-06 — 로그인 실패 필터 없음, 최근 접속은 달력(type=date), 관리 열 정렬 없음
+    assert.equal(await grid.locator('.tabulator-col[tabulator-field="loginFailCnt"] .tabulator-header-filter input').count(), 0, 'no login-fail filter');
+    assert.equal(await grid.locator('.tabulator-col[tabulator-field="lastLoginAt"] .tabulator-header-filter input').getAttribute('type'), 'date', 'last-login date filter');
+    assert(!(await grid.locator('.tabulator-col[tabulator-field="action"]').getAttribute('class')).includes('tabulator-sortable'), 'action column not sortable');
     await pickListFilter(grid, 'state', '사용');
     assert.equal(await grid.locator('.tabulator-row').count(), 32, 'state list filter keeps all ACTIVE rows');
     await pickListFilter(grid, 'state', '전체');
@@ -90,7 +94,7 @@ const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
     assert((await firstCol.evaluate(el => el.getBoundingClientRect().width)) > width + 50, 'column drag resizes');
     await page.setViewportSize({ width: 1000, height: 900 });
     await page.waitForTimeout(600); // 표가 새 폭으로 다시 그려질 때까지(이미 열린 탭은 다시 그리지 않음)
-    for (const label of ['계정', '부서', '변경 이력']) {
+    for (const label of ['계정', '변경 이력']) { // 부서 탭은 2026-10-07 부서 매핑으로 옮김
       const root = await openAccountTab(page, label);
       const result = await root.evaluate(async root => {
         const scroll = [...root.querySelectorAll('div')].find(el => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth && (el.querySelector('.tabulator') || el.classList.contains('tabulator-tableholder')));
@@ -130,19 +134,8 @@ const { openAccountTab, pickListFilter } = require('../lib/accountTabs');
     await page.waitForTimeout(300);
     assert.deepEqual(saved.extraMenuIds, [], 'empty selection explicitly removes extra grants');
     assert.equal(await page.getByRole('button', { name: '부서 이동', exact: true }).count(), 0);
-    await openAccountTab(page, '부서'); // 「부서 등록」 은 부서 탭 머리에 있습니다
-    await page.getByRole('button', { name: '부서 등록', exact: true }).first().click();
-    const select = page.getByRole('combobox', { name: '초기 권한 (복사해 올 부서)', exact: true });
-    await select.selectOption('2'); assert.equal(await select.inputValue(), '2');
-    await select.selectOption(''); assert.equal(await select.inputValue(), '');
-    await select.selectOption('32'); assert.equal(await select.inputValue(), '32');
-    await page.getByPlaceholder('예) 공정기술팀', { exact: true }).fill('선택검증부서');
-    assert.equal(await page.getByPlaceholder('예) PE', { exact: true }).count(), 0, 'abbr field removed from dept form');
-    await page.getByRole('button', { name: '등록', exact: true }).click();
-    await page.waitForTimeout(300);
-    assert.equal(savedDept.initPermFrom, 32, 'selected department ID submitted as number');
-    assert.equal('abbr' in savedDept, false, 'abbr not sent');
+    // 「부서 등록」 은 부서 매핑 화면의 「부서」 탭으로 옮겼습니다(2026-10-07) — gw-dept-tabs-browser.cjs 가 봅니다
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('PASS: three tab grids (default 100 rows) search/paging, input focus, resize, narrow scroll/borders, manual menu save');
+    console.log('PASS: two tab grids (default 100 rows) search/paging, input focus, resize, narrow scroll/borders, manual menu save');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

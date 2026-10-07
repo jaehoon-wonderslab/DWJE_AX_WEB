@@ -68,7 +68,7 @@ id · 시각 · 유형·결과 · 행위자(사번 이름 (부서), 없으면 �
 | 버튼 | 동작 |
 | :--- | :--- |
 | 조회 | 입력칸(계정·검색어 · IP)을 반영. 같은 값이면 다시 조회 |
-| 엑셀 다운로드 ▾ → **조회 목록 다운로드(n건)** | 지금 표의 **현재 쪽**을 표의 정렬·열 순서 그대로 9열 `.xls` 로(브라우저 생성). `attrs = [ts,type,empNo,name,dept,target,result,detail,ip]`. 기록 `scopeCd=VIEW` · `condSummary`(「{from}~{to} · 유형 · 결과 · 부서 · 검색어 · {page}쪽/{size}건」) · `menuId=sys-audit` |
+| 엑셀 다운로드 ▾ → **조회 목록 다운로드(n건)** | 지금 표의 **현재 쪽**을 표의 정렬·열 순서 그대로 9열 `.xlsx` 로(브라우저 생성, 2026-10-06 이전 `.xls`). `attrs = [ts,type,empNo,name,dept,target,result,detail,ip]`. 기록 `scopeCd=VIEW` · `condSummary`(「{from}~{to} · 유형 · 결과 · 부서 · 검색어 · {page}쪽/{size}건」) · `menuId=sys-audit` |
 | 엑셀 다운로드 ▾ → **전체 다운로드** | `POST /audit-logs/export {scope:'ALL', menuId:'sys-audit', format:'xlsx', condSummary:'전체 · 최근 순'}` — 조건·쪽과 무관한 전체(서버 생성). 서버는 from·to·keyword 를 주면 그것만 보므로 「전체」 에서는 보내지 않습니다. 이력은 서버가 남기므로 화면은 `POST /download-logs` 를 부르지 않습니다. 상한을 넘으면 헤더 `X-Export-Truncated`·`X-Export-Total`(·`X-Export-Limit`)로 받아 토스트 「상한 n건까지 내려받았습니다(전체 N건)」. 상한은 기획 50,000 이지만 2단계 서버는 10,000 이며, 화면은 숫자를 박지 않고 서버 헤더를 따릅니다. N 을 미리 몰라 건수 없이 표기 |
 | 보존 정책 | `GET /audit-logs/retention-policy` — 보존 기간 · 마지막/다음 아카이브(`nextArchiveAt`, 2026-10-02 R-20 으로 배치 켜짐 · 매월 1일 03:00. 서버 설정이 아직 꺼져 있으면 그 칸만 「— (서버 설정 꺼짐)」) · 기록 실패(`writeFailSinceBoot`, AUD-13) · 메일 발송 실패(`mailFailSinceBoot`, R-17) · 원천별(감사 기록·권한 변경·로그인 이력) 보관 중 · 경과 · 아카이브 · 가장 오래된 기록. 서버 API 가 없으면(404) 「보존 정책 조회가 아직 서버에 없습니다」 안내 |
 

@@ -22,6 +22,7 @@ import { useAuthStore } from '@shared/stores/useAuthStore';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import * as repo from '../model/systemRepository';
+import { MENU } from '@shared/constants/menu';
 
 /** 화면 ID — API 명세 · tb_sys_menu 와 같은 값 */
 const SCREEN_ID = 'sys-account';
@@ -61,6 +62,38 @@ const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); retur
 /** 변경 이력 조회 기간 (ACC-09) — 기본은 오늘을 종료일로 최근 7일(2026-10-02), 최대 365일 */
 export const LOG_DEFAULT_DAYS = 7;
 export const LOG_MAX_DAYS = 365;
+
+/** 메뉴 묶음 ID(서버 이력의 「그룹 dashboard」) → 묶음 이름 — 메뉴 정의의 hubPath 끝 이름 */
+const MENU_GROUP_NAMES = new Map(MENU.filter((g) => g.hubPath).map((g) => [g.hubPath.split('/').pop(), g.group]));
+
+/**
+ * 변경 이력 「대상」 칸 — 누구(계정 한 명)인지, 부서(묶음)인지 앞에 밝힙니다(2026-10-06 디자인 피드백).
+ *  · 계정: 「계정 · 이름(사번)」 (서버가 「사번 이름(사번)」 으로 주는 행은 앞 사번을 뗍니다)
+ *  · 부서: 「부서 · 부서명」
+ *  · 부서 메뉴 권한: 「부서 · 품질보증팀 — 메뉴 묶음 대시보드」
+ *  · 데이터 권한: 「부서 · 생산관리팀 — 데이터 항목 설비명」 / 항목 자체 변경이면 「데이터 항목 · 설비명」
+ * @param {object} l 이력 행(targetKind · target)
+ * @param {(key:string)=>string} fieldName 데이터 항목 키 → 이름
+ */
+export function logTargetLabel(l, fieldName = (k) => k) {
+  const raw = String(l?.target ?? '').trim();
+  const kind = l?.targetKind;
+  if (kind === 'USER') {
+    const m = raw.match(/^(\S+)\s+(.+\(\1\))$/);
+    return `계정 · ${m ? m[2] : raw}`;
+  }
+  if (kind === 'DEPT') return `부서 · ${raw}`;
+  const [left, right] = raw.includes(' / ') ? raw.split(' / ') : [null, raw];
+  if (kind === 'MENU') {
+    const g = String(right || '').replace(/^그룹\s+/, '');
+    const what = right?.startsWith('그룹 ') ? `메뉴 묶음 ${MENU_GROUP_NAMES.get(g) || g}` : right;
+    return left ? `부서 · ${left} — ${what}` : `메뉴 · ${what}`;
+  }
+  if (kind === 'FIELD') {
+    return left ? `부서 · ${left} — 데이터 항목 ${fieldName(right)}` : `데이터 항목 · ${fieldName(right)}`;
+  }
+  return raw;
+}
 
 /** 계정 표 빠른 필터 (ACC-08) */
 export const QUICK_FILTERS = [
@@ -130,6 +163,21 @@ export function useAccountController() {
   const logGrid = useAccountList(repo.loadAccountLogs, true, {
     from: logFilter.from, to: logFilter.to, ...(logFilter.actType ? { actType: logFilter.actType } : {}), ...(logFilter.target ? { targetUserId: logFilter.target } : {}),
   });
+
+  /* 변경 이력 「대상」 표기 — 데이터 항목 키는 이름으로(지운 항목은 이력 문장의 [키 / 이름] 에서 찾음) */
+  // 데이터 항목 이름은 데이터 접근 권한 화면 권한이 있을 때만 읽습니다(없으면 키 · 이력 문장의 이름으로)
+  const fieldsQ = useAsync(() => (can('sys-data') ? repo.loadDataFields() : Promise.resolve({ fields: [] })).catch(() => ({ fields: [] })), [], { silent: true });
+  const logRows = useMemo(() => {
+    const list = logGrid.rows;
+    const live = new Map((fieldsQ.data?.fields || []).map((f) => [f.key ?? f.fieldKey, f.name ?? f.fieldNm]));
+    const gone = new Map();
+    list.forEach((l) => {
+      for (const m of String(l.detail || '').matchAll(/\[([A-Za-z][\w-]*) \/ ([^\]]+)\]/g)) gone.set(m[1], m[2].trim());
+    });
+    const fieldName = (key) => live.get(key) || (gone.has(key) ? `${gone.get(key)} (삭제됨)` : /^f_[a-z0-9]+$/i.test(key) ? '삭제된 항목' : key);
+    return list.map((l) => ({ ...l, targetLabel: logTargetLabel(l, fieldName) }));
+  }, [logGrid.rows, fieldsQ.data]);
+
 
   // 직급 선택지는 서버 공통코드(SYS_POSITION)가 정본입니다.
   // shared/constants/accounts 의 POSITIONS 는 표기 변환용이며 서버와 어긋날 수 있습니다(DIRECTOR 임원 ↔ 상무).
@@ -259,7 +307,7 @@ export function useAccountController() {
     actName: (code) => (codes?.SYS_PERM_ACT || []).find((c) => c.value === code)?.label || code || '—',
     isUnassignedDept,
     positionOptions: codes?.SYS_POSITION || [],
-    logs: logGrid.rows,
+    logs: logRows,
     // 엑셀 — 조회 권한이면 받을 수 있습니다(R-10). canWrite 와 무관합니다
     userExportRef,
     userViewCount: userViewCount ?? users.length,

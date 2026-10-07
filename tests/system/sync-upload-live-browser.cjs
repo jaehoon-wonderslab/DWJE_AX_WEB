@@ -16,8 +16,8 @@
  *               폭 390px 에서 작업 표 마지막 열(관리)까지 가로 스크롤
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { chromium } = require('playwright-core');
+const { readXlsx } = require('../lib/xlsx');
 
 const WEB = process.env.WEB_URL || 'http://localhost:8097';
 const LIVE = process.env.LIVE_API || 'http://localhost:18081';
@@ -120,10 +120,9 @@ async function api(path, token, init = {}) {
     await step('업로드 — 「전체」 파일 행 수 = size=0 응답', async () => {
       await page.getByText('엑셀 다운로드 ▾').click();
       const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByText(/^전체 다운로드/).last().click()]);
-      const html = fs.readFileSync(await dl.path(), 'utf8');
-      const rows = (html.match(/<tr>/g) || []).length - 1;
-      assert.equal(rows, all.data.items.length);
-      assert.match(html, /범위 전체/);
+      const xl = await readXlsx(await dl.path());
+      assert.equal(xl.body.length, all.data.items.length);
+      assert.match(xl.meta, /범위 전체/);
     });
 
     /* ───────── 데이터 연동 이력 ───────── */

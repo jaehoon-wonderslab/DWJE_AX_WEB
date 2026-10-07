@@ -6,12 +6,13 @@
  */
 
 /** 표 이름(AccountGrid label) → 탭 값 */
-const TAB_OF = { 계정: 'users', 부서: 'depts', '변경 이력': 'logs' };
+// 「부서」 탭은 2026-10-07 부서 매핑 화면으로 옮겼습니다(계정 관리에는 없음)
+const TAB_OF = { 계정: 'users', '변경 이력': 'logs' };
 
 /**
  * 그 표의 탭을 열고 표를 돌려줍니다. 이미 열려 있으면 그대로 둡니다.
  * @param {import('playwright-core').Page} page
- * @param {'계정'|'부서'|'변경 이력'} label
+ * @param {'계정'|'변경 이력'} label
  * @param {{ waitRows?: boolean }} [opts] 행이 그려질 때까지 기다릴지(기본 true)
  */
 async function openAccountTab(page, label, { waitRows = true } = {}) {

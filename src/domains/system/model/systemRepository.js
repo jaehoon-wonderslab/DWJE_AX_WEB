@@ -673,6 +673,14 @@ export const loadGlossaryChanges = ({ termId, from, to, page = 1, size = 50 } = 
   unwrapPaged(systemService.getGlossaryChanges({ termId, from, to, page, size }));
 
 /**
+ * 사전 변경 이력 전부 — 변경 이력 창이 머리글 검색 · 쪽 나눔을 표에서 하도록 끝 쪽까지 받습니다(2026-10-04)
+ * @param {object} p { termId, from, to }
+ * @returns {Promise<{items:Array, meta:object}>}
+ */
+export const loadAllGlossaryChanges = ({ termId, from, to } = {}) =>
+  unwrapPaged(fetchAllPages(systemService.getGlossaryChanges, { termId, from, to }));
+
+/**
  * 유사어 폼의 공식 용어 후보 (07 GLS-11) — 2자 이상 입력하면 서버 목록 API 로 20건 찾습니다
  * @param {string} keyword
  */
@@ -1118,6 +1126,11 @@ export async function loadGwSummary() {
 export const loadGwMaps = () => unwrapPaged(systemService.getSystemGwDeptMaps({ size: 0 }));
 /** 미배정 계정 전체 (size=0, 조건 없음) */
 export const loadGwUsers = () => unwrapPaged(systemService.getSystemGwDeptMapsUnassignedUsers({ size: 0 }));
+/**
+ * 부서 매핑 화면 「배정 계정」 탭(2026-10-07) — 계정 목록 전량(GET /system/users?size=0, 서버는 계정 관리 조회 권한을 봅니다).
+ * 미배정 부서 계정은 화면(컨트롤러)이 뺍니다.
+ */
+export const loadGwAssignedUsers = () => loadAccountUsers({ size: 0 });
 
 /** 「전체 다운로드」 상한 (GWD-15, 공통 D-29 권장값) */
 export const GW_EXPORT_LIMIT = 10000;

@@ -110,11 +110,13 @@ const { BASE } = require('../lib/api');
     assert(await modalBtn('삭제').isDisabled(), '막는 참조가 있으면 삭제 비활성');
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
-    // ACC-10 부서 표 [메뉴 권한] 은 deptId 를 넘김
-    await openAccountTab(page, '부서');
-    await grid('부서').locator('.tabulator-row', { hasText: normalDept.deptNm }).getByRole('button', { name: '메뉴 권한', exact: true }).click();
-    await page.waitForURL(/\/system\/menu-perm/);
-    assert(page.url().includes(`deptId=${normalDept.deptId}`), page.url());
+    // 부서 표 [메뉴 권한] · [데이터 권한] 단추는 뺐습니다(2026-10-06, 예전 ACC-10).
+    // 부서 표는 2026-10-07 부서 매핑 화면의 「부서」 탭으로 옮겼습니다
+    await page.goto(`${WEB}/system/gw-dept-map`);
+    await page.locator('#gw-dept-tab-depts').click();
+    const deptRow = grid('부서').locator('.tabulator-row', { hasText: normalDept.deptNm });
+    await deptRow.first().waitFor();
+    for (const name of ['메뉴 권한', '데이터 권한']) assert.equal(await deptRow.getByRole('button', { name, exact: true }).count(), 0, `no ${name} button`);
 
     // ACC-13 회원가입 — 그룹웨어 자동 가입 사번이면 로그인 안내
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -147,25 +149,19 @@ const { BASE } = require('../lib/api');
     assert.equal(await page.getByText('2026-10-01 10:00:00 · 그룹웨어 부서 매핑 → 품질보증팀 · 최전산').count(), 0, '지정 모달 최근 이력 없음');
     await page.getByRole('button', { name: '취소', exact: true }).last().click();
 
-    // GWD-10 수정 열 이름, GWD-11 이어받기
+    // GWD-10 수정 열 이름 · 이어받기 단추 없음
     const oldRow = page.locator('.tabulator-row', { hasText: OLD });
     // 찾기는 열 머리글 필터로 합니다(상단 검색칸 제거)
     const gwFilter = page.locator('.tabulator-col[tabulator-field="gwDeptNm"] .tabulator-header-filter input').first();
     await gwFilter.fill('품질보증(구)');
     await page.waitForTimeout(600);
     assert(await oldRow.getByText('최전산').count(), '수정자 이름');
-    await oldRow.getByRole('button', { name: '이어받기', exact: true }).click();
-    const sel = page.getByRole('combobox', { name: '새 그룹웨어 부서명', exact: true });
-    await sel.waitFor();
-    const firstOpt = (await sel.locator('option').first().textContent()).replace(/ \(재직.*$/, '');
-    await modalBtn('이어받기').click();
-    await page.waitForTimeout(600);
-    assert.deepEqual({ path: writes.at(-1).path, from: writes.at(-1).body.fromGwDeptNm, to: writes.at(-1).body.gwDeptNm, remark: writes.at(-1).body.remark },
-      { path: 'gw-dept-maps', from: OLD, to: firstOpt, remark: '옛 이름' });
+    // [이어받기](GWD-11)는 뺐습니다(2026-10-07)
+    assert.equal(await oldRow.getByRole('button', { name: '이어받기', exact: true }).count(), 0, '이어받기 단추 없음');
     await gwFilter.fill('');
 
     // GWD-12 미배정 표 — 상태 배지·초기 비밀번호 열·상태 목록 필터. 「매핑대로 옮길 부서」 열은 뺐습니다(2026-10-02)
-    await page.getByText(/^미배정 계정 \d+$/).click();
+    await page.locator('#gw-dept-tab-users').click();
     await page.locator('.tabulator-row').first().waitFor();
     assert(await page.locator('.tabulator-col[tabulator-field="pwdChangeRequired"]').count(), '초기 비밀번호 열');
     assert.equal(await page.locator('.tabulator-col[tabulator-field="suggestDeptNm"]').count(), 0, '매핑대로 옮길 부서 열 없음');
@@ -194,7 +190,7 @@ const { BASE } = require('../lib/api');
     assert.equal(await card.getByText('직전 성공', { exact: false }).count(), 0, '부제 없음');
 
     assert.equal(errors.length, 0, errors.join('\n'));
-    console.log('PASS: P2 — 정지 1회 요청 4건·부여 사유·삭제 사전 확인·부서 넘김·회원가입 안내 / 동기화 카드·지정 모달 이력·수정자 이름·이어받기·미배정 표 보강·실패 상태');
+    console.log('PASS: P2 — 정지 1회 요청 4건·부여 사유·삭제 사전 확인·부서 넘김·회원가입 안내 / 동기화 카드·지정 모달 이력·수정자 이름·이어받기 없음·미배정 표 보강·실패 상태');
   } finally {
     await browser.close();
   }

@@ -16,9 +16,9 @@
  * 실행: WEB_URL=http://localhost:8081 node tests/system/audit-log-browser.cjs
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { WEB } = require('../lib/browser');
 const { openStubbed, adminMe } = require('../lib/stubSession');
+const { readXlsx } = require('../lib/xlsx');
 
 const HEADS = ['시각', '유형', '계정', '이름', '부서', '대상', '처리 결과', '비고', 'IP'];
 
@@ -43,12 +43,6 @@ const CODES = [
   { groupCd: 'LOG_AUDIT_RESULT', cd: 'MASKED', nm: '마스킹 후 제공', sort: 3 },
 ];
 
-/** 내려받은 .xls(HTML 표)에서 머리글·본문 행을 꺼냅니다 */
-function readXls(file) {
-  const html = fs.readFileSync(file, 'utf8');
-  const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<t[hd]>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]));
-  return { html, head: rows[0], body: rows.slice(1) };
-}
 
 /** 라벨로 SelectField 를 열고 항목을 고릅니다 (react-native-web 은 select 요소가 아닙니다) */
 async function pickSelect(page, label, option) {
@@ -185,17 +179,17 @@ const step = (m) => process.env.DEBUG && console.log('·', m);
     await btn.click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
     const savedAt = Date.now();
-    const file = readXls(await dl.path());
+    const file = await readXlsx(await dl.path());
     assert.deepEqual(file.head, HEADS, '파일 9열 = 화면 9열');
     assert.deepEqual(file.body.map((r) => r[0]), shown.map((t) => t.trim()), '파일 행 순서 = 표 정렬 순서');
     assert.equal(file.body.length, 3, '현재 쪽 행만');
-    assert(file.html.indexOf('비공개 처리 3건(데이터 접근 권한 기준)') >= 0 && file.html.indexOf('비공개 처리 3건') < file.html.indexOf('<table'), '첫 줄에 비공개 처리 n건');
+    assert(file.meta.includes('비공개 처리 3건(데이터 접근 권한 기준)'), '첫 줄에 비공개 처리 n건');
     assert.deepEqual(file.body.map((r) => r[3]), ['비공개', '비공개', '비공개'], '권한 밖 이름 열은 「비공개」');
     const log = logPosts.at(-1);
     assert(log && log.at <= savedAt, '기록이 파일 저장보다 먼저');
     assert.equal(log.body.scopeCd, 'VIEW');
     assert.equal(log.body.menuId, 'sys-audit');
-    assert.equal(log.body.format, 'XLS');
+    assert.equal(log.body.format, 'XLSX');
     assert.equal(log.body.blindCnt, 3, '파일 안 n = 기록 blindCnt');
     assert.equal(log.body.reportId, undefined, 'reportId 는 보내지 않는다(DLG-03)');
     assert(/1쪽\/50건/.test(log.body.condSummary), `condSummary: ${log.body.condSummary}`);

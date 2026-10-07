@@ -5,7 +5,8 @@
  * 회원가입(/signup)으로 들어온 신청은 승인 대기 상태로 쌓이며, 계정 표의 [승인]·[반려] 로 처리합니다.
  * 사용 API — /api/v1/system/users, /system/depts, /system/perm-logs
  *
- * 화면 구성(2026-10-02 개편) — 요약 카드 아래에 「계정 · 부서 · 계정·권한 변경 이력」 을 탭으로 나눕니다.
+ * 화면 구성(2026-10-02 개편) — 요약 카드 아래에 「계정 · 계정·권한 변경 이력」 을 탭으로 나눕니다.
+ *  · 「부서」 탭은 2026-10-07 에 부서 매핑 화면으로 옮겼습니다(제거됨 — 코드는 보존)
  *  · 표마다 쓰는 단추(엑셀·계정 등록 / 부서 등록)는 그 탭 머리 오른쪽에 둡니다
  *  · 표는 창 높이에 맞춰 세로로 길게, 기본 100행(AccountGrid)
  *  · 「가입 승인 대기」 카드·「승인 대기」 요약 카드·안내 문단은 뺐습니다 — 대기 계정은 「상태」 열 필터 「승인 대기」 로 모아 봅니다
@@ -69,7 +70,9 @@ const TAB_DEPTS = 'depts';
 const TAB_LOGS = 'logs';
 
 /** 계정 표 목록 필터 순서 (`filter: 'list'`) — 표에 있는 값만 이 순서로 보이고 나머지는 뒤에 붙습니다 */
-const STATE_FILTER_ORDER = ['사용', '잠김', '정지', '승인 대기'];
+/** 상태 목록 필터는 「사용 / 미사용」 둘로 거릅니다(2026-10-06) — 사용 = 사용 · 잠김(로그인만 막힘), 미사용 = 정지 · 승인 대기 */
+const USE_FILTER_ORDER = ['사용', '미사용'];
+const useLabelOf = (u) => (u?.state === 'ACTIVE' || u?.state === 'LOCKED' ? '사용' : '미사용');
 const PWD_FILTER_ORDER = ['변경 전', '변경 완료'];
 const JOIN_FILTER_ORDER = ['자동 가입', '회원가입', '관리자 등록'];
 const ADMIN_FILTER_ORDER = ['관리자', '일반'];
@@ -87,6 +90,13 @@ export default function AccountView({
   const { goToScreen } = useAppNavigation();
   const [tab, setTab] = useState(TAB_USERS);
   const posOptions = positionOptions?.length ? positionOptions : POSITION_FALLBACK;
+  /**
+   * 직급 목록 필터의 선택지 — 그룹웨어 직위 26종(SYS_POSITION attr1 = 'GW', V78), 직위 높은 순(2026-10-06).
+   * V78 전 서버라 표시가 없으면 관리자를 뺀 직급 전부로 대신합니다.
+   */
+  const gwPositions = posOptions.some((o) => o.attr1 === 'GW')
+    ? posOptions.filter((o) => o.attr1 === 'GW').map((o) => o.label)
+    : posOptions.filter((o) => o.value !== 'ADMIN' && o.label !== '관리자').map((o) => o.label);
   const cnt = summary?.userCnt || {};
 
   /**
@@ -136,10 +146,8 @@ export default function AccountView({
         self
           ? { key: 'deptStatic', label: '소속 부서', type: 'static', value: `${row.dept} — ${SELF_EDIT_NOTE}` }
           : { key: 'deptId', label: '소속 부서', type: 'select', options: choices, required: true },
-        ...(row && !self ? [{
-          key: 'deptCompare', type: 'custom', full: true,
-          render: ({ values }) => <DeptCompare from={row.deptId} to={values.deptId} matrix={menuOptions.matrix} deptOptions={deptOptions} />,
-        }] : []),
+        // 부서를 바꿀 때의 「이동 후 메뉴 n개(현재 부서 대비 +a/-b) · 데이터 항목 n개」 줄은 뺐습니다(2026-10-07).
+        // DeptCompare 는 되살릴 수 있게 남겨 둡니다
         { key: 'pos', label: '직급', type: 'select', options: posOptions },
         ...(row && summary?.canChangePassword ? [
           { key: 'password', type: 'password', label: '새 비밀번호', placeholder: '변경할 때만 입력' },
@@ -344,6 +352,8 @@ export default function AccountView({
   if (loading) return <Loading />;
 
   /* ───────── 탭별 표 ───────── */
+  // 상태 목록 필터 값(사용 / 미사용)을 행에 붙입니다
+  const userRows = (users || []).map((u) => ({ ...u, useLabel: useLabelOf(u) }));
   const userColumns = [
     { key: 'empNo', title: '아이디', width: 150, minWidth: 110, mono: true },
     {
@@ -359,10 +369,11 @@ export default function AccountView({
     },
     // 이메일 (2026-10-03) — 계정 관리 목록에만 원본을 줍니다(서버 `email`)
     { key: 'email', title: '이메일', width: 230, minWidth: 180, mono: true, render: (r) => <Text style={[s.td, s.mono, { paddingHorizontal: 0 }]} numberOfLines={1}>{r.email || '—'}</Text> },
-    { key: 'dept', title: '소속 부서', width: 180 },
+    // 소속 부서 — 부서 탭의 부서 목록에서 고릅니다(2026-10-06, 예전 검색칸)
+    { key: 'dept', title: '소속 부서', width: 180, filter: 'list', filterFixed: true, filterOptions: (depts || []).map((d) => d.name).filter(Boolean) },
     // 아래 4개 열은 머리글이 검색칸이 아니라 목록입니다 — 눌러서 값을 고릅니다(Tabulator list 머리글 필터)
     // 「관리자」 는 직급이 아니라 따로 둔 열로 보이고 거릅니다(2026-10-02) — 직급 목록 필터에서도 뺍니다
-    { key: 'posNm', title: '직급', width: 110, filter: 'list', filterField: 'posLabel', filterOptions: posOptions.filter((o) => o.value !== 'ADMIN' && o.label !== '관리자').map((o) => o.label), render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.posLabel || '—'}</Text> },
+    { key: 'posNm', title: '직급', width: 110, filter: 'list', filterField: 'posLabel', filterFixed: true, filterOptions: gwPositions, render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.posLabel || '—'}</Text> },
     {
       key: 'admin',
       title: '관리자',
@@ -378,8 +389,9 @@ export default function AccountView({
       title: '상태',
       width: 150,
       filter: 'list',
-      filterField: 'stateNm',
-      filterOptions: STATE_FILTER_ORDER,
+      filterField: 'useLabel',
+      filterFixed: true,
+      filterOptions: USE_FILTER_ORDER,
       render: (r) => <UserStateBadge row={r} />,
     },
     { key: 'joinSrc', title: '가입 경로', width: 120, filter: 'list', filterField: 'joinSrcLabel', filterOptions: JOIN_FILTER_ORDER, render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.joinSrcLabel || '—'}</Text> },
@@ -406,13 +418,17 @@ export default function AccountView({
       title: '로그인 실패',
       width: 140,
       align: 'right',
+      // 검색 필터는 뺐습니다(2026-10-06)
+      filterable: false,
       render: (r) => <Text style={[s.td, s.num, { textAlign: 'right' }]}>{r.loginFailCnt ?? 0}</Text>,
     },
-    { key: 'lastLoginAt', title: '최근 접속', width: 210, mono: true },
+    // 최근 접속 — 달력으로 날짜를 고르면 그날 접속한 계정만(2026-10-06)
+    { key: 'lastLoginAt', title: '최근 접속', width: 210, mono: true, filter: 'date' },
     {
       key: 'action',
       title: '관리',
       width: 300,
+      sortable: false,
       render: (r) => (
         <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
           <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openUserForm(r)} />
@@ -461,13 +477,12 @@ export default function AccountView({
     {
       key: 'action',
       title: '관리',
-      width: 350,
+      width: 170,
+      sortable: false,
       render: (r) => (
         <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
           <GuardedButton allowed={canWrite} label="편집" size="sm" onPress={() => openDeptForm(r)} />
-          {/* 받는 화면이 이 부서 열을 강조합니다(ACC-10, 받는 화면 쪽 변경은 03·04 소관) */}
-          <Button label="메뉴 권한" size="sm" onPress={() => goToScreen('sys-menu', { deptId: r.id })} />
-          <Button label="데이터 권한" size="sm" onPress={() => goToScreen('sys-data', { deptId: r.id })} />
+          {/* [메뉴 권한] · [데이터 권한] 이동 단추는 뺐습니다(2026-10-06) */}
           <GuardedButton allowed={canWrite} reason={deptDeleteBlock(r)} label="삭제" size="sm" variant="danger" onPress={() => confirmDeleteDept(r)} />
         </View>
       ),
@@ -476,7 +491,8 @@ export default function AccountView({
 
   const logColumns = [
     { key: 'ts', title: '시각', width: 210, mono: true },
-    { key: 'target', title: '대상', width: 170 },
+    // 대상 — 「계정 · 이름(사번)」 / 「부서 · 부서명 — 메뉴 묶음 …」 처럼 개인인지 부서(묶음)인지 앞에 밝힙니다(2026-10-06)
+    { key: 'target', title: '대상', width: 280, filterField: 'targetLabel', render: (r) => <Text style={[s.td, { paddingHorizontal: 0 }]}>{r.targetLabel || r.target || '—'}</Text> },
     {
       key: 'act',
       title: '구분',
@@ -569,7 +585,8 @@ export default function AccountView({
         onChange={setTab}
         items={[
           { value: TAB_USERS, label: '계정', icon: 'users', count: userTotal },
-          { value: TAB_DEPTS, label: '부서', icon: 'layers', count: summary?.deptCnt ?? depts.length },
+          // 「부서」 탭 — 제거됨(2026-10-07). 내용과 기능은 부서 매핑 화면의 「부서」 탭으로 옮겼습니다(DeptManagePanel).
+          // 아래 TAB_DEPTS 분기 · deptColumns · openDeptForm 은 되살릴 수 있게 남겨 둡니다
           { value: TAB_LOGS, label: '계정·권한 변경 이력', icon: 'history', count: logGrid.meta?.total ?? logs.length },
         ]}
         right={tabActions[tab]}
@@ -591,14 +608,14 @@ export default function AccountView({
             minWidth={1840}
             keyExtractor={(r) => r.empNo}
             columns={userColumns}
-            rows={users}
+            rows={userRows}
           />
         ) : null}
         {tab === TAB_DEPTS ? (
           <AccountGrid grid={deptGrid} label="부서"
             // 부서는 몇 개뿐이라 검색줄(검색칸 · 검색 · 초기화)과 안내 문장을 두지 않습니다 — 열 필터만 씁니다
             searchable={false}
-            minWidth={1070}
+            minWidth={890}
             keyExtractor={(r) => r.id}
             columns={deptColumns}
             rows={depts}
@@ -610,7 +627,7 @@ export default function AccountView({
             <AccountGrid grid={logGrid} label="변경 이력"
               // 검색줄과 안내 문장은 뺐습니다(2026-10-02) — 기간 조건과 열 머리글 필터로 거릅니다
               searchable={false}
-              minWidth={840}
+              minWidth={950}
               keyExtractor={(r, i) => `${r.ts}-${i}`}
               columns={logColumns}
               rows={logs}
@@ -635,7 +652,8 @@ function LogFilterBar({ filter, onApply }) {
   if (seen !== filter) { setSeen(filter); setDraft(filter); }
   const apply = () => setError(onApply(draft) || '');
   return (
-    <View style={{ gap: 8, marginBottom: 12 }}>
+    // 달력이 아래 표에 가리지 않게 표보다 위 층에 둡니다(2026-10-06)
+    <View style={{ gap: 8, marginBottom: 12, position: 'relative', zIndex: 50 }}>
       <Filters>
         <DateField label="시작" min={null} max={null} value={draft.from} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} />
         <DateField label="종료" min={null} max={null} value={draft.to} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} />
@@ -649,6 +667,7 @@ function LogFilterBar({ filter, onApply }) {
 /**
  * 부서를 바꿀 때 권한 수 비교 (ACC-06) — 이미 받은 메뉴 권한 매트릭스와 부서 dataCnt 로 셉니다(perm-compare API 는 부르지 않음)
  */
+// eslint-disable-next-line no-unused-vars -- 2026-10-07 계정 폼에서 뺐습니다(되살릴 수 있게 보존)
 function DeptCompare({ from, to, matrix, deptOptions }) {
   const s = useCommonStyles();
   if (to === undefined || to === null || String(from) === String(to)) return null;
@@ -674,7 +693,8 @@ function permCountText(r, kind) {
   if (r.superAdmin) return '전체';
   if (r.lockedPerms) {
     const n = kind === 'menu' ? (r.fixedMenus || []).length : (r.fixedDataFields || []).length;
-    return `${n}(고정)`;
+    // 「(고정)」 표기는 뺐습니다(2026-10-06)
+    return String(n);
   }
   const n = kind === 'menu' ? r.menuCnt : r.dataCnt;
   return n === undefined || n === null ? '—' : String(n);

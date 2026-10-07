@@ -110,9 +110,9 @@ export default function GlossaryView({
     {
       title: '관리',
       field: 'termId',
-      // 07 4.3 — 통합관리자 260(유사어 추가·이력·편집·삭제) / 그 밖 170(유사어 추가·이력)
-      width: canEditTerm ? 260 : 170,
-      minWidth: canEditTerm ? 260 : 170,
+      // 단추를 한 줄로 둡니다(2026-10-04) — 통합관리자 340(유사어 추가·이력·편집·삭제) / 그 밖 210(유사어 추가·이력)
+      width: canEditTerm ? 340 : 210,
+      minWidth: canEditTerm ? 340 : 210,
       headerSort: false,
       headerFilter: false,
       formatter: (c) => {
@@ -121,11 +121,12 @@ export default function GlossaryView({
         const btn = (act, label, ok, why, extra = '') => (ok
           ? `<button class="tbtn${extra}" data-act="${act}">${label}</button>`
           : `<button class="tbtn${extra}" data-act="${act}" disabled title="${esc(why)}" aria-label="${label} — ${esc(why)}">${label}</button>`);
-        const add = btn('add', '유사어 추가', canWriteVariant && !blinded, blinded ? BLIND_MESSAGE : NO_WRITE_MESSAGE);
+        // 주 동작(유사어 추가)은 옅은 강조, 삭제는 붉은 글자 — 같은 모양 단추 넷이 두 줄로 접히던 것을 한 줄로(2026-10-04)
+        const add = btn('add', '유사어 추가', canWriteVariant && !blinded, blinded ? BLIND_MESSAGE : NO_WRITE_MESSAGE, ' tbtn-accent');
         const admin = canEditTerm
-          ? ` ${btn('edit', '편집', !blinded, BLIND_MESSAGE)} ${btn('del', '삭제', !blinded, BLIND_MESSAGE, ' tbtn-ghost')}`
+          ? `${btn('edit', '편집', !blinded, BLIND_MESSAGE)}${btn('del', '삭제', !blinded, BLIND_MESSAGE, ' tbtn-danger')}`
           : '';
-        return `${add} <button class="tbtn" data-act="hist">이력</button>${admin}`;
+        return `<div class="tbtns">${add}<button class="tbtn" data-act="hist">이력</button>${admin}</div>`;
       },
       cellClick: (e, c) => {
         const btn = e.target.closest('[data-act]');
@@ -222,8 +223,9 @@ export default function GlossaryView({
   const openChanges = (row) =>
     openModal({
       title: row ? `변경 이력 — ${row.term}` : '변경 이력 (최근 30일)',
-      sub: '용어·유사어의 등록·수정·삭제·되살림 기록입니다',
+      // 부제는 뺐습니다 · 폭을 넓혀 표가 가로 스크롤 없이 들어갑니다(2026-10-04)
       wide: true,
+      maxWidth: 1180,
       render: () => <ChangeList load={() => loadChanges({ termId: row?.termId })} />,
     });
 
@@ -542,13 +544,15 @@ function TermPicker({ value, onChange, search }) {
 
 const CHANGE_TARGET = { TERM: '공식 용어', VARIANT: '유사어' };
 const CHANGE_ACTION = { CREATE: '등록', UPDATE: '수정', DELETE: '삭제', RESTORE: '되살림' };
+/** 변경 이력 「구분」 목록 필터 순서 */
+const CHANGE_ACTION_ORDER = Object.values(CHANGE_ACTION);
 /**
  * 변경 전·후 JSON 키 → 화면 이름 (서버는 camelCase: term · termDef · customerInfo · word · restoredVariants · byAdmin)
  * domainNm · domain(분류)은 2026-10-03 분류 삭제 전에 쌓인 이력을 읽으려고 남겨 둡니다
  */
 const CHANGE_KEY = {
   word: '유사어', term: '공식 용어', termDef: '뜻', definition: '뜻', customerInfo: '고객사 정보', domainNm: '분류', domain: '분류',
-  restoredVariants: '되살린 유사어', byAdmin: '관리자 대리 처리',
+  restoredVariants: '되살린 유사어', deactivatedVariants: '함께 끈 유사어', byAdmin: '관리자 대리 처리',
 };
 /** 변경 전·후 값 — 사람이 읽는 글로 (유사어 · 공식 용어 · 뜻 · 고객사 정보 순) */
 function changeText(v) {
@@ -562,7 +566,6 @@ function changeText(v) {
 
 /** 변경 이력 표 (07 GLS-07) — 모달이 열릴 때 부르고, 실패하면 안내합니다. 좁은 화면은 가로 스크롤 */
 function ChangeList({ load }) {
-  const s = useCommonStyles();
   const [state, setState] = useState({ loading: true, items: [], error: '' });
   useEffect(() => {
     let alive = true;
@@ -572,23 +575,36 @@ function ChangeList({ load }) {
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (state.loading) return <Loading compact />;
+  // 머리글 검색이 글자로 거르도록 표시할 글자를 행에 미리 만듭니다
+  const rows = state.items.map((r) => ({
+    ...r,
+    actorText: r.actorNm || r.actorId || '—',
+    targetText: `${CHANGE_TARGET[r.targetCd] || r.targetCd || ''}${r.blinded ? ' · 비공개 용어' : r.term ? ` · ${r.term}` : ''}`,
+    actionText: CHANGE_ACTION[r.actionCd] || r.actionCd || '—',
+    beforeText: r.blinded ? '비공개' : changeText(r.before),
+    afterText: r.blinded ? '비공개' : changeText(r.after),
+  }));
   return (
     <View style={{ gap: 10 }}>
       {state.error ? <FormAlert tone="error">{state.error}</FormAlert> : null}
+      {/* 머리글 검색은 모든 쪽에 적용됩니다 — 이력을 전부 받아 표가 20행씩 나눕니다(2026-10-04) */}
       <Table
-        minWidth={860}
         bordered
+        filterable
+        pageSize={20}
         keyExtractor={(r) => r.changeId}
         emptyText="변경 이력이 없습니다."
-        rows={state.items}
+        rows={rows}
         columns={[
-          { key: 'at', title: '시각', width: 150, mono: true },
-          { key: 'actorNm', title: '수행자', width: 140, render: (r) => <Text style={s.td}>{r.actorNm || r.actorId || '—'}</Text> },
-          { key: 'targetCd', title: '대상', width: 90, render: (r) => <Text style={s.td}>{`${CHANGE_TARGET[r.targetCd] || r.targetCd || ''}${r.blinded ? ' · 비공개 용어' : r.term ? ` · ${r.term}` : ''}`}</Text> },
-          { key: 'actionCd', title: '구분', width: 80, render: (r) => <Text style={s.td}>{CHANGE_ACTION[r.actionCd] || r.actionCd || '—'}</Text> },
+          // 시각은 한 줄(nowrap) — 「2026-10-04 09:05:12」 이 들어가는 폭
+          { key: 'at', title: '시각', width: 215, mono: true },
+          { key: 'actorText', title: '작업자', width: 120 },
+          { key: 'targetText', title: '대상', width: 180, wrap: true },
+          // 구분은 고르는 목록 필터입니다(등록 · 수정 · 삭제 · 되살림 — 표에 있는 값만)
+          { key: 'actionText', title: '구분', width: 110, filter: 'list', filterOptions: CHANGE_ACTION_ORDER },
           // 고객사 데이터 권한이 없어 가린 항목(blinded, R-18)은 값 대신 「비공개」
-          { key: 'before', title: '변경 전', minWidth: 200, wrap: true, render: (r) => <Text style={s.td}>{r.blinded ? '비공개' : changeText(r.before)}</Text> },
-          { key: 'after', title: '변경 후', minWidth: 200, wrap: true, render: (r) => <Text style={s.td}>{r.blinded ? '비공개' : changeText(r.after)}</Text> },
+          { key: 'beforeText', title: '변경 전', minWidth: 220, flex: 1, wrap: true },
+          { key: 'afterText', title: '변경 후', minWidth: 220, flex: 1, wrap: true },
         ]}
       />
     </View>

@@ -163,7 +163,8 @@ export function openFormModal(config) {
       if (!f.required || f.type === 'static') return;
       const v = values[f.key];
       const empty = v === null || v === undefined || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length);
-      if (empty) errors[f.key] = `${withParticle(f.label, '을')} 입력해 주세요.`;
+      // 고르는 칸(select · radio)은 「선택해 주세요」(2026-10-07)
+      if (empty) errors[f.key] = `${withParticle(f.label, '을')} ${f.type === 'select' || f.type === 'radio' ? '선택해' : '입력해'} 주세요.`;
     });
     return { ...errors, ...(config.validate?.(values) || {}) };
   };

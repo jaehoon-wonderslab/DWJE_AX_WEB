@@ -15,6 +15,8 @@
  *    머리글 칸을 누르면 그 열에 실제로 있는 값(`filterField` 가 있으면 그 값)이 목록으로 열리고,
  *    고른 값과 **같은** 행만 남습니다. 맨 위 「전체」 를 고르면 필터가 풀립니다.
  *    목록 순서를 정하려면 `filterOptions: ['사용','잠김',…]` 을 줍니다(없으면 표 값을 가나다순으로).
+ *    `filterFixed: true` 면 표에 있는 값과 관계없이 `filterOptions` 를 그대로 선택지로 둡니다(코드 · 부서 목록처럼 정해진 값, 2026-10-06).
+ *    `filter: 'date'` 면 달력 입력칸(input type=date)이 붙고, 값(`filterField` 또는 열 값)이 그 날짜(YYYY-MM-DD)로 시작하는 행을 남깁니다.
  *
  * 사용 예)
  *   <Table
@@ -111,7 +113,7 @@ export default function Table({
    * 열의 **모양**이 바뀔 때만 표를 다시 만듭니다. 화면들이 render 마다 새 배열을 넘기므로
    * 정의 자체를 의존성으로 두면 키 입력마다 표가 부서지고 정렬이 풀립니다.
    */
-  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num, c.sortable, c.filterable, c.filterField, c.filter, (c.filterOptions || []).join(',')].join(':')).join('|');
+  const signature = columns.map((c) => [c.key, c.title, c.width, c.flex, c.minWidth, c.align, !!c.render, !!c.wrap, !!c.mono, !!c.num, c.sortable, c.filterable, c.filterField, c.filter, !!c.filterFixed, (c.filterOptions || []).join(',')].join(':')).join('|');
   const tabColumns = useMemo(
     () => {
       // 모든 열이 고정 폭이면 표 오른쪽이 비어 버립니다 — 마지막 열이 남는 폭을 채우게 합니다
@@ -125,8 +127,8 @@ export default function Table({
           hozAlign: align,
           headerHozAlign: align,
           headerSort: col.sortable !== false,
-          headerFilter: filterable && col.filterable !== false && (!col.render || col.filterable === true || col.filter === 'list') ? (col.filter === 'list' ? 'list' : 'input') : false,
-          ...(col.filter === 'list' ? listFilter(col, rowsRef) : col.filterField ? { headerFilterFunc: (query, _value, row) => String(row[col.filterField] ?? '').toLocaleLowerCase().includes(String(query).toLocaleLowerCase()) } : {}),
+          headerFilter: filterable && col.filterable !== false && (!col.render || col.filterable === true || col.filter === 'list' || col.filter === 'date') ? (col.filter === 'list' ? 'list' : 'input') : false,
+          ...(col.filter === 'list' ? listFilter(col, rowsRef) : col.filter === 'date' ? dateFilter(col) : col.filterField ? { headerFilterFunc: (query, _value, row) => String(row[col.filterField] ?? '').toLocaleLowerCase().includes(String(query).toLocaleLowerCase()) } : {}),
           tooltip: col.render ? false : (_event, cell) => {
             const el = document.createElement('div');
             el.textContent = String(cell.getValue() ?? '');
@@ -248,6 +250,9 @@ function listFilter(col, rowsRef) {
     headerFilterPlaceholder: '전체',
     headerFilterParams: {
       valuesLookup: () => {
+        if (col.filterFixed && col.filterOptions?.length) {
+          return [{ label: '전체', value: LIST_ALL }, ...col.filterOptions.map((v) => ({ label: v, value: v }))];
+        }
         const present = new Set((rowsRef.current || []).map(textOf));
         const ordered = col.filterOptions?.length
           ? [...col.filterOptions.filter((o) => present.has(o)), ...[...present].filter((v) => !col.filterOptions.includes(v)).sort((a, b) => a.localeCompare(b, 'ko'))]
@@ -259,6 +264,19 @@ function listFilter(col, rowsRef) {
       autocomplete: false,
     },
     headerFilterFunc: (query, _value, row) => query === LIST_ALL || textOf(row) === query,
+  };
+}
+
+/**
+ * 날짜 머리글 필터 (`filter: 'date'`) — 달력(input type=date)으로 고르고, 값이 그 날짜로 시작하는 행을 남깁니다.
+ * 값은 「YYYY-MM-DD HH:mm」 처럼 날짜가 앞에 오는 글자여야 합니다.
+ */
+function dateFilter(col) {
+  const field = col.filterField || col.key;
+  return {
+    headerFilterParams: { elementAttributes: { type: 'date' } },
+    headerFilterLiveFilter: false,
+    headerFilterFunc: (query, _value, row) => !query || String(row?.[field] ?? '').startsWith(String(query)),
   };
 }
 

@@ -53,12 +53,6 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
     assert((await response.json()).success);
     await page.getByRole('button', { name: '수정', exact: true }).waitFor({ state: 'hidden' });
     assert.deepEqual(ok(await get('/system/users', { keyword: empNo })).items[0].extraMenuIds, []);
-    // 부서 탭은 검색줄이 없고(2026-10-02) 부서명 열 필터로 찾습니다
-    const deptGrid = await openAccountTab(page, '부서');
-    assert.equal(await deptGrid.getByRole('textbox', { name: '부서 검색', exact: true }).count(), 0, 'dept search box removed');
-    await deptGrid.locator('.tabulator-col[tabulator-field="name"] input').fill(empNo);
-    await page.waitForTimeout(400);
-    assert.equal(await deptGrid.locator('.tabulator-row').count(), 1, 'dept column filter finds the test department');
     for (const [label, keyword] of [['변경 이력', empNo]]) {
       const current = await openAccountTab(page, label);
       // 이력 탭에도 검색줄이 없습니다(2026-10-02) — 「대상」 열 필터로 찾습니다(기간 기본 최근 7일 안의 방금 수정분)
@@ -71,6 +65,15 @@ const ok = r => { assert(r.body.success, r.body.message); return r.body.data; };
       await page.waitForTimeout(400);
       assert.equal(await current.locator('.tabulator-row').count(), 0, `${label} column filter`);
     }
+    // 부서 표는 2026-10-07 부서 매핑 화면의 「부서」 탭으로 옮겼습니다 — 검색줄 없이 부서명 열 필터로 찾습니다
+    await page.goto(`${WEB}/system/gw-dept-map`);
+    await page.locator('#gw-dept-tab-depts').click();
+    const deptGrid = page.locator('[id="account-grid-부서"]');
+    await deptGrid.locator('.tabulator-row').first().waitFor();
+    assert.equal(await deptGrid.getByRole('textbox', { name: '부서 검색', exact: true }).count(), 0, 'dept search box removed');
+    await deptGrid.locator('.tabulator-col[tabulator-field="name"] input').fill(empNo);
+    await page.waitForTimeout(400);
+    assert.equal(await deptGrid.locator('.tabulator-row').count(), 1, 'dept column filter finds the test department');
     assert.deepEqual(errors, []);
     console.log('PASS: real browser search, edit existing grants, add/remove, empty-array revocation and server persistence');
   } finally {

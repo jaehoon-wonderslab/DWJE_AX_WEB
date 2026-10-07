@@ -21,6 +21,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { WEB } = require('../lib/browser');
 const { openStubbed } = require('../lib/stubSession');
+const { readXlsx } = require('../lib/xlsx');
 
 const step = (m) => process.env.DEBUG && console.log('·', m);
 
@@ -40,11 +41,6 @@ function rows(n = 3) {
   return Array.from({ length: n }, (_, i) => ({ ...base[i % 3], dlId: 10000 - i, rowCnt: i }));
 }
 
-function readXls(file) {
-  const html = fs.readFileSync(file, 'utf8');
-  const all = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<t[hd]>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]));
-  return { html, head: all[0], body: all.slice(1) };
-}
 
 async function pickSelect(page, label, option) {
   const field = page.getByText(label, { exact: true }).first().locator('xpath=..');
@@ -193,13 +189,13 @@ async function pickSelect(page, label, option) {
     await btn.click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
     const savedAt = Date.now();
-    const file = readXls(await dl.path());
+    const file = await readXlsx(await dl.path());
     // 헤드리스 끌기로는 열 이동이 확정되지 않을 때가 있어(placeholder 까지는 생김) 이동 여부와 무관하게
     // 「파일 열 순서 = 지금 그리드 열 순서」 를 확인합니다. 이동이 됐으면 그 순서가 곧 옮긴 순서입니다.
     assert.deepEqual(file.head, order, `파일 열 순서 = 그리드 열 순서 (IP 이동 ${moved ? '됨' : '안 됨'})`);
     const rowIdx = file.head.indexOf('행 수');
     assert.deepEqual(file.body.map((r) => r[rowIdx]), shownRowCnt.map((t) => t.trim().replace(/,/g, '')), '파일 행 순서 = 그리드 정렬');
-    assert(file.html.indexOf('비공개 처리 0건(데이터 접근 권한 기준)') < file.html.indexOf('<table'), '첫 줄 비공개 처리 n건');
+    assert(file.meta.includes('비공개 처리 0건(데이터 접근 권한 기준)'), '첫 줄 비공개 처리 n건');
     const log = logPosts.at(-1);
     assert(log.at <= savedAt, '기록이 저장보다 먼저');
     assert.equal(log.body.scopeCd, 'VIEW');

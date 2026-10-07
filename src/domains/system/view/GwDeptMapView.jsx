@@ -12,18 +12,21 @@ import React, { useMemo, useRef } from 'react';
 import { Text, View } from 'react-native';
 import Grid, { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
-import { Badge, Button, Card, CheckRow, ExportMenuButton, Filters, FormAlert, Hint, Loading, SelectField, StatCard, TabulatorGrid, Tabs, openConfirmModal, openFormModal } from '@shared/components/ui';
+import { Badge, Button, CardTabs, CheckRow, ExportMenuButton, FormAlert, HelpTip, Hint, Loading, SelectField, StatCard, TabulatorGrid, openConfirmModal, openFormModal } from '@shared/components/ui';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { GW_MAP_STATES, NO_DEPT, gwStateLabel, userStateLabel } from '../controller/useGwDeptMapController';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { GuardedButton, WRITE_DENIED } from './WriteGuard';
+import DeptManagePanel, { DeptRegisterButton } from './DeptManagePanel';
 import { useTableActive } from './useTableActive';
 
 const STATE_TAG = { MAPPED: 'tag-green', UNMAPPED: 'tag-amber', EXCLUDED: '' };
 
 /** 확인 모달에 이름을 늘어놓는 최대 인원 (GWD-01) */
 const LIST_MAX = 20;
+/** 배정 계정 표 — 표시 건수 선택지(기본 50) */
+const ASSIGNED_PAGE_SIZES = [10, 25, 50, 100];
 
 /** 요약 카드가 칸 높이를 채우게 — 네 카드 높이를 같게(2026-10-02) */
 const STAT_FILL = { flex: 1 };
@@ -40,7 +43,10 @@ export default function GwDeptMapView({
   reload, exportTabName, exportViewCount, exportTotalCount, exportView, exportAll,
   saveMap, saveMapsBulk, removeMap, moveUser, moveUsers,
   mapTotal, userTotal, refreshing, openUsersOf, unassignedOf,
-  mapOf, inheritCandidates, inheritMap, mapLogs, logsOf, sync, canGoSync, unassignedPwdInitCnt,
+  mapOf, mapLogs, logsOf, sync, canGoSync, unassignedPwdInitCnt,
+  assigned = [], assignedTotal, assignedLoading, assignedError, selectedAssigned = [], setSelectedAssigned,
+  assignedTableRef, setVisibleAssigned, moveAssigned,
+  deptAdmin,
 }) {
   const { goToScreen } = useAppNavigation();
   // 표 안의 버튼은 HTML 로 그리고 클릭은 cellClick 에서 받습니다. 열 정의는 한 번만 만들고
@@ -52,6 +58,7 @@ export default function GwDeptMapView({
   // 열 검색으로 좁혀진 「보이는 행」 을 컨트롤러에 알립니다 — 재배정 대상·조회 목록 엑셀 기준(GWD-01·15)
   useTableActive(mapTableRef, setVisibleMaps);
   useTableActive(userTableRef, setVisibleUsers);
+  useTableActive(assignedTableRef, setVisibleAssigned);
 
   const mapColumns = useMemo(() => [
     {
@@ -102,25 +109,20 @@ export default function GwDeptMapView({
     {
       title: '관리',
       field: 'hasRow',
-      // 내용 맞춤(autoWidth)은 처음 그린 행으로 폭을 잽니다 — [지정]·[이어받기]·[삭제] 셋이 다 있는 행도 들어가게 최소 폭을 둡니다
-      width: 230,
-      minWidth: 230,
+      // 단추가 [지정] 하나라 그 폭만 둡니다 — 남는 폭 나누기(fillWidth)에서도 빼고 그대로 둡니다
+      width: 90,
+      minWidth: 90,
+      maxWidth: 90,
       headerSort: false,
       headerFilter: false,
       // 선택 칸이 있는 표라 행을 누르면 선택이 뒤집힙니다 — 버튼은 클릭을 행까지 올려 보내지 않습니다
-      // 「그룹웨어에 없음」 행은 [이어받기] — 그룹웨어 부서명이 바뀐 경우 새 이름으로 설정을 옮깁니다(GWD-11)
+      // [이어받기](GWD-11 — 그룹웨어 부서명이 바뀐 행의 설정을 새 이름으로 옮김)는 뺐습니다(2026-10-07).
+      // 컨트롤러의 inheritCandidates · inheritMap 은 되살릴 수 있게 남겨 둡니다
+      // [삭제] 는 뺐습니다(2026-10-07) — [지정] 에서 「미배정(매핑 없음)」 · 자동 가입으로 저장하면 엔진이 매핑 행이 없을 때와
+      // 똑같이 미배정으로 가입시킵니다(dept_id 없음 = UNMAPPED). confirmRemoveMap · removeMap 은 되살릴 수 있게 남겨 둡니다
       formatter: (c) => actionButtons(
-        [
-          { act: 'edit', label: '지정', cls: 'tbtn-primary' },
-          ...(c.getValue() && c.getRow().getData().inSource === false ? [{ act: 'inherit', label: '이어받기' }] : []),
-          ...(c.getValue() ? [{ act: 'del', label: '삭제', cls: 'tbtn-ghost' }] : []),
-        ],
-        (act) => {
-          const row = c.getRow().getData();
-          if (act === 'edit') handlers.current.openMapForm(row);
-          else if (act === 'inherit') handlers.current.openInheritForm(row);
-          else handlers.current.confirmRemoveMap(row);
-        },
+        [{ act: 'edit', label: '지정', cls: 'tbtn-primary' }],
+        () => handlers.current.openMapForm(c.getRow().getData()),
         deny,
       ),
     },
@@ -178,6 +180,7 @@ export default function GwDeptMapView({
         field: 'empNo',
         width: 110,
         minWidth: 110,
+        maxWidth: 110,
         headerSort: false,
         headerFilter: false,
         formatter: (c) => actionButtons([{ act: 'move', label: '부서 지정' }], () => handlers.current.openMoveForm(c.getRow().getData()), deny),
@@ -185,13 +188,53 @@ export default function GwDeptMapView({
     ];
   }, [deny]);
 
+  // 배정 계정 표(2026-10-07) — 부서 · 직급 · 상태 · 가입 경로 머리글은 고르는 목록입니다
+  const assignedRef = useRef(assigned);
+  assignedRef.current = assigned;
+  const assignedColumns = useMemo(() => {
+    const listHeader = (field) => ({
+      headerFilter: 'list',
+      headerFilterParams: {
+        valuesLookup: () => [
+          { label: '전체', value: '' },
+          ...[...new Set((assignedRef.current || []).map((u) => u[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')).map((v) => ({ label: v, value: v })),
+        ],
+        clearable: true,
+        autocomplete: false,
+      },
+      headerFilterPlaceholder: '전체',
+      headerFilterFunc: '=',
+      cssClass: 'ax-list-filter',
+    });
+    return [
+      { title: '사번', field: 'empNo', formatter: (c) => `<span class="mono">${esc(c.getValue())}</span>` },
+      { title: '이름', field: 'name', formatter: (c) => `<span class="strong">${esc(c.getValue())}</span>` },
+      { title: '부서', field: 'dept', minWidth: 120, ...listHeader('dept') },
+      { title: '직급', field: 'posNm', minWidth: 100, ...listHeader('posNm'), formatter: (c) => esc(c.getValue() || '—') },
+      {
+        title: '상태',
+        field: 'stateLabel',
+        minWidth: 90,
+        ...listHeader('stateLabel'),
+        formatter: (c) => {
+          const u = c.getRow().getData();
+          const cls = u.state === 'ACTIVE' ? 'tag-green' : u.state === 'LOCKED' ? 'tag-amber' : u.state === 'SUSPENDED' ? 'tag-red' : '';
+          return `<span class="tag ${cls}">${esc(c.getValue() || '—')}</span>`;
+        },
+      },
+      { title: '가입 경로', field: 'joinSrcLabel', minWidth: 110, ...listHeader('joinSrcLabel'), formatter: (c) => esc(c.getValue() || '—') },
+      { title: '가입 일시', field: 'requestedAt', headerFilter: false, formatter: (c) => esc(c.getValue() || '—') },
+      { title: '최근 로그인', field: 'lastLoginAt', headerFilter: false, formatter: (c) => esc(c.getValue() || '—') },
+    ];
+  }, []);
+
   /* ───────── 부서 매핑 ───────── */
   // 통합관리자·미배정 부서는 선택지에 없습니다(GWD-02 — systemRepository.loadGwDeptMap 이 거릅니다)
   const deptOptions = [{ value: NO_DEPT, label: `— ${summary?.unassignedDept?.deptNm || '미배정'} (매핑 없음) —` }, ...depts.map((d) => ({ value: d.id, label: d.name }))];
   const joinOptions = [{ value: 'Y', label: '자동 가입' }, { value: 'N', label: '가입 제외' }];
 
   const openMapForm = (row) => {
-    const { cnt, pwdInitCnt } = unassignedOf(row.gwDeptNm);
+    const { cnt } = unassignedOf(row.gwDeptNm);
     const deptName = (id) => depts.find((d) => String(d.id) === String(id))?.name || '';
     openFormModal({
       title: '부서 매핑 지정',
@@ -223,9 +266,7 @@ export default function GwDeptMapView({
                 {usable ? (
                   <CheckRow label={`저장 후 이 부서 미배정 계정 ${cnt}명도 ${deptName(values.deptId)}(으)로 옮기기`} checked={on} onToggle={() => onChange(on ? [] : ['Y'])} />
                 ) : null}
-                {usable && on && pwdInitCnt ? (
-                  <FormAlert tone="info">{`${pwdInitCnt}명은 아직 초기 비밀번호입니다. 첫 로그인 때 바꾸기 전에는 ${deptName(values.deptId)} 화면을 쓸 수 없습니다(이동은 그대로 진행합니다).`}</FormAlert>
-                ) : null}
+                {/* 초기 비밀번호 n명 안내는 뺐습니다(2026-10-07) — 이동은 그대로 진행합니다 */}
               </View>
             );
           },
@@ -234,26 +275,6 @@ export default function GwDeptMapView({
       // 아래 안내 문장은 뺐습니다(2026-10-02)
       submitLabel: '저장',
       onSubmit: async (v) => (await saveMap(row.gwDeptNm, v)).ok,
-    });
-  };
-
-  /** 이어받기 (GWD-11) — 「그룹웨어에 없음」 행의 설정을 새 그룹웨어 부서명으로 옮깁니다 */
-  const openInheritForm = (row) => {
-    const candidates = inheritCandidates(row.gwDeptNm);
-    if (!candidates.length) {
-      useUiStore.getState().toast('이어받을 수 있는 그룹웨어 부서가 없습니다 — 매핑 행이 없는 그룹웨어 부서만 고를 수 있습니다.');
-      return;
-    }
-    openFormModal({
-      title: '그룹웨어 부서명 변경 이어받기',
-      sub: row.gwDeptNm,
-      initial: { to: candidates[0].gwDeptNm },
-      fields: [
-        { key: 'to', label: '새 그룹웨어 부서명', type: 'select', full: true, required: true, options: candidates.map((m) => ({ value: m.gwDeptNm, label: `${m.gwDeptNm} (재직 ${num(m.activeCnt)})` })) },
-      ],
-      note: `'${row.gwDeptNm}' 의 AX 부서(${row.state === 'EXCLUDED' ? '가입 제외' : row.deptNm || '미배정'})·메모를 새 이름으로 옮기고 옛 행은 지웁니다. 이름이 비슷한 부서가 먼저 보입니다.`,
-      submitLabel: '이어받기',
-      onSubmit: async (v) => (await inheritMap(row, v.to)).ok,
     });
   };
 
@@ -267,13 +288,16 @@ export default function GwDeptMapView({
     });
 
   /* ───────── 미배정 계정 ───────── */
+  /** 부서 지정 모달의 부서 선택지 — 맨 앞은 고르지 않은 상태(값 '')입니다 */
+  const movePickOptions = [{ value: '', label: '부서를 선택하세요' }, ...depts.map((d) => ({ value: d.id, label: d.name }))];
   const openMoveForm = (user) =>
     openFormModal({
       title: '부서 지정',
       sub: `${user.name} (${user.empNo}) · 그룹웨어 ${user.gwDeptNm}`,
-      initial: { deptId: user.suggestDeptId ?? depts[0]?.id },
-      fields: [{ key: 'deptId', label: 'AX 부서', type: 'select', options: depts.map((d) => ({ value: d.id, label: d.name })), required: true, full: true }],
-      note: '옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다. 이 사람의 그룹웨어 부서 매핑은 바뀌지 않습니다.',
+      // 처음에는 아무 부서도 고르지 않은 상태로 엽니다(2026-10-07) — 고르지 않으면 저장이 막힙니다
+      initial: { deptId: '' },
+      fields: [{ key: 'deptId', label: 'AX 부서', type: 'select', options: movePickOptions, required: true, full: true }],
+      note: '옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',
       submitLabel: '옮기기',
       onSubmit: async (v) => (await moveUser(user.empNo, v.deptId)).ok,
     });
@@ -290,12 +314,12 @@ export default function GwDeptMapView({
     openFormModal({
       title: '선택 계정 부서 지정',
       sub: `선택 ${picked.length}명`,
-      initial: { deptId: depts[0]?.id },
+      initial: { deptId: '' },
       fields: [
-        { key: 'deptId', label: 'AX 부서', type: 'select', options: depts.map((d) => ({ value: d.id, label: d.name })), required: true, full: true },
+        { key: 'deptId', label: 'AX 부서', type: 'select', options: movePickOptions, required: true, full: true },
         { key: 'who', label: '옮길 사람', type: 'static', full: true, value: `${names}${rest}` },
       ],
-      note: '고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다. 그룹웨어 부서 매핑은 바뀌지 않습니다.',
+      note: '고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',
       submitLabel: `${picked.length}명 옮기기`,
       onSubmit: async (v) => {
         const res = await moveUsers(picked.map((u) => u.empNo), v.deptId);
@@ -318,23 +342,116 @@ export default function GwDeptMapView({
     });
   };
 
+  /**
+   * 배정 계정 일괄 부서 변경(2026-10-07) — 체크한 계정을 고른 부서 하나로 옮깁니다.
+   * 이미 그 부서인 사람은 보내지 않습니다. 실패가 있으면 사번 · 사유를 결과 창으로 보입니다.
+   */
+  const openAssignedMoveForm = () => {
+    const picked = selectedAssigned.map((empNo) => assigned.find((u) => u.empNo === empNo) || { empNo, name: '' });
+    if (!picked.length) return;
+    const names = picked.slice(0, LIST_MAX).map((u) => (u.name ? `${u.name}(${u.empNo})` : u.empNo)).join(', ');
+    const rest = picked.length > LIST_MAX ? ` 외 ${picked.length - LIST_MAX}명` : '';
+    openFormModal({
+      title: '선택 계정 부서 변경',
+      sub: `선택 ${picked.length}명`,
+      initial: { deptId: '' },
+      fields: [
+        { key: 'deptId', label: '부서', type: 'select', options: movePickOptions, required: true, full: true },
+        { key: 'who', label: '바꿀 사람', type: 'static', full: true, value: `${names}${rest}` },
+      ],
+      note: '고른 부서로 모두 옮깁니다. 옮기는 즉시 새 부서의 메뉴·데이터 권한이 적용됩니다.',
+      submitLabel: `${picked.length}명 변경`,
+      onSubmit: async (v) => {
+        const targets = picked.filter((u) => String(u.deptId) !== String(v.deptId)).map((u) => u.empNo);
+        if (!targets.length) { useUiStore.getState().toast('고른 사람은 모두 이미 그 부서입니다.'); return true; }
+        const res = await moveAssigned(targets, v.deptId);
+        if (res.failed.length) {
+          useUiStore.getState().openModal({
+            title: '부서 변경 결과',
+            render: () => (
+              <ReassignBody
+                lines={[
+                  `변경 ${res.moved}명 · 변경하지 못함 ${res.failed.length}명`,
+                  ...res.failed.slice(0, LIST_MAX).map((f) => `${f.name ? `${f.name}(${f.empNo})` : f.empNo} — ${f.message}`),
+                ]}
+              />
+            ),
+            footer: (close) => <Button label="닫기" variant="primary" onPress={close} />,
+          });
+        }
+        return true;
+      },
+    });
+  };
+
   // [매핑대로 재배정] 단추와 확인 · 결과 창은 뺐습니다(2026-10-02) — 체크한 계정은 [선택 n명 부서 지정] 으로 옮깁니다.
   // 매핑을 저장할 때의 「이 부서 미배정 계정도 옮기기」 는 그대로입니다.
 
   if (loading && !summary && !maps.length) return <Loading />;
 
-  handlers.current = { openMapForm, confirmRemoveMap, openMoveForm, openUsersOf, openInheritForm, mapOf };
+  handlers.current = { openMapForm, confirmRemoveMap, openMoveForm, openUsersOf, mapOf };
   const unassignedNm = summary?.unassignedDept?.deptNm || '미배정';
+
+  /*
+   * 탭 오른쪽 단추 — 예전 각 카드(그룹웨어 부서 → AX 부서 / 미배정 계정) 위에 있던 단추를 그 탭으로 옮겼습니다(2026-10-06).
+   * 엑셀은 조회 권한이면 받을 수 있습니다(R-10) — 쓰기 권한과 무관. 대상은 지금 탭입니다.
+   */
+  const exportButton = (
+    <ExportMenuButton label={`엑셀 다운로드 · ${exportTabName}`} viewCount={exportViewCount} totalCount={exportTotalCount} onExportView={exportView} onExportAll={exportAll} />
+  );
+  const tabActions = {
+    map: exportButton,
+    users: (
+      <>
+        {/* 체크한 사람을 고른 부서 하나로 옮깁니다. 단추는 늘 보이고, 체크가 없으면 누를 수 없습니다 */}
+        <GuardedButton
+          allowed={canWrite}
+          reason={canWrite && !selectedUsers.length ? '표에서 옮길 계정을 체크하십시오.' : undefined}
+          label={`선택 ${selectedUsers.length}명 부서 지정`}
+          icon="users"
+          size="sm"
+          variant={selectedUsers.length ? 'primary' : undefined}
+          onPress={openBulkMoveForm}
+        />
+        {exportButton}
+      </>
+    ),
+    // 부서 탭(2026-10-07, 계정 관리에서 옮김) — [부서 등록]
+    depts: deptAdmin ? <DeptRegisterButton {...deptAdmin} /> : null,
+    assigned: (
+      <>
+        {/* 체크한 계정을 고른 부서 하나로 옮깁니다(2026-10-07). 체크가 없으면 누를 수 없습니다 */}
+        <GuardedButton
+          allowed={canWrite && !assignedError}
+          reason={canWrite && !assignedError && !selectedAssigned.length ? '표에서 바꿀 계정을 체크하십시오.' : undefined}
+          label={`선택 ${selectedAssigned.length}명 부서 변경`}
+          icon="users"
+          size="sm"
+          variant={selectedAssigned.length ? 'primary' : undefined}
+          onPress={openAssignedMoveForm}
+        />
+        {exportButton}
+      </>
+    ),
+  };
+  /** 탭 안 첫 줄 — 예전 카드 제목(2026-10-07: 미배정 탭은 「미배정 계정」 만) */
+  const tabSub = {
+    map: `그룹웨어 부서 → 부서${refreshing ? ' · 갱신 중…' : ''}`,
+    users: `${unassignedNm} 계정${refreshing ? ' · 갱신 중…' : ''}`,
+    assigned: `부서가 배정된 계정${refreshing ? ' · 갱신 중…' : ''}`,
+    // 부서 탭은 첫 줄 대신 패널 안의 강조 안내(삭제 규칙)를 씁니다
+    depts: null,
+  };
+  /** 부서 매핑 탭 첫 줄 옆 도움말 — 두 부서의 뜻 */
+  const MAP_HELP = '그룹웨어 부서: 그룹웨어에서 지정된 부서\n부서: 덕우전자 AX 시스템에서 사용할 부서';
+
   return (
     <View>
       <PageHead
         title="부서 매핑"
         actions={
-          <>
-            {/* 엑셀은 조회 권한이면 받을 수 있습니다(R-10) — 쓰기 권한과 무관. 대상은 현재 탭 */}
-            <ExportMenuButton label={`엑셀 다운로드 · ${exportTabName}`} viewCount={exportViewCount} totalCount={exportTotalCount} onExportView={exportView} onExportAll={exportAll} />
-            <Button label="새로고침" size="sm" icon="refresh" onPress={reload} />
-          </>
+          // 새로고침은 화면 전체(요약 카드 · 두 탭)를 다시 읽으므로 머리에 둡니다. 엑셀은 탭으로 옮겼습니다(2026-10-06)
+          <Button label="새로고침" size="sm" icon="refresh" onPress={reload} />
         }
       />
 
@@ -377,70 +494,90 @@ export default function GwDeptMapView({
         {`매핑은 엔진을 통해 자동 가입을 하는 순간에 사용됩니다.\n이미 ${unassignedNm}으로 분류된 계정은 계정 관리에서 부서 지정이 가능합니다.`}
       </Hint>
 
-      <Tabs
-        items={[
-          { value: 'map', label: `부서 매핑 ${mapTotal}` },
-          { value: 'users', label: `${unassignedNm} 계정 ${userTotal}` },
-        ]}
+      <Gap />
+      {/* 부서 매핑 · 미배정 계정 카드를 탭으로 나눕니다(2026-10-06, shadcn Tabs 동작 — 공통 CardTabs) */}
+      <CardTabs
+        id="gw-dept"
         value={tab}
         onChange={setTab}
-      />
-      <Gap />
-
-      {tab === 'map' ? (
-        <>
-          {/* 검색 · 상태 · [선택 n개 일괄 지정] 줄과 선택 칸은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터로 합니다 */}
-          <Card title="그룹웨어 부서 → AX 부서" sub={refreshing ? '갱신 중…' : undefined} tight>
+        items={[
+          { value: 'map', label: '부서 매핑', icon: 'layers', count: mapTotal },
+          { value: 'users', label: `${unassignedNm} 계정`, icon: 'users', count: userTotal },
+          // 배정 계정 · 부서 순서(2026-10-07 피드백 — 부서가 맨 끝)
+          { value: 'assigned', label: '배정 계정', icon: 'user', count: assignedTotal },
+          // 부서 — 계정 관리의 「부서」 탭을 옮겼습니다(2026-10-07)
+          ...(deptAdmin ? [{ value: 'depts', label: '부서', icon: 'layers', count: deptAdmin.deptTotal }] : []),
+        ]}
+        right={tabActions[tab]}
+      >
+        {tabSub[tab] ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, zIndex: 5 }}>
+            <Text style={s.textSm}>{tabSub[tab]}</Text>
+            {tab === 'map' ? <HelpTip text={MAP_HELP} size={20} align="left" /> : null}
+          </View>
+        ) : null}
+        {tab === 'map' ? (
+          // 검색 · 상태 · [선택 n개 일괄 지정] 줄과 선택 칸은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터로 합니다
+          // 「최근 매핑 변경」(GWD-10) 접이 카드도 뺐습니다 — 매핑 변경은 계정 관리 > 계정·권한 변경 이력에 남습니다
+          <TabulatorGrid
+            columns={mapColumns}
+            rows={maps}
+            rowKey="gwDeptNm"
+            initialSort={MAP_SORT}
+            // 열 폭은 내용에 맞추고(autoWidth) 칸마다 테두리를 그립니다(2026-10-02)
+            autoWidth
+            // 내용 너비 합이 표보다 좁으면 남는 폭을 열마다 나눠 오른쪽이 비지 않게 합니다(2026-10-07)
+            fillWidth
+            widthHint={false}
+            bordered
+            instanceRef={mapTableRef}
+            height={maps.length > 14 ? 620 : undefined}
+            emptyText="조건에 맞는 그룹웨어 부서가 없습니다."
+          />
+        ) : tab === 'depts' ? (
+          deptAdmin ? <DeptManagePanel {...deptAdmin} /> : null
+        ) : tab === 'assigned' ? (
+          assignedError ? <FormAlert tone="info">{assignedError}</FormAlert> : assignedLoading ? <Loading /> : (
             <TabulatorGrid
-              inset
-              columns={mapColumns}
-              rows={maps}
-              rowKey="gwDeptNm"
-              initialSort={MAP_SORT}
-              // 열 폭은 내용에 맞추고(autoWidth) 칸마다 테두리를 그립니다(2026-10-02)
-              autoWidth
-              bordered
-              instanceRef={mapTableRef}
-              height={maps.length > 14 ? 620 : undefined}
-              emptyText="조건에 맞는 그룹웨어 부서가 없습니다."
-            />
-          </Card>
-          <Gap />
-          {/* 「최근 매핑 변경」(GWD-10) 접이 카드는 뺐습니다(2026-10-02) — 매핑 변경은 계정 관리 > 계정·권한 변경 이력에 남습니다 */}
-        </>
-      ) : (
-        <>
-          <Filters>
-            {/* 검색 · 상태 칸과 [매핑대로 재배정] 은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터로 합니다.
-                체크한 사람을 고른 부서 하나로 옮깁니다. 단추는 늘 보이고, 체크가 없으면 누를 수 없습니다 */}
-            <GuardedButton
-              allowed={canWrite}
-              reason={canWrite && !selectedUsers.length ? '표에서 옮길 계정을 체크하십시오.' : undefined}
-              label={`선택 ${selectedUsers.length}명 부서 지정`}
-              icon="users"
-              variant={selectedUsers.length ? 'primary' : undefined}
-              onPress={openBulkMoveForm}
-            />
-          </Filters>
-          <Card title={`${unassignedNm} 계정`} sub={`${refreshing ? '갱신 중… · ' : ''}${users.length}명 · 그룹웨어 자동 가입 중 부서 매핑이 없던 사람`} tight>
-            <TabulatorGrid
-              inset
-              columns={userColumns}
-              rows={users}
+              columns={assignedColumns}
+              rows={assigned}
               rowKey="empNo"
-              // 열 폭은 내용에 맞추고(autoWidth) 칸마다 테두리를 그립니다 — 부서 매핑 탭 표와 같게(2026-10-02)
               autoWidth
+              fillWidth
+              widthHint={false}
               bordered
               selectable={canWrite}
-              selected={selectedUsers}
-              onSelectedChange={setSelectedUsers}
-              instanceRef={userTableRef}
-              height={users.length > 14 ? 620 : undefined}
-              emptyText={`${unassignedNm} 계정이 없습니다. 자동 가입 계정이 모두 부서에 배정됐습니다.`}
+              // 머리글 체크박스는 지금 쪽만 고르고, 필터 · 쪽 이동 등 조건이 바뀌면 선택이 풀립니다(2026-10-07)
+              pageSelectAll
+              pageSize={50}
+              pageSizes={ASSIGNED_PAGE_SIZES}
+              selected={selectedAssigned}
+              onSelectedChange={setSelectedAssigned}
+              instanceRef={assignedTableRef}
+              emptyText="부서가 배정된 계정이 없습니다."
             />
-          </Card>
-        </>
-      )}
+          )
+        ) : (
+          // 검색 · 상태 칸과 [매핑대로 재배정] 은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터로 합니다
+          <TabulatorGrid
+            columns={userColumns}
+            rows={users}
+            rowKey="empNo"
+            // 열 폭은 내용에 맞추고(autoWidth) 칸마다 테두리를 그립니다 — 부서 매핑 탭 표와 같게(2026-10-02)
+            autoWidth
+            // 내용 너비 합이 표보다 좁으면 남는 폭을 열마다 나눠 오른쪽이 비지 않게 합니다(2026-10-07)
+            fillWidth
+            widthHint={false}
+            bordered
+            selectable={canWrite}
+            selected={selectedUsers}
+            onSelectedChange={setSelectedUsers}
+            instanceRef={userTableRef}
+            height={users.length > 14 ? 620 : undefined}
+            emptyText={`${unassignedNm} 계정이 없습니다. 자동 가입 계정이 모두 부서에 배정됐습니다.`}
+          />
+        )}
+      </CardTabs>
     </View>
   );
 }
@@ -518,7 +655,6 @@ function actionButtons(buttons, onAct, deny) {
   return wrap;
 }
 
-const num = (v) => Number(v ?? 0).toLocaleString('ko-KR');
 
 /** formatter 가 HTML 문자열을 그리므로 값은 반드시 이스케이프합니다 */
 function esc(v) {

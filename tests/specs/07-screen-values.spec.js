@@ -264,11 +264,11 @@ suite('화면 값 ↔ API 값', () => {
     eq(shown(r.text, '승인 대기'), (pending.items || []).length, '승인 대기 건수');
   });
 
-  test('메뉴 접근 권한 — 부서·화면 수가 API 와 같다', async () => {
+  // 요약 카드(관리 대상 화면 · 부서)는 2026-10-07 에 뺐습니다 — 화면 수는 탭 건수 표시로 봅니다
+  test('메뉴 접근 권한 — 화면 수가 API 와 같다', async () => {
     const want = await api.data('/system/menu-perms');
     const r = await visit(ctx.page, '/system/menu-perm');
-    eq(shown(r.text, '관리 대상 화면'), (want.screens || []).length, '화면 수');
-    eq(shown(r.text, '부서'), (want.depts || []).length, '부서 수');
+    eq(shown(r.text, '부서별 메뉴 접근 권한'), (want.screens || []).length, '화면 수');
   });
 
   test('데이터 접근 권한 — 부서 이름이 코드가 아닌 이름으로 나온다', async () => {

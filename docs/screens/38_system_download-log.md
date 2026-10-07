@@ -76,7 +76,7 @@
 | 버튼 | 동작 |
 | :--- | :--- |
 | 조회 | 입력칸(계정·검색어) 반영. 같은 값이면 다시 조회. 예전 「다시 조회했습니다」 토스트는 즉시 조회와 겹쳐 제거 |
-| 엑셀 다운로드 ▾ → **조회 목록 다운로드(n건)** | 그리드에 지금 보이는 행(열 필터 반영)을 **그리드의 정렬·열 순서**대로 `.xls`(브라우저 생성). n = 그리드 행 수. `attrs = [ts,empNo,name,dept,report,menuId,format,scopeCd,condSummary,rowCnt,blindCnt,origin,ip]`. 기록 `scopeCd=VIEW` · `condSummary`(「{from}~{to} · 화면 · 부서 · 형식 · 범위 · 검색어」) · `menuId=sys-dl` |
+| 엑셀 다운로드 ▾ → **조회 목록 다운로드(n건)** | 그리드에 지금 보이는 행(열 필터 반영)을 **그리드의 정렬·열 순서**대로 `.xlsx`(브라우저 생성, 2026-10-06 이전 `.xls`). n = 그리드 행 수. `attrs = [ts,empNo,name,dept,report,menuId,format,scopeCd,condSummary,rowCnt,blindCnt,origin,ip]`. 기록 `scopeCd=VIEW` · `condSummary`(「{from}~{to} · 화면 · 부서 · 형식 · 범위 · 검색어」) · `menuId=sys-dl` |
 | 엑셀 다운로드 ▾ → **전체 다운로드(N건)** | `POST /download-logs/export {scope:'ALL', menuId:'sys-dl', format:'xlsx', condSummary:'전체 · 최근 순'}` — 조건 무관 보관 중 전체(서버 생성, 서버가 이력 기록). 기간·검색어는 보내지 않습니다. N = 보존 정책 `totalCnt`. 상한 50,000(서버 3단계) 초과는 헤더 `X-Export-Truncated`·`X-Export-Total`·`X-Export-Limit` 로 받아 토스트. 서버 파일의 「비공개 처리 n건」 은 별도 「안내」 시트 |
 | 보존 정책 | 모달 |
 

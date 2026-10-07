@@ -11,8 +11,8 @@
  *   WEB_URL=http://localhost:8081 node tests/system/gw-dept-map-browser.cjs
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { open, WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. 전산팀에 부서 배정을 요청하세요.';
 
@@ -89,11 +89,12 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
   const titleOf = (loc) => loc.evaluate((el) => el.closest('[title]')?.getAttribute('title') || '');
   const readDownload = async (itemName) => {
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: itemName }).click()]);
-    const text = fs.readFileSync(await dl.path(), 'utf8');
-    const rows = [...text.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1].replace(/<[^>]+>/g, '').trim()));
-    return { head: rows[0], body: rows.slice(1) };
+    assert(/\.xlsx$/.test(dl.suggestedFilename()), `엑셀 파일: ${dl.suggestedFilename()}`);
+    return readXlsx(await dl.path());
   };
   const scrollCheck = (root) => root.evaluate(async (el) => {
+    // 남는 폭 나누기(fillWidth)는 그린 뒤 열 폭을 한 번 더 맞춥니다 — 자리 잡은 뒤 끝까지 스크롤합니다
+    await new Promise((r) => setTimeout(r, 400));
     const scroll = [...el.querySelectorAll('div')].find((d) => getComputedStyle(d).overflowX === 'auto' && d.scrollWidth > d.clientWidth && (d.querySelector('.tabulator') || d.classList.contains('tabulator-tableholder')));
     if (!scroll) return { scroll: false };
     scroll.scrollLeft = scroll.scrollWidth;
@@ -135,7 +136,7 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     assert.equal(logs.at(-1).scopeCd, 'ALL');
 
     // 미배정 탭
-    await page.getByText(/^미배정 계정 \d+$/).click();
+    await page.locator('#gw-dept-tab-users').click();
     await page.locator('.tabulator-row', { hasText: 'IP0' }).waitFor();
     // 검색 · 상태 칸과 [매핑대로 재배정] 은 뺐습니다(2026-10-02) — 찾기는 열 머리글 필터, 옮기기는 [선택 n명 부서 지정]
     assert.equal(await page.getByRole('button', { name: /매핑대로 재배정/ }).count(), 0, '재배정 단추 없음');
@@ -194,7 +195,7 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     await page.waitForTimeout(500);
     let r = await scrollCheck(page.locator('body'));
     assert(r.header && r.cell && r.aligned && r.title === '관리', `미배정 표 마지막 열: ${JSON.stringify(r)}`);
-    await page.getByText(/^부서 매핑 \d+$/).click();
+    await page.locator('#gw-dept-tab-map').click();
     await page.locator('.tabulator-row', { hasText: 'IPQC' }).waitFor();
     r = await scrollCheck(page.locator('body'));
     assert(r.header && r.cell && r.aligned && r.title === '관리', `매핑 표 마지막 열: ${JSON.stringify(r)}`);
@@ -207,12 +208,13 @@ const WRITE_DENIED = '미배정 계정은 이 동작을 할 수 없습니다. �
     const edit = page.locator('.tabulator-row', { hasText: '제조1파트(M)' }).getByRole('button', { name: '지정', exact: true });
     assert(await edit.isDisabled(), '[지정] 비활성');
     assert.equal(await edit.getAttribute('title'), WRITE_DENIED);
-    assert(await page.locator('.tabulator-row', { hasText: '제조1파트(M)' }).getByRole('button', { name: '삭제', exact: true }).isDisabled());
+    // 매핑 [삭제] 는 없습니다(2026-10-07) — [지정] 에서 미배정으로 저장하면 같습니다
+    assert.equal(await page.locator('.tabulator-row', { hasText: '제조1파트(M)' }).getByRole('button', { name: '삭제', exact: true }).count(), 0, 'no map delete button');
     assert.equal(await page.locator('.tabulator-row input[type="checkbox"], .tabulator-row .tabulator-row-handle').count(), 0, '선택 칸 없음');
     // 일괄 지정 단추는 화면에서 뺐습니다(2026-10-02)
     assert.equal(await page.getByRole('button', { name: /일괄 지정/ }).count(), 0, '일괄 지정 단추 없음');
     assert(await exportBtn.isEnabled(), '엑셀은 조회 권한으로 활성');
-    await page.getByText(/^미배정 계정 \d+$/).click();
+    await page.locator('#gw-dept-tab-users').click();
     await page.locator('.tabulator-row', { hasText: 'MF0' }).waitFor();
     assert(await page.locator('.tabulator-row', { hasText: 'MF0' }).getByRole('button', { name: '부서 지정', exact: true }).isDisabled());
     assert(await page.getByRole('button', { name: /^선택 \d+명 부서 지정$/ }).isDisabled(), '조회 전용이면 일괄 부서 지정 비활성');

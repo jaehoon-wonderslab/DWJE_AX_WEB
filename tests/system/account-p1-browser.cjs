@@ -82,18 +82,19 @@ const { BASE } = require('../lib/api');
     // 빠른 필터 줄(전체 · 미배정 · 잠김·정지 …)과 검색줄은 뺐습니다(2026-10-02) — 열 머리글 필터로 거릅니다
     assert.equal(await grid.getByRole('textbox', { name: '계정 검색', exact: true }).count(), 0, '계정 검색칸 없음');
     assert.equal(await grid.getByText('잠김·정지', { exact: true }).count(), 0, '빠른 필터 없음');
-    await grid.locator('.tabulator-col[tabulator-field="dept"] input').fill('미배정');
+    // 소속 부서는 부서 목록에서 고릅니다(2026-10-06). 조회 목록 건수는 지금 쪽(최대 100행)입니다
+    await pickListFilter(grid, 'dept', '미배정');
     await page.waitForTimeout(500);
-    assert.equal(await viewCount(), unassignedUsers.length, '소속 부서 열 필터 「미배정」 행 수');
+    assert.equal(await viewCount(), Math.min(unassignedUsers.length, 100), '소속 부서 열 필터 「미배정」 행 수(지금 쪽)');
     assert(await grid.locator('.tabulator-row').first().getByText('자동 가입').count(), '가입 경로 열 「자동 가입」');
     await grid.locator('.tabulator-col[tabulator-field="dept"] input').fill('');
     await pickListFilter(grid, 'pwdChangeRequired', '변경 전');
-    assert.equal(await viewCount(), pwdInit, `초기 비밀번호 열 필터 ${pwdInit}`);
+    assert.equal(await viewCount(), Math.min(pwdInit, 100), `초기 비밀번호 열 필터 ${pwdInit}(지금 쪽)`);
     await pickListFilter(grid, 'pwdChangeRequired', '전체');
     await page.waitForTimeout(300);
-    assert.equal(await viewCount(), allUsers.length + pending.length, '전체로 되돌림(흉내 낸 승인 대기 포함)');
+    assert.equal(await viewCount(), Math.min(allUsers.length + pending.length, 100), '전체로 되돌림(지금 쪽 · 흉내 낸 승인 대기 포함)');
 
-    // ACC-08·06 미배정 계정 편집 — 안내, 부서를 바꾸면 권한 수 비교
+    // ACC-08·06 미배정 계정 편집 — 안내(부서 비교 줄은 2026-10-07 에 뺐습니다)
     const target = unassignedUsers[0];
     await grid.locator('.tabulator-col[tabulator-field="empNo"] input').fill(target.empNo);
     await page.waitForTimeout(500);
@@ -101,8 +102,9 @@ const { BASE } = require('../lib/api');
     await page.getByText('그룹웨어 자동 가입으로 들어와 미배정 상태입니다', { exact: false }).waitFor();
     assert(await page.getByRole('button', { name: '부서 매핑으로 이동', exact: true }).count());
     await page.getByRole('combobox', { name: '소속 부서', exact: true }).selectOption(String(qa.deptId));
-    const cmp = await page.locator('[id="dept-compare"]').innerText();
-    assert(/이동 후 메뉴 \d+개\(현재 부서 대비 \+\d+\/-\d+\) · 데이터 항목 \d+개/.test(cmp), cmp);
+    // 부서를 바꿔도 「이동 후 메뉴 n개 …」 비교 줄은 없습니다(2026-10-07)
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('[id="dept-compare"]').count(), 0, 'no dept compare line');
 
     // 편집 폼의 [이 계정의 최근 이력] 단추는 뺐습니다(2026-10-02)
     assert.equal(await page.getByRole('button', { name: '이 계정의 최근 이력', exact: true }).count(), 0, '최근 이력 단추 없음');
@@ -128,13 +130,15 @@ const { BASE } = require('../lib/api');
     const badge = await logCard.locator('.tabulator-row').first().locator('.tabulator-cell[tabulator-field="act"]').innerText().catch(() => '');
     assert(!badge || !/^[A-Z_]+$/.test(badge.trim()), `구분은 코드가 아닌 이름: ${badge}`);
 
-    // ACC-07 승인 대기 — 계정 탭의 「상태」 열 필터 「승인 대기」 → 행의 [승인] → 승인 부서 선택
+    // ACC-07 승인 대기 — 계정 탭의 「상태」 열 필터 「미사용」 → 승인 대기 행의 [승인] → 승인 부서 선택
     assert.equal(await page.locator('[id="account-grid-가입 승인 대기"]').count(), 0, '승인 대기 카드 없음');
     const pgrid = await openAccountTab(page, '계정');
-    await pickListFilter(pgrid, 'state', '승인 대기');
+    // 상태 목록은 「사용 / 미사용」 입니다(2026-10-06) — 승인 대기는 미사용에 들어갑니다
+    await pickListFilter(pgrid, 'state', '미사용');
     const prow = pgrid.locator('.tabulator-row', { hasText: 'P30001' });
     await prow.waitFor();
-    assert.equal(await pgrid.locator('.tabulator-row').count(), 1, '상태 열 필터로 승인 대기만');
+    const states = await pgrid.locator('.tabulator-row .tabulator-cell[tabulator-field="state"]').allInnerTexts();
+    assert(states.every((t) => !/^사용$/.test(t.trim())), `미사용 필터에 사용 계정 없음 ${states.slice(0, 5)}`);
     assert(await prow.getByRole('button', { name: '반려', exact: true }).count(), '행에 반려 단추');
     await prow.getByRole('button', { name: '승인', exact: true }).click();
     const sel = page.getByRole('combobox', { name: '승인 부서', exact: true });

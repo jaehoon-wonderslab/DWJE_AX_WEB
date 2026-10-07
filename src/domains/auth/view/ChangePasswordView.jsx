@@ -19,7 +19,8 @@ export default function ChangePasswordView(c) {
       title="비밀번호 변경"
       desc="초기 비밀번호를 바꾼 뒤 다른 화면을 이용할 수 있습니다."
       width={480}
-      footer={<AuthLinks links={[{ label: '로그아웃', onPress: c.handleLogout }]} />}
+      // 「로그아웃」 → 「뒤로가기」(2026-10-07). 이 화면은 로그인 직후에만 오므로 뒤로 가면 로그아웃하고 로그인 화면으로 갑니다
+      footer={<AuthLinks links={[{ label: '뒤로가기', onPress: c.handleLogout }]} />}
     >
       <FormAlert tone="info">
         {`${c.name ? `${c.name}님(${c.empNo}), ` : ''}보안을 위해 처음 로그인할 때 비밀번호를 바꿔야 합니다. 새 비밀번호에는 사번을 넣을 수 없습니다.`}

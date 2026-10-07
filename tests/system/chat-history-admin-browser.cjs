@@ -17,9 +17,9 @@
  *  (10) 관리자 전용 — sys-chat-history 접근이 없는 계정(전산팀)은 차단 안내, scope=all 요청 없음
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { WEB } = require('../lib/browser');
 const { openStubbed, adminMe } = require('../lib/stubSession');
+const { readXlsx } = require('../lib/xlsx');
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const TODAY = ymd(new Date());
@@ -201,8 +201,7 @@ const row = (page, i) => page.locator('.tabulator-row').nth(i);
     assert.deepEqual([ex.view, ex.scope, ex.queryScope, ex.menuId], ['MESSAGE', 'ALL', 'all', 'sys-chat-history']);
     await exportBtn.click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
-    const html = fs.readFileSync(await dl.path(), 'utf8');
-    const heads = [...(/<tr>([\s\S]*?)<\/tr>/.exec(html)[1]).matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
+    const { head: heads } = await readXlsx(await dl.path());
     assert.deepEqual(heads, ['사용자', '부서', '질문', '답변', '판단 근거', '미응답 사유', '사용자 평가', '검토', '질문 시간', '답변 시간', '응답 시간(초)', '모델', '토큰', '답변 상태', '의도', '답변 추가(학습 데이터)'], `excel head ${heads}`);
 
     // (7) 행 클릭 → 상세 scope=all · LLM 메타 · 요청 ID · 검토

@@ -19,9 +19,9 @@
  *  (10) 360px 에서 마지막 열(대화)까지 가로 스크롤, 대화 패널은 전체 폭 · 뒤로 가기 복귀
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { WEB } = require('../lib/browser');
 const { openStubbed } = require('../lib/stubSession');
+const { readXlsx } = require('../lib/xlsx');
 
 const ME = {
   user: { empNo: '10004', name: '최전산', dept: '전산팀', deptId: 2, pos: 'SENIOR', superAdmin: false },
@@ -201,10 +201,10 @@ async function lastColumnVisible(page, field) {
     await page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).waitFor();
     assert.equal(await page.getByRole('menuitem').count(), 2, '패널 두 항목');
     let [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
-    const html = fs.readFileSync(await dl.path(), 'utf8');
-    assert.equal((html.match(/<tr>/g) || []).length - 1, await page.locator('.tabulator-row').count(), '파일 행 = 그리드 행');
-    const headRow = /<tr>([\s\S]*?)<\/tr>/.exec(html)[1];
-    const heads = [...headRow.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
+    const xl = await readXlsx(await dl.path());
+    const html = xl.text;
+    assert.equal(xl.body.length, await page.locator('.tabulator-row').count(), '파일 행 = 그리드 행');
+    const heads = xl.head;
     assert.deepEqual(heads, ['질문 시간', '질문', '응답', '판단 근거', '근거 문서', '응답 시간(초)', '모델', '토큰', '답변 상태', '의도', '평가'], `excel head ${heads}`);
     assert(!html.includes('검토') && !html.includes('미응답 사유') && !html.includes('답변 시간'), '엑셀에 빠진 열 없음');
     assert(html.includes('입력 1,234 · 출력 210') && html.includes('길이 제한으로 잘림'), '엑셀 LLM 메타');

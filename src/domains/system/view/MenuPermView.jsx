@@ -11,16 +11,16 @@
  */
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import Grid, { Gap } from '@shared/components/layout/Grid';
+import { Gap } from '@shared/components/layout/Grid';
 import PageHead from '@shared/components/layout/PageHead';
 import {
-  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Hint, Loading, StatCard, TabulatorGrid, openConfirmModal,
+  Button, CardTabs, EmptyState, ExportMenuButton, FormAlert, Loading, TabulatorGrid, openConfirmModal, openFormModal,
 } from '@shared/components/ui';
 import { useAppNavigation } from '@shared/hooks/useAppNavigation';
 import { useUiStore } from '@shared/stores/useUiStore';
 import { useCommonStyles } from '@shared/theme/styles';
 import { NO_WRITE_TEXT } from '../controller/useMenuPermController';
-import MenuPermCopyForm from './MenuPermCopyForm';
+// 부서 권한 복사 폼은 2026-10-07 「부서 추가」 로 바꾸며 쓰지 않습니다(파일은 되살릴 수 있게 남겨 둠)
 import MenuPermGrid from './MenuPermGrid';
 
 /** 변경 이력 표 — 시각 · 대상 · 변경 내용 · 수행자 (좁은 화면은 표 안에서 가로 스크롤) */
@@ -31,16 +31,20 @@ const LOG_COLUMNS = [
   { title: '수행자', field: 'byLabel', minWidth: 150, headerSort: false },
 ];
 
+/** 변경 이력 한 쪽 건수 — 전량을 받아 표에서 쪽을 나눕니다(2026-10-07). 표시 건수는 10 · 25 · 50 · 100 중에서 고릅니다 */
+const LOG_PAGE_SIZES = [10, 25, 50, 100];
+const LOG_PAGE_SIZE = 25;
+
 /** 탭 — 값은 시험에서 쓰는 이름입니다(2026-10-02 「부서 × 화면」 · 「최근 변경 이력」 을 탭으로 나눔) */
 const TAB_MATRIX = 'matrix';
 const TAB_LOGS = 'logs';
 
 export default function MenuPermView({
   loading, loadError, reload, busy, readOnly, isSuperAdmin, screens, depts, collapsed, toggleCollapsed,
-  cellValue, lockReason, cellWarn, groupLockReason, grantCounts, myDept, myCount, avgCount,
-  planToggle, applyToggle, toggleGroup, copyOptions, screenLabel, previewCopy, executeCopy,
+  cellValue, lockReason, cellWarn, groupLockReason, grantCounts,
+  planToggle, applyToggle, toggleGroup, addDeptOptions, createDept,
   viewCount, totalCount, exportView, exportAll,
-  grantsOf, logs, logsLoading, logsError, canSeeAudit,
+  grantsOf, logs, logsLoading, logsError,
 }) {
   const s = useCommonStyles();
   const { goToScreen } = useAppNavigation();
@@ -67,22 +71,19 @@ export default function MenuPermView({
     });
   };
 
-  /** 부서 권한 복사 — 미리보기 → 확인 → 복사 */
-  const openCopyForm = () =>
-    openModal({
-      title: '부서 권한 복사',
-      sub: '한 부서의 메뉴 접근 권한을 다른 부서에 그대로 적용합니다. 먼저 미리보기로 바뀌는 내용을 확인합니다.',
-      maxWidth: 640,
-      render: (close) => (
-        <MenuPermCopyForm
-          options={copyOptions}
-          screenLabel={screenLabel}
-          isSuperAdmin={isSuperAdmin}
-          previewCopy={previewCopy}
-          executeCopy={executeCopy}
-          close={close}
-        />
-      ),
+  /** 부서 추가 — 부서명 · 설명 · 초기 권한(복사해 올 부서). 추가한 부서는 표에 새 열로 나타납니다 */
+  const openAddDeptForm = () =>
+    openFormModal({
+      title: '부서 추가',
+      initial: { deptNm: '', desc: '', initPermFrom: '' },
+      fields: [
+        { key: 'deptNm', label: '부서명', required: true, full: true, placeholder: '예) 공정기술팀' },
+        { key: 'desc', label: '설명', full: true, placeholder: '예) 공정 조건 · 금형 관리' },
+        { key: 'initPermFrom', label: '초기 권한 (복사해 올 부서)', type: 'select', full: true, options: addDeptOptions },
+      ],
+      note: '초기 권한을 고르면 그 부서의 메뉴 접근 권한을 그대로 복사해 시작합니다.\n데이터 접근 권한은 데이터 접근 권한 화면에서 따로 지정하세요.',
+      submitLabel: '추가',
+      onSubmit: async (v) => !!(await createDept(v))?.ok,
     });
 
   /** 개인 허용 명단 (MNP-06) — 명단이 없는 응답(sys-account 만 가진 계정)이면 건수만 알립니다 */
@@ -117,40 +118,30 @@ export default function MenuPermView({
 
   if (loading) return <Loading />;
 
-  const menuCnt = screens.filter((r) => !r.sub && !r.action).length;
-  const subCnt = screens.filter((r) => r.sub && !r.action).length;
-  const actionCnt = screens.filter((r) => r.action).length;
-  const userTotal = depts.reduce((n, d) => n + Number(d.userCnt || 0), 0);
-
   /** 탭 머리 오른쪽 — 그 탭의 표에 쓰는 단추만 둡니다(예전 머리말·카드 오른쪽 단추를 옮김) */
   const tabActions = {
     [TAB_MATRIX]: (
       <>
         {busy ? <Text style={s.textXs}>저장 중…</Text> : null}
         <ExportMenuButton viewCount={viewCount} totalCount={totalCount} onExportView={exportView} onExportAll={exportAll} />
-        <Button label="부서 권한 복사" size="sm" variant="primary" icon="copy" disabled={busy || readOnly || !depts.length} onPress={openCopyForm} />
+        <Button label="부서 추가" size="sm" variant="primary" icon="plus" disabled={busy || readOnly} onPress={openAddDeptForm} />
       </>
     ),
-    [TAB_LOGS]: canSeeAudit ? <Button label="보안 감사 로그에서 더 보기" size="sm" variant="ghost" onPress={() => goToScreen('sys-audit')} /> : null,
+    // 「보안 감사 로그에서 더 보기」 는 뺐습니다(2026-10-07)
+    [TAB_LOGS]: null,
   };
   /** 탭 내용 첫 줄 — 예전 카드 부제 */
   const tabSub = {
-    [TAB_MATRIX]: '메뉴 그룹의 +/− 버튼으로 펼치거나 접습니다. 그룹 일괄 변경은 접힌 화면을 포함한 그룹 전체(동작 행 제외)에 적용됩니다.',
-    [TAB_LOGS]: '메뉴 접근 권한 변경 최근 20건',
+    [TAB_MATRIX]: '메뉴 그룹 이름 앞의 꺾쇠 단추로 펼치거나 접습니다. 그룹 일괄 변경은 접힌 화면을 포함한 그룹 전체(동작 행 제외)에 적용됩니다.',
+    // 「메뉴 접근 권한 변경 최근 20건」 은 뺐습니다(2026-10-07) — 표에서 쪽을 나눕니다
   };
 
   return (
     <View>
       <PageHead
         title="부서별 메뉴 접근 권한"
-        desc="부서별로 화면마다 접근 권한을 지정합니다. 접근할 수 있으면 그 화면의 모든 동작을 쓸 수 있습니다. 부서 기본 권한을 변경하며, 계정별 추가 허용 메뉴는 계정 관리에서 별도로 설정합니다."
-        actions={
-          // 다른 화면으로 가는 단추만 머리말에 둡니다 — 표에 쓰는 단추(엑셀·부서 권한 복사)는 탭 머리로 옮겼습니다
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button label="계정 관리" size="sm" icon="users" onPress={() => goToScreen('sys-account')} />
-            <Button label="데이터 접근 권한" size="sm" icon="eyeOff" onPress={() => goToScreen('sys-data')} />
-          </View>
-        }
+        // 문장마다 줄을 바꿉니다(2026-10-07). 머리말의 「계정 관리」 · 「데이터 접근 권한」 이동 단추는 뺐습니다
+        desc={'부서별로 화면마다 접근 권한을 지정합니다.\n접근할 수 있으면 그 화면의 모든 동작을 쓸 수 있습니다.\n부서 기본 권한을 변경하며, 계정별 추가 허용 메뉴는 계정 관리에서 별도로 설정합니다.'}
       />
 
       {readOnly ? (
@@ -160,30 +151,19 @@ export default function MenuPermView({
         </>
       ) : null}
 
-      <Grid cols={4}>
-        <StatCard label="관리 대상 화면" value={screens.length} unit="개" sub={`메뉴 ${menuCnt} · 하위 ${subCnt} · 동작 ${actionCnt}`} />
-        <StatCard label="부서" value={depts.length} unit="개" sub={`계정 ${userTotal.toLocaleString('ko-KR')}명`} />
-        <StatCard label="내 부서 접근" value={myCount} unit="개" sub={myDept || '—'} />
-        <StatCard label="부서 평균" value={avgCount} unit="개" sub="시스템 부서·빈 부서 제외" />
-      </Grid>
-      <Gap />
-
-      <Hint>
-        {'그룹 「전체 허용」은 동작 행을 포함하지 않습니다. 화면에 접근할 수 있으면 그 화면의 등록·수정·삭제도 함께 쓸 수 있습니다. 관리 화면(관리) 칸은 통합관리자만 바꿉니다. 미배정 부서는 대시보드·덕반장 AI·질의 이력 조회 전용(쓰기 불가), 데이터 권한 0건으로 고정되어 있습니다. 「동작」 행(예: AI 통합 대시보드 › 업로드 리포트 업로드)은 화면이 아니라 그 버튼을 쓸 수 있는지를 정합니다.'}
-      </Hint>
-
+      {/* 요약 카드 4종과 안내 상자는 뺐습니다(2026-10-07) */}
       <Gap size={20} />
       <CardTabs
         id="menu-perm"
         value={tab}
         onChange={setTab}
         items={[
-          { value: TAB_MATRIX, label: '부서 × 화면', icon: 'grid', count: screens.length },
+          { value: TAB_MATRIX, label: '부서별 메뉴 접근 권한', icon: 'grid', count: screens.length },
           { value: TAB_LOGS, label: '최근 변경 이력', icon: 'history', count: logsLoading ? undefined : logs.length },
         ]}
         right={tabActions[tab]}
       >
-        <Text style={[s.textSm, { marginBottom: 12 }]}>{tabSub[tab]}</Text>
+        {tabSub[tab] ? <Text style={[s.textSm, { marginBottom: 12 }]}>{tabSub[tab]}</Text> : null}
         {tab === TAB_MATRIX ? (
           loadError ? (
             <View style={{ gap: 10 }}>
@@ -213,8 +193,12 @@ export default function MenuPermView({
           logsError ? <FormAlert>{logsError}</FormAlert> : logsLoading ? <Loading /> : (
             <TabulatorGrid
               autoWidth
+              fillWidth
+              widthHint={false}
               bordered
               headerFilter={false}
+              pageSize={LOG_PAGE_SIZE}
+              pageSizes={LOG_PAGE_SIZES}
               rows={logs}
               rowKey="_key"
               emptyText="변경 이력이 없습니다."

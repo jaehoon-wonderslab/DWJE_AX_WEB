@@ -11,7 +11,8 @@
  *    판정 근거는 서버 응답(`depts[].locked` · `screens[].admin` · `canEditAdminScreens`)만 씁니다.
  *  · 읽기 전용 — 미배정 계정(쓰기 불가)이면 모든 체크·그룹 버튼·「부서 권한 복사」 를 끕니다(엑셀은 그대로, R-10)
  *  · 그룹 일괄 — 부서별 요청 1회, 동작 행 제외(MNP-04·05)
- *  · 부서 권한 복사 — 미리보기 → 확인 → 실행(expectedHash) 2단계(MNP-01)
+ *  · 부서 권한 복사 — 미리보기 → 확인 → 실행(expectedHash) 2단계(MNP-01) · 2026-10-07 탭 단추는 「부서 추가」 로 바꿈(복사 함수는 보존)
+ *  · 부서 추가 — POST /system/depts (부서명 · 설명 · 초기 권한 복사해 올 부서)
  *  · 엑셀 — 조회 목록(펼친 그룹) / 전체(전 화면) 두 범위(MNP-18)
  *
  * 확인 창(JSX)은 화면(view)이 띄웁니다. 이 파일은 「확인이 필요한지와 문구」 만 정합니다.
@@ -56,8 +57,11 @@ export function useMenuPermController() {
   const [collapsed, setCollapsed] = useState(() => new Set());
 
   const { data, loading, reload, error } = useAsync(() => repo.loadMenuPerms(), []);
-  /** 최근 변경 이력 20건 (MNP-07) — 부서 메뉴 권한과 계정 추가 허용을 함께(actType 여러 값, API 3단계). 저장할 때마다 다시 읽습니다 */
-  const logs = useAsync(() => repo.loadPermChangeLogs('MENU_PERM,USER_MENU_PERM', 20), [], { silent: true });
+  /**
+   * 변경 이력 (MNP-07) — 부서 메뉴 권한과 계정 추가 허용을 함께(actType 여러 값, API 3단계). 저장할 때마다 다시 읽습니다.
+   * 2026-10-07 최근 20건 → 전량(size=0)을 받아 표에서 쪽을 나눕니다.
+   */
+  const logs = useAsync(() => repo.loadPermChangeLogs('MENU_PERM,USER_MENU_PERM', 0), [], { silent: true });
   // 「보안 감사 로그에서 더 보기」 는 그 화면 권한이 있을 때만
   const menuPerms = useAuthStore((state) => state.menuPerms);
   const canSeeAudit = useMemo(() => useAuthStore.getState().can('sys-audit'), [menuPerms]);
@@ -292,6 +296,26 @@ export function useMenuPermController() {
     [run, readOnly]
   );
 
+  // ── 부서 추가 (2026-10-07) ─────────────────────────────
+  // 「부서 권한 복사」 는 있는 부서끼리 권한만 덮어쓰고 새 부서를 만들지 않습니다. 탭 단추를 「부서 추가」 로 바꿨습니다.
+  // 복사(previewCopy · executeCopy · MenuPermCopyForm)는 되살릴 수 있게 남겨 둡니다.
+  /** 초기 권한을 복사해 올 부서 — 시스템 부서(통합관리자·미배정)는 빼고, 「빈 권한」 을 맨 앞에 둡니다 */
+  const addDeptOptions = useMemo(() => [
+    { value: '', label: '빈 권한 — 추가 후 직접 지정' },
+    ...depts.filter((d) => !d.locked).map((d) => ({ value: String(d.id), label: d.name })),
+  ], [depts]);
+
+  /** 부서 추가 — 서버는 deptNm · desc · initPermFrom 을 받고, 고른 부서의 메뉴 접근 권한을 복사해 시작합니다 */
+  const createDept = useCallback(
+    (v) => run(async () => {
+      if (readOnly) return { ok: false, message: NO_WRITE_TEXT };
+      const body = { deptNm: String(v.deptNm || '').trim(), desc: v.desc || '' };
+      if (v.initPermFrom) body.initPermFrom = Number(v.initPermFrom);
+      return repo.createDept(body);
+    }),
+    [run, readOnly]
+  );
+
   // ── 요약 카드 (MNP-12·16) ─────────────────────────────
   const myDeptRow = depts.find((d) => (userInfo?.deptId != null ? String(d.id) === String(userInfo.deptId) : d.name === userInfo?.dept));
   const myCount = myDeptRow ? screens.filter((s) => cellValue(s.id, myDeptRow.id)).length : 0;
@@ -396,6 +420,8 @@ export function useMenuPermController() {
     screenLabel,
     previewCopy,
     executeCopy,
+    addDeptOptions,
+    createDept,
     viewCount: visibleScreens.length,
     totalCount: screens.length,
     exportView,

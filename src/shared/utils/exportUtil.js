@@ -1,7 +1,7 @@
 /**
  * 내려받기 · 인쇄 유틸 (CM-07)
  *
- * 엑셀(.xls · .xlsx) · CSV · 인쇄/PDF · 차트 이미지(.png) 출력을 담당합니다.
+ * 엑셀(.xlsx) · CSV · 인쇄/PDF · 차트 이미지(.png) 출력을 담당합니다.
  * 모든 출력은 보고서 다운로드 이력(SY-14)에 자동 기록되며, 권한 밖 값은 「비공개」 로 채웁니다.
  *
  * 웹에서만 실제 파일이 만들어지고, 앱(네이티브)에서는 안내 토스트만 띄웁니다.
@@ -305,13 +305,15 @@ export async function downloadCsv({ name, head, attrs, rows, blindCount = 0, sco
 }
 
 /**
- * 표 데이터를 엑셀(.xls) 로 내려받습니다.
- * (SpreadsheetML 대신 엑셀이 읽을 수 있는 HTML 표 형식을 씁니다 — 별도 라이브러리 불필요)
+ * 표 데이터를 엑셀(.xlsx) 로 내려받습니다.
+ * 이 프로젝트의 엑셀 파일은 모두 .xlsx 입니다(2026-10-06). 예전에는 HTML 표에 `.xls` 확장자를 붙여 저장해
+ * 엑셀이 열 때 「파일 형식과 확장자가 일치하지 않습니다」 경고를 냈습니다. 함수 이름은 부르는 화면이 많아 그대로 둡니다.
  *
  * `attrs` 를 주면 열마다 응답 필드명을 보고 이 함수가 직접 값을 가립니다.
  * 로그인한 계정의 데이터 접근 권한 밖 값은 빈칸이 아니라 「비공개」 로 채웁니다(기획 R-10).
  * 파일 첫 줄(표 위)에 「비공개 처리 n건(데이터 접근 권한 기준)」 을 남기며, 이 n 은 내려받기 이력의 blindCnt 와 같습니다.
  * (2026-10-01 처음에는 표 아래에 두었다가 기획 DLG-15 「첫 행 위」 에 맞춰 옮겼습니다)
+ * 시트 구성: 1행 = 비공개 건수 · 범위 · 조건, 2행 = 머리글, 3행부터 본문.
  *
  * @param {object} config { name, head, attrs?:string[], rows, blindCount, scope?:'VIEW'|'ALL', condSummary?, menuId? }
  * @returns {Promise<boolean>} 저장했는지 (기록이 실패하면 저장하지 않습니다)
@@ -327,29 +329,57 @@ export async function downloadXls({ name, head, attrs, rows, blindCount = 0, sco
   }
   const noAttrs = attrsMissing(attrs, name);
   ({ rows, blindCount } = applyMask(rows, attrs, blindCount));
-  const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const meta = `${blindNote(blindCount)}${scope ? ` · 범위 ${scope === 'ALL' ? '전체' : '조회 목록'}` : ''}${condSummary ? ` · 조건 ${condSummary}` : ''}`;
-  const html =
-    `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>` +
-    `<p>${esc(meta)}</p>` +
-    `<table border="1"><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>` +
-    rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') +
-    `</table>` +
-    `</body></html>`;
-  const blob = new Blob([`﻿${html}`], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  let blob;
+  try {
+    // Metro에서 외부 node_modules 경로의 동적 청크가 404가 되는 것을 방지합니다.
+    const excelModule = require('exceljs');
+    const ExcelJS = excelModule.default || excelModule;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '덕우전자 AX 시스템';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Sheet1');
+    // 값은 화면에 보이던 글자 그대로 넣습니다(사번 앞자리 0 · 「1,234」 같은 표기가 숫자로 바뀌지 않게)
+    const text = (v) => (v === null || v === undefined ? '' : String(v));
+    ws.addRow([meta]).font = { size: 10, color: { argb: 'FF666666' } };
+    const headRow = ws.addRow(head.map(text));
+    headRow.font = { bold: true };
+    headRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF3F8' } };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+    rows.forEach((r) => {
+      const row = ws.addRow(r.map(text));
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+    });
+    // 열 너비 — 머리글 · 본문 중 가장 긴 글자 기준(한글은 2칸), 8 ~ 60
+    const cw = (v) => [...text(v)].reduce((n, ch) => n + (ch.charCodeAt(0) > 0xff ? 2 : 1), 0);
+    ws.columns.forEach((col, i) => {
+      const longest = Math.max(cw(head[i]), ...rows.map((r) => cw(r[i])));
+      col.width = Math.min(60, Math.max(8, longest + 2));
+    });
+    ws.views = [{ state: 'frozen', ySplit: 2 }];
+    const buf = await wb.xlsx.writeBuffer();
+    blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  } catch (e) {
+    console.error('[엑셀 내려받기] 실패:', e);
+    toast('엑셀 파일을 만들지 못했습니다');
+    return false;
+  }
   const saved = await logThenSave(
-    { reportName: name, format: FORMAT.XLS, rowCount: rows.length, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
-    () => saveBlob(blob, `${name}.xls`)
+    { reportName: name, format: FORMAT.XLSX, rowCount: rows.length, blindCount, scope, condSummary, menuId, fileSize: blob.size, attrsMissing: noAttrs },
+    () => saveBlob(blob, `${name}.xlsx`)
   );
-  if (saved) toast(doneText(`${name}.xls`, blindCount));
+  if (saved) toast(doneText(`${name}.xlsx`, blindCount));
   return saved;
 }
 
 /**
  * 표를 진짜 엑셀(.xlsx) 파일로 내려받습니다.
  *
- * `downloadXls` 는 HTML 표에 `.xls` 확장자를 붙이는 방식이라 엑셀이 열 때 경고를 냅니다.
- * 사람이 받아 바로 쓰는 리포트는 이쪽을 씁니다.
+ * 제목 · 절 · 머리 정보 줄로 꾸민 리포트는 이쪽을 씁니다(표 한 장은 `downloadXls`).
  *
  * 행은 `{ cells, style }` 로 줍니다.
  *   `title`   보고서 제목 줄

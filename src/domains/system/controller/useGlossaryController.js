@@ -326,11 +326,12 @@ export function useGlossaryController() {
      * 사전 변경 이력 (07 GLS-07) — termId 가 있으면 그 용어, 없으면 최근 30일 전체.
      * 모달이 열릴 때 부릅니다. 실패하면 예외를 던져 모달이 안내합니다.
      */
-    loadChanges: ({ termId, page = 1, size = 50 } = {}) => {
+    // 변경 이력 창은 기간 안의 이력을 전부 받고 표가 검색 · 쪽 나눔을 합니다(2026-10-04)
+    loadChanges: ({ termId } = {}) => {
       const to = new Date();
       const from = new Date(to.getTime() - 30 * 86400000);
       const day = (d) => d.toISOString().slice(0, 10);
-      return repo.loadGlossaryChanges(termId ? { termId, page, size } : { from: day(from), to: day(to), page, size });
+      return repo.loadAllGlossaryChanges(termId ? { termId } : { from: day(from), to: day(to) });
     },
     /** 유사어 폼의 공식 용어 후보 — 2자 이상일 때만 서버에 묻습니다 (07 GLS-11) */
     searchTerms: async (keyword) => (String(keyword || '').trim().length >= 2 ? repo.searchGlossaryTerms(String(keyword).trim()) : []),

@@ -17,6 +17,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { chromium } = require('playwright-core');
 const { WEB } = require('../lib/browser');
+const { readXlsx } = require('../lib/xlsx');
 
 const API = process.env.API_URL || 'http://localhost:18081';
 const PASSWORD = process.env.TEST_PASSWORD || 'Dwje!2026';
@@ -97,12 +98,13 @@ async function findLog(token, menuId, since, pred) {
     const btn = page.getByRole('button', { name: /엑셀 다운로드/ });
     await btn.click();
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('menuitem', { name: /조회 목록 다운로드/ }).click()]);
-    const xls = fs.readFileSync(await dl.path(), 'utf8');
-    assert(/비공개 처리 \d+건\(데이터 접근 권한 기준\)/.test(xls), '파일 첫 줄 비공개 처리 n건');
+    assert(/\.xlsx$/.test(dl.suggestedFilename()), `조회 목록 파일: ${dl.suggestedFilename()}`);
+    const xls = await readXlsx(await dl.path());
+    assert(/비공개 처리 \d+건\(데이터 접근 권한 기준\)/.test(xls.meta), '파일 첫 줄 비공개 처리 n건');
     const viewLog = await findLog(token, 'sys-audit', since, (x) => x.scopeCd === 'VIEW');
     assert(viewLog, '서버 이력에 sys-audit VIEW 기록');
     assert(/쪽\/\d+건/.test(viewLog.condSummary || ''), `condSummary 저장: ${viewLog.condSummary}`);
-    assert.equal(viewLog.format, 'XLS');
+    assert.equal(viewLog.format, 'XLSX');
     assert.equal(viewLog.origin, 'CLIENT');
     const posts = browserLogPosts;
 

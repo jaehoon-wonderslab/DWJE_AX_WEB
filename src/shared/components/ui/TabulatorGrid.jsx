@@ -106,6 +106,11 @@ export default function TabulatorGrid({
   headerFilter = true,
   /** 선택 가능한 최대 행 수 (0이면 제한 없음) */
   maxSelectable = 0,
+  /**
+   * 머리글 선택 칸에 「전체 선택」 체크박스를 둡니다 — **지금 쪽에 보이는 행만** 고릅니다(2026-10-07).
+   * 필터 · 정렬 · 쪽 이동 · 표시 건수가 바뀌면 선택을 모두 풉니다(보이지 않는 행이 선택된 채 남지 않게).
+   */
+  pageSelectAll = false,
   /** 외부 동작(상세 보기 등)에서 머리글 필터에 넣을 값 */
   headerFilters,
   /** 만들어진 Tabulator 인스턴스를 받아 갈 ref (행 높이 재계산 등 — 표를 다시 만들지는 않습니다) */
@@ -114,6 +119,8 @@ export default function TabulatorGrid({
   tableOptions,
   /** 쪽 나누기 — 한 쪽에 보일 행 수. 주면 표 아래에 쪽 이동이 붙습니다 */
   pageSize,
+  /** 표시 건수 고르기 — 예) [10, 25, 50, 100]. 주면 쪽 이동 옆에 「표시 건수」 선택칸이 붙습니다(실적 화면은 기본으로 붙음) */
+  pageSizes,
   /** 칸마다 세로 줄을 그립니다 — 열이 많아 눈이 미끄러지는 표에서 씁니다 */
   bordered = false,
   /**
@@ -270,6 +277,24 @@ export default function TabulatorGrid({
             hozAlign: 'center',
             headerHozAlign: 'center',
             cellClick: (e, cell) => cell.getRow().toggleSelect(),
+            ...(pageSelectAll ? {
+              titleFormatter: () => {
+                const box = document.createElement('input');
+                box.type = 'checkbox';
+                box.className = 'dw-page-select-all';
+                box.setAttribute('aria-label', '현재 쪽 전체 선택');
+                box.title = '현재 쪽 전체 선택';
+                return box;
+              },
+              // 체크박스 자체의 토글은 막지 않습니다 — 선택이 바뀌면 syncPageBox 가 실제 상태로 맞춥니다
+              headerClick: (e, column) => {
+                const t = column.getTable();
+                const pageRows = t.getRows('display');
+                if (!pageRows.length) return;
+                if (pageRows.every((r) => r.isSelected())) t.deselectRow(pageRows);
+                else t.selectRow(pageRows.filter((r) => !r.isSelected()));
+              },
+            } : null),
           },
           ...filterableColumns,
         ]
@@ -304,7 +329,7 @@ export default function TabulatorGrid({
             // "Showing 1-10 of 40 rows" 가 섞여 있을 이유가 없습니다
             locale: 'ko',
             langs: KO_LANG,
-            ...(productionStyle ? { paginationSizeSelector: [10, 25, 50, 100] } : null),
+            ...(pageSizes?.length ? { paginationSizeSelector: pageSizes } : productionStyle ? { paginationSizeSelector: [10, 25, 50, 100] } : null),
           }
         : null),
       ...(dataTree
@@ -343,6 +368,15 @@ export default function TabulatorGrid({
     };
     ref.current.addEventListener('input', applyHeaderInput);
     ref.current.addEventListener('compositionend', applyHeaderInput);
+
+    // 날짜 머리글 필터(input type=date)는 달력 아이콘만 달력을 엽니다 — 입력칸 어디를 눌러도 열리게 합니다(2026-10-06)
+    const openDatePicker = event => {
+      const input = event.target;
+      if (input?.type !== 'date' || !input.closest?.('.tabulator-header-filter')) return;
+      try { input.showPicker?.(); } catch { /* 이미 열려 있거나 지원하지 않는 브라우저 */ }
+    };
+    // Tabulator 가 머리글 필터 칸의 클릭 전파를 막으므로(정렬 방지) 캡처 단계에서 받습니다
+    ref.current.addEventListener('click', openDatePicker, true);
 
     // 트리 버튼은 펼침/접힘 때 교체되므로 렌더와 상태 변경 후 의미를 다시 붙입니다.
     let tooltipFrame = 0;
@@ -410,9 +444,29 @@ export default function TabulatorGrid({
     }
     if (selectable) {
       table.on('rowSelectionChanged', (data) => {
+        syncPageBox();
         if (restoring.current) return;
         onSelectedRef.current?.(data.map((r) => (rowKey ? r[rowKey] : r)));
       });
+    }
+    // 머리글 「전체 선택」 — 지금 쪽 행이 모두 골라졌으면 체크, 일부면 중간 표시
+    function syncPageBox() {
+      if (!pageSelectAll) return;
+      const box = ref.current?.querySelector('input.dw-page-select-all');
+      if (!box) return;
+      let pageRows = [];
+      try { pageRows = table.getRows('display'); } catch { /* 만드는 중 */ }
+      const n = pageRows.filter((r) => r.isSelected()).length;
+      box.checked = !!pageRows.length && n === pageRows.length;
+      box.indeterminate = n > 0 && n < pageRows.length;
+    }
+    if (selectable && pageSelectAll) {
+      // 조건(필터 · 정렬 · 쪽 · 표시 건수)이 바뀌면 선택을 풉니다. 자료 갈아 끼우기(restoring) 중에는 그대로 둡니다
+      const clearOnChange = () => {
+        if (!restoring.current && table.getSelectedRows().length) table.deselectRow();
+        syncPageBox();
+      };
+      ['dataFiltered', 'dataSorted', 'pageLoaded', 'pageSizeChanged'].forEach((event) => table.on(event, clearOnChange));
     }
 
     if (hasRowClick) {
@@ -431,7 +485,16 @@ export default function TabulatorGrid({
     let ro = null;
     let raf = 0;
     let built = false;
-    table.on('tableBuilt', () => { built = true; });
+    let unscaleTimer = 0;
+    table.on('tableBuilt', () => {
+      built = true;
+      // 열려 오는 모달(Rise: 0.98 → 1 확대) 안에서 만들어지면 Tabulator 가 줄어든 폭(getBoundingClientRect)으로
+      // 열을 나눠, 오른쪽에 열 없는 빈 띠가 남습니다(2026-10-04 변경 이력 표). 확대가 끝난 뒤 한 번 다시 나눕니다.
+      const el = ref.current;
+      if (el && Math.abs(el.getBoundingClientRect().width - el.offsetWidth) > 1) {
+        unscaleTimer = setTimeout(() => { try { table.redraw(true); } catch { /* 이미 정리됨 */ } }, 320);
+      }
+    });
     if (typeof ResizeObserver !== 'undefined' && ref.current) {
       let lastW;
       let lastH;
@@ -456,8 +519,10 @@ export default function TabulatorGrid({
     }
     return () => {
       if (ro) ro.disconnect();
+      clearTimeout(unscaleTimer);
       ref.current?.removeEventListener('input', applyHeaderInput);
       ref.current?.removeEventListener('compositionend', applyHeaderInput);
+      ref.current?.removeEventListener('click', openDatePicker, true);
       cancelAnimationFrame(sizeFrame);
       cancelAnimationFrame(tooltipFrame);
       cancelAnimationFrame(raf);
@@ -471,7 +536,7 @@ export default function TabulatorGrid({
     };
     // rows 는 일부러 뺐습니다 — 아래에서 갈아 끼웁니다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, productionStyle, autoWidth, fillWidth, treeChildIndent, dataTree, blockedKey]);
+  }, [columns, height, groupBy, groupHeader, groupStartOpen, emptyText, isDark, selectable, rowKey, initialSort, hasRowClick, headerFilter, maxSelectable, pageSelectAll, productionStyle, autoWidth, fillWidth, treeChildIndent, dataTree, blockedKey]);
 
   /**
    * 자료만 갈아 끼웁니다 — 정렬·열 너비가 그대로 남습니다
@@ -798,6 +863,14 @@ export default function TabulatorGrid({
         }
         #grid_${id} .tabulator .tbtn:hover { background: ${c.hover}; }
         #grid_${id} .tabulator .tbtn-primary { background: ${color.primary}; border-color: ${color.primary}; color: ${color.primaryForeground}; font-weight: 600; }
+        /* 관리 칸 단추 묶음 — 한 줄로 나란히, 주 동작은 옅은 강조 · 삭제는 붉은 글자(2026-10-04) */
+        #grid_${id} .tabulator .tbtns { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+        #grid_${id} .tabulator .tbtns .tbtn + .tbtn { margin-left: 0; }
+        #grid_${id} .tabulator .tbtn-accent { color: ${color.primary}; border-color: ${alpha('primary', 0.35)}; background: ${alpha('primary', 0.06)}; font-weight: 600; }
+        #grid_${id} .tabulator .tbtn-accent:hover { background: ${alpha('primary', 0.12)}; }
+        #grid_${id} .tabulator .tbtn-danger { color: ${color.destructive}; border-color: ${alpha('destructive', 0.3)}; background: #fff; }
+        #grid_${id} .tabulator .tbtn-danger:hover { background: ${alpha('destructive', 0.08)}; }
+        #grid_${id} .tabulator .tbtn[disabled] { opacity: 0.45; cursor: not-allowed; }
         /* 칸 안의 비중 막대 — .bar-cell > .bar-track > .bar-fill + .bar-num */
         #grid_${id} .tabulator .bar-cell { display: flex; align-items: center; gap: 8px; width: 100%; }
         #grid_${id} .tabulator .bar-track {

@@ -46,7 +46,8 @@ async function openLive(empNo = '10004') {
     const header = await table.locator('.tabulator-headers').innerText();
     assert(/미배정 · [\d,]+명/.test(header) && header.includes('고정(5화면) · 변경 불가'), 'live unassigned header');
     assert(header.includes('전 권한'), 'live super admin header');
-    const groups = (await table.locator('.tabulator-row .tbtn[aria-expanded]').allTextContents()).map((t) => t.replace(/^[−+]\s*/, ''));
+    // 그룹 행은 트리 펼침 단추(.tree-toggle, 2026-10-07) — 이름은 aria-label 「그룹명 접기/펼치기」 에서 읽습니다
+    const groups = (await table.locator('.tabulator-row .tree-toggle[aria-expanded]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).map((t) => t.replace(/ (접기|펼치기)$/, ''));
     assert.deepEqual(groups.slice(0, 2), ['AI 어시스턴트', '대시보드'], `live group order ${groups.join(',')}`);
     const unassigned = await table.locator('input[type="checkbox"][aria-label$="· 미배정 접근 허용"]').first();
     assert(await unassigned.isDisabled(), 'live unassigned locked');
@@ -67,7 +68,8 @@ async function openLive(empNo = '10004') {
     const logGrid = page.locator('[id="menu-perm-panel-logs"] .tabulator');
     await logGrid.locator('.tabulator-row').first().waitFor({ timeout: 30000 });
     assert((await logGrid.locator('.tabulator-row').count()) > 0, 'live menu change logs');
-    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 1, 'audit link for 전산팀');
+    // 「보안 감사 로그에서 더 보기」 는 뺐습니다(2026-10-07)
+    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'no audit link');
 
     // ── 데이터 접근 권한 ──
     await page.goto(`${WEB}/system/data-perm`);

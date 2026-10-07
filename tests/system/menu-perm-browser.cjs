@@ -10,7 +10,9 @@
  *  · 관리 화면 행 잠금(canEditAdminScreens=false), 개인 허용 n명
  *  · 체크 본문 {deptId, screenId, allowed} — perm 없음, 일반 화면 해제는 확인 창 없음, 서버 409 시 상태 유지 + 토스트
  *  · 그룹 일괄 = PUT /group 1건(groupId·includeActions:false, perm 없음), 관리 화면 그룹은 비관리자에게 잠금
- *  · 복사 2단계 — 기본값 없음·미배정 없음·빈 값 미리보기는 요청 0건·dryRun → requiresSuperAdmin 이면 실행 잠금 → 실행 본문 expectedHash
+ *  · 부서 추가(2026-10-07, 예전 「부서 권한 복사」 자리) — 부서명 필수, 초기 권한 선택지에 통합관리자·미배정 없음, POST /system/depts 본문
+ *  · 요약 카드·안내 상자·머리말 이동 단추·이력 탭 부제·감사 로그 링크 없음, 이력 표 쪽 나누기(전량 size=0)
+ *  · 그룹 행은 트리 펼침 단추(.tree-toggle — 꺾쇠 + 그룹명 + 화면 수)
  *  · 엑셀 옵션 패널 — 조회 목록(펼친 그룹만, VIEW) · 전체(ALL), blindCnt 0
  *  · 읽기 전용(미배정 계정 — 접근은 있어도 쓰기 불가) — 모든 체크·복사 비활성, 「읽기 전용」, 엑셀은 활성
  *  · 「쓰기」 · 「동작(쓰기)」 · 「쓰기 포함」 문구 없음
@@ -75,16 +77,26 @@ async function setup({ write = true } = {}) {
   const { page, browser } = await openFixture();
   const state = {
     matrix: { 1: SCREENS.map((s) => s.id), 2: ['dash-ai', 'dash-ai-upload', 'prod-result', 'chat-history', 'sys-menu'], 3: [], 4: ['dash-ai-upload'], 59: ['dash-ai', 'prod-monitor', 'chat-history'] },
-    puts: [], groups: [], copies: [], logs: [], errors: [], failNext: false, previewAdmin: true,
+    puts: [], groups: [], copies: [], depts: [], logs: [], errors: [], failNext: false, previewAdmin: true,
   };
   page.on('pageerror', (e) => state.errors.push(e.message));
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: { success: true, data: me({ write }) } }));
   await page.route('**/api/v1/system/perm-logs**', (route) => {
     state.logReads = (state.logReads || 0) + 1;
-    state.logActType = new URL(route.request().url()).searchParams.get('actType');
+    const q = new URL(route.request().url()).searchParams;
+    state.logActType = q.get('actType');
+    state.logSize = q.get('size');
+    // 30건 — 표가 25건씩 쪽을 나누는지 봅니다
+    const extra = Array.from({ length: 29 }, (_, i) => ({ ts: `2026-09-${String(30 - i).padStart(2, '0')} 09:00:00`, target: '둘째부서 / dash-ai', actType: 'MENU_PERM', detail: `메뉴 권한 부여 ${i + 1}`, by: '김검증', byEmpNo: '10005' }));
     return route.fulfill({ json: { success: true, data: { items: [
       { ts: '2026-10-01 14:02:00', target: '검증부서 / prod-result', actType: 'MENU_PERM', detail: '메뉴 권한 회수(조회)', by: '최전산', byEmpNo: '10004' },
-    ] }, meta: { page: 1, size: 20, total: 1 } } });
+      ...extra,
+    ] }, meta: { page: 1, size: 0, total: 30 } } });
+  });
+  await page.route('**/api/v1/system/depts', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    state.depts.push(route.request().postDataJSON());
+    return route.fulfill({ json: { success: true, message: '부서가 등록되었습니다.', data: { deptId: 9 } } });
   });
   await page.route('**/api/v1/download-logs', (route) => { state.logs.push(route.request().postDataJSON()); return route.fulfill({ json: { success: true, data: {} } }); });
   await page.route('**/api/v1/system/menu-perms**', async (route) => {
@@ -142,8 +154,16 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
   try {
     const table = page.locator('.tabulator').first();
     // 대그룹 순서 — menu.js 정의 순서(대시보드 → 생산 및 품질 관리 → 자연어 질의 이력 → 시스템관리)
-    const groups = await table.locator('.tabulator-row .tbtn[aria-expanded]').allTextContents();
-    assert.deepEqual(groups.map((t) => t.replace(/^[−+]\s*/, '')), ['대시보드', '생산 및 품질 관리', '자연어 질의 이력', '시스템관리'], 'group order follows menu.js');
+    // 그룹 행은 트리 펼침 단추(꺾쇠 + 그룹명 + 화면 수, 2026-10-07)
+    const groups = await table.locator('.tabulator-row .tree-toggle[aria-expanded]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
+    assert.deepEqual(groups.map((t) => t.replace(/ (접기|펼치기)$/, '')), ['대시보드', '생산 및 품질 관리', '자연어 질의 이력', '시스템관리'], 'group order follows menu.js');
+    assert.equal(await table.locator('.tabulator-row .tree-toggle svg').count(), 4, 'chevron on each group');
+    // 머리 정리(2026-10-07) — 요약 카드·안내 상자·이동 단추 없음, 설명은 문장마다 줄바꿈
+    for (const gone of ['관리 대상 화면', '내 부서 접근', '부서 평균']) assert.equal(await page.getByText(gone, { exact: true }).count(), 0, `no stat card ${gone}`);
+    assert.equal(await page.getByText('그룹 「전체 허용」은 동작 행을 포함하지 않습니다', { exact: false }).count(), 0, 'no hint box');
+    for (const gone of ['계정 관리', '데이터 접근 권한']) assert.equal(await page.getByRole('button', { name: gone, exact: true }).count(), 0, `no head link ${gone}`);
+    assert(await page.getByText('부서별로 화면마다 접근 권한을 지정합니다.\n접근할 수 있으면', { exact: false }).isVisible(), 'desc line breaks');
+    assert.equal(await page.locator('#menu-perm-tab-matrix').getByText('부서별 메뉴 접근 권한', { exact: true }).count(), 1, 'matrix tab label');
     // 머리글 — 부서명 · n명, 미배정 고정 표기
     const headerText = await table.locator('.tabulator-headers').innerText();
     assert(headerText.includes('미배정 · 349명') && headerText.includes('고정(5화면) · 변경 불가'), 'unassigned header');
@@ -204,13 +224,28 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     assert.equal(await table.locator('.tabulator-cell[tabulator-field="kindLabel"]', { hasText: '동작(쓰기)' }).count(), 0, 'no 「동작(쓰기)」 label');
     assert.equal(await table.locator('.tabulator-cell[tabulator-field="kindLabel"]', { hasText: /^동작$/ }).count(), 1, 'action row label');
     // 2026-10-02 — 「부서 × 화면」 · 「최근 변경 이력」 은 탭으로 나뉩니다. 감사 로그 링크는 이력 탭 머리에 있습니다
-    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'audit link only on logs tab');
     await page.locator('#menu-perm-tab-logs').click();
     const logCard = page.locator('[id="menu-perm-panel-logs"] .tabulator');
     await logCard.getByText('검증부서 / 실적 집계·조회').waitFor();
     assert.equal(await logCard.getByText('최전산 (10004)').count(), 1, 'log performer — 「이름 (사번)」');
-    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 1, 'audit link with sys-audit');
-    assert.equal(await page.getByRole('button', { name: '부서 권한 복사', exact: true }).count(), 0, 'copy button only on matrix tab');
+    // 이력 탭 — 감사 로그 링크·「최근 20건」 부제·열 너비 안내 없음, 전량 받아 20건씩 쪽 나누기(2026-10-07)
+    assert.equal(await page.getByRole('button', { name: '보안 감사 로그에서 더 보기', exact: true }).count(), 0, 'no audit link');
+    assert.equal(await page.getByText('메뉴 접근 권한 변경 최근 20건', { exact: true }).count(), 0, 'no logs subtitle');
+    assert.equal(await page.getByText('열 너비는 내용에 맞춰', { exact: false }).count(), 0, 'no width hint');
+    assert.equal(state.logSize, '0', 'logs fetched in full');
+    assert.equal(await logCard.locator('.tabulator-row').count(), 25, 'first page 25 rows');
+    await logCard.locator('.tabulator-paginator').waitFor();
+    await logCard.locator('.tabulator-page[data-page="2"]').click();
+    await page.waitForTimeout(300);
+    assert.equal(await logCard.locator('.tabulator-row').count(), 5, 'second page 5 rows');
+    // 표시 건수 10 · 25 · 50 · 100
+    const sizeSel = logCard.locator('select.tabulator-page-size');
+    assert.deepEqual(await sizeSel.locator('option').allTextContents(), ['10', '25', '50', '100'], 'page size options');
+    assert.equal(await sizeSel.inputValue(), '25', 'default page size');
+    await sizeSel.selectOption('10');
+    await page.waitForTimeout(300);
+    assert.equal(await logCard.locator('.tabulator-row').count(), 10, 'page size 10 applies');
+    assert.equal(await page.getByRole('button', { name: '부서 추가', exact: true }).count(), 0, 'add-dept button only on matrix tab');
     await page.locator('#menu-perm-tab-matrix').click();
     await table.waitFor();
     assert((state.logReads || 0) >= 2, 'logs reloaded after save');
@@ -230,37 +265,22 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     ], 'parent then child turned off');
     await page.getByText('하위 화면 1개도 함께 껐습니다', { exact: false }).first().waitFor();
 
-    // ── 복사 2단계 ──
-    await page.getByRole('button', { name: '부서 권한 복사', exact: true }).click();
-    const from = page.getByRole('combobox', { name: '복사할 부서 (원본)' });
-    const to = page.getByRole('combobox', { name: '적용할 부서 (대상)' });
-    await from.waitFor();
-    assert.equal(await from.inputValue(), '', 'no default source');
-    assert.equal(await to.inputValue(), '', 'no default target');
-    const fromOptions = await from.locator('option').allTextContents();
-    const toOptions = await to.locator('option').allTextContents();
-    assert(!fromOptions.some((t) => t.includes('미배정')), 'no unassigned in source');
-    assert(!toOptions.some((t) => t.includes('미배정') || t.includes('통합관리자')), 'no unassigned/super in target');
-    assert(fromOptions.includes('검증부서 (계정 3명)'), 'label with account count');
-    await page.getByRole('button', { name: '미리보기', exact: true }).click();
-    await page.getByText('복사할 부서(원본)를 고르세요.').waitFor();
-    assert.equal(state.copies.length, 0, 'empty preview sends nothing');
-    await from.selectOption('2');
-    await to.selectOption('3');
-    await page.getByRole('button', { name: '미리보기', exact: true }).click();
-    await page.getByText('통합관리자만 실행할 수 있습니다', { exact: false }).waitFor();
-    assert.deepEqual(state.copies.at(-1), { fromDeptId: '2', toDeptId: '3', dryRun: true });
-    assert(await page.getByText('원본: 검증부서 → 대상: 둘째부서 · 계정 6명', { exact: true }).isVisible(), 'preview shows affected accounts');
-    assert.equal(await page.getByText(/쓰기 포함|\[쓰기|쓰기만/).count(), 0, 'no write wording in copy preview');
-    assert(await page.getByRole('button', { name: '복사', exact: true }).isDisabled(), 'admin change blocks non super admin');
-    state.previewAdmin = false;
-    await page.getByRole('button', { name: '미리보기', exact: true }).click();
-    await page.getByText('위 내용을 확인했습니다').waitFor();
-    assert(await page.getByRole('button', { name: '복사', exact: true }).isDisabled(), 'needs confirmation');
-    await page.getByText('위 내용을 확인했습니다').click();
-    await page.getByRole('button', { name: '복사', exact: true }).click();
+    // ── 부서 추가(2026-10-07) — 예전 「부서 권한 복사」 는 새 부서를 만들지 않아 바꿨습니다 ──
+    assert.equal(await page.getByRole('button', { name: '부서 권한 복사', exact: true }).count(), 0, 'no copy button');
+    await page.getByRole('button', { name: '부서 추가', exact: true }).click();
+    const initFrom = page.getByRole('combobox', { name: '초기 권한 (복사해 올 부서)' });
+    await initFrom.waitFor();
+    const initOptions = await initFrom.locator('option').allTextContents();
+    assert(!initOptions.some((t) => t.includes('미배정') || t.includes('통합관리자')), `no system dept in init perm: ${initOptions}`);
+    assert(initOptions.includes('검증부서'), 'init perm lists normal dept');
+    await page.getByRole('button', { name: '추가', exact: true }).click();
+    await page.getByText('부서명을 입력해 주세요.', { exact: false }).first().waitFor();
+    assert.equal(state.depts.length, 0, 'empty name sends nothing');
+    await page.getByPlaceholder('예) 공정기술팀').fill('신규부서');
+    await initFrom.selectOption('2');
+    await page.getByRole('button', { name: '추가', exact: true }).click();
     await page.waitForTimeout(600);
-    assert.deepEqual(state.copies.at(-1), { fromDeptId: '2', toDeptId: '3', dryRun: false, expectedHash: 'hash-1' });
+    assert.deepEqual(state.depts.at(-1), { deptNm: '신규부서', initPermFrom: 2 }, 'POST /system/depts body');
 
     // ── 엑셀 옵션 패널 — 대시보드만 펼친 상태 ──
     for (const g of ['생산 및 품질 관리', '자연어 질의 이력', '시스템관리']) {
@@ -308,17 +328,17 @@ const box = (page, label) => page.getByRole('checkbox', { name: label, exact: tr
     assert(n > 0);
     for (let i = 0; i < n; i += 1) assert(await boxes.nth(i).isDisabled(), `checkbox ${i} disabled in read-only`);
     // 개인 허용 명단 보기(n명 ▸)는 조회라 읽기 전용에서도 열립니다 — 그룹 일괄 버튼만 셉니다
-    const bulk = ro.page.locator('.tabulator .tabulator-row .tbtn:not([aria-expanded]):not([aria-label$="보기"])');
+    const bulk = ro.page.locator('.tabulator .tabulator-row .tbtn:not([aria-label$="보기"])');
     for (let i = 0; i < await bulk.count(); i += 1) assert(await bulk.nth(i).isDisabled(), 'group bulk disabled in read-only');
-    assert(await ro.page.getByRole('button', { name: '부서 권한 복사', exact: true }).isDisabled(), 'copy disabled');
+    assert(await ro.page.getByRole('button', { name: '부서 추가', exact: true }).isDisabled(), 'add dept disabled');
     assert(!(await ro.page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).isDisabled()), 'excel stays enabled');
     await ro.page.getByRole('button', { name: '엑셀 다운로드 ▾', exact: true }).click();
     await ro.page.getByRole('menuitem', { name: /전체 다운로드/ }).click();
     await ro.page.waitForTimeout(500);
     assert.equal(ro.state.logs.at(-1)?.scopeCd, 'ALL', 'read-only can download');
-    assert.equal(ro.state.puts.length + ro.state.groups.length + ro.state.copies.length, 0);
+    assert.equal(ro.state.puts.length + ro.state.groups.length + ro.state.copies.length + ro.state.depts.length, 0);
     assert.deepEqual(ro.state.errors, []);
   } finally { await ro.browser.close(); }
 
-  console.log('PASS: menu-perm — empty dept dim, parent/child confirm+warn, multi actType logs, grants popover/note, change-log card, action label, group order(menu.js), one access cell per dept, super/unassigned/admin locks, body without perm, no write-revoke confirm, 409 keep+toast, 1 group request, copy 2-step(no default/no unassigned/dryRun/requiresSuperAdmin/expectedHash), excel VIEW/ALL blindCnt 0, read-only(unassigned), 390px scroll');
+  console.log('PASS: menu-perm — empty dept dim, parent/child confirm+warn, multi actType logs, grants popover/note, change-log card, action label, group order(menu.js), one access cell per dept, super/unassigned/admin locks, body without perm, no write-revoke confirm, 409 keep+toast, 1 group request, add dept(POST /system/depts, no system dept in init perm), header cleanup, logs paging(10/25/50/100), tree toggle, excel VIEW/ALL blindCnt 0, read-only(unassigned), 390px scroll');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

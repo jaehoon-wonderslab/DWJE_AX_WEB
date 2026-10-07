@@ -3,6 +3,8 @@
  *
  * 프로토타입 시절의 "계정 전환" 목록은 걷어냈습니다. 로그인한 계정 하나만 보여 주고 로그아웃합니다.
  * 2026-09-10: 상단바에서 사이드바 하단 사용자 카드로 이동 — `placement="up"` 이면 카드 위로 뜹니다.
+ * 2026-10-07: 현재 계정 줄(이름 · 사번 · 부서)은 사용자 카드와 겹쳐 뺐습니다. 카드에 이름이 보이지 않는
+ *   접힌 사이드바에서만 `showAccount` 로 보입니다.
  */
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -10,11 +12,11 @@ import { positionLabel } from '@shared/constants/accounts';
 import { DEPTS } from '@shared/constants/dataFields';
 import { useAccountSwitch } from '@domains/auth/controller/useAccountSwitch';
 import { useAuthStore } from '@shared/stores/useAuthStore';
-import { FONT_FAMILY, useCommonStyles } from '@shared/theme/styles';
+import { useCommonStyles } from '@shared/theme/styles';
 import { useTheme } from '@shared/theme/useTheme';
 import Icon from '../ui/Icon';
 
-export default function UserMenu({ onClose, placement = 'down' }) {
+export default function UserMenu({ onClose, placement = 'down', showAccount = true }) {
   const s = useCommonStyles();
   const theme = useTheme();
   const userInfo = useAuthStore((state) => state.userInfo);
@@ -40,11 +42,10 @@ export default function UserMenu({ onClose, placement = 'down' }) {
           ...theme.shadow,
         }}
       >
-        {/* 현재 계정 */}
+        {/* 현재 계정 — 사용자 카드가 이름·사번을 보일 때는 중복이라 숨깁니다 */}
+        {showAccount ? (<>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: theme.metrics.radiusSm, backgroundColor: theme.surface }}>
-          <View style={{ width: 32, height: 32, borderRadius: 99, backgroundColor: theme.color.info, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', letterSpacing: 0.2, color: '#fff' }}>{dept?.av || 'ME'}</Text>
-          </View>
+          {/* 아바타(부서 약자 동그라미)는 뺐습니다(2026-10-07) — 계정 사진을 제공할 수 없습니다 */}
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[s.textSm, { fontWeight: '600', color: theme.color.primary }]} numberOfLines={1}>
               {userInfo?.name || '게스트'} <Text style={{ fontWeight: '500', color: theme.color.mutedForeground }}>{positionLabel(userInfo?.pos)}</Text>
@@ -56,6 +57,7 @@ export default function UserMenu({ onClose, placement = 'down' }) {
         </View>
 
         <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 6 }} />
+        </>) : null}
 
         <Pressable
           onPress={handleLogout}
@@ -64,10 +66,7 @@ export default function UserMenu({ onClose, placement = 'down' }) {
           <Icon name="logout" size={14} color={theme.color.secondaryForeground} />
           <Text style={s.textSm}>로그아웃</Text>
         </Pressable>
-
-        <Text style={[s.caption, { paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8 }]}>
-          접근 권한은 계정이 아니라 소속 부서 단위로 관리됩니다.
-        </Text>
+        {/* 「접근 권한은 계정이 아니라 소속 부서 단위로 관리됩니다.」 안내는 뺐습니다(2026-10-07) */}
       </View>
     </>
   );
