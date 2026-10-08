@@ -417,6 +417,13 @@ export const setDataPerm = (deptId, fieldKey, allowed) =>
 export const saveItemPerms = ({ name, attrs, perms }) =>
   command(systemService.putSystemDataFieldsItemPerms({ name, attrs, perms }));
 
+/** 새로 발견된 응답 데이터 목록(2026-10-08, V83) — { ready, items[{attrName, firstSeenAt, lastSeenAt, seenCnt, apiPaths[], status}] } */
+export const loadDiscoveredAttrs = () => unwrap(systemService.getSystemDataFieldsDiscovered({}), { ready: false, items: [] });
+
+/** 가리지 않음(ignore=true) · 처리 전으로 되돌리기(false) */
+export const setDiscoveredIgnored = (attrNames, ignore = true) =>
+  command(systemService.putSystemDataFieldsDiscoveredIgnore({ attrNames, ignore }));
+
 /**
  * 데이터 항목 관리 — 관리 화면은 **미적용 항목까지** 봐야 하므로 /system/data-fields 를 따로 읽습니다.
  * (화면에 실제로 적용되는 목록은 로그인 때 받는 /auth/me 의 dataFields 입니다)

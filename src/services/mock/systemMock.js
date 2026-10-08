@@ -872,6 +872,28 @@ export const systemMock = {
     return ok(`${moved.length + released.length}개 열을 저장했습니다.`, { created, moved, released, applied, notApplied });
   },
 
+  // 새로 발견된 응답 데이터(2026-10-08, V83) — 목은 고정 표본 두 개
+  getSystemDataFieldsDiscovered: () => {
+    const registered = new Set(allDataFields().flatMap((f) => f.attrs));
+    if (!mockState.seenAttrs) {
+      mockState.seenAttrs = [
+        { attrName: 'reworkCnt', firstSeenAt: '2026-10-08T09:12:00', lastSeenAt: '2026-10-08T09:40:00', seenCnt: 3, apiPaths: ['/api/v1/quality/aoi/dimension/summary'], status: 'NEW', updUser: null },
+        { attrName: 'ngQtyDaily', firstSeenAt: '2026-10-08T09:30:00', lastSeenAt: '2026-10-08T09:30:00', seenCnt: 1, apiPaths: ['/api/v1/production/daily-reports/sheet'], status: 'NEW', updUser: null },
+      ];
+    }
+    return ok('', { ready: true, items: mockState.seenAttrs.filter((x) => !registered.has(x.attrName)) });
+  },
+  putSystemDataFieldsDiscoveredIgnore: ({ attrNames = [], ignore = true }) => {
+    if (!attrNames.length) return fail('E-VALID-001', '응답 데이터 이름이 없습니다.');
+    if (!mockState.seenAttrs) mockState.seenAttrs = [];
+    attrNames.forEach((a) => {
+      const row = mockState.seenAttrs.find((x) => x.attrName === a);
+      if (row) row.status = ignore ? 'IGNORED' : 'NEW';
+      else mockState.seenAttrs.push({ attrName: a, firstSeenAt: null, lastSeenAt: null, seenCnt: 0, apiPaths: [], status: ignore ? 'IGNORED' : 'NEW', updUser: null });
+    });
+    return ok(ignore ? '가리지 않음으로 처리했습니다.' : '처리 전으로 되돌렸습니다.', { attrNames, status: ignore ? 'IGNORED' : 'NEW' });
+  },
+
   // 항목별 부서 열람 저장(2026-10-07, V82) — 서버와 같은 순서: 대상 항목(재사용/새로) → 빈 항목 삭제 → 부서 반영
   putSystemDataFieldsItemPerms: ({ name, attrs = [], perms = {} }) => {
     const list = allDataFields();

@@ -155,9 +155,49 @@ function usesOf(file) {
   return out;
 }
 
+/**
+ * 표 밖에서 쓰는 값 이름의 「이름표」 — 카드 label · 차트 계열 name · 열 title 처럼 같은 요소에 붙은 글자(2026-10-08).
+ * `<StatCard label="LRR 건수" value={nz(sum.lrrCnt)} … />` 에서 lrrCnt → 「LRR 건수」.
+ * 값 이름이 나온 자리에서 앞쪽 300자 안, 요소 · 객체 경계(`/>` · `</` · `},`)를 넘지 않는 가장 가까운 이름표를 씁니다.
+ * 「새로 발견된 응답 데이터」 의 제안 항목명이 됩니다.
+ */
+const LABEL_RE = /\b(?:label|title|name|seriesName)\s*[=:]\s*\{?\s*(['"`])([^'"`$\n]{1,30})\1/g;
+function labelsOf(file) {
+  const src = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+  const out = {};
+  for (const m of src.matchAll(/(?:\?\.|\.)([a-zA-Z][A-Za-z0-9]{1,40})\b/g)) {
+    const key = m[1];
+    if (out[key]) continue;
+    let win = src.slice(Math.max(0, m.index - 300), m.index);
+    const cut = Math.max(win.lastIndexOf('/>'), win.lastIndexOf('</'), win.lastIndexOf('},'), win.lastIndexOf(');'));
+    if (cut >= 0) win = win.slice(cut + 2);
+    // 요소가 시작하는 「<」 뒤만 봅니다 — 앞 요소의 이름표를 끌어오지 않게
+    const lt = win.lastIndexOf('<');
+    if (lt >= 0) win = win.slice(lt);
+    const found = [...win.matchAll(LABEL_RE)].pop();
+    if (!found || !/[가-힣]/.test(found[2])) continue;
+    // 이름표 뒤에 보조 문구(sub · tooltip · note · placeholder)가 시작됐으면 그 안의 값이라 이름표의 값이 아닙니다
+    if (/\b(sub|tooltip|note|hint|placeholder|desc)\s*[=:]/.test(win.slice(found.index + found[0].length))) continue;
+    out[key] = found[2].trim();
+  }
+  return out;
+}
+
+/**
+ * 유형별 열 묶음 — `{ key: \`loss-${h}\`, attr: 'ngQty', title: h }` 처럼 응답 묶음(loss)의 키마다 열을 만들고
+ * 가리기 판정 이름(attr)을 붙인 자리. 묶음 이름 → 판정 이름(2026-10-08). 「새로 발견된 응답 데이터」 가 묶음의 추천 항목으로 씁니다.
+ */
+function mapAttrsOf(file) {
+  const src = fs.readFileSync(file, 'utf8');
+  const out = {};
+  for (const m of src.matchAll(/key:\s*`([a-zA-Z][A-Za-z0-9]*)-\$\{[^}]+\}`\s*,\s*attr:\s*'([A-Za-z][A-Za-z0-9]*)'/g)) out[m[1]] = m[2];
+  return out;
+}
+
 function build() {
   const screens = [];
   const uses = [];
+  const labels = [];
   for (const item of readMenu()) {
     // 라우트는 파일(`/report/ship-plan.jsx`) 이거나 폴더(`/report/scrap/index.jsx`)입니다
     const route = [`${item.path}.jsx`, `${item.path}/index.jsx`].map((r) => path.join(ROOT, 'app/(main)', r)).find((r) => fs.existsSync(r));
@@ -178,6 +218,17 @@ function build() {
     const own = (f) => f.includes(`${path.sep}src${path.sep}domains${path.sep}`) && /[\\/](view|controller)[\\/]/.test(f) && !f.includes(`${path.sep}src${path.sep}domains${path.sep}common${path.sep}`);
     if (item.group !== '시스템관리') for (const f of reachableFiles(route)) if (own(f)) usesOf(f).forEach((k) => used.add(k));
     if (used.size) uses.push({ id: item.id, name: item.name, group: item.group, keys: [...used].sort() });
+    const maps = {};
+    if (item.group !== '시스템관리') for (const f of reachableFiles(route)) if (own(f)) Object.assign(maps, mapAttrsOf(f));
+    const named = {};
+    if (item.group !== '시스템관리') for (const f of reachableFiles(route)) if (own(f)) Object.entries(labelsOf(f)).forEach(([k, v]) => { if (!named[k]) named[k] = v; });
+    if (Object.keys(named).length || Object.keys(maps).length) {
+      labels.push({
+        id: item.id, name: item.name,
+        labels: Object.fromEntries(Object.entries(named).sort(([a], [b]) => a.localeCompare(b))),
+        ...(Object.keys(maps).length ? { maps } : null),
+      });
+    }
   }
   const body = `/**
  * 자동 생성 — 직접 고치지 마십시오. \`node scripts/build-screen-columns.cjs\` 로 다시 만듭니다.
@@ -192,6 +243,13 @@ export const SCREEN_COLUMNS = ${JSON.stringify(screens, null, 2)};
  * 응답 필드명이 아닌 이름(함수 · 상태 이름)도 섞여 있습니다. 항목 표의 필드명과 맞춰 본 것만 의미가 있습니다.
  */
 export const SCREEN_USES = ${JSON.stringify(uses)};
+
+/**
+ * 화면(메뉴)마다 표 밖 값 이름의 이름표 — 카드 label · 차트 계열 name 등(가장 가까운 한글 이름표).
+ * maps — 유형별 열 묶음 이름 → 가리기 판정 이름(예: loss → ngQty).
+ * 「새로 발견된 응답 데이터」 가 제안 항목명 · 추천 항목으로 씁니다.
+ */
+export const SCREEN_LABELS = ${JSON.stringify(labels)};
 `;
   return body;
 }

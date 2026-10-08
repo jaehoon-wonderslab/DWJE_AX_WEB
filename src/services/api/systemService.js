@@ -358,6 +358,16 @@ export function putSystemDataFieldsItemPerms(params) {
   return request('putSystemDataFieldsItemPerms', params);
 }
 
+/** 새로 발견된 응답 데이터 목록 (2026-10-08, V83) */
+export function getSystemDataFieldsDiscovered(params) {
+  return request('getSystemDataFieldsDiscovered', params);
+}
+
+/** 새로 발견된 응답 데이터 — 가리지 않음 / 되돌리기 (2026-10-08, V83) */
+export function putSystemDataFieldsDiscoveredIgnore(params) {
+  return request('putSystemDataFieldsDiscoveredIgnore', params);
+}
+
 /**
  * 데이터 권한 매트릭스 조회
  *

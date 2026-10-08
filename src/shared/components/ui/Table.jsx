@@ -9,6 +9,7 @@
  *    formatter 는 빈 칸(div)만 돌려주고, 칸을 등록해 두면 다음 렌더에서 포털이 채웁니다.
  *    채운 뒤에는 행 높이를 다시 재서 두 줄 셀이 잘리지 않게 합니다.
  *  · `render` 가 없는 열은 값을 글자로 적고, 비어 있으면 '—' 를 놓습니다.
+ *  · 열에 `help: '설명'` 을 주면 머리글 제목 옆에 「?」 아이콘이 붙고, 마우스를 올리거나 초점을 주면 설명 상자가 뜹니다(줄바꿈 \n 유지).
  *  · `filterable` 을 주면 머리글에 검색 입력칸이 붙습니다.
  *    열에 `filter: 'list'` 를 주면 입력칸 대신 선택 목록이 붙습니다
  *    (Tabulator 6.x 예제 filter-header 의 gender 열과 같은 list 머리글 필터 — 값 목록 · 정확히 일치 · × 로 지우기).
@@ -31,6 +32,47 @@ import { createPortal } from 'react-dom';
 import TabulatorGrid, { GRID_INSET } from './TabulatorGrid';
 
 let cellSeq = 0;
+
+/**
+ * 머리글 제목 + 도움말 아이콘 — 아이콘에 마우스를 올리거나 초점을 주면 설명 상자를 띄웁니다(열 정의 `help`, 2026-10-08).
+ * 머리글은 Tabulator 가 그리는 HTML 이라 RN HelpTip 을 쓸 수 없고, 머리글 칸이 넘치는 내용을 자르므로
+ * 설명 상자는 body 에 붙여 아이콘 아래에 고정 위치로 띄웁니다. 줄바꿈(\n)은 그대로 보입니다.
+ */
+function helpTitle(title, help) {
+  const wrap = document.createElement('span');
+  wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px';
+  wrap.append(document.createTextNode(String(title ?? '')));
+  const icon = document.createElement('span');
+  icon.textContent = '?';
+  icon.tabIndex = 0;
+  icon.setAttribute('role', 'img');
+  icon.setAttribute('aria-label', `${title} 도움말`);
+  icon.className = 'ax-col-help';
+  icon.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:99px;'
+    + 'border:1px solid rgba(0,0,0,.25);font-size:12px;font-weight:800;line-height:1;cursor:help;color:rgb(120,120,120)';
+  let tip = null;
+  const show = () => {
+    if (tip) return;
+    tip = document.createElement('div');
+    tip.className = 'ax-col-help-tip';
+    tip.setAttribute('role', 'tooltip');
+    tip.textContent = help;
+    const r = icon.getBoundingClientRect();
+    tip.style.cssText = `position:fixed;z-index:99999;max-width:360px;white-space:pre-line;padding:10px 12px;border-radius:10px;`
+      + `background:#fff;color:rgb(28,28,28);font-size:14.5px;font-weight:500;line-height:1.5;text-align:left;`
+      + `box-shadow:0 12px 30px rgba(11,20,64,.16);border:1px solid rgba(0,0,0,.06);top:${r.bottom + 8}px;left:${Math.max(8, r.right - 360)}px`;
+    document.body.append(tip);
+  };
+  const hide = () => { tip?.remove(); tip = null; };
+  icon.addEventListener('mouseenter', show);
+  icon.addEventListener('mouseleave', hide);
+  icon.addEventListener('focus', show);
+  icon.addEventListener('blur', hide);
+  // 머리글 정렬 클릭으로 번지지 않게
+  icon.addEventListener('click', (e) => e.stopPropagation());
+  wrap.append(icon);
+  return wrap;
+}
 
 export default function Table({
   columns,
@@ -136,7 +178,8 @@ export default function Table({
           },
           variableHeight: !!col.wrap || !!col.render,
           // 목록 머리글 필터 표시(▾·손가락 커서) — tabulatorHeaders.css
-          ...(col.filter === 'list' ? { cssClass: 'ax-list-filter' } : {}),
+          ...(col.filter === 'list' ? { cssClass: 'ax-list-filter' } : {}),          // 머리글 도움말(?) — 마우스를 올리면 설명이 뜹니다(2026-10-08)
+          ...(col.help ? { titleFormatter: () => helpTitle(col.title, col.help) } : {}),
         };
         if (col.width && !stretchLast) {
           base.width = col.width;

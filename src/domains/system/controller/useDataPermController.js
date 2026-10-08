@@ -23,14 +23,41 @@ import { useUiStore } from '@shared/stores/useUiStore';
 import { downloadXls } from '@shared/utils/exportUtil';
 import * as repo from '../model/systemRepository';
 import { attrNamesOf, attrTitleOf, includedSummary, remarkOf } from '../model/dataFieldModel';
-import { buildDataItems } from '../model/dataItemModel';
-import { SCREEN_COLUMNS, SCREEN_USES } from '../model/screenColumns.generated';
+import { ENDPOINTS } from '@services/api/endpoints';
+import { GENERIC_ATTRS, buildDataItems } from '../model/dataItemModel';
+import { SCREEN_COLUMNS, SCREEN_LABELS, SCREEN_USES } from '../model/screenColumns.generated';
 
 /**
  * 항목(이름) 묶기에 넘기는 업무 화면 — 시스템관리 화면은 대상이 아닙니다(DTP-01).
  * 같은 값이 한 화면에서 여러 제목으로 나와도 제목마다 따로 넘깁니다(다른 화면의 같은 제목과 이어지게).
  */
 const ITEM_SCREENS = SCREEN_COLUMNS.filter((x) => x.group !== '시스템관리').map((x) => ({ ...x, rows: x.columns }));
+
+/**
+ * 표 밖 값 이름의 이름표 — 필드명 → [{ screen, label }] (카드 label · 차트 계열 name, 2026-10-08)
+ * 유형별 열 묶음 — 묶음 이름 → 가리기 판정 이름(loss → ngQty)
+ */
+const LABELS_OF = new Map();
+const MAP_ATTR = new Map();
+SCREEN_LABELS.forEach((x) => {
+  Object.entries(x.labels || {}).forEach(([k, label]) => {
+    if (!LABELS_OF.has(k)) LABELS_OF.set(k, []);
+    LABELS_OF.get(k).push({ screen: x.name, label });
+  });
+  Object.entries(x.maps || {}).forEach(([k, attr]) => { if (!MAP_ATTR.has(k)) MAP_ATTR.set(k, { attr, screen: x.name }); });
+});
+
+/** 화면 표 열의 응답 데이터 이름 — 이미 항목 × 부서 표에 줄로 나오므로 「새로 발견된 응답 데이터」 에서 뺍니다 */
+const SCREEN_COLUMN_KEYS = new Set(ITEM_SCREENS.flatMap((x) => x.columns.map((c) => c.field)));
+
+/**
+ * API 경로 → 화면 이름 — WEB API 목록(endpoints.js)의 경로 틀({param})과 화면 표기로 맞춥니다.
+ * 서버가 남긴 경로는 숫자 조각이 {id} 로 바뀌어 있어 틀의 {param} 자리와 같이 맞습니다.
+ */
+const PATH_SCREENS = Object.values(ENDPOINTS)
+  .filter((e) => e.method === 'GET' && e.path && e.screen)
+  .map((e) => ({ re: new RegExp(`^${e.path.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\\?\{[^}]+\\?\}/g, '[^/]+')}$`), screen: e.screen }));
+const screensOfPath = (p) => [...new Set(PATH_SCREENS.filter((x) => x.re.test(p)).map((x) => x.screen))];
 
 /**
  * 표 밖(카드 · 차트 · 요약 문구)에서 그 이름을 쓰는 화면 — 필드명 → 화면 이름들(2026-10-07 「화면 표에 없음」 피드백).
@@ -140,6 +167,44 @@ export function useDataPermController() {
     return [...set];
   }, []);
 
+  // ── 새로 발견된 응답 데이터 (2026-10-08, V83) ─────────────────────
+  //  서버가 업무 데이터 응답에서 찾은, 항목 표에 등록되지 않은 응답 값 이름. 처리 전까지 모든 부서에 보입니다.
+  //  화면 표 열에 있는 이름은 이미 위 표에 줄로 나오므로 뺍니다.
+  const discovered = useAsync(() => repo.loadDiscoveredAttrs(), [], { silent: true });
+  /** 이름이 비슷한 기존 항목 — 항목의 키가 새 이름에 들어 있으면(4자 이상) 가장 긴 것 */
+  const suggestItem = useCallback((attr) => {
+    const low = attr.toLowerCase();
+    let best = null;
+    items.forEach((it) => it.selectable.forEach((k) => {
+      if (k.length >= 4 && low.includes(k.toLowerCase()) && (!best || k.length > best.len)) best = { item: it, len: k.length };
+    }));
+    return best?.item || null;
+  }, [items]);
+  const foundRows = useMemo(() => (discovered.data?.items || [])
+    .filter((x) => !SCREEN_COLUMN_KEYS.has(x.attrName))
+    .map((x) => {
+      const screens = [...new Set((x.apiPaths || []).flatMap(screensOfPath))];
+      // 유형별 열 묶음(loss · mgmt) — 열마다 붙인 판정 이름의 항목을 추천하고, 이름은 「유형별 <항목>」
+      // lossTotals · mgmtTotals 처럼 묶음 이름으로 시작하는 합계 묶음도 같은 묶음으로 봅니다
+      const mapKey = MAP_ATTR.has(x.attrName) ? x.attrName : [...MAP_ATTR.keys()].find((k) => x.attrName.startsWith(k) && /^[A-Z]/.test(x.attrName.slice(k.length)));
+      const map = mapKey ? MAP_ATTR.get(mapKey) : null;
+      const mapItem = map ? items.find((it) => it.selectable.includes(map.attr)) : null;
+      // 카드 · 차트의 이름표 — 나온 화면의 것을 먼저
+      const named = LABELS_OF.get(x.attrName) || [];
+      const pick = named.find((n) => screens.includes(n.screen)) || named[0] || null;
+      const label = mapItem ? `유형별 ${mapItem.name}${mapKey !== x.attrName ? ' 합계' : ''}` : pick?.label || '';
+      const where = map ? `${map.screen} · 유형별 열` : pick ? `${pick.screen} · 카드·차트` : '';
+      return {
+        ...x,
+        screens,
+        generic: GENERIC_ATTRS.has(x.attrName),
+        label,
+        where,
+        suggest: mapItem || suggestItem(x.attrName) || (label ? items.find((it) => it.selectable.length && it.name === label) : null) || null,
+      };
+    }), [discovered.data, suggestItem, items]);
+  const foundNewCount = foundRows.filter((x) => x.status === 'NEW').length;
+
   /** 칸 상태 — 'on' 볼 수 있음 · 'off' 못 봄 · 'mixed' 키마다 다름 · 'na' 가릴 수 없는 항목 */
   const itemCell = useCallback((item, deptId) => {
     const dept = deptOf(deptId);
@@ -227,6 +292,26 @@ export function useDataPermController() {
     const next = itemCell(item, deptId) !== 'on';
     return run(() => repo.saveItemPerms({ name: item.name, attrs: item.selectable, perms: { [String(deptId)]: next } }));
   }, [lockReason, deptOf, itemCell, toast, run]);
+
+  /** 발견된 이름 처리 — 기존 항목에 넣기(그 항목의 부서 설정을 그대로 따름) · 새 항목 · 가리지 않음 · 되돌리기 */
+  const addFoundToItem = useCallback(async (attrName, item) => {
+    if (readOnly) { toast(NO_WRITE_TEXT); return { ok: false }; }
+    const res = await run(() => repo.saveItemPerms({ name: item.name, attrs: [...item.selectable, attrName], perms: {} }));
+    discovered.reload();
+    return res;
+  }, [readOnly, run, toast, discovered]);
+  const createFoundItem = useCallback(async (attrName, name) => {
+    if (readOnly) { toast(NO_WRITE_TEXT); return { ok: false }; }
+    const res = await run(() => repo.saveItemPerms({ name: String(name || '').trim(), attrs: [attrName], perms: {} }));
+    discovered.reload();
+    return res;
+  }, [readOnly, run, toast, discovered]);
+  const ignoreFound = useCallback(async (attrNames, ignore = true) => {
+    if (readOnly) { toast(NO_WRITE_TEXT); return { ok: false }; }
+    const res = await run(() => repo.setDiscoveredIgnored(attrNames, ignore));
+    discovered.reload();
+    return res;
+  }, [readOnly, run, toast, discovered]);
 
   /**
    * 적용 전환 계획 — 확인 창 문구를 돌려줍니다. 바꿀 수 없으면 null (DTP-04)
@@ -400,6 +485,14 @@ export function useDataPermController() {
     itemCell,
     toggleItem,
     offTableOf,
+    // 새로 발견된 응답 데이터 (2026-10-08)
+    foundRows,
+    foundNewCount,
+    foundReady: discovered.data?.ready !== false,
+    foundLoading: discovered.loading && !discovered.data,
+    addFoundToItem,
+    createFoundItem,
+    ignoreFound,
     viewCount: items.filter((it) => it.selectable.length).length,
     exportView: () => exportItems('VIEW'),
     exportAll: () => exportItems('ALL'),
